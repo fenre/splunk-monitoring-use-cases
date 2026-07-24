@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Solar Production vs Home Consumption' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_solar_production_vs_home_consumption` (UC-25.6.1), SOC dashboard panel \"Personal — Solar Production vs Home Consumption\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `_time` satisfies detection threshold for UC-25.6.1 ('Solar Production vs Home Consumption'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `solaredge:power` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.1."
+    "positiveScenario": "UC-25.6.1 positive (Solar, Production, Home, Consumption): ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `produced`, `consumed` grouped by `_time` satisfies detection threshold for 'Solar Production vs Home Consumption'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.1 negative (Home Consumption): ingest benign `personal` / `solaredge:power` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Solar Production vs Home Consumption'."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=solaredge:power\n| bin _time span=1d\n| stats sum(production_wh) as produced, sum(consumption_wh) as consumed by _time\n| eval self_sufficiency_pct=round(100*min(produced,consumed)/consumed,1)\n| sort - _time",
-  "description": "Compares how much energy your solar panels produced with how much your home used each day and calculates your self-sufficiency percentage.",
-  "value": "Compares how much energy your solar panels produced with how much your home used each day and calculates yo.... Timely UC-25.6.1 alerting on 'Solar Production vs Home Consumption' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies Home Consumption activity in UC-25.6.1 ('Solar Production vs Home Consumption') from `index=personal` sourcetype `solaredge:power`. Rolls up `produced`, `consumed` by `_time` across `1d` and pages when configured threshold. Covers Solar, Production, Home, Consumption. Personal operators treat UC-25.6.1 as the canonical signal.",
+  "value": "Operators running UC-25.6.1 on `solaredge:power` feeds shorten triage for Home Consumption tied to 'Solar Production vs Home Consumption', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest inverter production and meter consumption; schedule daily and trend your self-sufficiency percentage.",
   "visualization": "Chart of daily production versus consumption with a self-sufficiency line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Solar Production vs Home Consumption' stops polling `solaredge:power`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.1)** — Connector for 'Solar Production vs Home Consumption' stops polling `solaredge:power`; stale `produced`, `consumed` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `produced`, `consumed` over `1d` is expected for UC-25.6.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Solar Production vs Home Consumption'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

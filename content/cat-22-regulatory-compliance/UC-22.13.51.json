@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:config' where `chg` satisfies detection threshold for UC-22.13.51 ('Configuration Change Authorization Linkage for Network Devices'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `pan:config` events where `chg` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.51."
+    "positiveScenario": "UC-22.13.51 positive (Configuration, Change, Authorization, Linkage, for): ingest synthetic events into `index=network` sourcetype='pan:config' where `count` grouped by `chg`, `]` satisfies -7d for 'Configuration Change Authorization Linkage for Network Devices'. Validate lookup `esp_device_inventory.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.51 negative (Network Devices): ingest benign `network` / `pan:config` events where `chg`, `]` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Configuration Change Authorization Linkage for Network Devices'."
   },
   "dataSources": "`index=network` `sourcetype=pan:config`, `index=itsm` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=network sourcetype=pan:config earliest=-7d\n| rex field=cmd \"(?i)CHG(?<chg>[0-9]{6,10})\"\n| lookup esp_device_inventory.csv hostname AS host OUTPUT in_scope\n| where in_scope=\"true\"\n| join type=left chg [\n    search index=itsm sourcetype=chg:network earliest=-30d\n    | rename number as chg\n    | stats latest(state) as ticket_state by chg\n  ]\n| where isnull(ticket_state) OR ticket_state!=\"Closed\"\n| table _time, host, cmd, chg, ticket_state",
-  "description": "We require network configuration commits on ESP devices to reference an approved change identifier in syslog or commit comments.",
-  "value": "We require network configuration commits on ESP devices to reference an approved change identifier in syslo.... Timely UC-22.13.51 alerting on 'Configuration Change Authorization Linkage for Network Devices' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects Network Devices anomalies for UC-22.13.51 with window `the scheduled window` on `index=network` sourcetype `pan:config`. Combines `count` by `chg`, `]` and compares against -7d. Mapped to keywords Configuration, Change, Authorization, Linkage, for for dashboard routing.",
+  "value": "Alerting on Configuration, Change, Authorization, Linkage, for through UC-22.13.51 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Standardize change number format in commit templates. (2) Map devices to ESP scope. (3) Daily alert on missing tickets. (4) Escalate repeat violators. Indexes required: `index=itsm`, `index=network`; Sourcetypes: `sourcetype=chg:network`, `sourcetype=pan:config`, `sourcetype=pan:config``; Lookups: `esp_device_inventory`, `esp_device_inventory.csv`.",
   "visualization": "Table (missing linkage), Bar chart (by device), Single value (count). Key fields: `chg`, `cmd`, `host`, `ticket_state`.",
   "cimModels": [

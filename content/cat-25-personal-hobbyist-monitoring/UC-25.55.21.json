@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Cemetery Visit Coverage by Ancestor Line' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cemetery_visit_coverage_by_ancestor_line` (UC-25.55.21), SOC dashboard panel \"Personal — Cemetery Visit Coverage by Ancestor Line\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='genealogy:cemetery' where `ancestor_line` satisfies detection threshold for UC-25.55.21 ('Cemetery Visit Coverage by Ancestor Line'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `genealogy:cemetery` events where `ancestor_line` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.55.21."
+    "positiveScenario": "UC-25.55.21 positive (Cemetery, Visit, Coverage, Ancestor, Line): ingest synthetic events into `index=personal` sourcetype='genealogy:cemetery' where `total` grouped by `ancestor_line` satisfies detection threshold for 'Cemetery Visit Coverage by Ancestor Line'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.55.21 negative (Ancestor Line): ingest benign `personal` / `genealogy:cemetery` events where `ancestor_line` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Cemetery Visit Coverage by Ancestor Line'."
   },
   "dataSources": "Hints (`genealogy:hint`), cemetery visits (`genealogy:cemetery`), family-photo work (`genealogy:photo`), research ops (`genealogy:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Genealogy and family-history telemetry — Ancestry hints, cemetery visit logs, and photo-restoration queues — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=genealogy:cemetery ancestor_line=*\n| stats count as items by ancestor_line\n| eventstats sum(items) as total\n| eval share_pct=round(100*items/total,1)\n| sort - share_pct",
-  "description": "Shows how cemetery visits split across ancestor line for family-line coverage. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Shows how cemetery visits split across ancestor line for family-line coverage. Timely UC-25.55.21 alerting on 'Cemetery Visit Coverage by Ancestor Line' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.55.21 — Cemetery, Visit, Coverage, Ancestor, Line — using `index=personal` sourcetype `genealogy:cemetery`, grouped by `ancestor_line`. Outputs `total` each `the scheduled window`; alert when configured threshold. Primary focus: Ancestor Line. Purpose-built for 'Cemetery Visit Coverage by Ancestor Line' in Personal workflows.",
+  "value": "Alerting on Cemetery, Visit, Coverage, Ancestor, Line through UC-25.55.21 reduces missed training goals, stale hobby data, and connector failures by surfacing `total` early.",
   "implementation": "Capture each cemetery visits event in `genealogy:cemetery` and normalize `ancestor_line` so Splunk can compute the share by ancestor line.",
   "visualization": "Table of ancestor line with item count and share percentage.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Cemetery Visit Coverage by Ancestor Line' stops polling `genealogy:cemetery`; stale `ancestor_line` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:cemetery`. Dedup with `stats latest(*) by ancestor_line`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.55.21)** — Connector for 'Cemetery Visit Coverage by Ancestor Line' stops polling `genealogy:cemetery`; stale `total` on `ancestor_line` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total` over `1w` is expected for UC-25.55.21, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `genealogy:cemetery`. Dedup with `stats latest(*) by ancestor_line`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Cemetery Visit Coverage by Ancestor Line'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Password Policy Violations' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_password_policy_violations` (UC-9.1.6), SOC dashboard panel \"IAM — Password Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `Account_Name` satisfies `failures` > 3 for UC-9.1.6 ('Password Policy Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `failures` > 3, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.6."
+    "positiveScenario": "UC-9.1.6 positive (Password, Policy, Violations): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `count` grouped by `Account_Name` satisfies `failures` > 3 for 'Password Policy Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.6 negative (Policy Violations): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `failures` > 3, or exclude the test entity via `iam_exception_register.csv`. Variant 6 confirms zero alert rows for 'Password Policy Violations'."
   },
   "dataSources": "Security Event Log (4723 — password change attempt, 4724 — password reset attempt) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4723, 4724)\n| stats count(eval(Keywords=\"Audit Failure\")) as failures, count(eval(Keywords=\"Audit Success\")) as successes by Account_Name\n| where failures > 3",
-  "description": "Failed password changes indicate users struggling with policy or potential social engineering. Monitoring supports security awareness.",
-  "value": "Early 'Password Policy Violations' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on Policy Violations anomalies for UC-9.1.6 with window `the scheduled window` on `index=wineventlog` sourcetype `WinEventLog:Security`. Combines `count` by `Account_Name` and compares against `failures` > 3. Mapped to keywords Password, Policy, Violations for dashboard routing.",
+  "value": "Alerting on Password, Policy, Violations through UC-9.1.6 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Forward DC Security logs. Track password change success/failure rates. Alert on excessive failures per user. Monitor 4724 (admin resets) separately as these bypass self-service and may indicate social engineering.",
   "visualization": "Table (users with failures), Bar chart (failure rate by user), Pie chart (change vs reset).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'Password Policy Violations' shifts `count` over `span=1h` while `Account_Name` remains in-scope for UC-9.1.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security`** — Scheduled automation elevates `src` without crossing `failures` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `Account_Name` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.1.6)** — Planned work for 'Password Policy Violations' shifts `count` over `span=1h` while `Account_Name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security`** — Scheduled automation elevates `src` without crossing `failures` > 3 for UC-9.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-9.1.6 on `Account_Name` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

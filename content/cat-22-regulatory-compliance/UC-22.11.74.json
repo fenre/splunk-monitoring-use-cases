@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `subnet` satisfies `days_since` > 90 for UC-22.11.74 ('Internal Authenticated Vulnerability Scan Coverage by CDE Subnet'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vm` / `tenable:sc:vuln` events where `subnet` stays below `days_since` > 90, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.74."
+    "positiveScenario": "UC-22.11.74 positive (Internal, Authenticated, Vulnerability, Scan, Coverage): ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `count` grouped by `subnet` satisfies `days_since` > 90 for 'Internal Authenticated Vulnerability Scan Coverage by CDE Subnet'. Validate lookup `pci_cde_subnets_summary.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.74 negative (CDE Subnet): ingest benign `vm` / `tenable:sc:vuln` events where `subnet` stays below `days_since` > 90, or exclude the test entity via `compliance_exception_register.csv`. Variant 5 confirms zero alert rows for 'Internal Authenticated Vulnerability Scan Coverage by CDE Subnet'."
   },
   "dataSources": "`index=vm` `tenable:sc:vuln` with `scan_name`, `host_ip` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Tenable (4060) (Splunkbase)",
   "spl": "index=vm sourcetype=\"tenable:sc:vuln\" earliest=-90d\n| where match(scan_name,\"(?i)internal|credentialed|CDE)\")\n| eval subnet=replace(host_ip,\"^(\\\\d+\\\\.\\\\d+\\\\.\\\\d+)\\\\.\\\\d+$\",\"\\\\1.0/24\")\n| lookup pci_cde_subnets_summary.csv subnet OUTPUT required_scan\n| where required_scan=\"true\"\n| stats latest(_time) as last_scan by subnet\n| eval days_since=round((now()-last_scan)/86400,1)\n| where days_since>90 OR isnull(last_scan)\n| sort days_since",
-  "description": "Verifies each CDE /24 received at least one credentialed scan in the rolling quarter so internal vulnerability scanning frequency and scope requirements are met with machine evidence.",
-  "value": "Verifies each CDE /24 received at least one credentialed scan in the rolling quarter so internal vulnerabil.... Timely UC-22.11.74 alerting on 'Internal Authenticated Vulnerability Scan Coverage by CDE Subnet' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces 'Internal Authenticated Vulnerability Scan Coverage by CDE Subnet' patterns (UC-22.11.74) sourced from `index=vm` sourcetype `tenable:sc:vuln`. Threshold bundle: `days_since` > 90; aggregation grain: `subnet`; metrics: `count`. Enrichment path: lookup `pci_cde_subnets_summary.csv`.",
+  "value": "UC-22.11.74 gives Compliance teams earlier visibility into CDE Subnet through `tenable:sc:vuln` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Normalize IP field names from Tenable TA. (2) Adjust `subnet` extraction for IPv6 if in scope. (3) Alert subnets over 90 days. (4) Map exceptions to documented outage windows. Indexes required: `index=vm`; Sourcetypes: `sourcetype=tenable:sc:vuln`; Lookups: `pci_cde_subnets_summary`, `pci_cde_subnets_summary.csv`.",
   "visualization": "Table (subnet, days_since), choropleth if subnets mapped to sites, gauge (worst gap).",
   "cimModels": [

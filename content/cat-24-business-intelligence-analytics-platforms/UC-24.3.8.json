@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Looker Datagroup Trigger Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_looker_datagroup_trigger_lag` (UC-24.3.8), SOC dashboard panel \"Operations — Looker Datagroup Trigger Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `datagroup_name` satisfies `max_lag` > 60 for UC-24.3.8 ('Looker Datagroup Trigger Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `looker:system_activity` events where `datagroup_name` stays below `max_lag` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.3.8."
+    "positiveScenario": "UC-24.3.8 positive (Looker, Datagroup, Trigger, Lag): ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `max_lag`, `avg_lag` grouped by `datagroup_name` satisfies `max_lag` > 60 for 'Looker Datagroup Trigger Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.3.8 negative (Trigger Lag): ingest benign `bi` / `looker:system_activity` events where `datagroup_name` stays below `max_lag` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Looker Datagroup Trigger Lag'."
   },
   "dataSources": "Looker System Activity Explores (`looker:system_activity`), Looker API (`looker:api`), and instance logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Looker System Activity (i__looker) via DB Connect or the Looker API (`/api/4.0`); Looker instance logs via Universal Forwarder; scheduled plan and query events via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity source=\"datagroup\"\n| eval lag_min=round((trigger_time-data_time)/60,1)\n| stats max(lag_min) as max_lag, avg(lag_min) as avg_lag by datagroup_name\n| where max_lag>60\n| sort - max_lag",
-  "description": "Measures the delay between when a Looker datagroup's underlying data changed and when its caching trigger fired, which governs how fresh PDTs and cached results are.",
-  "value": "Measures the delay between when a Looker datagroup's underlying data changed and when its caching trigger f.... Timely UC-24.3.8 alerting on 'Looker Datagroup Trigger Lag' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces Trigger Lag anomalies for UC-24.3.8 with window `the scheduled window` on `index=bi` sourcetype `looker:system_activity`. Combines `max_lag`, `avg_lag` by `datagroup_name` and compares against `max_lag` > 60. Mapped to keywords Looker, Datagroup, Trigger, Lag for dashboard routing.",
+  "value": "Alerting on Looker, Datagroup, Trigger, Lag through UC-24.3.8 reduces operational risk and delayed incident response by surfacing `max_lag`, `avg_lag` early.",
   "implementation": "Ingest datagroup events from System Activity; schedule hourly and alert when lag exceeds the datagroup's `max_cache_age`.",
   "visualization": "Table of datagroup by lag, trend line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Looker Datagroup Trigger Lag' shifts `max` over `span=1h` while `datagroup_name` remains in-scope for UC-24.3.8. Cross-check CMDB CHG.\n\n2. **Batch `max` on `looker:system_activity`** — Scheduled automation elevates `lag_min` without crossing `max_lag` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datagroup_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for `datagroup_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `datagroup_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.3.8)** — Planned work for 'Looker Datagroup Trigger Lag' shifts `max_lag`, `avg_lag` over `span=1h` while `datagroup_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `looker:system_activity`** — Scheduled automation elevates `lag_min` without crossing `max_lag` > 60 for UC-24.3.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `datagroup_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for UC-24.3.8 on `datagroup_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `datagroup_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

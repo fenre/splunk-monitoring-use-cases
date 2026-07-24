@@ -53,14 +53,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=lms` sourcetype='completion' where `employee_id` satisfies detection threshold for UC-22.46.1 ('Mandatory security training — completion SLA by role'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `lms` / `completion` events where `employee_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.46.1."
+    "positiveScenario": "UC-22.46.1 positive (Mandatory, security, training, completion, SLA): ingest synthetic events into `index=lms` sourcetype='completion' where `last_completion` grouped by `employee_id` satisfies -365d for 'Mandatory security training — completion SLA by role'. Validate lookup `hr_roster.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.46.1 negative (by role): ingest benign `lms` / `completion` events where `employee_id` stays below -365d, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'Mandatory security training — completion SLA by role'."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=lms sourcetype=completion earliest=-365d course_id=security_awareness\n| stats max(_time) as last_completion by employee_id\n| lookup hr_roster.csv employee_id OUTPUT role status\n| where status=\"active\" AND (isnull(last_completion) OR (now()-last_completion)>31536000)\n| table employee_id role last_completion",
-  "description": "Produces per-employee completion evidence for the mandatory annual training. Gaps are surfaced in time for HR to re-enroll before the cycle closes.",
-  "value": "Produces per-employee completion evidence for the mandatory annual training. Timely UC-22.46.1 alerting on 'Mandatory security training — completion SLA by role' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.46.1 for Mandatory, security, training, completion, SLA over `index=lms` sourcetype `completion` with thresholds -365d. Groups `last_completion` by `employee_id` each `the scheduled window`. Differentiated by lookup `hr_roster.csv`. Supports repeatable compliance triage for 'Mandatory security training — completion SLA by role'.",
+  "value": "For 'Mandatory security training — completion SLA by role', UC-22.46.1 converts `last_completion` on `completion` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ingest LMS events; (2) refresh hr_roster.csv nightly; (3) run weekly; (4) on finding, auto-enrol via HR integration. Indexes required: `index=lms`; Sourcetypes: `sourcetype=completion`.",
   "visualization": "Bar chart of completion by department, table of overdue, single-value '% completion in cycle'. Key fields: `employee_id`, `last_completion`, `role`.",
   "cimModels": [],

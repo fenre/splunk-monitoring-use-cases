@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SSL Certificate Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ssl_certificate_monitoring` (UC-8.1.5), SOC dashboard panel \"Operations — SSL Certificate Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=certificates` sourcetype='cert_check' where `entity` satisfies `days_until_expiry` < 30 for UC-8.1.5 ('SSL Certificate Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `certificates` / `cert_check` events where `entity` stays below `days_until_expiry` < 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.5."
+    "positiveScenario": "UC-8.1.5 positive (SSL, Certificate, Monitoring): ingest synthetic events into `index=certificates` sourcetype='cert_check' where `count` grouped by `entity` satisfies `days_until_expiry` < 30 for 'SSL Certificate Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.5 negative (Certificate Monitoring): ingest benign `certificates` / `cert_check` events where `entity` stays below `days_until_expiry` < 30, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'SSL Certificate Monitoring'."
   },
   "dataSources": "Certificate check scripted input, web server config parsing Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input (openssl s_client), custom certificate check — Universal Forwarder (Splunkbase 617)",
   "spl": "index=certificates sourcetype=\"cert_check\"\n| eval days_until_expiry=round((cert_expiry_epoch-now())/86400)\n| where days_until_expiry < 30\n| table host, port, cn, issuer, days_until_expiry\n| sort days_until_expiry",
-  "description": "Expired SSL certificates cause complete service outage and browser security warnings. Proactive monitoring prevents this entirely avoidable failure.",
-  "value": "Early 'SSL Certificate Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-8.1.5 — SSL, Certificate, Monitoring — using `index=certificates` sourcetype `cert_check`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_until_expiry` < 30. Primary focus: Certificate Monitoring. Purpose-built for 'SSL Certificate Monitoring' in Operations workflows.",
+  "value": "UC-8.1.5 accelerates insight into Certificate Monitoring ('SSL Certificate Monitoring') by tracking `activity` on `cert_check` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy scripted input that runs `openssl s_client` against all HTTPS endpoints daily. Parse certificate details (CN, SAN, expiry, issuer). Alert at 30, 14, and 7 days before expiry. Maintain endpoint inventory via lookup.",
   "visualization": "Table (certificates with expiry dates), Single value (certs expiring within 30d), Status grid (endpoint × cert status).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `certificates`** — Planned work for 'SSL Certificate Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cert_check`** — Scheduled automation elevates `days_until_expiry` without crossing `days_until_expiry` < 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_check`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `certificates` (UC-8.1.5)** — Planned work for 'SSL Certificate Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cert_check`** — Scheduled automation elevates `days_until_expiry` without crossing `days_until_expiry` < 30 for UC-8.1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_check`** — First 48h baseline for UC-8.1.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

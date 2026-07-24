@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Controller Failover Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_controller_failover_events` (UC-6.1.6), SOC dashboard panel \"Operations — Controller Failover Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='netapp:ontap:ems' where `entity` satisfies detection threshold for UC-6.1.6 ('Controller Failover Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `netapp:ontap:ems` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.6."
+    "positiveScenario": "UC-6.1.6 positive (Controller, Failover, Events): ingest synthetic events into `index=storage` sourcetype='netapp:ontap:ems' where `count` grouped by `entity` satisfies detection threshold for 'Controller Failover Events'. Validate filter `\"cf.takeover*\" OR \"cf.giveback*\" OR failover`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.6 negative (Failover Events): ingest benign `storage` / `netapp:ontap:ems` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Controller Failover Events'."
   },
   "dataSources": "Array event logs, cluster status Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vendor TA, syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"netapp:ontap:ems\"\n| search \"cf.takeover*\" OR \"cf.giveback*\" OR failover\n| table _time, node, event, message",
-  "description": "Controller failovers indicate hardware problems and may cause transient performance impact. Quick detection ensures rapid root cause analysis.",
-  "value": "Early 'Controller Failover Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-6.1.6 — Controller, Failover, Events — using `index=storage` sourcetype `netapp:ontap:ems`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"cf.takeover*\" OR \"cf.giveback*\" OR failover`. Purpose-built for 'Controller Failover Events' in Operations workflows.",
+  "value": "Operators running UC-6.1.6 on `netapp:ontap:ems` feeds shorten triage for Failover Events tied to 'Controller Failover Events', lowering operational risk and delayed incident response.",
   "implementation": "For NetApp ONTAP: ingest EMS events via syslog (UDP/TCP) or use `TA-netapp_ontap` for REST-based EMS polling. Key EMS message families: `cf.takeover`, `cf.giveback`, `ha.interconnect`. Alert on any takeover outside a scheduled change window, or any giveback failure. Include `cluster`, `node`, and `partner` fields in the alert for storage operations handoff.",
   "visualization": "Timeline (failover events), Single value (days since last failover), Table (event details).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Controller Failover Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.1.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:ems`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:ems`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.6)** — Planned work for 'Controller Failover Events' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"cf.takeover*\" OR \"cf.giveback*\" OR failover`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:ems`** — Scheduled automation elevates `src` without crossing configured threshold for UC-6.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:ems`** — First 48h baseline for UC-6.1.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp",
     "syslog"

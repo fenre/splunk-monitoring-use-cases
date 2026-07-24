@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Edge-to-Cloud Sync Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_edge_to_cloud_sync_failures` (UC-14.4.17), SOC dashboard panel \"Operations — Edge-to-Cloud Sync Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='edge:sync' where `edge_id` satisfies `backlog_mb` > 100 for UC-14.4.17 ('Edge-to-Cloud Sync Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `edge:sync` events where `edge_id` stays below `backlog_mb` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.17."
+    "positiveScenario": "UC-14.4.17 positive (Edge, Cloud, Sync, Failures): ingest synthetic events into `index=iot` sourcetype='edge:sync' where `count` grouped by `edge_id`, `cloud_endpoint` satisfies `backlog_mb` > 100, or `last_success_age_sec` > 600 for 'Edge-to-Cloud Sync Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.4.17 negative (Sync Failures): ingest benign `iot` / `edge:sync` events where `edge_id`, `cloud_endpoint` stays below `backlog_mb` > 100, or `last_success_age_sec` > 600, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Edge-to-Cloud Sync Failures'."
   },
   "dataSources": "`sourcetype=\"edge:sync\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Edge agent logs (Azure IoT Edge, Greengrass) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"edge:sync\"\n| where status=\"failed\" OR backlog_mb > 100 OR last_success_age_sec > 600\n| stats latest(backlog_mb) as backlog, latest(status) as st by edge_id, cloud_endpoint\n| sort -backlog",
-  "description": "Store-and-forward gaps mean stale dashboards and missed alerts for remote sites. Searches `index=iot` with sourcetype `edge:sync` for UC-14.4.17, aggregating `count` by `edge_id` over `the scheduled window`. Alerts when grouped results cross `backlog_mb` > 100 in the saved search. Gives Operations operators a repeatable signal for 'Edge-to-Cloud Sync Failures' without manual log review.",
-  "value": "Early 'Edge-to-Cloud Sync Failures' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-14.4.17 — Edge, Cloud, Sync, Failures — using `index=iot` sourcetype `edge:sync`, grouped by `edge_id`, `cloud_endpoint`. Outputs `count` each `the scheduled window`; alert when `backlog_mb` > 100, or `last_success_age_sec` > 600. Primary focus: Sync Failures. Purpose-built for 'Edge-to-Cloud Sync Failures' in Operations workflows.",
+  "value": "UC-14.4.17 helps teams contain Edge, Cloud, Sync, Failures scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Parse sync success, backoff, and queue depth. Alert on failure or growing backlog. Correlate with WAN outages.",
   "visualization": "Table (edges with backlog), Line chart (backlog MB), Single value (edges in sync).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'Edge-to-Cloud Sync Failures' shifts `count` over `span=1h` while `edge_id` remains in-scope for UC-14.4.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `edge:sync`** — Scheduled automation elevates `cloud_endpoint` without crossing `backlog_mb` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `edge_id`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge:sync`** — First 48h baseline for `edge_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `edge_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.4.17)** — Planned work for 'Edge-to-Cloud Sync Failures' shifts `count` over `span=1h` while `edge_id`, `cloud_endpoint` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `edge:sync`** — Scheduled automation elevates `cloud_endpoint` without crossing `backlog_mb` > 100 for UC-14.4.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `edge_id`, `cloud_endpoint`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `edge:sync`** — First 48h baseline for UC-14.4.17 on `edge_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `edge_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure"
   ],

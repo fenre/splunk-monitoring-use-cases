@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Rogue Device Detection' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_rogue_device_detection` (UC-17.1.12), SOC dashboard panel \"Network — Rogue Device Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:auth' where `mac` satisfies `count` >= 3 for UC-17.1.12 ('Rogue Device Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nac` / `cisco:ise:auth` events where `mac` stays below `count` >= 3, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.12."
+    "positiveScenario": "UC-17.1.12 positive (Rogue, Device, Detection): ingest synthetic events into `index=nac` sourcetype='cisco:ise:auth' where `count` grouped by `mac`, `switch`, `location` satisfies `count` >= 3 for 'Rogue Device Detection'. Validate lookup `corp_device_inventory.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.12 negative (Device Detection): ingest benign `nac` / `cisco:ise:auth` events where `mac`, `switch`, `location` stays below `count` >= 3, or exclude the test entity via `network_exception_register.csv`. Variant 3 confirms zero alert rows for 'Rogue Device Detection'."
   },
   "dataSources": "ISE authentication logs, profiling Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_cisco-ise`, `TA-cisco_ios`, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:auth\" earliest=-24h\n| eval mac=upper(replace(endpoint_mac,\":\",\"-\"))\n| lookup corp_device_inventory.csv mac OUTPUT asset_tag\n| where isnull(asset_tag) AND match(auth_status,\"(?i)success|pass\")\n| stats count by mac, switch, location\n| where count>=3\n| sort -count",
-  "description": "Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — common NAC use case for unauthorized hardware.",
-  "value": "Identifies MACs or devices that authenticate or probe but are not in the corporate device inventory — commo.... Timely UC-17.1.12 alerting on 'Rogue Device Detection' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
+  "description": "Surfaces when Device Detection criteria fire for 'Rogue Device Detection' (UC-17.1.12) in `index=nac` sourcetype `cisco:ise:auth`. Pipeline aggregates `count` by `mac`, `switch`, `location` over `the scheduled window`. Alert logic enforces `count` >= 3. SPL signature: lookup `corp_device_inventory.csv`. Eliminates manual hunting for UC-17.1.12 conditions.",
+  "value": "UC-17.1.12 helps teams contain Rogue, Device, Detection scenarios and reduce unauthorized access, segmentation drift, and NAC policy failures before incidents compound.",
   "implementation": "Maintain `corp_device_inventory.csv` from MDM/CMDB (MAC, owner). Tune minimum event count to reduce noise. Correlate with port-security and DHCP snooping if available.",
   "visualization": "Table (unknown MACs), Bar chart (rogue events by site), Timeline (first seen).",
   "cimModels": [

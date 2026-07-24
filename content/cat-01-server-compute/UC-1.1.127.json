@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Swap Activity Rate Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_swap_activity_rate_trending` (UC-1.1.127), SOC dashboard panel \"Linux — Swap Activity Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' where `host` satisfies detection threshold for UC-1.1.127 ('Swap Activity Rate Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `vmstat` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.127."
+    "positiveScenario": "UC-1.1.127 positive (Swap, Activity, Rate, Trending): ingest synthetic events into `index=os` sourcetype='vmstat' where `avg_rate`, `std_rate`, `baseline` grouped by `host`, `_time` satisfies detection threshold for 'Swap Activity Rate Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.127 negative (Rate Trending): ingest benign `os` / `vmstat` events where `host`, `_time` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'Swap Activity Rate Trending'."
   },
   "dataSources": "`sourcetype=vmstat` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| eval swap_rate = si + so\n| bin _time span=1h\n| stats avg(swap_rate) as avg_rate, stdev(swap_rate) as std_rate by host, _time\n| eventstats avg(avg_rate) as baseline stdev(avg_rate) as baseline_std by host\n| eval threshold = baseline + (2 * coalesce(baseline_std, 50))\n| where avg_rate > threshold",
-  "description": "Pages swapped in/out per second (distinct from swap usage %) indicates memory pressure and I/O load. High swap I/O rate degrades performance even before swap usage is critical.",
-  "value": "Early 'Swap Activity Rate Trending' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces when Rate Trending criteria fire for 'Swap Activity Rate Trending' (UC-1.1.127) in `index=os` sourcetype `vmstat`. Pipeline aggregates `avg_rate`, `std_rate`, `baseline` by `host`, `_time` over `1h`. Alert logic enforces configured threshold. Title terms: Swap, Activity, Rate, Trending. Eliminates manual hunting for UC-1.1.127 conditions.",
+  "value": "UC-1.1.127 helps teams contain Swap, Activity, Rate, Trending scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
   "implementation": "Enable vmstat scripted input in Splunk_TA_nix (interval=60). Fields `si` (swap in) and `so` (swap out) represent pages per interval. Create baseline of normal swap rate per host; alert when swap I/O rate exceeds 2x baseline or exceeds 100 pages/sec sustained for 10 minutes.",
   "visualization": "Line chart (swap in/out rates by host), Table of hosts with elevated swap I/O, Single value (current swap rate).",
   "cimModels": [

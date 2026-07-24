@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Index Fragmentation Maintenance Priority' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_index_fragmentation_maintenance_priority` (UC-7.1.36), SOC dashboard panel \"Operations — Index Fragmentation Maintenance Priority\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:index_stats' where `entity` satisfies `avg_fragmentation_pct` > 30 for UC-7.1.36 ('Index Fragmentation Maintenance Priority'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:index_stats` events where `entity` stays below `avg_fragmentation_pct` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.36."
+    "positiveScenario": "UC-7.1.36 positive (Index, Fragmentation, Maintenance, Priority): ingest synthetic events into `index=database` sourcetype='dbconnect:index_stats' where `count` grouped by `entity` satisfies `avg_fragmentation_pct` > 30, or `page_count` > 1000 for 'Index Fragmentation Maintenance Priority'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.36 negative (Maintenance Priority): ingest benign `database` / `dbconnect:index_stats` events where `entity` stays below `avg_fragmentation_pct` > 30, or `page_count` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Index Fragmentation Maintenance Priority'."
   },
   "dataSources": "`sys.dm_db_index_physical_stats` (avg_fragmentation_in_percent, page_count) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:index_stats\"\n| eval priority_score=avg_fragmentation_pct * page_count / 1000000\n| where avg_fragmentation_pct > 30 AND page_count > 1000\n| sort -priority_score\n| head 50",
-  "description": "Ranks indexes by fragmentation × page_count to schedule rebuilds during maintenance windows. Extends UC-7.1.9 with prioritization score.",
-  "value": "Early 'Index Fragmentation Maintenance Priority' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Index Fragmentation Maintenance Priority' (UC-7.1.36) using `index=database` sourcetype `dbconnect:index_stats` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `avg_fragmentation_pct` > 30, or `page_count` > 1000. Keywords: Index, Fragmentation, Maintenance, Priority. Focuses on Maintenance Priority behaviour so operations teams can triage UC-7.1.36 without ad-hoc log review.",
+  "value": "UC-7.1.36 accelerates insight into Maintenance Priority ('Index Fragmentation Maintenance Priority') by tracking `activity` on `dbconnect:index_stats` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Weekly job. Export top 50 for DBA runbook. Exclude tiny indexes via page_count floor.",
   "visualization": "Table (index, frag %, pages, score), Bar chart (top priority_score).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Index Fragmentation Maintenance Priority' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.36. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:index_stats`** — Scheduled automation elevates `priority_score` without crossing `avg_fragmentation_pct` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:index_stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.36)** — Planned work for 'Index Fragmentation Maintenance Priority' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:index_stats`** — Scheduled automation elevates `priority_score` without crossing `avg_fragmentation_pct` > 30 for UC-7.1.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:index_stats`** — First 48h baseline for UC-7.1.36 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

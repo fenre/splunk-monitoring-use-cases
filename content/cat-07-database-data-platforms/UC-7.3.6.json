@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Redis Memory Fragmentation Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_redis_memory_fragmentation_ratio` (UC-7.3.6), SOC dashboard panel \"Operations — Redis Memory Fragmentation Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='redis:info' where `host` satisfies `mem_fragmentation_ratio` > 1.5 for UC-7.3.6 ('Redis Memory Fragmentation Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `redis:info` events where `host` stays below `mem_fragmentation_ratio` > 1.5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.6."
+    "positiveScenario": "UC-7.3.6 positive (Redis, Memory, Fragmentation, Ratio): ingest synthetic events into `index=database` sourcetype='redis:info' where `frag_ratio` grouped by `host` satisfies `mem_fragmentation_ratio` > 1.5, or `frag_ratio` > 1.5 for 'Redis Memory Fragmentation Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.6 negative (Fragmentation Ratio): ingest benign `database` / `redis:info` events where `host` stays below `mem_fragmentation_ratio` > 1.5, or `frag_ratio` > 1.5, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Redis Memory Fragmentation Ratio'."
   },
   "dataSources": "redis-cli INFO memory (mem_fragmentation_ratio) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (redis-cli INFO memory) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"redis:info\"\n| where mem_fragmentation_ratio > 1.5\n| timechart span=15m avg(mem_fragmentation_ratio) as frag_ratio by host\n| where frag_ratio > 1.5",
-  "description": "Fragmentation ratio > 1.5 indicating memory inefficiency. High fragmentation wastes RAM and can trigger OOM or evictions under memory pressure.",
-  "value": "Early 'Redis Memory Fragmentation Ratio' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Redis Memory Fragmentation Ratio' (UC-7.3.6) using `index=database` sourcetype `redis:info` by aggregating `frag_ratio` grouped by `host` over `15m` and alerting when `mem_fragmentation_ratio` > 1.5, or `frag_ratio` > 1.5. Keywords: Redis, Memory, Fragmentation, Ratio. Focuses on Fragmentation Ratio behaviour so operations teams can triage UC-7.3.6 without ad-hoc log review.",
+  "value": "UC-7.3.6 accelerates insight into Fragmentation Ratio ('Redis Memory Fragmentation Ratio') by tracking `frag_ratio` on `redis:info` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Create scripted input running `redis-cli INFO memory` every 15 minutes. Parse `mem_fragmentation_ratio` (used_memory_rss/used_memory). Alert when ratio exceeds 1.5. Track `used_memory_rss` and `used_memory` for trend analysis. Consider `MEMORY PURGE` (Redis 4+) or restart for severe fragmentation. Correlate with eviction rate.",
   "visualization": "Line chart (fragmentation ratio over time), Gauge (current ratio), Table (hosts with high fragmentation).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Redis Memory Fragmentation Ratio' shifts `avg` over `span=15m` while `host` remains in-scope for UC-7.3.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `src` without crossing `mem_fragmentation_ratio` > 1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.3.6)** — Planned work for 'Redis Memory Fragmentation Ratio' shifts `frag_ratio` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `src` without crossing `mem_fragmentation_ratio` > 1.5 for UC-7.3.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.3.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],

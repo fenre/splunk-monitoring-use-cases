@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anchor-Watch Drag Alarm' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anchor_watch_drag_alarm` (UC-25.43.2), SOC dashboard panel \"Personal — Anchor-Watch Drag Alarm\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mooring:status' where `entity` satisfies detection threshold for UC-25.43.2 ('Anchor-Watch Drag Alarm'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mooring:status` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.2."
+    "positiveScenario": "UC-25.43.2 positive (Anchor, Watch, Drag, Alarm): ingest synthetic events into `index=personal` sourcetype='mooring:status' where `count` grouped by `entity` satisfies detection threshold for 'Anchor-Watch Drag Alarm'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.43.2 negative (Drag Alarm): ingest benign `personal` / `mooring:status` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Anchor-Watch Drag Alarm'."
   },
   "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mooring:status event=anchor\n| eval drift_m=round(sqrt(pow(lat_m-set_lat_m,2)+pow(lon_m-set_lon_m,2)),1)\n| where drift_m>swing_radius_m\n| sort - _time\n| table _time drift_m swing_radius_m",
-  "description": "Raises an alarm when the boat drifts beyond its anchor swing circle, warning that the anchor is dragging. Searches `index=personal` with sourcetype `mooring:status` for UC-25.43.2, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Anchor-Watch Drag Alarm' without manual log review.",
-  "value": "Raises an alarm when the boat drifts beyond its anchor swing circle, warning that the anchor is dragging. Timely UC-25.43.2 alerting on 'Anchor-Watch Drag Alarm' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies Drag Alarm anomalies for UC-25.43.2 with window `the scheduled window` on `index=personal` sourcetype `mooring:status`. Combines `count` by `entity` and compares against configured threshold. Mapped to keywords Anchor, Watch, Drag, Alarm for dashboard routing.",
+  "value": "Alerting on Anchor, Watch, Drag, Alarm through UC-25.43.2 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Ingest GPS anchor-watch data into `index=personal`; alert when drift exceeds the swing radius.",
   "visualization": "Map of anchor position versus swing circle with drift alerts.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anchor-Watch Drag Alarm' stops polling `mooring:status`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mooring:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.43.2)** — Connector for 'Anchor-Watch Drag Alarm' stops polling `mooring:status`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.43.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mooring:status`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Anchor-Watch Drag Alarm'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

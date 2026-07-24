@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'FamCal Event Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_famcal_event_sync_gap_watch` (UC-25.23.61), SOC dashboard panel \"Personal — FamCal Event Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='famcal:event' where `calendar_name` satisfies `hours_since` > 24 for UC-25.23.61 ('FamCal Event Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `famcal:event` events where `calendar_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.23.61."
+    "positiveScenario": "UC-25.23.61 positive (FamCal, Event, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='famcal:event' where `last_seen` grouped by `calendar_name` satisfies `hours_since` > 24 for 'FamCal Event Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.23.61 negative (Gap Watch): ingest benign `personal` / `famcal:event` events where `calendar_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'FamCal Event Sync Gap Watch'."
   },
   "dataSources": "Baby feeds (`baby:feed`), baby sleep (`baby:sleep`), diaper changes (`diaper:change`), chore completions (`chore:completion`), allowance ledger (`allowance:ledger`), family calendar (`family:calendar`), growth measurements (`growth:measurement`), screen time (`screentime:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Baby-tracking app exports (Huckleberry/Baby Daybook), chore and allowance boards, shared family calendars, screen-time reports, and growth logs via Splunk HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=famcal:event\n| stats max(_time) as last_seen by calendar_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when FamCal event data has stopped arriving for a given calendar. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when FamCal event data has stopped arriving for a given calendar. Timely UC-25.23.61 alerting on 'FamCal Event Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects Gap Watch anomalies for UC-25.23.61 with window `the scheduled window` on `index=personal` sourcetype `famcal:event`. Combines `last_seen` by `calendar_name` and compares against `hours_since` > 24. Mapped to keywords FamCal, Event, Sync, Gap, Watch for dashboard routing.",
+  "value": "Alerting on FamCal, Event, Sync, Gap, Watch through UC-25.23.61 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Track the latest event time per calendar and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'FamCal Event Sync Gap Watch' stops polling `famcal:event`; stale `calendar_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `famcal:event`. Dedup with `stats latest(*) by calendar_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.23.61)** — Connector for 'FamCal Event Sync Gap Watch' stops polling `famcal:event`; stale `last_seen` on `calendar_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.23.61, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `famcal:event`. Dedup with `stats latest(*) by calendar_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'FamCal Event Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

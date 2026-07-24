@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'RDS Performance Insights Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rds_performance_insights_trending` (UC-4.1.62), SOC dashboard panel \"Operations — RDS Performance Insights Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `DBInstanceIdentifier` satisfies detection threshold for UC-4.1.62 ('RDS Performance Insights Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `DBInstanceIdentifier` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.62."
+    "positiveScenario": "UC-4.1.62 positive (RDS, Performance, Insights, Trending): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `dbload`, `baseline` grouped by `DBInstanceIdentifier` satisfies detection threshold for 'RDS Performance Insights Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.62 negative (Insights Trending): ingest benign `aws` / `aws:cloudwatch` events where `DBInstanceIdentifier` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'RDS Performance Insights Trending'."
   },
   "dataSources": "Performance Insights API export, `sourcetype=aws:cloudwatch` (PI metrics), RDS log exports Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/RDS\" metric_name=\"DBLoad\" statistic=\"Average\"\n| timechart span=1h avg(Average) as dbload by DBInstanceIdentifier\n| streamstats window=168 global=f avg(dbload) as baseline by DBInstanceIdentifier\n| where dbload > baseline * 1.5",
-  "description": "Performance Insights exposes DB load by wait state; trending top SQL and waits guides index and instance right-sizing beyond raw CPU.",
-  "value": "Early 'RDS Performance Insights Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-4.1.62 — RDS, Performance, Insights, Trending — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `DBInstanceIdentifier`. Outputs `dbload`, `baseline` each `1h`; alert when configured threshold. Primary focus: Insights Trending. Purpose-built for 'RDS Performance Insights Trending' in Operations workflows.",
+  "value": "Tracking `dbload`, `baseline` via UC-4.1.62 on `aws:cloudwatch` feeds improves response to 'RDS Performance Insights Trending' and reduces operational risk and delayed incident response.",
   "implementation": "Enable Performance Insights (7–30 day retention). Export `DBLoad`, `DBLoadCPU`, `DBLoadNonCPU` via API or CloudWatch where available. Alert on sustained elevation vs weekly baseline. Join with application release times.",
   "visualization": "Line chart (DB load vs baseline), Table (instance, wait class if ingested), Area chart (CPU vs non-CPU load).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'RDS Performance Insights Trending' shifts `avg` over `span=1h` while `DBInstanceIdentifier` remains in-scope for UC-4.1.62. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DBInstanceIdentifier`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `DBInstanceIdentifier` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DBInstanceIdentifier`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.62)** — Planned work for 'RDS Performance Insights Trending' shifts `dbload`, `baseline` over `span=1h` while `DBInstanceIdentifier` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.1.62. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DBInstanceIdentifier`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.62 on `DBInstanceIdentifier` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DBInstanceIdentifier`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

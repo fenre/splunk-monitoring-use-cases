@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Service-to-Service Call Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_service_to_service_call_failures` (UC-8.4.5), SOC dashboard panel \"Operations — Service-to-Service Call Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:access' where `upstream_cluster` satisfies `response_code` >= 500 for UC-8.4.5 ('Service-to-Service Call Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mesh` / `envoy:access` events where `upstream_cluster` stays below `response_code` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.5."
+    "positiveScenario": "UC-8.4.5 positive (Service, Service, Call, Failures): ingest synthetic events into `index=mesh` sourcetype='envoy:access' where `count` grouped by `upstream_cluster`, `downstream_cluster`, `response_code` satisfies `response_code` >= 500 for 'Service-to-Service Call Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.5 negative (Call Failures): ingest benign `mesh` / `envoy:access` events where `upstream_cluster`, `downstream_cluster`, `response_code` stays below `response_code` >= 500, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Service-to-Service Call Failures'."
   },
   "dataSources": "Envoy access logs (upstream_cluster, response_code), Istio telemetry Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Istio/Envoy access logs, Linkerd tap — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mesh sourcetype=\"envoy:access\"\n| where response_code >= 500\n| stats count by upstream_cluster, downstream_cluster, response_code\n| sort -count",
-  "description": "Inter-service communication failures in microservices architectures cascade quickly. Detection enables rapid isolation of failing services.",
-  "value": "Early 'Service-to-Service Call Failures' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Call Failures anomalies for UC-8.4.5 with window `the scheduled window` on `index=mesh` sourcetype `envoy:access`. Combines `count` by `upstream_cluster`, `downstream_cluster`, `response_code` and compares against `response_code` >= 500. Mapped to keywords Service, Service, Call, Failures for dashboard routing.",
+  "value": "Alerting on Service, Service, Call, Failures through UC-8.4.5 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Configure Envoy/Istio to export access logs to Splunk. Parse source service, destination service, status code, and latency. Build service dependency map. Alert on inter-service error rate spikes. Track per-service error budgets.",
   "visualization": "Service dependency map (with error highlighting), Table (failing service pairs), Heatmap (service × service error rate).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mesh`** — Planned work for 'Service-to-Service Call Failures' shifts `count` over `span=1h` while `upstream_cluster` remains in-scope for UC-8.4.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:access`** — Scheduled automation elevates `downstream_cluster` without crossing `response_code` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_cluster`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:access`** — First 48h baseline for `upstream_cluster` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_cluster`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mesh` (UC-8.4.5)** — Planned work for 'Service-to-Service Call Failures' shifts `count` over `span=1h` while `upstream_cluster`, `downstream_cluster`, `response_code` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:access`** — Scheduled automation elevates `downstream_cluster` without crossing `response_code` >= 500 for UC-8.4.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_cluster`, `downstream_cluster`, `response_code`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:access`** — First 48h baseline for UC-8.4.5 on `upstream_cluster` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_cluster`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy"
   ],

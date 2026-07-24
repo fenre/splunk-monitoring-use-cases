@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Data Pipeline Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_data_pipeline_health` (UC-7.4.3), SOC dashboard panel \"Operations — Data Pipeline Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='airflow:task_instance' where `dag_id` satisfies `fail_rate` > 0 for UC-7.4.3 ('Data Pipeline Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `airflow:task_instance` events where `dag_id` stays below `fail_rate` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.3."
+    "positiveScenario": "UC-7.4.3 positive (Data, Pipeline, Health): ingest synthetic events into `index=datawarehouse` sourcetype='airflow:task_instance' where `count` grouped by `dag_id`, `task_id` satisfies `fail_rate` > 0 for 'Data Pipeline Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.4.3 negative (Pipeline Health): ingest benign `datawarehouse` / `airflow:task_instance` events where `dag_id`, `task_id` stays below `fail_rate` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Data Pipeline Health'."
   },
   "dataSources": "Airflow task logs, dbt run results, Snowflake TASK_HISTORY, pipeline orchestrator APIs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom API input, orchestrator integration (Airflow, dbt) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=datawarehouse sourcetype=\"airflow:task_instance\"\n| stats count(eval(state=\"failed\")) as failed, count(eval(state=\"success\")) as success, count as total by dag_id, task_id\n| eval fail_rate=round(failed/total*100,1)\n| where fail_rate > 0\n| sort -fail_rate",
-  "description": "Failed or delayed ETL/ELT pipelines cause stale data for reporting and analytics. Early detection prevents downstream impact.",
-  "value": "Early 'Data Pipeline Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'Data Pipeline Health' patterns (UC-7.4.3) sourced from `index=datawarehouse` sourcetype `airflow:task_instance`. Threshold bundle: `fail_rate` > 0; aggregation grain: `dag_id`, `task_id`; metrics: `count`. Watch terms: Data, Pipeline, Health.",
+  "value": "UC-7.4.3 gives Operations teams earlier visibility into Pipeline Health through `airflow:task_instance` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest pipeline orchestrator logs (Airflow, dbt, custom). Track job outcomes, durations, and data freshness. Alert on any pipeline failure. Create data freshness SLA dashboard showing when each table was last updated. For dbt and Snowflake pipelines, create similar searches targeting their respective sourcetypes (e.g., snowflake:task_history, dbt:run_results).",
   "visualization": "Status grid (pipeline × status), Table (failed pipelines), Line chart (pipeline duration trend), Single value (overall success rate).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Data Pipeline Health' shifts `count` over `span=1h` while `dag_id` remains in-scope for UC-7.4.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task_instance`** — Scheduled automation elevates `task_id` without crossing `fail_rate` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task_instance`** — First 48h baseline for `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.4.3)** — Planned work for 'Data Pipeline Health' shifts `count` over `span=1h` while `dag_id`, `task_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task_instance`** — Scheduled automation elevates `task_id` without crossing `fail_rate` > 0 for UC-7.4.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`, `task_id`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task_instance`** — First 48h baseline for UC-7.4.3 on `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"

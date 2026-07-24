@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='azure:aad:audit' where `entity` satisfies detection threshold for UC-9.3.12 ('Consent Grant Abuse'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `azure:aad:audit` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.12."
+    "positiveScenario": "UC-9.3.12 positive (Consent, Grant, Abuse): ingest synthetic events into `index=azure` sourcetype='azure:aad:audit' where `count` grouped by `entity` satisfies detection threshold for 'Consent Grant Abuse'. Validate filter `\"Consent\" OR activityDisplayName=\"Add OAuth2PermissionGrant\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.12 negative (Grant Abuse): ingest benign `azure` / `azure:aad:audit` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 11 confirms zero alert rows for 'Consent Grant Abuse'."
   },
   "dataSources": "Entra audit logs (`Consent to application`, `Add OAuth2PermissionGrant`) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"azure:aad:audit\"\n| search \"Consent\" OR activityDisplayName=\"Add OAuth2PermissionGrant\"\n| spath path=targetResources{}\n| mvexpand targetResources{} limit=500\n| spath input=targetResources{} path=displayName\n| table _time, initiatedBy.user.userPrincipalName, displayName, activityDisplayName\n| sort -_time",
-  "description": "Users granting excessive delegated permissions to malicious OAuth apps is a common attack; monitoring consent events enables revocation.",
-  "value": "Early 'Consent Grant Abuse' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Detects UC-9.3.12 — Consent, Grant, Abuse — using `index=azure` sourcetype `azure:aad:audit`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"Consent\" OR activityDisplayName=\"Add OAuth2PermissionGrant\"`. Purpose-built for 'Consent Grant Abuse' in IAM workflows.",
+  "value": "UC-9.3.12 helps teams contain Consent, Grant, Abuse scenarios and reduce account takeover risk, help-desk load, and audit findings before incidents compound.",
   "implementation": "Ingest consent-related audit events. Alert on consent to apps with high privilege (`RoleManagement.ReadWrite.Directory`) or new publisher IDs. Integrate with admin consent workflow.",
   "visualization": "Table (consent events), Bar chart (apps by consent count), Pie chart (user vs admin consent).",
   "cimModels": [
@@ -63,7 +63,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Consent Grant Abuse' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.3.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `azure:aad:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:aad:audit`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-9.3.12)** — Planned work for 'Consent Grant Abuse' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"Consent\" OR activityDisplayName=\"Add OAuth2PermissionGrant\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `azure:aad:audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-9.3.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:aad:audit`** — First 48h baseline for UC-9.3.12 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1098.001"
   ],

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' EventCode=4720 where `entity` satisfies detection threshold for UC-22.11.50 ('Account Lifecycle — New AD Users with Immediate CDE Group Assignment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.50."
+    "positiveScenario": "UC-22.11.50 positive (Account, Lifecycle, New, Users, with): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' EventCode=4720 where `count` grouped by `entity` satisfies -24h for 'Account Lifecycle — New AD Users with Immediate CDE Group Assignment'. Validate lookup `pci_cde_ad_groups.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.50 negative (Group Assignment): ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'Account Lifecycle — New AD Users with Immediate CDE Group Assignment'."
   },
   "dataSources": "`index=windows` EventCode 4720 (user created), 4728 (member added to security-enabled global group)",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4720,4728) earliest=-24h\n| transaction TargetUserName maxspan=60m startswith=EventCode=4720 endswith=EventCode=4728\n| lookup pci_cde_ad_groups.csv GroupName OUTPUT cde_group\n| where cde_group=\"true\"\n| table duration, TargetUserName, GroupName, SubjectUserName",
-  "description": "Detects user creations followed within a short window by addition to CDE-privileged groups so provisioning follows lifecycle controls and management approval for access to account data.",
-  "value": "Detects user creations followed within a short window by addition to CDE-privileged groups so provisioning.... Timely UC-22.11.50 alerting on 'Account Lifecycle — New AD Users with Immediate CDE Group Assignment' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces Group Assignment activity in UC-22.11.50 ('Account Lifecycle — New AD Users with Immediate CDE Group Assignment') from `index=windows` sourcetype `WinEventLog:Security`. Rolls up `count` by `entity` across `60m` and pages when -24h. Uses lookup `pci_cde_ad_groups.csv`. Compliance operators treat UC-22.11.50 as the canonical signal.",
+  "value": "Operators running UC-22.11.50 on `WinEventLog:Security` feeds shorten triage for Group Assignment tied to 'Account Lifecycle — New AD Users with Immediate CDE Group Assignment', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Map `TargetUserName` alignment between events—may require `rename` on 4720 field `TargetUserName` as new user and 4728 `MemberName`. (2) Adjust `transaction` keys per environment testing. (3) Alert IAM for out-of-band adds. (4) Evidence for user identification procedures. Indexes required: `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`; Lookups: `pci_cde_ad_groups`, `pci_cde_ad_groups.csv`.",
   "visualization": "Timeline (transactions), table (new users to CDE groups), single value (count per day). Key fields: `GroupName`, `SubjectUserName`, `TargetUserName`, `duration`.",
   "cimModels": [

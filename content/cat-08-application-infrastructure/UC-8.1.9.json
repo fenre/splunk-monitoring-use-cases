@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Slow POST Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_slow_post_detection` (UC-8.1.9), SOC dashboard panel \"Operations — Slow POST Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='access_combined' where `uri_path` satisfies `response_time` > 5000 for UC-8.1.9 ('Slow POST Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `access_combined` events where `uri_path` stays below `response_time` > 5000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.9."
+    "positiveScenario": "UC-8.1.9 positive (Slow, POST, Detection): ingest synthetic events into `index=web` sourcetype='access_combined' where `avg_rt` grouped by `uri_path` satisfies `response_time` > 5000 for 'Slow POST Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.9 negative (POST Detection): ingest benign `web` / `access_combined` events where `uri_path` stays below `response_time` > 5000, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Slow POST Detection'."
   },
   "dataSources": "Access logs with response time Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_apache`, `TA-nginx` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"access_combined\" method=POST\n| where response_time > 5000\n| stats count, avg(response_time) as avg_rt by uri_path\n| sort -avg_rt",
-  "description": "Slow POST requests often indicate application-level performance issues (large form submissions, file uploads, database writes) distinct from slow GETs.",
-  "value": "Early 'Slow POST Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies 'Slow POST Detection' patterns (UC-8.1.9) sourced from `index=web` sourcetype `access_combined`. Threshold bundle: `response_time` > 5000; aggregation grain: `uri_path`; metrics: `avg_rt`. Watch terms: Slow, POST, Detection.",
+  "value": "UC-8.1.9 gives Operations teams earlier visibility into POST Detection through `access_combined` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Filter access logs for POST requests with high response times. Track by endpoint to identify specific bottlenecks. Correlate with backend database/API latency. Report top slow POST endpoints weekly.",
   "visualization": "Table (slow POST endpoints), Bar chart (avg response time by URI), Line chart (slow POST count trend).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Slow POST Detection' shifts `avg` over `span=1h` while `uri_path` remains in-scope for UC-8.1.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `access_combined`** — Scheduled automation elevates `src` without crossing `response_time` > 5000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `uri_path`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for `uri_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `uri_path`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.9)** — Planned work for 'Slow POST Detection' shifts `avg_rt` over `span=1h` while `uri_path` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `access_combined`** — Scheduled automation elevates `src` without crossing `response_time` > 5000 for UC-8.1.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `uri_path`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for UC-8.1.9 on `uri_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `uri_path`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"

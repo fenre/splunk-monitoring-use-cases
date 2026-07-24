@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Soil Sensor Check-In Gap' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_soil_sensor_check_in_gap` (UC-25.10.14), SOC dashboard panel \"Personal — Soil Sensor Check-In Gap\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='plant:sensor' where `plant` satisfies `hours_since` > 12 for UC-25.10.14 ('Soil Sensor Check-In Gap'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `plant:sensor` events where `plant` stays below `hours_since` > 12, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.14."
+    "positiveScenario": "UC-25.10.14 positive (Soil, Sensor, Check, Gap): ingest synthetic events into `index=personal` sourcetype='plant:sensor' where `last_seen` grouped by `plant` satisfies `hours_since` > 12 for 'Soil Sensor Check-In Gap'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.14 negative (In Gap): ingest benign `personal` / `plant:sensor` events where `plant` stays below `hours_since` > 12, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Soil Sensor Check-In Gap'."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=plant:sensor\n| stats max(_time) as last_seen by plant\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>12\n| sort - hours_since",
-  "description": "Finds plant sensors that have stopped reporting, which is often how dead batteries or drowned probes first reveal themselves.",
-  "value": "Finds plant sensors that have stopped reporting, which is often how dead batteries or drowned probes first.... Timely UC-25.10.14 alerting on 'Soil Sensor Check-In Gap' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.10.14 — Soil, Sensor, Check, Gap — using `index=personal` sourcetype `plant:sensor`, grouped by `plant`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 12. Primary focus: In Gap. Purpose-built for 'Soil Sensor Check-In Gap' in Personal workflows.",
+  "value": "For 'Soil Sensor Check-In Gap', UC-25.10.14 converts `last_seen` on `plant:sensor` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward plant-sensor data through MQTT or HEC; alert when a sensor exceeds its expected reporting gap.",
   "visualization": "Table of plants by hours since last sensor report.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Soil Sensor Check-In Gap' stops polling `plant:sensor`; stale `plant` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plant:sensor`. Dedup with `stats latest(*) by plant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 12. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.14)** — Connector for 'Soil Sensor Check-In Gap' stops polling `plant:sensor`; stale `last_seen` on `plant` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.10.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `plant:sensor`. Dedup with `stats latest(*) by plant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 12 for 'Soil Sensor Check-In Gap'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

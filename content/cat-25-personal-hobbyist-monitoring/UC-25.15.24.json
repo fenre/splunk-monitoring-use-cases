@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Anova Preheat Delay by Container' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_anova_preheat_delay_by_container` (UC-25.15.24), SOC dashboard panel \"Personal — Anova Preheat Delay by Container\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='anova:session' where `vessel` satisfies `avg_preheat_min` > 25 for UC-25.15.24 ('Anova Preheat Delay by Container'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `anova:session` events where `vessel` stays below `avg_preheat_min` > 25, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.24."
+    "positiveScenario": "UC-25.15.24 positive (Anova, Preheat, Delay, Container): ingest synthetic events into `index=personal` sourcetype='anova:session' where `avg_preheat_min`, `max_preheat_min` grouped by `vessel` satisfies `avg_preheat_min` > 25, or `max_preheat_min` > 40 for 'Anova Preheat Delay by Container'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.24 negative (by Container): ingest benign `personal` / `anova:session` events where `vessel` stays below `avg_preheat_min` > 25, or `max_preheat_min` > 40, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Anova Preheat Delay by Container'."
   },
   "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=anova:session\n| stats avg(preheat_min) as avg_preheat_min, max(preheat_min) as max_preheat_min by vessel\n| where avg_preheat_min>25 OR max_preheat_min>40\n| sort - avg_preheat_min",
-  "description": "Uses Anova preheat telemetry telemetry to monitor how quickly different bath setups reach target temperature in index=personal.",
-  "value": "Uses Anova preheat telemetry telemetry to monitor how quickly different bath setups reach target temperatur.... Timely UC-25.15.24 alerting on 'Anova Preheat Delay by Container' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.15.24 — Anova, Preheat, Delay, Container — using `index=personal` sourcetype `anova:session`, grouped by `vessel`. Outputs `avg_preheat_min`, `max_preheat_min` each `the scheduled window`; alert when `avg_preheat_min` > 25, or `max_preheat_min` > 40. Primary focus: by Container. Purpose-built for 'Anova Preheat Delay by Container' in Personal workflows.",
+  "value": "Operators running UC-25.15.24 on `anova:session` feeds shorten triage for by Container tied to 'Anova Preheat Delay by Container', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Anova preheat telemetry data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Vessel table of average preheat duration.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Anova Preheat Delay by Container' stops polling `anova:session`; stale `vessel` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `anova:session`. Dedup with `stats latest(*) by vessel`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_preheat_min` > 25. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.24)** — Connector for 'Anova Preheat Delay by Container' stops polling `anova:session`; stale `avg_preheat_min`, `max_preheat_min` on `vessel` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_preheat_min`, `max_preheat_min` over `1w` is expected for UC-25.15.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `anova:session`. Dedup with `stats latest(*) by vessel`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_preheat_min` > 25 for 'Anova Preheat Delay by Container'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

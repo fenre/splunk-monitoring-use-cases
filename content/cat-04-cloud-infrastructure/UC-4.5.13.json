@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Lambda Provisioned Concurrency Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lambda_provisioned_concurrency_utilization` (UC-4.5.13), SOC dashboard panel \"Operations — Lambda Provisioned Concurrency Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `FunctionName` satisfies `util` < 0.2 for UC-4.5.13 ('Lambda Provisioned Concurrency Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `FunctionName` stays below `util` < 0.2, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.13."
+    "positiveScenario": "UC-4.5.13 positive (Lambda, Provisioned, Concurrency, Utilization): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `util` grouped by `FunctionName`, `Resource` satisfies `util` < 0.2, or `util` > 0.9 for 'Lambda Provisioned Concurrency Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.5.13 negative (Concurrency Utilization): ingest benign `aws` / `aws:cloudwatch` events where `FunctionName`, `Resource` stays below `util` < 0.2, or `util` > 0.9, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Lambda Provisioned Concurrency Utilization'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/Lambda`) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" metric_name=\"ProvisionedConcurrencyUtilization\"\n| timechart span=5m avg(Average) as util by FunctionName, Resource\n| where util < 0.2 OR util > 0.9",
-  "description": "Provisioned concurrency is a fixed cost; low utilization wastes spend while high utilization risks cold starts on overflow—balance requires continuous measurement.",
-  "value": "Early 'Lambda Provisioned Concurrency Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Lambda Provisioned Concurrency Utilization' patterns (UC-4.5.13) sourced from `index=aws` sourcetype `aws:cloudwatch`. Threshold bundle: `util` < 0.2, or `util` > 0.9; aggregation grain: `FunctionName`, `Resource`; metrics: `util`. Watch terms: Lambda, Provisioned, Concurrency, Utilization.",
+  "value": "UC-4.5.13 gives Operations teams earlier visibility into Concurrency Utilization through `aws:cloudwatch` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Collect `ProvisionedConcurrencyUtilization` for each alias or version with provisioned settings. Compare against provisioned units from tags or CloudFormation export. Alert when utilization is chronically low (cost optimization) or high (risk of throttling on burst beyond provisioned pool).",
   "visualization": "Line chart (utilization by function/alias), Area chart (consumed vs provisioned concurrency), Table (FunctionName, util %, recommended units).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Lambda Provisioned Concurrency Utilization' shifts `avg` over `span=5m` while `FunctionName` remains in-scope for UC-4.5.13. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `Resource` without crossing `util` < 0.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `FunctionName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `FunctionName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `FunctionName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.5.13)** — Planned work for 'Lambda Provisioned Concurrency Utilization' shifts `util` over `span=5m` while `FunctionName`, `Resource` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `Resource` without crossing `util` < 0.2 for UC-4.5.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `FunctionName`, `Resource`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.5.13 on `FunctionName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `FunctionName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MQTT QoS 0/1/2 Delivery and Drops' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mqtt_qos_0_1_2_delivery_and_drops` (UC-14.5.8), SOC dashboard panel \"Operations — MQTT QoS 0/1/2 Delivery and Drops\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='mqtt_broker_metrics' where `qos` satisfies `in` > 0 for UC-14.5.8 ('MQTT QoS 0/1/2 Delivery and Drops'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `mqtt_broker_metrics` events where `qos` stays below `in` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.5.8."
+    "positiveScenario": "UC-14.5.8 positive (MQTT, QoS, Delivery, and, Drops): ingest synthetic events into `index=ot` sourcetype='mqtt_broker_metrics' where `in`, `out`, `dropped` grouped by `qos`, `_time` satisfies `in` > 0, `drop_rate` > 1, or `dropped` > 0 for 'MQTT QoS 0/1/2 Delivery and Drops'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.8 negative (and Drops): ingest benign `ot` / `mqtt_broker_metrics` events where `qos`, `_time` stays below `in` > 0, `drop_rate` > 1, or `dropped` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'MQTT QoS 0/1/2 Delivery and Drops'."
   },
   "dataSources": "Broker stats (e.g. Mosquitto messages received/sent, dropped) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "MQTT broker metrics (messages in/out, dropped) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=mqtt_broker_metrics\n| bin _time span=5m\n| stats sum(messages_in) as in, sum(messages_out) as out, sum(messages_dropped) as dropped by qos, _time\n| eval drop_rate=if(in>0, round(dropped/in*100, 2), 0)\n| where drop_rate > 1 OR dropped > 0\n| table _time qos in out dropped drop_rate",
-  "description": "QoS 0 messages can be dropped under load; QoS 1/2 add overhead. Tracking delivery by QoS and drop rate supports SLA and broker tuning.",
-  "value": "Early 'MQTT QoS 0/1/2 Delivery and Drops' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-14.5.8 — MQTT, QoS, Delivery, and, Drops — using `index=ot` sourcetype `mqtt_broker_metrics`, grouped by `qos`, `_time`. Outputs `in`, `out`, `dropped` each `5m`; alert when `in` > 0, `drop_rate` > 1, or `dropped` > 0. Primary focus: and Drops. Purpose-built for 'MQTT QoS 0/1/2 Delivery and Drops' in Operations workflows.",
+  "value": "UC-14.5.8 helps teams contain MQTT, QoS, Delivery, and, Drops scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Collect broker metrics (SNMP, REST, or log parsing) for messages in/out/dropped by QoS. Ingest to Splunk. Alert when drop rate exceeds 1% or absolute drops exceed threshold. Correlate with broker CPU and connection count.",
   "visualization": "Line chart (in/out/dropped by QoS), Table (drop rate by QoS), Single value (total drops).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'MQTT QoS 0/1/2 Delivery and Drops' shifts `sum` over `span=5m` while `qos` remains in-scope for UC-14.5.8. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mqtt_broker_metrics`** — Scheduled automation elevates `_time` without crossing `in` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `qos`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt_broker_metrics`** — First 48h baseline for `qos` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `qos`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.5.8)** — Planned work for 'MQTT QoS 0/1/2 Delivery and Drops' shifts `in`, `out`, `dropped` over `span=5m` while `qos`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mqtt_broker_metrics`** — Scheduled automation elevates `_time` without crossing `in` > 0 for UC-14.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `qos`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt_broker_metrics`** — First 48h baseline for UC-14.5.8 on `qos` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `qos`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt",
     "snmp"

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=epic` sourcetype='epic:audit' where `USER_ID` satisfies `patients` >= 10 for UC-22.10.35 ('Non-Treating Provider — Specialty Mismatch Chart Access'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `epic` / `epic:audit` events where `USER_ID` stays below `patients` >= 10, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.35."
+    "positiveScenario": "UC-22.10.35 positive (Non, Treating, Provider, Specialty, Mismatch): ingest synthetic events into `index=epic` sourcetype='epic:audit' where `patients` grouped by `USER_ID`, `specialty_group` satisfies `patients` >= 10 for 'Non-Treating Provider — Specialty Mismatch Chart Access'. Validate lookup `provider_specialty.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.35 negative (Chart Access): ingest benign `epic` / `epic:audit` events where `USER_ID`, `specialty_group` stays below `patients` >= 10, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Non-Treating Provider — Specialty Mismatch Chart Access'."
   },
   "dataSources": "`index=epic` `sourcetype=epic:audit`, `lookup provider_specialty.csv` (`USER_ID`, `specialty_group`), Clarity-derived `patient_unit_map.csv` (`PAT_ID`, `unit_service_line`)",
   "app": "Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=epic sourcetype=\"epic:audit\" AccessType=\"PatientChart\" earliest=-30d\n| lookup provider_specialty.csv USER_ID OUTPUT specialty_group\n| lookup patient_unit_map.csv PAT_ID OUTPUT unit_service_line\n| eval mismatch=if(isnotnull(specialty_group) AND NOT match(unit_service_line, specialty_group),1,0)\n| where mismatch=1 AND specialty_group IN (\"BILLING\",\"CODING\",\"IT\",\"HR\")\n| stats dc(PAT_ID) as patients by USER_ID, specialty_group\n| where patients>=10\n| sort - patients",
-  "description": "Highlights when users in non-clinical specialties repeatedly open inpatient charts outside their documented specialty cohort, a common snooping pattern.",
-  "value": "Highlights when users in non-clinical specialties repeatedly open inpatient charts outside their documented.... Timely UC-22.10.35 alerting on 'Non-Treating Provider — Specialty Mismatch Chart Access' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies Chart Access anomalies for UC-22.10.35 with window `the scheduled window` on `index=epic` sourcetype `epic:audit`. Combines `patients` by `USER_ID`, `specialty_group` and compares against `patients` >= 10. Mapped to keywords Non, Treating, Provider, Specialty, Mismatch for dashboard routing.",
+  "value": "Alerting on Non, Treating, Provider, Specialty, Mismatch through UC-22.10.35 reduces audit findings, regulatory gaps, and attestation delays by surfacing `patients` early.",
   "implementation": "(1) Refresh patient service line nightly; (2) tune for legitimate cross-coverage; (3) route to privacy investigations with manager context. Indexes required: `index=epic`; Sourcetypes: `sourcetype=epic:audit`, `sourcetype=epic:audit``; Lookups: `patient_unit_map`, `patient_unit_map.csv`, `provider_specialty`, `provider_specialty.csv`.",
   "visualization": "Table (user, specialty, patients), Bar chart (violations by department).",
   "cimModels": [],

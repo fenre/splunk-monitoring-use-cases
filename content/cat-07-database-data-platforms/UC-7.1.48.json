@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MySQL InnoDB Redo Log Wait Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mysql_innodb_redo_log_wait_pressure` (UC-7.1.48), SOC dashboard panel \"Operations — MySQL InnoDB Redo Log Wait Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mysql:status' where `host` satisfies `log_waits_delta` > 10 for UC-7.1.48 ('MySQL InnoDB Redo Log Wait Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mysql:status` events where `host` stays below `log_waits_delta` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.48."
+    "positiveScenario": "UC-7.1.48 positive (MySQL, InnoDB, Redo, Log, Wait): ingest synthetic events into `index=database` sourcetype='mysql:status' where `count` grouped by `host` satisfies `log_waits_delta` > 10 for 'MySQL InnoDB Redo Log Wait Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.48 negative (Wait Pressure): ingest benign `database` / `mysql:status` events where `host` stays below `log_waits_delta` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'MySQL InnoDB Redo Log Wait Pressure'."
   },
   "dataSources": "`SHOW GLOBAL STATUS` `Innodb_log_waits`, `Innodb_redo_log_resize_status` (MySQL 8.0.30+) ingested on `mysql:status`",
   "app": "Splunk DB Connect (Splunkbase 2686)",
   "spl": "index=database sourcetype=\"mysql:status\"\n| timechart span=15m latest(Innodb_log_waits) as innodb_log_waits by host\n| streamstats window=2 global=f last(innodb_log_waits) as _prev_log_waits_delta by host\n| eval log_waits_delta = innodb_log_waits - _prev_log_waits_delta| where log_waits_delta > 10",
-  "description": "Innodb_log_waits increments when user threads wait on the redo log buffer—an indicator of bursty writes, undersized redo capacity, or storage latency on MySQL 8.",
-  "value": "Innodb_log_waits increments when user threads wait on the redo log buffer—an indicator of bursty writes, un.... Timely UC-7.1.48 alerting on 'MySQL InnoDB Redo Log Wait Pressure' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-7.1.48 — MySQL, InnoDB, Redo, Log, Wait — using `index=database` sourcetype `mysql:status`, grouped by `host`. Outputs `count` each `15m`; alert when `log_waits_delta` > 10. Primary focus: Wait Pressure. Purpose-built for 'MySQL InnoDB Redo Log Wait Pressure' in Operations workflows.",
+  "value": "UC-7.1.48 operationalises 'MySQL InnoDB Redo Log Wait Pressure' against `mysql:status` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll global status at fixed intervals and compute deltas for counter fields. Validate Innodb_log_waits exists on your minor version. Correlate with disk latency metrics and innodb_redo_log_capacity changes.",
   "visualization": "Line chart (redo waits per interval), Table (hosts, delta), Single value (total waits).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MySQL InnoDB Redo Log Wait Pressure' shifts `count` over `span=15m` while `host` remains in-scope for UC-7.1.48. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mysql:status`** — Scheduled automation elevates `log_waits_delta` without crossing `log_waits_delta` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.48)** — Planned work for 'MySQL InnoDB Redo Log Wait Pressure' shifts `count` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mysql:status`** — Scheduled automation elevates `log_waits_delta` without crossing `log_waits_delta` > 10 for UC-7.1.48. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:status`** — First 48h baseline for UC-7.1.48 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mysql"

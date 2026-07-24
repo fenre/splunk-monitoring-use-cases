@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Memory Utilization Against limit_maxbytes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_memory_utilization_against_limit_maxby` (UC-8.1.24), SOC dashboard panel \"Operations — Memcached Memory Utilization Against limit_maxbytes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `host` satisfies `limit_maxbytes` > 0 for UC-8.1.24 ('Memcached Memory Utilization Against limit_maxbytes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `memcached:stats` events where `host` stays below `limit_maxbytes` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.24."
+    "positiveScenario": "UC-8.1.24 positive (Memcached, Memory, Utilization, Against, limit): ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `used_pct` grouped by `host` satisfies `limit_maxbytes` > 0, or `used_pct` > 90 for 'Memcached Memory Utilization Against limit_maxbytes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.24 negative (Against limit_maxbytes): ingest benign `cache` / `memcached:stats` events where `host` stays below `limit_maxbytes` > 0, or `used_pct` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Memcached Memory Utilization Against limit_maxbytes'."
   },
   "dataSources": "`index=cache` `sourcetype=memcached:stats` (`bytes`, `limit_maxbytes`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`stats` command) or metrics pipeline — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"memcached:stats\"\n| eval mem_pct=if(limit_maxbytes>0, round(bytes/limit_maxbytes*100,2), null())\n| timechart span=5m max(mem_pct) as used_pct by host\n| where used_pct > 90",
-  "description": "`bytes` approaching `limit_maxbytes` drives evictions and elevated miss latency. Tracking utilization avoids surprise memory pressure.",
-  "value": "`bytes` approaching `limit_maxbytes` drives evictions and elevated miss latency. Timely UC-8.1.24 alerting on 'Memcached Memory Utilization Against limit_maxbytes' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects Against limit_maxbytes anomalies for UC-8.1.24 with window `5m` on `index=cache` sourcetype `memcached:stats`. Combines `used_pct` by `host` and compares against `limit_maxbytes` > 0, or `used_pct` > 90. Mapped to keywords Memcached, Memory, Utilization, Against, limit for dashboard routing.",
+  "value": "Alerting on Memcached, Memory, Utilization, Against, limit through UC-8.1.24 reduces operational risk and delayed incident response by surfacing `used_pct` early.",
   "implementation": "Poll `stats` every minute; map counters to fields. Correlate with `evictions` and `curr_items`.",
   "visualization": "Gauge (used %), line chart (bytes vs limit), overlay eviction rate.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Memcached Memory Utilization Against limit_maxbytes' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.1.24. Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats`** — Scheduled automation elevates `mem_pct` without crossing `limit_maxbytes` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.1.24)** — Planned work for 'Memcached Memory Utilization Against limit_maxbytes' shifts `used_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats`** — Scheduled automation elevates `mem_pct` without crossing `limit_maxbytes` > 0 for UC-8.1.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.1.24 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

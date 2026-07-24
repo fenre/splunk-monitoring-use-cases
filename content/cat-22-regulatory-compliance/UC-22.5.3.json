@@ -28,14 +28,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=trading` sourcetype='_json' where `venue` satisfies detection threshold for UC-22.5.3 ('MiFID II Best Execution Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `trading` / `_json` events where `venue` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.5.3."
+    "positiveScenario": "UC-22.5.3 positive (MiFID, Best, Execution, Monitoring): ingest synthetic events into `index=trading` sourcetype='_json' where `p50_cost`, `p50_latency`, `global_p50` grouped by `venue`, `symbol` satisfies -7d for 'MiFID II Best Execution Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.5.3 negative (Execution Monitoring): ingest benign `trading` / `_json` events where `venue`, `symbol` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 7 confirms zero alert rows for 'MiFID II Best Execution Monitoring'."
   },
   "dataSources": "`index=trading` `sourcetype=\"_json\"` `source=\"http:bestex\"` (order_id, exec_id, venue, symbol, last_px, effective_spread_bps, fee_bps, exec_latency_ms, decision_time, report_time)",
   "app": "Splunk HTTP Event Collector (core platform) with JSON parsing, Financial Information eXchange (FIX) Log Parsing (Splunkbase 431) (optional)",
   "spl": "index=trading sourcetype=\"_json\" source=\"http:bestex\" earliest=-7d\n| eval all_in_bps=effective_spread_bps+fee_bps\n| stats median(all_in_bps) as p50_cost, median(exec_latency_ms) as p50_latency, count as fills by venue, symbol\n| eventstats median(p50_cost) as global_p50 by symbol\n| eval venue_delta=round(p50_cost-global_p50, 2)\n| sort symbol, venue_delta\n| table symbol, venue, fills, p50_cost, p50_latency, venue_delta",
-  "description": "Compares execution quality and routing latency across venues (price improvement, fees, speed) using structured order/execution JSON from OMS/EMS to support best execution oversight.",
-  "value": "Compares execution quality and routing latency across venues (price improvement, fees, speed) using structu.... Timely UC-22.5.3 alerting on 'MiFID II Best Execution Monitoring' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.5.3 — MiFID, Best, Execution, Monitoring — using `index=trading` sourcetype `_json`, grouped by `venue`, `symbol`. Outputs `p50_cost`, `p50_latency`, `global_p50` each `the scheduled window`; alert when -7d. Primary focus: Execution Monitoring. Purpose-built for 'MiFID II Best Execution Monitoring' in Compliance workflows.",
+  "value": "UC-22.5.3 operationalises 'MiFID II Best Execution Monitoring' against `_json` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Publish execution reports to HEC with consistent timestamps and normalized units (`effective_spread_bps`, `fee_bps`); (2) refresh baselines weekly; (3) exclude auctions/halts using flags in the JSON; (4) quarterly export for RTS 28 reporting. Indexes required: `index=trading`; Sourcetypes: `sourcetype=_json`.",
   "visualization": "Scatter (latency vs cost), Leaderboard table by venue, Box-style panels via stats.",
   "cimModels": [],

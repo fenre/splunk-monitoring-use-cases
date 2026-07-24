@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=sysmon` sourcetype='target_sourcetype' EventCode=1 where `host` satisfies detection threshold for UC-22.15.19 ('Unsigned Macros or Scripts Executed on Engineering Workstation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `sysmon` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.15.19."
+    "positiveScenario": "UC-22.15.19 positive (Unsigned, Macros, Scripts, Executed, Engineering): ingest synthetic events into `index=sysmon` sourcetype='target_sourcetype' EventCode=1 where `count` grouped by `host`, `Image`, `CommandLine` satisfies -7d for 'Unsigned Macros or Scripts Executed on Engineering Workstation'. Validate lookup `ews_signed_scripts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.15.19 negative (Engineering Workstation): ingest benign `sysmon` / `target_sourcetype` events where `host`, `Image`, `CommandLine` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 9 confirms zero alert rows for 'Unsigned Macros or Scripts Executed on Engineering Workstation'."
   },
   "dataSources": "`WinEventLog:Microsoft-Windows-Sysmon/Operational` EventCode 1 — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=sysmon EventCode=1 host IN (\"OT-EWS-*\") earliest=-7d\n| where (Image LIKE \"%\\powershell.exe\" OR Image LIKE \"%\\mshta.exe\" OR Image LIKE \"%\\cscript.exe\")\n    AND NOT(CommandLine LIKE \"%-nop -enc%\")\n| lookup ews_signed_scripts.csv CommandLine OUTPUT approved\n| where approved!=\"true\"\n| stats count by host, Image, CommandLine\n| sort - count",
-  "description": "Monitors execution of script engines and office macros from OT engineering hosts where mobile code should be restricted.",
-  "value": "Monitors execution of script engines and office macros from OT engineering hosts where mobile code should b.... Timely UC-22.15.19 alerting on 'Unsigned Macros or Scripts Executed on Engineering Workstation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.15.19 — Unsigned, Macros, Scripts, Executed, Engineering — using `index=sysmon` sourcetype `configured sourcetype`, grouped by `host`, `Image`, `CommandLine`. Outputs `count` each `the scheduled window`; alert when -7d. Filter chain includes lookup `ews_signed_scripts.csv`. Purpose-built for 'Unsigned Macros or Scripts Executed on Engineering Workstation' in Compliance workflows.",
+  "value": "Operators running UC-22.15.19 on lookup `ews_signed_scripts.csv` shorten triage for Engineering Workstation tied to 'Unsigned Macros or Scripts Executed on Engineering Workstation', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Deploy Sysmon with tuned config for EWS; (2) Approve known vendor installers via hash lookup; (3) block VBA macros at policy layer; (4) review weekly top commands. Indexes required: `index=sysmon`.",
   "visualization": "Table, Sankey (parent→child optional), Time chart. Key fields: `CommandLine`, `Image`, `host`.",
   "cimModels": [],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Activity Log Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_activity_log_monitoring` (UC-4.2.1), SOC dashboard panel \"Operations — Azure Activity Log Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' where `caller` satisfies detection threshold for UC-4.2.1 ('Azure Activity Log Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:audit` events where `caller` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.1."
+    "positiveScenario": "UC-4.2.1 positive (Azure, Activity, Log, Monitoring): ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' where `count` grouped by `caller`, `operationName.value`, `resourceGroupName`, `status.value` satisfies detection threshold for 'Azure Activity Log Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.1 negative (Log Monitoring): ingest benign `azure` / `mscs:azure:audit` events where `caller`, `operationName.value`, `resourceGroupName`, `status.value` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Azure Activity Log Monitoring'."
   },
   "dataSources": "`sourcetype=mscs:azure:audit`, Azure Activity Log via Event Hub Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:audit\" operationName.value=\"*delete*\" OR operationName.value=\"*write*\"\n| stats count by caller, operationName.value, resourceGroupName, status.value\n| sort -count",
-  "description": "Activity Log captures all control plane operations across Azure subscriptions. Essential audit trail for resource management and compliance.",
-  "value": "Early 'Azure Activity Log Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'Azure Activity Log Monitoring' patterns (UC-4.2.1) sourced from `index=azure` sourcetype `mscs:azure:audit`. Threshold bundle: configured threshold; aggregation grain: `caller`, `operationName.value`, `resourceGroupName`, `status.value`; metrics: `count`. Watch terms: Azure, Activity, Log, Monitoring.",
+  "value": "UC-4.2.1 gives Operations teams earlier visibility into Log Monitoring through `mscs:azure:audit` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Configure Azure Event Hub to receive Activity Log events. Set up Splunk_TA_microsoft-cloudservices with Event Hub input (connection string, consumer group). Alert on critical operations (resource deletions, policy changes).",
   "visualization": "Table (caller, operation, resource, status), Timeline, Bar chart by operation.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Activity Log Monitoring' shifts `count` over `span=1h` while `caller` remains in-scope for UC-4.2.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:audit`** — Scheduled automation elevates `operationName.value` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `caller`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:audit`** — First 48h baseline for `caller` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `caller`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.1)** — Planned work for 'Azure Activity Log Monitoring' shifts `count` over `span=1h` while `caller`, `operationName.value`, `resourceGroupName`, `status.value` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:audit`** — Scheduled automation elevates `operationName.value` without crossing configured threshold for UC-4.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `caller`, `operationName.value`, `resourceGroupName`, `status.value`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:audit`** — First 48h baseline for UC-4.2.1 on `caller` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `caller`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580",
     "T1526"

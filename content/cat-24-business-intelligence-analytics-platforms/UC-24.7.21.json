@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Dagster Asset Materialization Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dagster_asset_materialization_failures` (UC-24.7.21), SOC dashboard panel \"Operations — Dagster Asset Materialization Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='dagster:event' where `asset_key` satisfies `failures` > 0 for UC-24.7.21 ('Dagster Asset Materialization Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `dagster:event` events where `asset_key` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.21."
+    "positiveScenario": "UC-24.7.21 positive (Dagster, Asset, Materialization, Failures): ingest synthetic events into `index=bi` sourcetype='dagster:event' where `count` grouped by `asset_key` satisfies `failures` > 0 for 'Dagster Asset Materialization Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.21 negative (Materialization Failures): ingest benign `bi` / `dagster:event` events where `asset_key` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Dagster Asset Materialization Failures'."
   },
   "dataSources": "Dagster logs (`dagster:daemon`, `dagster:run`), GraphQL run/asset queries, and structured event-log JSON (`dagster:event`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Dagster daemon and run-worker logs via Universal Forwarder; Dagster GraphQL API and event-log records via HEC scripted inputs; Dagster instance storage (run/event tables) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dagster:event event_type=\"ASSET_MATERIALIZATION_FAILED\" OR event_type=\"STEP_FAILURE\"\n| stats count as failures by asset_key\n| where failures>0\n| sort - failures",
-  "description": "Surfaces Dagster software-defined assets that failed to materialize, pinpointing exactly which data assets are stale rather than which job ran.",
-  "value": "Surfaces Dagster software-defined assets that failed to materialize, pinpointing exactly which data assets.... Timely UC-24.7.21 alerting on 'Dagster Asset Materialization Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on 'Dagster Asset Materialization Failures' patterns (UC-24.7.21) sourced from `index=bi` sourcetype `dagster:event`. Threshold bundle: `failures` > 0; aggregation grain: `asset_key`; metrics: `count`. Watch terms: Dagster, Asset, Materialization, Failures.",
+  "value": "UC-24.7.21 gives Operations teams earlier visibility into Materialization Failures through `dagster:event` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Dagster asset events; schedule every 15 minutes and alert on failures for assets feeding executive dashboards.",
   "visualization": "Table of asset_key by failures, asset-health heat map.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Dagster Asset Materialization Failures' shifts `count` over `span=1h` while `asset_key` remains in-scope for UC-24.7.21. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dagster:event`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_key`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dagster:event`** — First 48h baseline for `asset_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_key`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.21)** — Planned work for 'Dagster Asset Materialization Failures' shifts `count` over `span=1h` while `asset_key` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dagster:event`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.7.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_key`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dagster:event`** — First 48h baseline for UC-24.7.21 on `asset_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

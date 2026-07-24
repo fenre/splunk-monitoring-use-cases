@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'CephFS MDS session cap recall and cache pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cephfs_mds_session_cap_recall_and_cache_pressure` (UC-6.2.24), SOC dashboard panel \"Operations — CephFS MDS session cap recall and cache pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' where `mds_id` satisfies `cap_events` > 50 for UC-6.2.24 ('CephFS MDS session cap recall and cache pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ceph:log` events where `mds_id` stays below `cap_events` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.24."
+    "positiveScenario": "UC-6.2.24 positive (CephFS, MDS, session, cap, recall): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `mds_id`, `host` satisfies `cap_events` > 50 for 'CephFS MDS session cap recall and cache pressure'. Validate filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.24 negative (cache pressure): ingest benign `os` / `ceph:log` events where `mds_id`, `host` stays below `cap_events` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'CephFS MDS session cap recall and cache pressure'."
   },
   "dataSources": "MDS logs as `ceph:log` or MDS status JSON as `ceph:status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Forwarder on MDS nodes; optional `ceph tell mds.* cache status` scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-4h\n| search \"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")\n| rex field=_raw \"(?i)mds\\.(?<mds_id>[a-z0-9_]+)\"\n| stats count as cap_events by mds_id, host\n| where cap_events > 50\n| sort - cap_events",
-  "description": "Aggressive cap recall usually means clients are hoarding caps or MDS cache is undersized, causing metadata latency for CephFS users.",
-  "value": "Aggressive cap recall usually means clients are hoarding caps or MDS cache is undersized, causing metadata.... Timely UC-6.2.24 alerting on 'CephFS MDS session cap recall and cache pressure' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-6.2.24 — CephFS, MDS, session, cap, recall — using `index=os` sourcetype `ceph:log`, grouped by `mds_id`, `host`. Outputs `count` each `the scheduled window`; alert when `cap_events` > 50. Filter chain includes filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Purpose-built for 'CephFS MDS session cap recall and cache pressure' in Operations workflows.",
+  "value": "Alerting on CephFS, MDS, session, cap, recall through UC-6.2.24 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Split index: `os` for logs, `storage` for JSON status. Add client IP via `rex` when present to notify noisy tenants.",
   "visualization": "Table (MDS, events), line chart over time.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'CephFS MDS session cap recall and cache pressure' shifts `count` over `span=1h` while `mds_id` remains in-scope for UC-6.2.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `host` without crossing `cap_events` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mds_id`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for `mds_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mds_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.2.24)** — Planned work for 'CephFS MDS session cap recall and cache pressure' shifts `count` over `span=1h` while `mds_id`, `host` remains in-scope. Applies filter `\"mds.\" AND (\"cap\" OR \"recall\" OR \"session\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `host` without crossing `cap_events` > 50 for UC-6.2.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `mds_id`, `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.24 on `mds_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `mds_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

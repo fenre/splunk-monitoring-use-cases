@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Internal-to-External Traffic Ratio (CIM)' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_internal_to_external_traffic_ratio_cim` (UC-10.13.12), SOC dashboard panel \"Security Infra — Internal-to-External Traffic Ratio (CIM)\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-10.13.12 ('Internal-to-External Traffic Ratio (CIM)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.12."
+    "positiveScenario": "UC-10.13.12 positive (Internal, External, Traffic, Ratio, (CIM)): ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `total` grouped by `entity` satisfies detection threshold for 'Internal-to-External Traffic Ratio (CIM)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.13.12 negative (Ratio (CIM)): ingest benign `security` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 6 confirms zero alert rows for 'Internal-to-External Traffic Ratio (CIM)'."
   },
   "dataSources": "`src`/`dest` with RFC1918 classification Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "NetFlow / firewall CIM — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=network\n| eval src_int=if(cidrmatch(src,\"10.0.0.0/8\") OR cidrmatch(src,\"192.168.0.0/16\"),1,0)\n| eval dest_ext=if(NOT cidrmatch(dest,\"10.0.0.0/8\"),1,0)\n| timechart span=15m sum(eval(src_int=1 AND dest_ext=1)) as egress sum(bytes) as total\n| eval ratio=egress/total",
-  "description": "Sudden shift in egress ratio can signal C2 or misrouted backups. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'Internal-to-External Traffic Ratio (CIM)' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Ratio (CIM) anomalies for UC-10.13.12 with window `15m` on `index=security` sourcetype `configured sourcetype`. Combines `total` by `entity` and compares against configured threshold. Mapped to keywords Internal, External, Traffic, Ratio, (CIM) for dashboard routing.",
+  "value": "Alerting on Internal, External, Traffic, Ratio, (CIM) through UC-10.13.12 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `total` early.",
   "implementation": "Alert on ratio change >30% vs. weekly baseline.",
   "visualization": "Area chart (egress ratio), Line chart (bytes).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Internal-to-External Traffic Ratio (CIM)' shifts `sum` over `span=15m` while `host` remains in-scope for UC-10.13.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `src_int` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `security` (UC-10.13.12)** — Planned work for 'Internal-to-External Traffic Ratio (CIM)' shifts `total` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `src_int` without crossing configured threshold for UC-10.13.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.13.12 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],

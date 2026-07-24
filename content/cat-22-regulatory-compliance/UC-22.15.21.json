@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=fw` sourcetype='pan:traffic' where `sess_key` satisfies `span_h` > 4 for UC-22.15.21 ('Forced Remote Engineering Session Termination After Hours'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `fw` / `pan:traffic` events where `sess_key` stays below `span_h` > 4, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.15.21."
+    "positiveScenario": "UC-22.15.21 positive (Forced, Remote, Engineering, Session, Termination): ingest synthetic events into `index=fw` sourcetype='pan:traffic' where `start`, `end` grouped by `sess_key`, `user` satisfies `span_h` > 4 for 'Forced Remote Engineering Session Termination After Hours'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.15.21 negative (After Hours): ingest benign `fw` / `pan:traffic` events where `sess_key`, `user` stays below `span_h` > 4, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'Forced Remote Engineering Session Termination After Hours'."
   },
   "dataSources": "`pan:traffic` app=ssl,sslvpn; `cyberark:psm` session end — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Palo Alto (2757), CyberArk (4295) (Splunkbase)",
   "spl": "index=fw sourcetype=\"pan:traffic\" earliest=-2d\n| where app IN (\"ssl\",\"sslvpn\",\"gp-gateway\") AND dest_zone=\"OT-Jump\"\n| eval sess_key=src.\"-\".dest_ip\n| stats min(_time) as start, max(_time) as end by sess_key, user\n| eval span_h=(end-start)/3600\n| eval ended_after_shift=if((strftime(end,\"%H\")>\"22\" OR strftime(end,\"%H\")<\"05\") AND span_h>4,1,0)\n| where ended_after_shift=1\n| table start, end, span_h, sess_key, user",
-  "description": "Ensures vendor and internal remote sessions to OT are closed at shift end by correlating still-active tunnels with schedule.",
-  "value": "Ensures vendor and internal remote sessions to OT are closed at shift end by correlating still-active tunne.... Timely UC-22.15.21 alerting on 'Forced Remote Engineering Session Termination After Hours' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.15.21 for Forced, Remote, Engineering, Session, Termination over `index=fw` sourcetype `pan:traffic` with thresholds `span_h` > 4. Groups `start`, `end` by `sess_key`, `user` each `the scheduled window`. Centered on After Hours indicators. Supports repeatable compliance triage for 'Forced Remote Engineering Session Termination After Hours'.",
+  "value": "For 'Forced Remote Engineering Session Termination After Hours', UC-22.15.21 converts `start`, `end` on `pan:traffic` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Configure firewall idle timeouts; (2) CyberArk max session duration; (3) validate OT maintenance windows; (4) alert if sessions exceed 8h. Indexes required: `index=fw`; Sourcetypes: `sourcetype=pan:traffic`.",
   "visualization": "Timeline, Table, Bar (duration buckets). Key fields: `end`, `ended_after_shift`, `sess_key`, `span_h`, `start`, `user`.",
   "cimModels": [

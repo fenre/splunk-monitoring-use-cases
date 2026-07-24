@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Emergency Change Frequency Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_emergency_change_frequency_monitoring` (UC-16.4.5), SOC dashboard panel \"Operations — Emergency Change Frequency Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:change_request' where `_time` satisfies detection threshold for UC-16.4.5 ('Emergency Change Frequency Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:change_request` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.4.5."
+    "positiveScenario": "UC-16.4.5 positive (Emergency, Change, Frequency, Monitoring): ingest synthetic events into `index=itsm` sourcetype='snow:change_request' where `baseline` grouped by `_time`, `assignment_group` satisfies detection threshold for 'Emergency Change Frequency Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.4.5 negative (Frequency Monitoring): ingest benign `itsm` / `snow:change_request` events where `_time`, `assignment_group` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Emergency Change Frequency Monitoring'."
   },
   "dataSources": "`sourcetype=snow:change_request` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:change_request\"\n| eval is_emergency=if(match(lower(type),\"emergency\") OR lower(u_change_model)=\"emergency\",1,0)\n| where is_emergency=1\n| bin _time span=1w\n| stats count by _time, assignment_group\n| eventstats avg(count) as baseline by assignment_group\n| where count > baseline*1.5",
-  "description": "Chronic reliance on emergency changes indicates planning gaps or unstable platforms; trending frequency guides process improvement and capacity investments.",
-  "value": "Early 'Emergency Change Frequency Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-16.4.5 for Emergency, Change, Frequency, Monitoring over `index=itsm` sourcetype `snow:change_request` with thresholds configured threshold. Groups `baseline` by `_time`, `assignment_group` each `1w`. Centered on Frequency Monitoring indicators. Supports repeatable operations triage for 'Emergency Change Frequency Monitoring'.",
+  "value": "For 'Emergency Change Frequency Monitoring', UC-16.4.5 converts `baseline` on `snow:change_request` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Tag emergency changes via `type`, model, or priority. Exclude duplicates from reopen workflows. Compare weekly counts to a rolling baseline per team. Alert on spikes; review in CAB for pattern (vendor defects, capacity, failed standard changes).",
   "visualization": "Line chart (emergency CHGs per week), Bar chart (by team), Table (recent emergencies with cause).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Emergency Change Frequency Monitoring' shifts `avg` over `span=1w` while `_time` remains in-scope for UC-16.4.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snow:change_request`** — Scheduled automation elevates `assignment_group` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:change_request`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.4.5)** — Planned work for 'Emergency Change Frequency Monitoring' shifts `baseline` over `span=1w` while `_time`, `assignment_group` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snow:change_request`** — Scheduled automation elevates `assignment_group` without crossing configured threshold for UC-16.4.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `assignment_group`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:change_request`** — First 48h baseline for UC-16.4.5 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

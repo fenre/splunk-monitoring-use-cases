@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'GoodRx Price Lookup Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_goodrx_price_lookup_sync_gap_watch` (UC-25.110.6), SOC dashboard panel \"Personal — GoodRx Price Lookup Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='goodrx:price' where `drug_name` satisfies `hours_since` > 168 for UC-25.110.6 ('GoodRx Price Lookup Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `goodrx:price` events where `drug_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.6."
+    "positiveScenario": "UC-25.110.6 positive (GoodRx, Price, Lookup, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='goodrx:price' where `last_seen` grouped by `drug_name` satisfies `hours_since` > 168 for 'GoodRx Price Lookup Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.110.6 negative (Gap Watch): ingest benign `personal` / `goodrx:price` events where `drug_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'GoodRx Price Lookup Sync Gap Watch'."
   },
   "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=goodrx:price\n| stats max(_time) as last_seen by drug_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
-  "description": "Detects when GoodRx price lookup data has stopped arriving for a given drug. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when GoodRx price lookup data has stopped arriving for a given drug. Timely UC-25.110.6 alerting on 'GoodRx Price Lookup Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects 'GoodRx Price Lookup Sync Gap Watch' patterns (UC-25.110.6) sourced from `index=personal` sourcetype `goodrx:price`. Threshold bundle: `hours_since` > 168; aggregation grain: `drug_name`; metrics: `last_seen`. Watch terms: GoodRx, Price, Lookup, Sync, Gap.",
+  "value": "UC-25.110.6 gives Personal teams earlier visibility into Gap Watch through `goodrx:price` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per drug and alert when the feed is older than 168 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'GoodRx Price Lookup Sync Gap Watch' stops polling `goodrx:price`; stale `drug_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `goodrx:price`. Dedup with `stats latest(*) by drug_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.110.6)** — Connector for 'GoodRx Price Lookup Sync Gap Watch' stops polling `goodrx:price`; stale `last_seen` on `drug_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.110.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `goodrx:price`. Dedup with `stats latest(*) by drug_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168 for 'GoodRx Price Lookup Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

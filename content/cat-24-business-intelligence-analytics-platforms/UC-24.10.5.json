@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Purview Scan Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_purview_scan_failures` (UC-24.10.5), SOC dashboard panel \"Operations — Purview Scan Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='purview:scan' where `data_source` satisfies `failures` > 0 for UC-24.10.5 ('Purview Scan Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `purview:scan` events where `data_source` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.10.5."
+    "positiveScenario": "UC-24.10.5 positive (Purview, Scan, Failures): ingest synthetic events into `index=dataops` sourcetype='purview:scan' where `sum` grouped by `data_source`, `scan_name` satisfies `failures` > 0 for 'Purview Scan Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.10.5 negative (Scan Failures): ingest benign `dataops` / `purview:scan` events where `data_source`, `scan_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Purview Scan Failures'."
   },
   "dataSources": "Catalog audit events (`collibra:audit`, `atlan:audit`, `datahub:audit`), OpenLineage run events (`openlineage:event`), Unity Catalog audit logs, Purview scan/classification results, stewardship and access-policy change events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Collibra / Alation / Atlan / DataHub / Microsoft Purview / Databricks Unity Catalog audit logs and REST APIs via HEC scripted inputs; OpenLineage/Marquez events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=purview:scan\n| stats count as scans, sum(eval(status=\"Failed\")) as failures by data_source, scan_name\n| where failures>0\n| sort - failures",
-  "description": "Tracks Microsoft Purview scan runs and flags failed scans, which leave the catalog and classifications stale for the affected sources.",
-  "value": "Tracks Microsoft Purview scan runs and flags failed scans, which leave the catalog and classifications stal.... Timely UC-24.10.5 alerting on 'Purview Scan Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces when Scan Failures criteria fire for 'Purview Scan Failures' (UC-24.10.5) in `index=dataops` sourcetype `purview:scan`. Pipeline aggregates `sum` by `data_source`, `scan_name` over `the scheduled window`. Alert logic enforces `failures` > 0. Title terms: Purview, Scan, Failures. Eliminates manual hunting for UC-24.10.5 conditions.",
+  "value": "UC-24.10.5 helps teams contain Purview, Scan, Failures scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest Purview scan events; schedule daily; alert on failures for key sources.",
   "visualization": "Table of failing scans, timechart of scan failures.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Purview Scan Failures' shifts `sum` over `span=1h` while `data_source` remains in-scope for UC-24.10.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `purview:scan`** — Scheduled automation elevates `scan_name` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `data_source`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purview:scan`** — First 48h baseline for `data_source` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `data_source`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.10.5)** — Planned work for 'Purview Scan Failures' shifts `sum` over `span=1h` while `data_source`, `scan_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `purview:scan`** — Scheduled automation elevates `scan_name` without crossing `failures` > 0 for UC-24.10.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `data_source`, `scan_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `purview:scan`** — First 48h baseline for UC-24.10.5 on `data_source` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `data_source`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc"
   ],

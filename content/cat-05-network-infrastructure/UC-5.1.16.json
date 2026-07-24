@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Route Table Flapping' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_route_table_flapping` (UC-5.1.16), SOC dashboard panel \"Operations — Route Table Flapping\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' where `_time` satisfies `changes` > 5 for UC-5.1.16 ('Route Table Flapping'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ios` events where `_time` stays below `changes` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.16."
+    "positiveScenario": "UC-5.1.16 positive (Route, Table, Flapping): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `count` grouped by `_time`, `host`, `protocol`, `prefix` satisfies `changes` > 5 for 'Route Table Flapping'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.16 negative (Table Flapping): ingest benign `network` / `cisco:ios` events where `_time`, `host`, `protocol`, `prefix` stays below `changes` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Route Table Flapping'."
   },
   "dataSources": "`sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:ios\" \"ROUTING\" OR \"RT_ENTRY\" OR \"%DUAL-5-NBRCHANGE\" OR \"%BGP-5-ADJCHANGE\" OR \"%OSPF-5-ADJCHG\"\n| rex \"(?<protocol>BGP|OSPF|EIGRP).*?(?<prefix>(?:\\d+\\.){3}\\d+(?:/\\d+)?|[0-9a-fA-F:.]+/[0-9]{1,3})\"\n| bin _time span=10m | stats count as changes by _time, host, protocol, prefix\n| where changes > 5 | sort -changes",
-  "description": "Unstable routes cause packet loss and reachability failures. Detecting flapping routes prevents cascading network outages across your infrastructure.",
-  "value": "Unstable routes cause packet loss and reachability failures. Timely UC-5.1.16 alerting on 'Route Table Flapping' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-5.1.16 — Route, Table, Flapping — using `index=network` sourcetype `cisco:ios`, grouped by `_time`, `host`, `protocol`, `prefix`. Outputs `count` each `10m`; alert when `changes` > 5. Primary focus: Table Flapping. Purpose-built for 'Route Table Flapping' in Operations workflows.",
+  "value": "Operators running UC-5.1.16 on `cisco:ios` feeds shorten triage for Table Flapping tied to 'Route Table Flapping', lowering operational risk and delayed incident response.",
   "implementation": "Collect syslog from all routers. Alert on >5 route changes for the same prefix in 10 minutes. Correlate with interface flaps. Use `streamstats` to detect patterns.",
   "visualization": "Timeline (flapping events), Table (prefix, host, count), Line chart (change frequency).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Route Table Flapping' shifts `count` over `span=10m` while `_time` remains in-scope for UC-5.1.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `host` without crossing `changes` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.16)** — Planned work for 'Route Table Flapping' shifts `count` over `span=10m` while `_time`, `host`, `protocol`, `prefix` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:ios`** — Scheduled automation elevates `host` without crossing `changes` > 5 for UC-5.1.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `host`, `protocol`, `prefix`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.16 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

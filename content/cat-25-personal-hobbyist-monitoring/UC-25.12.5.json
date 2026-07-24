@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Subscription Creep Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_subscription_creep_detection` (UC-25.12.5), SOC dashboard panel \"Personal — Subscription Creep Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='firefly:txn' where `merchant` satisfies `charges` >= 2 for UC-25.12.5 ('Subscription Creep Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `firefly:txn` events where `merchant` stays below `charges` >= 2, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.5."
+    "positiveScenario": "UC-25.12.5 positive (Subscription, Creep, Detection): ingest synthetic events into `index=personal` sourcetype='firefly:txn' where `avg` grouped by `merchant` satisfies `charges` >= 2 for 'Subscription Creep Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.12.5 negative (Creep Detection): ingest benign `personal` / `firefly:txn` events where `merchant` stays below `charges` >= 2, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Subscription Creep Detection'."
   },
   "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=firefly:txn\n| where match(description,\"(?i)subscription|monthly|netflix|spotify|prime|icloud|patreon\")\n| stats count as charges, avg(abs(amount)) as avg_amount, latest(_time) as last_charge by merchant\n| where charges>=2\n| eval annual_cost=round(avg_amount*12,2)\n| sort - annual_cost",
-  "description": "Finds recurring subscription charges and adds up their yearly cost, surfacing the forgotten free trials and creeping renewals draining your account.",
-  "value": "Finds recurring subscription charges and adds up their yearly cost, surfacing the forgotten free trials and.... Timely UC-25.12.5 alerting on 'Subscription Creep Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on Creep Detection anomalies for UC-25.12.5 with window `the scheduled window` on `index=personal` sourcetype `firefly:txn`. Combines `avg` by `merchant` and compares against `charges` >= 2. Mapped to keywords Subscription, Creep, Detection for dashboard routing.",
+  "value": "Alerting on Subscription, Creep, Detection through UC-25.12.5 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Export transactions; schedule monthly and review the recurring-charge list to prune what you no longer use.",
   "visualization": "Table of subscriptions by estimated annual cost.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Subscription Creep Detection' stops polling `firefly:txn`; stale `merchant` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `firefly:txn`. Dedup with `stats latest(*) by merchant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `charges` >= 2. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.12.5)** — Connector for 'Subscription Creep Detection' stops polling `firefly:txn`; stale `avg` on `merchant` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected for UC-25.12.5, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `firefly:txn`. Dedup with `stats latest(*) by merchant`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `charges` >= 2 for 'Subscription Creep Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "exchange"
   ],

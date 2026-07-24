@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Session Table Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_session_table_exhaustion` (UC-5.2.13), SOC dashboard panel \"Operations — Session Table Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:system' where `dvc` satisfies `utilization` > 80 for UC-5.2.13 ('Session Table Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `pan:system` events where `dvc` stays below `utilization` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.13."
+    "positiveScenario": "UC-5.2.13 positive (Session, Table, Exhaustion): ingest synthetic events into `index=network` sourcetype='pan:system' where `active_sessions` grouped by `dvc` satisfies `utilization` > 80 for 'Session Table Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.13 negative (Table Exhaustion): ingest benign `network` / `pan:system` events where `dvc` stays below `utilization` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Session Table Exhaustion'."
   },
   "dataSources": "`sourcetype=pan:system`, `sourcetype=fgt_event`, SNMP Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX), SNMP — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"pan:system\" \"session table\"\n| append [search index=network sourcetype=\"pan:traffic\" | stats dc(session_id) as active_sessions by dvc | eval max_sessions=coalesce(max_sessions,500000)]\n| stats latest(active_sessions) as sessions, latest(max_sessions) as max by dvc\n| eval utilization=round(sessions/max*100,1) | where utilization > 80",
-  "description": "When session tables fill, new connections are dropped. This causes service outages that are difficult to diagnose without firewall telemetry.",
-  "value": "When session tables fill, new connections are dropped. Timely UC-5.2.13 alerting on 'Session Table Exhaustion' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-5.2.13 for Session, Table, Exhaustion over `index=network` sourcetype `pan:system` with thresholds `utilization` > 80. Groups `active_sessions` by `dvc` each `the scheduled window`. Centered on Table Exhaustion indicators. Supports repeatable operations triage for 'Session Table Exhaustion'.",
+  "value": "For 'Session Table Exhaustion', UC-5.2.13 converts `active_sessions` on `pan:system` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Monitor session counts via SNMP or firewall system logs. Know your platform's session limit. Alert at 80% utilization. Investigate top session consumers by source/destination.",
   "visualization": "Gauge (per firewall), Line chart (session count trending), Table (top consumers).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Session Table Exhaustion' shifts `dc` over `span=1h` while `dvc` remains in-scope for UC-5.2.13. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `pan:system`** — Scheduled automation elevates `max_sessions` without crossing `utilization` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dvc`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for `dvc` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dvc`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.2.13)** — Planned work for 'Session Table Exhaustion' shifts `active_sessions` over `span=1h` while `dvc` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `pan:system`** — Scheduled automation elevates `max_sessions` without crossing `utilization` > 80 for UC-5.2.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dvc`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pan:system`** — First 48h baseline for UC-5.2.13 on `dvc` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dvc`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

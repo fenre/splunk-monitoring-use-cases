@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Top Error URIs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_top_error_uris` (UC-8.1.4), SOC dashboard panel \"Operations — Top Error URIs\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='access_combined' where `uri_path` satisfies `status` >= 400 for UC-8.1.4 ('Top Error URIs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `access_combined` events where `uri_path` stays below `status` >= 400, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.4."
+    "positiveScenario": "UC-8.1.4 positive (Top, Error, URIs): ingest synthetic events into `index=web` sourcetype='access_combined' where `count` grouped by `uri_path`, `status` satisfies `status` >= 400 for 'Top Error URIs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.4 negative (Error URIs): ingest benign `web` / `access_combined` events where `uri_path`, `status` stays below `status` >= 400, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Top Error URIs'."
   },
   "dataSources": "Access logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_apache`, `TA-nginx` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"access_combined\" status>=400\n| stats count by uri_path, status\n| sort -count\n| head 20",
-  "description": "Identifies the most problematic endpoints for targeted developer attention. Reduces noise by focusing on high-impact errors.",
-  "value": "Early 'Top Error URIs' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on risk tied to Top, Error, URIs through UC-8.1.4 on `index=web` sourcetype `access_combined`. Summarises `count` grouped by `uri_path`, `status` across `the scheduled window` before applying `status` >= 400. Operators tune 'Top Error URIs' using UC-8.1.4 runbook steps.",
+  "value": "Tracking `activity` via UC-8.1.4 on `access_combined` feeds improves response to 'Top Error URIs' and reduces operational risk and delayed incident response.",
   "implementation": "Parse URI from access logs (ensure proper field extraction). Group by URI and status code. Create daily/weekly report of top error endpoints. Track error trends per URI over time to detect regressions.",
   "visualization": "Table (URI, status, count), Bar chart (top 20 error URIs), Treemap (errors by URI path).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Top Error URIs' shifts `count` over `span=1h` while `uri_path` remains in-scope for UC-8.1.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `access_combined`** — Scheduled automation elevates `status` without crossing `status` >= 400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `uri_path`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for `uri_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `uri_path`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.4)** — Planned work for 'Top Error URIs' shifts `count` over `span=1h` while `uri_path`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `access_combined`** — Scheduled automation elevates `status` without crossing `status` >= 400 for UC-8.1.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `uri_path`, `status`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for UC-8.1.4 on `uri_path` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `uri_path`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"

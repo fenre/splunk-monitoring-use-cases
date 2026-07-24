@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Knowledge Article Usage and Gap Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_knowledge_article_usage_and_gap_detection` (UC-16.3.5), SOC dashboard panel \"Operations — Knowledge Article Usage and Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='kb:usage' where `article_id` satisfies `views` < 10 for UC-16.3.5 ('Knowledge Article Usage and Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `kb:usage` events where `article_id` stays below `views` < 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.5."
+    "positiveScenario": "UC-16.3.5 positive (Knowledge, Article, Usage, and, Gap): ingest synthetic events into `index=itsm` sourcetype='kb:usage' where `linked_incidents` grouped by `article_id`, `title` satisfies `views` < 10, or `linked_incidents` > 0 for 'Knowledge Article Usage and Gap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.5 negative (Gap Detection): ingest benign `itsm` / `kb:usage` events where `article_id`, `title` stays below `views` < 10, or `linked_incidents` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Knowledge Article Usage and Gap Detection'."
   },
   "dataSources": "Article views, incident–KB linkage, search terms Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ITSM knowledge base, search logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"kb:usage\"\n| stats count as views, dc(incident_id) as linked_incidents by article_id, title\n| where views < 10 AND linked_incidents > 0\n| sort -linked_incidents\n| table article_id, title, views, linked_incidents",
-  "description": "Low article use or repeated incidents without matching KB may indicate content gaps. Analytics support knowledge management and deflection.",
-  "value": "Early 'Knowledge Article Usage and Gap Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-16.3.5 — Knowledge, Article, Usage, and, Gap — using `index=itsm` sourcetype `kb:usage`, grouped by `article_id`, `title`. Outputs `linked_incidents` each `the scheduled window`; alert when `views` < 10, or `linked_incidents` > 0. Primary focus: Gap Detection. Purpose-built for 'Knowledge Article Usage and Gap Detection' in Operations workflows.",
+  "value": "Alerting on Knowledge, Article, Usage, and, Gap through UC-16.3.5 reduces operational risk and delayed incident response by surfacing `linked_incidents` early.",
   "implementation": "Ingest KB view and incident–article link data. Identify articles with many linked incidents but few views (potential discovery gap). Report on top articles and unused content. Suggest new articles from frequent incident categories.",
   "visualization": "Table (articles by usage), Bar chart (linked incidents vs views), Pie chart (top articles).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Knowledge Article Usage and Gap Detection' shifts `dc` over `span=1h` while `article_id` remains in-scope for UC-16.3.5. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `kb:usage`** — Scheduled automation elevates `title` without crossing `views` < 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `article_id`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kb:usage`** — First 48h baseline for `article_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `article_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.3.5)** — Planned work for 'Knowledge Article Usage and Gap Detection' shifts `linked_incidents` over `span=1h` while `article_id`, `title` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `kb:usage`** — Scheduled automation elevates `title` without crossing `views` < 10 for UC-16.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `article_id`, `title`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kb:usage`** — First 48h baseline for UC-16.3.5 on `article_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `article_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Key Vault Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_key_vault_access_audit` (UC-4.2.8), SOC dashboard panel \"Operations — Azure Key Vault Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `identity.claim.upn` satisfies detection threshold for UC-4.2.8 ('Azure Key Vault Access Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:diagnostics` events where `identity.claim.upn` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.8."
+    "positiveScenario": "UC-4.2.8 positive (Azure, Key, Vault, Access, Audit): ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `count` grouped by `identity.claim.upn`, `operationName`, `ResultType` satisfies detection threshold for 'Azure Key Vault Access Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.8 negative (Access Audit): ingest benign `azure` / `mscs:azure:diagnostics` events where `identity.claim.upn`, `operationName`, `ResultType` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Azure Key Vault Access Audit'."
   },
   "dataSources": "`sourcetype=mscs:azure:diagnostics` (Key Vault diagnostics) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AuditEvent\" ResourceType=\"VAULTS\"\n| stats count by identity.claim.upn, operationName, ResultType\n| where ResultType!=\"Success\"\n| sort -count",
-  "description": "Key Vault stores secrets, keys, and certificates. Unauthorized or anomalous access could indicate credential theft or data breach preparation.",
-  "value": "Early 'Azure Key Vault Access Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-4.2.8 — Azure, Key, Vault, Access, Audit — using `index=azure` sourcetype `mscs:azure:diagnostics`, grouped by `identity.claim.upn`, `operationName`, `ResultType`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Access Audit. Purpose-built for 'Azure Key Vault Access Audit' in Operations workflows.",
+  "value": "For 'Azure Key Vault Access Audit', UC-4.2.8 converts `activity` on `mscs:azure:diagnostics` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable Key Vault diagnostic logging. Monitor all access operations. Alert on failed access attempts and unusual access patterns (new principals accessing secrets).",
   "visualization": "Table (user, operation, result), Timeline, Bar chart by operation.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Key Vault Access Audit' shifts `count` over `span=1h` while `identity.claim.upn` remains in-scope for UC-4.2.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:diagnostics`** — Scheduled automation elevates `operationName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `identity.claim.upn`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for `identity.claim.upn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `identity.claim.upn`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.8)** — Planned work for 'Azure Key Vault Access Audit' shifts `count` over `span=1h` while `identity.claim.upn`, `operationName`, `ResultType` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:diagnostics`** — Scheduled automation elevates `operationName` without crossing configured threshold for UC-4.2.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `identity.claim.upn`, `operationName`, `ResultType`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for UC-4.2.8 on `identity.claim.upn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `identity.claim.upn`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1530"

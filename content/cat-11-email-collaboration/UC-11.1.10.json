@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'License Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_license_utilization` (UC-11.1.10), SOC dashboard panel \"Operations — License Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=m365` sourcetype='m365:licenses' where `sku_name` satisfies detection threshold for UC-11.1.10 ('License Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `m365` / `m365:licenses` events where `sku_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.10."
+    "positiveScenario": "UC-11.1.10 positive (License, Utilization): ingest synthetic events into `index=m365` sourcetype='m365:licenses' where `assigned`, `consumed` grouped by `sku_name` satisfies detection threshold for 'License Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.1.10 negative (License Utilization): ingest benign `m365` / `m365:licenses` events where `sku_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'License Utilization'."
   },
   "dataSources": "M365 license assignment and usage reports Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom API input (M365 Reports API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=m365 sourcetype=\"m365:licenses\"\n| stats sum(assigned) as assigned, sum(consumed) as consumed by sku_name\n| eval utilization_pct=round(consumed/assigned*100,1)\n| table sku_name, assigned, consumed, utilization_pct",
-  "description": "M365 license costs are significant. Tracking utilization identifies unused licenses for reallocation and cost savings. Searches `index=m365` with sourcetype `m365:licenses` for UC-11.1.10, aggregating `sum` by `sku_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'License Utilization' without manual log review.",
-  "value": "Early 'License Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'License Utilization' patterns (UC-11.1.10) sourced from `index=m365` sourcetype `m365:licenses`. Threshold bundle: configured threshold; aggregation grain: `sku_name`; metrics: `assigned`, `consumed`. Watch terms: License, Utilization.",
+  "value": "UC-11.1.10 gives Operations teams earlier visibility into License Utilization through `m365:licenses` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll M365 license reports via Graph API weekly. Track assigned vs consumed licenses per SKU. Identify inactive users (no activity in 90 days with assigned license). Report on cost optimization opportunities.",
   "visualization": "Table (license utilization), Gauge (% utilized per SKU), Bar chart (unused licenses by SKU).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `m365`** — Planned work for 'License Utilization' shifts `sum` over `span=1h` while `sku_name` remains in-scope for UC-11.1.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `m365:licenses`** — Scheduled automation elevates `utilization_pct` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku_name`** — Health checks in `m365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `m365:licenses`** — First 48h baseline for `sku_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sku_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `m365` (UC-11.1.10)** — Planned work for 'License Utilization' shifts `assigned`, `consumed` over `span=1h` while `sku_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `m365:licenses`** — Scheduled automation elevates `utilization_pct` without crossing configured threshold for UC-11.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku_name`** — Health checks in `m365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `m365:licenses`** — First 48h baseline for UC-11.1.10 on `sku_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `sku_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365"
   ],

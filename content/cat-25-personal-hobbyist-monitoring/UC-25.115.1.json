@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Claim Reimbursement Lag Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_claim_reimbursement_lag_alert` (UC-25.115.1), SOC dashboard panel \"Personal — Claim Reimbursement Lag Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='trupanion:claim' where `entity` satisfies `days_to_pay` > 14 for UC-25.115.1 ('Claim Reimbursement Lag Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `trupanion:claim` events where `entity` stays below `days_to_pay` > 14, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.115.1."
+    "positiveScenario": "UC-25.115.1 positive (Claim, Reimbursement, Lag, Alert): ingest synthetic events into `index=personal` sourcetype='trupanion:claim' where `count` grouped by `entity` satisfies `days_to_pay` > 14 for 'Claim Reimbursement Lag Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.115.1 negative (Lag Alert): ingest benign `personal` / `trupanion:claim` events where `entity` stays below `days_to_pay` > 14, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Claim Reimbursement Lag Alert'."
   },
   "dataSources": "Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=trupanion:claim days_to_pay=* claim_status=*\n| where days_to_pay>14 AND claim_status!=\"paid\"\n| sort - days_to_pay\n| table pet_name reimbursement_usd days_to_pay claim_status",
-  "description": "Lists Trupanion claims unpaid more than fourteen days after submission. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lists Trupanion claims unpaid more than fourteen days after submission. Timely UC-25.115.1 alerting on 'Claim Reimbursement Lag Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.115.1 — Claim, Reimbursement, Lag, Alert — using `index=personal` sourcetype `trupanion:claim`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_to_pay` > 14. Primary focus: Lag Alert. Purpose-built for 'Claim Reimbursement Lag Alert' in Personal workflows.",
+  "value": "Alerting on Claim, Reimbursement, Lag, Alert through UC-25.115.1 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Track `days_to_pay` from submission to deposit and follow up on claims past your normal window.",
   "visualization": "Table of claims sorted by days to pay.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Claim Reimbursement Lag Alert' stops polling `trupanion:claim`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trupanion:claim`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_pay` > 14. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.115.1)** — Connector for 'Claim Reimbursement Lag Alert' stops polling `trupanion:claim`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.115.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `trupanion:claim`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_pay` > 14 for 'Claim Reimbursement Lag Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

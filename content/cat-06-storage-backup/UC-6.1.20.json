@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'iSCSI Session Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_iscsi_session_monitoring` (UC-6.1.20), SOC dashboard panel \"Operations — iSCSI Session Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='iscsi:session' where `host` satisfies detection threshold for UC-6.1.20 ('iSCSI Session Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `iscsi:session` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.20."
+    "positiveScenario": "UC-6.1.20 positive (iSCSI, Session, Monitoring): ingest synthetic events into `index=storage` sourcetype='iscsi:session' where `sessions`, `baseline` grouped by `host`, `target_iqn`, `_time` satisfies detection threshold for 'iSCSI Session Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.20 negative (Session Monitoring): ingest benign `storage` / `iscsi:session` events where `host`, `target_iqn`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'iSCSI Session Monitoring'."
   },
   "dataSources": "Host `iscsiadm -m session`, array iSCSI session list Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vendor TA, Linux `iscsiadm` scripted input, array iSCSI session API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"iscsi:session\"\n| bin _time span=5m\n| stats dc(session_id) as sessions by host, target_iqn, _time\n| eventstats avg(sessions) as baseline by host, target_iqn\n| where sessions < baseline OR sessions=0",
-  "description": "Dropped or flapping iSCSI sessions cause path loss and I/O errors. Session count and login state trending validates host-to-array connectivity after network or firmware changes.",
-  "value": "Early 'iSCSI Session Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'iSCSI Session Monitoring' patterns (UC-6.1.20) sourced from `index=storage` sourcetype `iscsi:session`. Threshold bundle: configured threshold; aggregation grain: `host`, `target_iqn`, `_time`; metrics: `sessions`, `baseline`. Watch terms: iSCSI, Session, Monitoring.",
+  "value": "UC-6.1.20 gives Operations teams earlier visibility into Session Monitoring through `iscsi:session` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Scripted input on hosts or array API export of active sessions every 5m. Alert on session count drop to zero or vs baseline. Correlate with NIC/link events.",
   "visualization": "Line chart (sessions per host/target), Table (hosts with zero sessions), Single value (total active sessions).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'iSCSI Session Monitoring' shifts `dc` over `span=5m` while `host` remains in-scope for UC-6.1.20. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `iscsi:session`** — Scheduled automation elevates `target_iqn` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iscsi:session`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.20)** — Planned work for 'iSCSI Session Monitoring' shifts `sessions`, `baseline` over `span=5m` while `host`, `target_iqn`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `iscsi:session`** — Scheduled automation elevates `target_iqn` without crossing configured threshold for UC-6.1.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `target_iqn`, `_time`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iscsi:session`** — First 48h baseline for UC-6.1.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

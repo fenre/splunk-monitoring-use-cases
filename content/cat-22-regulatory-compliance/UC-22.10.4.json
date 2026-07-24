@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='workday:worker' where `emp_id` satisfies detection threshold for UC-22.10.4 ('Workforce Clearance — HR Hire vs AD Account Creation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `workday:worker` events where `emp_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.4."
+    "positiveScenario": "UC-22.10.4 positive (Workforce, Clearance, Hire, Account, Creation): ingest synthetic events into `index=windows` sourcetype='workday:worker' where `count` grouped by `emp_id`, `event_type` satisfies -180d for 'Workforce Clearance — HR Hire vs AD Account Creation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.4 negative (Account Creation): ingest benign `windows` / `workday:worker` events where `emp_id`, `event_type` stays below -180d, or exclude the test entity via `compliance_exception_register.csv`. Variant 5 confirms zero alert rows for 'Workforce Clearance — HR Hire vs AD Account Creation'."
   },
   "dataSources": "`WinEventLog:Security` EventCode IN (4720,4722,4738), `index=hr` `sourcetype=workday:worker` or CSV HEC (`employee_id`, `clearance_status`, `effective_date`)",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "(index=windows EventCode IN (\"4720\",\"4722\") TargetUserName=\"*\") OR (index=hr sourcetype=\"workday:worker\")\n| eval emp_id=coalesce(employee_id, TargetUserName)\n| eval event_type=if(EventCode=\"4720\",\"AccountCreated\",if(EventCode=\"4722\",\"AccountEnabled\",\"HRRecord\"))\n| stats earliest(_time) as first_ad latest(_time) as last_hr by emp_id, event_type\n| join type=outer emp_id [\n    search index=hr sourcetype=\"workday:worker\" earliest=-180d\n    | eval clearance_epoch=strptime(effective_date,\"%Y-%m-%d\")\n    | table employee_id, clearance_status, clearance_epoch\n    | rename employee_id as emp_id ]\n| eval violation=if(first_ad < clearance_epoch AND clearance_status=\"Cleared\",\"PreClearance_AD\",null())\n| where isnotnull(violation)",
-  "description": "Flags Active Directory accounts created or enabled before HR clearance effective date, supporting workforce clearance procedures for roles with ePHI access.",
-  "value": "Flags Active Directory accounts created or enabled before HR clearance effective date, supporting workforce.... Timely UC-22.10.4 alerting on 'Workforce Clearance — HR Hire vs AD Account Creation' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors 'Workforce Clearance — HR Hire vs AD Account Creation' patterns (UC-22.10.4) sourced from `index=windows` sourcetype `workday:worker`. Threshold bundle: -180d; aggregation grain: `emp_id`, `event_type`; metrics: `count`. Watch terms: Workforce, Clearance, Hire, Account, Creation.",
+  "value": "UC-22.10.4 gives Compliance teams earlier visibility into Account Creation through `workday:worker` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Normalize timestamps to UTC; (2) map service accounts to exclusion lookup; (3) route violations to IAM and HR; (4) quarterly attestation report. Indexes required: `index=hr`, `index=windows`; Sourcetypes: `sourcetype=workday:worker`, `sourcetype=workday:worker``.",
   "visualization": "Table (account, violation, timestamps), Single value (violations 30d).",
   "cimModels": [

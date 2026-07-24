@@ -55,14 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=app` sourcetype='target_sourcetype' where `sourcetype` satisfies detection threshold for UC-22.11.93 ('PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `app` / `target_sourcetype` events where `sourcetype` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.93."
+    "positiveScenario": "UC-22.11.93 positive (PCI, DSS, 3.3, Sensitive, authentication): ingest synthetic events into `index=app` sourcetype='target_sourcetype' where `count` grouped by `sourcetype`, `host`, `match_type` satisfies -10m for 'PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.93 negative (in logs): ingest benign `app` / `target_sourcetype` events where `sourcetype`, `host`, `match_type` stays below -10m, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs'."
   },
   "dataSources": "`index=app` sourcetypes from payment applications; `index=web` access logs; redaction-pipeline attestation events.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=app OR index=web earliest=-10m\n| eval pan_match=if(match(_raw,\"(?<![0-9])(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})(?![0-9])\"),1,0)\n| eval cvv_match=if(match(_raw,\"(?i)cvv=[0-9]{3,4}\"),1,0)\n| where pan_match=1 OR cvv_match=1\n| eval match_type=case(pan_match=1 AND cvv_match=1,\"pan+cvv\",pan_match=1,\"pan\",true(),\"cvv\")\n| stats count BY sourcetype host match_type",
-  "description": "Detects cleartext PAN or CVV patterns in application / web logs. PCI-DSS 3.3 prohibits storing sensitive authentication data post-authorisation; logs containing such data are a direct non-conformance.",
-  "value": "Detects cleartext PAN or CVV patterns in application / web logs. Timely UC-22.11.93 alerting on 'PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.11.93 — PCI, DSS, 3.3, Sensitive, authentication — using `index=app` sourcetype `configured sourcetype`, grouped by `sourcetype`, `host`, `match_type`. Outputs `count` each `the scheduled window`; alert when -10m. Primary focus: in logs. Purpose-built for 'PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs' in Compliance workflows.",
+  "value": "UC-22.11.93 operationalises 'PCI-DSS 3.3 — Sensitive authentication data: cleartext PAN/CVV detection in logs' against UC-22.11.93 search results so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Apply a separate restrictive index for hits (ACL); (2) schedule UC every 10m; (3) hit creates a P1 to DPO + app owner; (4) index-time redaction must be fixed + backfill scrub; (5) monthly DPO report. Indexes required: `index=app`, `index=web`.",
   "visualization": "Timechart of match_count, table of top offending sourcetypes, single value 'detections in last hour'.",
   "cimModels": [

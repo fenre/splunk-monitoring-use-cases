@@ -52,14 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iac` sourcetype='tf:state_snapshot' where `resource_id` satisfies detection threshold for UC-22.42.5 ('Infrastructure-as-code drift — applied state diverges from merged plan'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iac` / `tf:state_snapshot` events where `resource_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.42.5."
+    "positiveScenario": "UC-22.42.5 positive (Infrastructure, code, drift, applied, state): ingest synthetic events into `index=iac` sourcetype='tf:state_snapshot' where `count` grouped by `resource_id`, `resource_id]` satisfies -30m for 'Infrastructure-as-code drift — applied state diverges from merged plan'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.42.5 negative (merged plan): ingest benign `iac` / `tf:state_snapshot` events where `resource_id`, `resource_id]` stays below -30m, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Infrastructure-as-code drift — applied state diverges from merged plan'."
   },
   "dataSources": "Terraform/OpenTofu state snapshots, cloud provider inventory (AWS Config, Azure Resource Graph, GCP Asset Inventory), CI/CD merge events.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=iac sourcetype=tf:state_snapshot earliest=-30m\n| stats latest(plan_checksum) as expected_checksum by resource_id\n| join resource_id [search index=cloud sourcetype=aws:config OR sourcetype=azure:rg OR sourcetype=gcp:asset earliest=-30m | stats latest(state_checksum) as actual_checksum by resource_id]\n| where expected_checksum!=actual_checksum\n| table resource_id expected_checksum actual_checksum",
-  "description": "Continuously reconciles the cloud resource inventory against the last-approved IaC plan checksum and alerts on drift. Drift is a canonical change-management deficiency and also a known attacker-persistence pattern.",
-  "value": "Continuously reconciles the cloud resource inventory against the last-approved IaC plan checksum and alerts.... Timely UC-22.42.5 alerting on 'Infrastructure-as-code drift — applied state diverges from merged plan' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on merged plan anomalies for UC-22.42.5 with window `the scheduled window` on `index=iac` sourcetype `tf:state_snapshot`. Combines `count` by `resource_id`, `resource_id]` and compares against -30m. Mapped to keywords Infrastructure, code, drift, applied, state for dashboard routing.",
+  "value": "Alerting on Infrastructure, code, drift, applied, state through UC-22.42.5 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Export per-plan checksums from CI on merge; (2) enable cloud inventory export; (3) run every 30 min; (4) SOAR auto-remediates via `terraform plan && apply` if allowed. Indexes required: `index=cloud`, `index=iac`; Sourcetypes: `sourcetype=aws:config`, `sourcetype=azure:rg`, `sourcetype=gcp:asset`, `sourcetype=tf:state_snapshot`.",
   "visualization": "Heatmap of resources × drift, table of drifting resources, single-value '% of resources matching plan'. Key fields: `actual_checksum`, `expected_checksum`, `resource_id`, `resource_id]`.",
   "cimModels": [

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Flare-Up Trigger Correlation' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_flare_up_trigger_correlation` (UC-25.51.3), SOC dashboard panel \"Personal — Flare-Up Trigger Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='flareup:event' where `_time` satisfies detection threshold for UC-25.51.3 ('Flare-Up Trigger Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `flareup:event` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.3."
+    "positiveScenario": "UC-25.51.3 positive (Flare, Trigger, Correlation): ingest synthetic events into `index=personal` sourcetype='flareup:event' where `flare_days` grouped by `_time`, `triggers` satisfies detection threshold for 'Flare-Up Trigger Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.3 negative (Trigger Correlation): ingest benign `personal` / `flareup:event` events where `_time`, `triggers` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Flare-Up Trigger Correlation'."
   },
   "dataSources": "Symptom logs (`condition:symptom`), medication doses (`medication:dose`), vitals readings (`vitals:reading`), flare-up events (`flareup:event`), lab results (`labresult:value`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chronic-condition self-management — symptom and medication trackers (Bearable, MyTherapy), connected blood-pressure cuffs and glucometers, and lab-result portals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal (sourcetype=flareup:event OR sourcetype=condition:symptom)\n| bin _time span=1d\n| stats max(eval(if(sourcetype=\"flareup:event\",1,0))) as flare, values(trigger) as triggers by _time\n| stats count as days, sum(flare) as flare_days by triggers\n| eval flare_rate=round(100*flare_days/days,1)\n| sort - flare_rate",
-  "description": "Looks at what you logged around each flare-up — foods, stress, weather, sleep — to surface the triggers most often present before symptoms spike.",
-  "value": "Looks at what you logged around each flare-up — foods, stress, weather, sleep — to surface the triggers mos.... Timely UC-25.51.3 alerting on 'Flare-Up Trigger Correlation' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.51.3 — Flare, Trigger, Correlation — using `index=personal` sourcetype `flareup:event`, grouped by `_time`, `triggers`. Outputs `flare_days` each `1d`; alert when configured threshold. Primary focus: Trigger Correlation. Purpose-built for 'Flare-Up Trigger Correlation' in Personal workflows.",
+  "value": "UC-25.51.3 gives Personal teams earlier visibility into Trigger Correlation through `flareup:event` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest flare events and candidate triggers into `index=personal`; rank triggers by how often they precede a flare.",
   "visualization": "Bar chart of flare rate by candidate trigger.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Flare-Up Trigger Correlation' stops polling `flareup:event`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flareup:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.3)** — Connector for 'Flare-Up Trigger Correlation' stops polling `flareup:event`; stale `flare_days` on `_time`, `triggers` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `flare_days` over `1d` is expected for UC-25.51.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `flareup:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Flare-Up Trigger Correlation'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

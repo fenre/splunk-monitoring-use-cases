@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Polar Flow Workout Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_polar_flow_workout_sync_gap_watch` (UC-25.1.45), SOC dashboard panel \"Personal — Polar Flow Workout Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='polar:activity' where `sport_type` satisfies `hours_since` > 24 for UC-25.1.45 ('Polar Flow Workout Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `polar:activity` events where `sport_type` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.45."
+    "positiveScenario": "UC-25.1.45 positive (Polar, Flow, Workout, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='polar:activity' where `last_seen` grouped by `sport_type` satisfies `hours_since` > 24 for 'Polar Flow Workout Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.45 negative (Gap Watch): ingest benign `personal` / `polar:activity` events where `sport_type` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Polar Flow Workout Sync Gap Watch'."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift/TrainingPeaks exports. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as files. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=polar:activity\n| stats max(_time) as last_seen by sport_type\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when Polar Flow workout data has stopped arriving for a given sport. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Polar Flow workout data has stopped arriving for a given sport. Timely UC-25.1.45 alerting on 'Polar Flow Workout Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.1.45 — Polar, Flow, Workout, Sync, Gap — using `index=personal` sourcetype `polar:activity`, grouped by `sport_type`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 24. Primary focus: Gap Watch. Purpose-built for 'Polar Flow Workout Sync Gap Watch' in Personal workflows.",
+  "value": "For 'Polar Flow Workout Sync Gap Watch', UC-25.1.45 converts `last_seen` on `polar:activity` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per sport and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Polar Flow Workout Sync Gap Watch' stops polling `polar:activity`; stale `sport_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `polar:activity`. Dedup with `stats latest(*) by sport_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.45)** — Connector for 'Polar Flow Workout Sync Gap Watch' stops polling `polar:activity`; stale `last_seen` on `sport_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.1.45, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `polar:activity`. Dedup with `stats latest(*) by sport_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'Polar Flow Workout Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

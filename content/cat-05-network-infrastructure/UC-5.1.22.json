@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Syslog Source Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_syslog_source_health` (UC-5.1.22), SOC dashboard panel \"Operations — Syslog Source Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:ios' where `host` satisfies detection threshold for UC-5.1.22 ('Syslog Source Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:ios` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.22."
+    "positiveScenario": "UC-5.1.22 positive (Syslog, Source, Health): ingest synthetic events into `index=network` sourcetype='cisco:ios' where `event_count` grouped by `host` satisfies detection threshold for 'Syslog Source Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.22 negative (Source Health): ingest benign `network` / `cisco:ios` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Syslog Source Health'."
   },
   "dataSources": "`sourcetype=cisco:ios`, `sourcetype=syslog` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk core (metadata search), `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "| tstats count where index=network sourcetype=\"cisco:ios\" by host\n| append [| inputlookup network_device_inventory.csv | rename device as host | fields host]\n| stats sum(count) as event_count by host | where event_count=0 OR isnull(event_count)\n| table host | rename host as \"Silent Devices\"",
-  "description": "Silence from a device means either it's healthy or its syslog forwarding broke. Detecting missing syslog sources ensures continuous visibility.",
-  "value": "Operations teams monitor syslog source health by tracking device reporting intervals, detecting silent failures where network devices stop sending logs without explicit down notification.",
+  "description": "Surfaces UC-5.1.22 — Syslog, Source, Health — using `index=network` sourcetype `cisco:ios`, grouped by `host`. Outputs `event_count` each `the scheduled window`; alert when configured threshold. Primary focus: Source Health. Purpose-built for 'Syslog Source Health' in Operations workflows.",
+  "value": "UC-5.1.22 accelerates insight into Source Health ('Syslog Source Health') by tracking `event_count` on `cisco:ios` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Maintain a device inventory lookup. Schedule a search comparing active syslog sources against inventory. Alert on devices missing for >1 hour.",
   "visualization": "Table (silent devices), Single value (count of silent devices), Status grid (all devices).",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Syslog Source Health' shifts `sum` over `span=1h` while `host` remains in-scope for UC-5.1.22. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ios`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for `host` is unstable; join `network_device_inventory.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.22)** — Planned work for 'Syslog Source Health' shifts `event_count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:ios`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.1.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:ios`** — First 48h baseline for UC-5.1.22 on `host` is unstable; join `network_device_inventory.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

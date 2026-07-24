@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SMTP Authentication and Relay Policy Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_smtp_authentication_and_relay_policy_violations` (UC-11.4.4), SOC dashboard panel \"Operations — SMTP Authentication and Relay Policy Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mail` sourcetype='syslog' where `src` satisfies `count` > 10 for UC-11.4.4 ('SMTP Authentication and Relay Policy Violations'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mail` / `syslog` events where `src` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.4.4."
+    "positiveScenario": "UC-11.4.4 positive (SMTP, Authentication, and, Relay, Policy): ingest synthetic events into `index=mail` sourcetype='syslog' where `count` grouped by `src`, `sasl_user`, `action` satisfies `count` > 10 for 'SMTP Authentication and Relay Policy Violations'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.4.4 negative (Policy Violations): ingest benign `mail` / `syslog` events where `src`, `sasl_user`, `action` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'SMTP Authentication and Relay Policy Violations'."
   },
   "dataSources": "Postfix maillog, Sendmail logs, Exchange SMTP receive connector logs Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_syslog`, mail server logs — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=mail sourcetype=syslog (process=postfix OR process=sendmail) (\"authentication failed\" OR \"relay denied\" OR \"reject\")\n| rex \"user=(?<sasl_user>\\S+)\"\n| stats count by src, sasl_user, action\n| where count > 10\n| sort -count",
-  "description": "Failed SMTP auth or unauthorized relay attempts may indicate credential stuffing or abuse. Monitoring supports security and ensures relay policy is enforced.",
-  "value": "Early 'SMTP Authentication and Relay Policy Violations' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-11.4.4 — SMTP, Authentication, and, Relay, Policy — using `index=mail` sourcetype `syslog`, grouped by `src`, `sasl_user`, `action`. Outputs `count` each `the scheduled window`; alert when `count` > 10. Primary focus: Policy Violations. Purpose-built for 'SMTP Authentication and Relay Policy Violations' in Operations workflows.",
+  "value": "UC-11.4.4 gives Operations teams earlier visibility into Policy Violations through `syslog` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward mail server logs. Extract auth and relay outcomes. Alert on high volume of auth failures from single IP or relay denied for internal IPs (possible misconfiguration).",
   "visualization": "Table (IP, user, action, count), Timechart of failures, Map (GeoIP).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mail`** — Planned work for 'SMTP Authentication and Relay Policy Violations' shifts `count` over `span=1h` while `src` remains in-scope for UC-11.4.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `sasl_user` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mail` (UC-11.4.4)** — Planned work for 'SMTP Authentication and Relay Policy Violations' shifts `count` over `span=1h` while `src`, `sasl_user`, `action` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `sasl_user` without crossing `count` > 10 for UC-11.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `sasl_user`, `action`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for UC-11.4.4 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "syslog"

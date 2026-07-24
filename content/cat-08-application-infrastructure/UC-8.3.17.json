@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Topic Partition Skew' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_topic_partition_skew` (UC-8.3.17), SOC dashboard panel \"Operations — Kafka Topic Partition Skew\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:partition_skew' where `topic` satisfies `skew_pct` > 25 for UC-8.3.17 ('Kafka Topic Partition Skew'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:partition_skew` events where `topic` stays below `skew_pct` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.17."
+    "positiveScenario": "UC-8.3.17 positive (Kafka, Topic, Partition, Skew): ingest synthetic events into `index=kafka` sourcetype='kafka:partition_skew' where `avg_sz` grouped by `topic` satisfies `skew_pct` > 25 for 'Kafka Topic Partition Skew'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.17 negative (Partition Skew): ingest benign `kafka` / `kafka:partition_skew` events where `topic` stays below `skew_pct` > 25, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Kafka Topic Partition Skew'."
   },
   "dataSources": "`Size` per partition, `LogEndOffset` per partition Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, broker metrics export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=kafka sourcetype=\"kafka:partition_skew\"\n| eventstats avg(partition_size_bytes) as avg_sz by topic\n| eval skew_pct=round(abs(partition_size_bytes-avg_sz)/avg_sz*100,1)\n| where skew_pct > 25\n| table topic partition partition_size_bytes skew_pct",
-  "description": "Byte size and message count skew across partitions causes hot brokers and uneven consumer lag. Uses `kafka-log-dirs` or broker metrics.",
-  "value": "Early 'Kafka Topic Partition Skew' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'Kafka Topic Partition Skew' (UC-8.3.17) using `index=kafka` sourcetype `kafka:partition_skew` by aggregating `avg_sz` grouped by `topic` over `the scheduled window` and alerting when `skew_pct` > 25. Keywords: Kafka, Topic, Partition, Skew. Focuses on Partition Skew behaviour so operations teams can triage UC-8.3.17 without ad-hoc log review.",
+  "value": "UC-8.3.17 accelerates insight into Partition Skew ('Kafka Topic Partition Skew') by tracking `avg_sz` on `kafka:partition_skew` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Nightly job from log size per partition. Alert when skew >25%. Recommend partition key review or reassign.",
   "visualization": "Bar chart (skew % by partition), Table (top skewed topics), Heatmap (broker × partition size).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Kafka Topic Partition Skew' shifts `avg` over `span=1h` while `topic` remains in-scope for UC-8.3.17. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `kafka:partition_skew`** — Scheduled automation elevates `skew_pct` without crossing `skew_pct` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `topic`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:partition_skew`** — First 48h baseline for `topic` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `topic`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.17)** — Planned work for 'Kafka Topic Partition Skew' shifts `avg_sz` over `span=1h` while `topic` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `kafka:partition_skew`** — Scheduled automation elevates `skew_pct` without crossing `skew_pct` > 25 for UC-8.3.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `topic`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:partition_skew`** — First 48h baseline for UC-8.3.17 on `topic` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `topic`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

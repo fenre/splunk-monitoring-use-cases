@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Missed-Dose Same-Day Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_missed_dose_same_day_alert` (UC-25.51.6), SOC dashboard panel \"Personal — Missed-Dose Same-Day Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='medication:dose' where `entity` satisfies `scheduled_time` > 7200 for UC-25.51.6 ('Missed-Dose Same-Day Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `medication:dose` events where `entity` stays below `scheduled_time` > 7200, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.51.6."
+    "positiveScenario": "UC-25.51.6 positive (Missed, Dose, Same, Day, Alert): ingest synthetic events into `index=personal` sourcetype='medication:dose' where `count` grouped by `entity` satisfies `scheduled_time` > 7200 for 'Missed-Dose Same-Day Alert'. Validate filter `NOT [ search index=personal sourcetype=medication:dose statu`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.51.6 negative (Day Alert): ingest benign `personal` / `medication:dose` events where `entity` stays below `scheduled_time` > 7200, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Missed-Dose Same-Day Alert'."
   },
   "dataSources": "Symptom logs (`condition:symptom`), medication doses (`medication:dose`), vitals readings (`vitals:reading`), flare-up events (`flareup:event`), lab results (`labresult:value`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chronic-condition self-management — symptom and medication trackers (Bearable, MyTherapy), connected blood-pressure cuffs and glucometers, and lab-result portals — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=medication:dose status=scheduled\n| eval due_hour=strftime(scheduled_time,\"%H\")\n| search NOT [ search index=personal sourcetype=medication:dose status=taken | fields dose_id ]\n| where now()-scheduled_time>7200\n| table medication scheduled_time",
-  "description": "Flags scheduled doses that have not been marked taken two hours after they were due, so you can catch a missed dose the same day.",
-  "value": "Flags scheduled doses that have not been marked taken two hours after they were due, so you can catch a mis.... Timely UC-25.51.6 alerting on 'Missed-Dose Same-Day Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.51.6 — Missed, Dose, Same, Day, Alert — using `index=personal` sourcetype `medication:dose`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `scheduled_time` > 7200. Filter chain includes filter `NOT [ search index=personal sourcetype=medication:dose statu`. Purpose-built for 'Missed-Dose Same-Day Alert' in Personal workflows.",
+  "value": "UC-25.51.6 helps teams contain Missed, Dose, Same, Day, Alert scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest scheduled and taken doses into `index=personal`; alert on scheduled doses with no matching taken record.",
   "visualization": "Single-value panel of overdue doses today.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Missed-Dose Same-Day Alert' stops polling `medication:dose`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `medication:dose`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `scheduled_time` > 7200. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.51.6)** — Connector for 'Missed-Dose Same-Day Alert' stops polling `medication:dose`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.51.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `medication:dose`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `scheduled_time` > 7200 for 'Missed-Dose Same-Day Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Redis Keyspace Hit / Miss Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_redis_keyspace_hit_miss_ratio` (UC-7.3.7), SOC dashboard panel \"Operations — Redis Keyspace Hit / Miss Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='redis:info' where `host` satisfies `hit_ratio_pct` < 90 for UC-7.3.7 ('Redis Keyspace Hit / Miss Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `redis:info` events where `host` stays below `hit_ratio_pct` < 90, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.7."
+    "positiveScenario": "UC-7.3.7 positive (Redis, Keyspace, Hit, Miss, Ratio): ingest synthetic events into `index=database` sourcetype='redis:info' where `hit_ratio_pct` grouped by `host` satisfies `hit_ratio_pct` < 90 for 'Redis Keyspace Hit / Miss Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.7 negative (Miss Ratio): ingest benign `database` / `redis:info` events where `host` stays below `hit_ratio_pct` < 90, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Redis Keyspace Hit / Miss Ratio'."
   },
   "dataSources": "redis-cli INFO stats (keyspace_hits, keyspace_misses) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (redis-cli INFO stats) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"redis:info\"\n| eval total_ops=keyspace_hits+keyspace_misses\n| eval hit_ratio_pct=round(100*keyspace_hits/nullif(total_ops,0), 2)\n| where hit_ratio_pct < 90\n| timechart span=15m avg(hit_ratio_pct) as hit_ratio_pct by host",
-  "description": "Cache effectiveness trending. Low hit ratio indicates cache is not serving requests effectively, increasing load on backing stores.",
-  "value": "Early 'Redis Keyspace Hit / Miss Ratio' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-7.3.7 — Redis, Keyspace, Hit, Miss, Ratio — using `index=database` sourcetype `redis:info`, grouped by `host`. Outputs `hit_ratio_pct` each `15m`; alert when `hit_ratio_pct` < 90. Primary focus: Miss Ratio. Purpose-built for 'Redis Keyspace Hit / Miss Ratio' in Operations workflows.",
+  "value": "UC-7.3.7 accelerates insight into Miss Ratio ('Redis Keyspace Hit / Miss Ratio') by tracking `hit_ratio_pct` on `redis:info` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll `redis-cli INFO stats` every 15 minutes. Extract `keyspace_hits` and `keyspace_misses`. Compute hit_ratio = hits/(hits+misses)*100. Alert when hit ratio drops below 90% for sustained periods. Track trend to identify cache warming after restarts or workload shifts. Correlate with eviction rate and memory usage.",
   "visualization": "Gauge (keyspace hit ratio %), Line chart (hit ratio over time), Table (hosts with low hit ratio).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Redis Keyspace Hit / Miss Ratio' shifts `avg` over `span=15m` while `host` remains in-scope for UC-7.3.7. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `total_ops` without crossing `hit_ratio_pct` < 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.3.7)** — Planned work for 'Redis Keyspace Hit / Miss Ratio' shifts `hit_ratio_pct` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `total_ops` without crossing `hit_ratio_pct` < 90 for UC-7.3.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.3.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],

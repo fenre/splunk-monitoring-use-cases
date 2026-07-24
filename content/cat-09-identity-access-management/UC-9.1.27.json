@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Active Directory Replication' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_active_directory_replication` (UC-9.1.27), SOC dashboard panel \"IAM — Active Directory Replication\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='repadmin_replsummary' where `entity` satisfies `failures` > 0 for UC-9.1.27 ('Active Directory Replication'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ad` / `repadmin_replsummary` events where `entity` stays below `failures` > 0, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.27."
+    "positiveScenario": "UC-9.1.27 positive (Active, Directory, Replication): ingest synthetic events into `index=ad` sourcetype='repadmin_replsummary' where `count` grouped by `entity` satisfies `failures` > 0 for 'Active Directory Replication'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.27 negative (Directory Replication): ingest benign `ad` / `repadmin_replsummary` events where `entity` stays below `failures` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 6 confirms zero alert rows for 'Active Directory Replication'."
   },
   "dataSources": "`sourcetype=WinEventLog:Directory Service`, custom scripted input (`repadmin /replsummary`) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=ad sourcetype=repadmin_replsummary\n| where failures > 0\n| table source_dc dest_dc failures last_failure last_success",
-  "description": "AD replication failures cause authentication inconsistencies — users locked out in one site but not another, stale GPOs, and split-brain scenarios.",
-  "value": "Early 'Active Directory Replication' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies Directory Replication anomalies for UC-9.1.27 with window `the scheduled window` on `index=ad` sourcetype `repadmin_replsummary`. Combines `count` by `entity` and compares against `failures` > 0. Mapped to keywords Active, Directory, Replication for dashboard routing.",
+  "value": "Alerting on Active, Directory, Replication through UC-9.1.27 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Collect Directory Service event log from all DCs. Create scripted input running `repadmin /replsummary /csv` daily. Alert on any replication failure events. Critical alert on EventCode 2042 (tombstone lifetime exceeded).",
   "visualization": "Table of replication partners with status, Events timeline, Network diagram of DC replication.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ad`** — Planned work for 'Active Directory Replication' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.27. Cross-check CMDB CHG.\n\n2. **Batch `count` on `repadmin_replsummary`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `repadmin_replsummary`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ad` (UC-9.1.27)** — Planned work for 'Active Directory Replication' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `repadmin_replsummary`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-9.1.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `repadmin_replsummary`** — First 48h baseline for UC-9.1.27 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

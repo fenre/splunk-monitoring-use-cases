@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Firewall Blocked-Connection Trends' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_firewall_blocked_connection_trends` (UC-25.9.7), SOC dashboard panel \"Personal — Firewall Blocked-Connection Trends\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `entity` satisfies detection threshold for UC-25.9.7 ('Firewall Blocked-Connection Trends'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.7."
+    "positiveScenario": "UC-25.9.7 positive (Firewall, Blocked, Connection, Trends): ingest synthetic events into `index=personal` sourcetype='unifi:event' where `avg_blocked`, `sd_blocked` grouped by `entity` satisfies detection threshold for 'Firewall Blocked-Connection Trends'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.7 negative (Connection Trends): ingest benign `personal` / `unifi:event` events where `entity` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Firewall Blocked-Connection Trends'."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event event_key=\"EVT_GW_Blocked\"\n| timechart span=1h count as blocked_connections\n| eventstats avg(blocked_connections) as avg_blocked, stdev(blocked_connections) as sd_blocked\n| eval spike=if(blocked_connections>avg_blocked+3*sd_blocked,1,0)",
-  "description": "Trends the connections your home firewall blocked and flags unusual spikes that can signal scanning or a compromised device reaching out.",
-  "value": "Trends the connections your home firewall blocked and flags unusual spikes that can signal scanning or a co.... Timely UC-25.9.7 alerting on 'Firewall Blocked-Connection Trends' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.9.7 — Firewall, Blocked, Connection, Trends — using `index=personal` sourcetype `unifi:event`, grouped by `entity`. Outputs `avg_blocked`, `sd_blocked` each `1h`; alert when configured threshold. Primary focus: Connection Trends. Purpose-built for 'Firewall Blocked-Connection Trends' in Personal workflows.",
+  "value": "UC-25.9.7 operationalises 'Firewall Blocked-Connection Trends' against `unifi:event` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward firewall/gateway block events; schedule hourly and alert on statistically unusual spikes.",
   "visualization": "Timeline of blocked connections with anomaly markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Firewall Blocked-Connection Trends' stops polling `unifi:event`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.7)** — Connector for 'Firewall Blocked-Connection Trends' stops polling `unifi:event`; stale `avg_blocked`, `sd_blocked` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_blocked`, `sd_blocked` over `1h` is expected for UC-25.9.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew goal threshold for 'Firewall Blocked-Connection Trends'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

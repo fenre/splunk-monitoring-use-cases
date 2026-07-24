@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Release Cadence Gap Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_release_cadence_gap_alert` (UC-25.111.3), SOC dashboard panel \"Personal — Release Cadence Gap Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='github:release' where `repo_name` satisfies `gap_days` > 90 for UC-25.111.3 ('Release Cadence Gap Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `github:release` events where `repo_name` stays below `gap_days` > 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.111.3."
+    "positiveScenario": "UC-25.111.3 positive (Release, Cadence, Gap, Alert): ingest synthetic events into `index=personal` sourcetype='github:release' where `count` grouped by `repo_name` satisfies `gap_days` > 90 for 'Release Cadence Gap Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.111.3 negative (Gap Alert): ingest benign `personal` / `github:release` events where `repo_name` stays below `gap_days` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Release Cadence Gap Alert'."
   },
   "dataSources": "GitHub repositories (`github:repo`), commits (`github:commit`), issues (`github:issue`), and releases (`github:release`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GitHub repository metadata, commit activity feeds, issue trackers, and release publish logs forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=github:release repo_name=* tag_name=*\n| sort repo_name - _time\n| streamstats current=f last(_time) as prev_release by repo_name\n| eval gap_days=round((_time-prev_release)/86400,0)\n| where gap_days>90\n| table repo_name tag_name gap_days",
-  "description": "Detects repositories whose latest release is more than ninety days after the previous one. Searches `index=personal` with sourcetype `github:release` for UC-25.111.3, aggregating `count` by `repo_name` over `the scheduled window`. Alerts when grouped results cross `gap_days` > 90 in the saved search. Gives Personal operators a repeatable signal for 'Release Cadence Gap Alert' without manual log review.",
-  "value": "Detects repositories whose latest release is more than ninety days after the previous one. Timely UC-25.111.3 alerting on 'Release Cadence Gap Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.111.3 for Release, Cadence, Gap, Alert over `index=personal` sourcetype `github:release` with thresholds `gap_days` > 90. Groups `count` by `repo_name` each `the scheduled window`. Centered on Gap Alert indicators. Supports repeatable personal triage for 'Release Cadence Gap Alert'.",
+  "value": "For 'Release Cadence Gap Alert', UC-25.111.3 converts `activity` on `github:release` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log each GitHub release with `repo_name` and compare inter-release gaps against your target schedule.",
   "visualization": "Table of repos with days between releases.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Release Cadence Gap Alert' stops polling `github:release`; stale `repo_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `github:release`. Dedup with `stats latest(*) by repo_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `gap_days` > 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.111.3)** — Connector for 'Release Cadence Gap Alert' stops polling `github:release`; stale `count` on `repo_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.111.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `github:release`. Dedup with `stats latest(*) by repo_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `gap_days` > 90 for 'Release Cadence Gap Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Safety System Activation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_safety_system_activation` (UC-14.2.3), SOC dashboard panel \"Operations — Safety System Activation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='safety_plc' where `entity` satisfies detection threshold for UC-14.2.3 ('Safety System Activation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `safety_plc` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.3."
+    "positiveScenario": "UC-14.2.3 positive (Safety, System, Activation): ingest synthetic events into `index=ot` sourcetype='safety_plc' where `count` grouped by `entity` satisfies detection threshold for 'Safety System Activation'. Validate filter `event_type IN (\"ESD\",\"interlock_trip\",\"safety_shutdown\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.3 negative (System Activation): ingest benign `ot` / `safety_plc` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Safety System Activation'."
   },
   "dataSources": "Safety PLC event logs, emergency shutdown events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Safety PLC logs, OPC-UA events — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"safety_plc\"\n| search event_type IN (\"ESD\",\"interlock_trip\",\"safety_shutdown\")\n| table _time, system, event_type, cause, action_taken",
-  "description": "Safety system activations (ESD, interlocks) indicate dangerous conditions. Each activation requires investigation and documentation.",
-  "value": "Early 'Safety System Activation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces when System Activation criteria fire for 'Safety System Activation' (UC-14.2.3) in `index=ot` sourcetype `safety_plc`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `event_type IN (\"ESD\",\"interlock_trip\",\"safety_shutdown\")`. Eliminates manual hunting for UC-14.2.3 conditions.",
+  "value": "UC-14.2.3 helps teams contain Safety, System, Activation scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Forward safety PLC events to Splunk (isolated network — use data diode or Edge Hub). Alert at critical priority on any safety activation. Maintain incident log for regulatory compliance. Track activation frequency per system.",
   "visualization": "Single value (safety activations — target: 0), Table (activation history), Timeline (safety events).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Safety System Activation' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.2.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `safety_plc`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `safety_plc`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.3)** — Planned work for 'Safety System Activation' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `event_type IN (\"ESD\",\"interlock_trip\",\"safety_shutdown\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `safety_plc`** — Scheduled automation elevates `src` without crossing configured threshold for UC-14.2.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `safety_plc`** — First 48h baseline for UC-14.2.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "opcua"

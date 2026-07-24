@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS jail and plugin CPU memory utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_jail_and_plugin_cpu_memory_utilization` (UC-6.2.50), SOC dashboard panel \"Operations — TrueNAS jail and plugin CPU memory utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:jail' where `jail` satisfies `cpu` > 85 for UC-6.2.50 ('TrueNAS jail and plugin CPU memory utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:jail` events where `jail` stays below `cpu` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.50."
+    "positiveScenario": "UC-6.2.50 positive (TrueNAS, jail, and, plugin, CPU): ingest synthetic events into `index=storage` sourcetype='truenas:jail' where `cpu_pct`, `mem_pct` grouped by `jail` satisfies `cpu` > 85, or `mem` > 90 for 'TrueNAS jail and plugin CPU memory utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.50 negative (memory utilization): ingest benign `storage` / `truenas:jail` events where `jail` stays below `cpu` > 85, or `mem` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'TrueNAS jail and plugin CPU memory utilization'."
   },
   "dataSources": "Jail metrics indexed as `truenas:jail` from `/api/v2.0/jail` or middleware stats Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "REST poller + HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:jail\" earliest=-1h\n| eval jail=coalesce(jail_name, name)\n| eval cpu=coalesce(cpu_percent, cpu_usage)\n| eval mem=coalesce(mem_percent, memory_usage_percent)\n| where cpu > 85 OR mem > 90\n| timechart span=15m max(cpu) as cpu_pct max(mem) as mem_pct by jail",
-  "description": "Plugins and jails share the same kernel as ZFS; runaway containers can starve ARC and storage daemons, hurting NAS clients.",
-  "value": "Plugins and jails share the same kernel as ZFS; runaway containers can starve ARC and storage daemons, hurt.... Timely UC-6.2.50 alerting on 'TrueNAS jail and plugin CPU memory utilization' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-6.2.50 — TrueNAS, jail, and, plugin, CPU — using `index=storage` sourcetype `truenas:jail`, grouped by `jail`. Outputs `cpu_pct`, `mem_pct` each `15m`; alert when `cpu` > 85, or `mem` > 90. Primary focus: memory utilization. Purpose-built for 'TrueNAS jail and plugin CPU memory utilization' in Operations workflows.",
+  "value": "UC-6.2.50 operationalises 'TrueNAS jail and plugin CPU memory utilization' against `truenas:jail` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "If API lacks per-jail CPU, use `jexec` scripted samples. Tag jails with owner email in KV lookup.",
   "visualization": "Line chart (CPU/mem by jail), table (peak usage).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS jail and plugin CPU memory utilization' shifts `max` over `span=15m` while `jail` remains in-scope for UC-6.2.50. Cross-check CMDB CHG.\n\n2. **Batch `max` on `truenas:jail`** — Scheduled automation elevates `jail` without crossing `cpu` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jail`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:jail`** — First 48h baseline for `jail` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `jail`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.50)** — Planned work for 'TrueNAS jail and plugin CPU memory utilization' shifts `cpu_pct`, `mem_pct` over `span=15m` while `jail` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `truenas:jail`** — Scheduled automation elevates `jail` without crossing `cpu` > 85 for UC-6.2.50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `jail`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:jail`** — First 48h baseline for UC-6.2.50 on `jail` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `jail`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
   ],

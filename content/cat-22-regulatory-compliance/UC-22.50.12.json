@@ -29,14 +29,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=consent` sourcetype='cmp:events' where `subject_id` satisfies detection threshold for UC-22.50.12 ('SA PDPL Art. 6 — processing-purpose and lawful-basis evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `consent` / `cmp:events` events where `subject_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.50.12."
+    "positiveScenario": "UC-22.50.12 positive (PDPL, Art., processing, purpose, and): ingest synthetic events into `index=consent` sourcetype='cmp:events' where `count` grouped by `subject_id`, `purpose_id`, `lawful_basis`, `]` satisfies -24h for 'SA PDPL Art. 6 — processing-purpose and lawful-basis evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.50.12 negative (basis evidence): ingest benign `consent` / `cmp:events` events where `subject_id`, `purpose_id`, `lawful_basis`, `]` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'SA PDPL Art. 6 — processing-purpose and lawful-basis evidence'."
   },
   "dataSources": "Consent management platform logs, downstream processing system logs tagged with purpose.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=consent sourcetype=cmp:events earliest=-24h\n| eval lawful_basis=coalesce(lawful_basis,\"unknown\")\n| stats count AS consented BY subject_id, purpose_id, lawful_basis\n| join type=left purpose_id\n    [ search index=app_processing earliest=-24h sourcetype=processing:events | stats count AS processed BY subject_id, purpose_id ]\n| eval unlawful=if(isnotnull(processed) AND consented=0, \"yes\", \"no\")\n| where unlawful=\"yes\" OR lawful_basis=\"unknown\"",
-  "description": "Reconciles consent / lawful-basis records with actual processing events, flagging processing performed without a valid Art. 6 basis.",
-  "value": "Reconciles consent / lawful-basis records with actual processing events, flagging processing performed with.... Timely UC-22.50.12 alerting on 'SA PDPL Art. 6 — processing-purpose and lawful-basis evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on basis evidence activity in UC-22.50.12 ('SA PDPL Art. 6 — processing-purpose and lawful-basis evidence') from `index=consent` sourcetype `cmp:events`. Rolls up `count` by `subject_id`, `purpose_id`, `lawful_basis`, `]` across `the scheduled window` and pages when -24h. Covers PDPL, Art., processing, purpose, and. Compliance operators treat UC-22.50.12 as the canonical signal.",
+  "value": "Operators running UC-22.50.12 on `cmp:events` feeds shorten triage for basis evidence tied to 'SA PDPL Art. 6 — processing-purpose and lawful-basis evidence', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Emit events from the CMP with subject_id + purpose_id + lawful_basis; (2) downstream systems must log processing events with the same purpose_id; (3) schedule daily. Indexes required: `index=app_processing`, `index=consent`; Sourcetypes: `sourcetype=cmp:events`, `sourcetype=processing:events`.",
   "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner. Key fields: `]`, `consented`, `lawful_basis`, `processed`, `purpose_id`, `subject_id`.",
   "cimModels": [

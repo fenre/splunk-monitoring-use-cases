@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Compaction Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_compaction_monitoring` (UC-7.2.5), SOC dashboard panel \"Operations — Compaction Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:compaction' where `entity` satisfies `pending` > 50 for UC-7.2.5 ('Compaction Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:compaction` events where `entity` stays below `pending` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.5."
+    "positiveScenario": "UC-7.2.5 positive (Compaction, Monitoring): ingest synthetic events into `index=database` sourcetype='cassandra:compaction' where `pending`, `compacted` grouped by `entity` satisfies `pending` > 50 for 'Compaction Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.5 negative (Compaction Monitoring): ingest benign `database` / `cassandra:compaction` events where `entity` stays below `pending` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Compaction Monitoring'."
   },
   "dataSources": "Cassandra `nodetool compactionstats`, MongoDB WiredTiger stats, Elasticsearch merge stats Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX input (Cassandra), database logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:compaction\"\n| timechart span=15m avg(pending_tasks) as pending, sum(bytes_compacted) as compacted\n| where pending > 50",
-  "description": "Pending compactions consume I/O and can cause write amplification. Monitoring ensures compaction keeps pace with writes.",
-  "value": "Early 'Compaction Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-7.2.5 — Compaction, Monitoring — using `index=database` sourcetype `cassandra:compaction`, grouped by `entity`. Outputs `pending`, `compacted` each `15m`; alert when `pending` > 50. Primary focus: Compaction Monitoring. Purpose-built for 'Compaction Monitoring' in Operations workflows.",
+  "value": "Tracking `pending`, `compacted` via UC-7.2.5 on `cassandra:compaction` feeds improves response to 'Compaction Monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Poll compaction stats via JMX (Cassandra) or scripted input. Track pending compaction tasks and throughput. Alert when pending tasks grow consistently, indicating compaction cannot keep up with write volume.",
   "visualization": "Line chart (pending compactions over time), Dual-axis (pending + throughput), Single value (current pending).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Compaction Monitoring' shifts `avg` over `span=15m` while `host` remains in-scope for UC-7.2.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cassandra:compaction`** — Scheduled automation elevates `src` without crossing `pending` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:compaction`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.5)** — Planned work for 'Compaction Monitoring' shifts `pending`, `compacted` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `cassandra:compaction`** — Scheduled automation elevates `src` without crossing `pending` > 50 for UC-7.2.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:compaction`** — First 48h baseline for UC-7.2.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra",
     "elasticsearch",

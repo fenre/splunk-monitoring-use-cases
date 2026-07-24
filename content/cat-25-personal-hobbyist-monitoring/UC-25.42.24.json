@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'VATSIM Session Time by FIR' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vatsim_session_time_by_fir` (UC-25.42.24), SOC dashboard panel \"Personal — VATSIM Session Time by FIR\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vatsim:session' where `fir` satisfies detection threshold for UC-25.42.24 ('VATSIM Session Time by FIR'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vatsim:session` events where `fir` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.42.24."
+    "positiveScenario": "UC-25.42.24 positive (VATSIM, Session, Time, FIR): ingest synthetic events into `index=personal` sourcetype='vatsim:session' where `avg_session_hours` grouped by `fir` satisfies detection threshold for 'VATSIM Session Time by FIR'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.42.24 negative (by FIR): ingest benign `personal` / `vatsim:session` events where `fir` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'VATSIM Session Time by FIR'."
   },
   "dataSources": "Flight logs (`flight:log`), flight-plan snapshots (`simbrief:plan`), network sessions (`vatsim:session`), prep tasks (`checkride:prep`), export syncs (`flight:export`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Aviation and flight-sim telemetry — ForeFlight exports, SimBrief flight plans, VATSIM session logs, and checkride-prep trackers — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vatsim:session fir=* session_hours=*\n| stats avg(session_hours) as avg_session_hours, count as events by fir\n| sort - avg_session_hours",
-  "description": "Shows average session hours by FIR for virtual ATC sessions. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Shows average session hours by FIR for virtual ATC sessions. Timely UC-25.42.24 alerting on 'VATSIM Session Time by FIR' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.42.24 — VATSIM, Session, Time, FIR — using `index=personal` sourcetype `vatsim:session`, grouped by `fir`. Outputs `avg_session_hours` each `the scheduled window`; alert when configured threshold. Primary focus: by FIR. Purpose-built for 'VATSIM Session Time by FIR' in Personal workflows.",
+  "value": "For 'VATSIM Session Time by FIR', UC-25.42.24 converts `avg_session_hours` on `vatsim:session` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture `session_hours` on `vatsim:session` events and normalize `fir` so Splunk can summarize performance by FIR.",
   "visualization": "Bar chart of average session hours by FIR.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'VATSIM Session Time by FIR' stops polling `vatsim:session`; stale `fir` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vatsim:session`. Dedup with `stats latest(*) by fir`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.42.24)** — Connector for 'VATSIM Session Time by FIR' stops polling `vatsim:session`; stale `avg_session_hours` on `fir` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_session_hours` over `1w` is expected for UC-25.42.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vatsim:session`. Dedup with `stats latest(*) by fir`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'VATSIM Session Time by FIR'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

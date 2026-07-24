@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='epic:audit' where `principal` satisfies detection threshold for UC-22.10.14 ('Emergency Access Procedure — Downtime / Break-Glass Account Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `epic:audit` events where `principal` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.14."
+    "positiveScenario": "UC-22.10.14 positive (Emergency, Access, Procedure, Downtime, Break): ingest synthetic events into `index=windows` sourcetype='epic:audit' where `systems` grouped by `principal`, `ctx` satisfies -30d for 'Emergency Access Procedure — Downtime / Break-Glass Account Usage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.14 negative (Account Usage): ingest benign `windows` / `epic:audit` events where `principal`, `ctx` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 9 confirms zero alert rows for 'Emergency Access Procedure — Downtime / Break-Glass Account Usage'."
   },
   "dataSources": "`WinEventLog:Security` 4624 for `svc_epic_emergency*`, `index=epic` `sourcetype=epic:audit` `AccessContext=\"Downtime\"`",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "(index=windows EventCode=\"4622\" OR EventCode=\"4624\") Account_Name=\"svc_epic_emergency*\" earliest=-30d\n| append [\n    search index=epic sourcetype=\"epic:audit\" AccessContext=\"*\" earliest=-30d\n    | rex field=AccessContext \"(?<ctx>Downtime|Emergency)\"\n    | where ctx IN (\"Downtime\",\"Emergency\") ]\n| eval principal=coalesce(Account_Name, USER_ID)\n| stats earliest(_time) as first latest(_time) as last dc(host) as systems by principal, ctx\n| eval duration_h=round((last-first)/3600,2)\n| sort - last",
-  "description": "Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency access are reviewable and time-bound.",
-  "value": "Audits emergency and downtime accounts touching production ePHI so procedural safeguards around emergency a.... Timely UC-22.10.14 alerting on 'Emergency Access Procedure — Downtime / Break-Glass Account Usage' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.10.14 — Emergency, Access, Procedure, Downtime, Break — using `index=windows` sourcetype `epic:audit`, grouped by `principal`, `ctx`. Outputs `systems` each `the scheduled window`; alert when -30d. Primary focus: Account Usage. Purpose-built for 'Emergency Access Procedure — Downtime / Break-Glass Account Usage' in Compliance workflows.",
+  "value": "Operators running UC-22.10.14 on `epic:audit` feeds shorten triage for Account Usage tied to 'Emergency Access Procedure — Downtime / Break-Glass Account Usage', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Require post-event attestation form ID in separate ticketing sourcetype and join; (2) auto-expire passwords via IAM; (3) weekly privacy review of all uses. Indexes required: `index=epic`, `index=windows`.",
   "visualization": "Table (principal, duration, systems), Single value (uses per month).",
   "cimModels": [],

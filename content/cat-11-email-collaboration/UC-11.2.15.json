@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Google Meet Quality Metrics' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_google_meet_quality_metrics` (UC-11.2.15), SOC dashboard panel \"Operations — Google Meet Quality Metrics\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gws` sourcetype='gws:meet_quality' where `conference_id` satisfies `packet_loss_pct` > 2 for UC-11.2.15 ('Google Meet Quality Metrics'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gws` / `gws:meet_quality` events where `conference_id` stays below `packet_loss_pct` > 2, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.2.15."
+    "positiveScenario": "UC-11.2.15 positive (Google, Meet, Quality, Metrics): ingest synthetic events into `index=gws` sourcetype='gws:meet_quality' where `avg_loss`, `avg_rtt` grouped by `conference_id`, `organizer_email` satisfies `packet_loss_pct` > 2, `round_trip_time_ms` > 300, or `jitter_ms` > 35 for 'Google Meet Quality Metrics'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.2.15 negative (Quality Metrics): ingest benign `gws` / `gws:meet_quality` events where `conference_id`, `organizer_email` stays below `packet_loss_pct` > 2, `round_trip_time_ms` > 300, or `jitter_ms` > 35, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Google Meet Quality Metrics'."
   },
   "dataSources": "Meet quality tool export / BigQuery (`conference_records`, participant `score` metrics) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_GoogleWorkspace` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=gws sourcetype=\"gws:meet_quality\"\n| where packet_loss_pct > 2 OR round_trip_time_ms > 300 OR jitter_ms > 35\n| stats avg(packet_loss_pct) as avg_loss, avg(round_trip_time_ms) as avg_rtt by conference_id, organizer_email\n| sort -avg_loss",
-  "description": "Meet quality telemetry (packet loss, jitter, RTT) for troubleshooting conferencing issues—extends UC-11.2.5 with org-level rollups.",
-  "value": "Early 'Google Meet Quality Metrics' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-11.2.15 — Google, Meet, Quality, Metrics — using `index=gws` sourcetype `gws:meet_quality`, grouped by `conference_id`, `organizer_email`. Outputs `avg_loss`, `avg_rtt` each `the scheduled window`; alert when `packet_loss_pct` > 2, `round_trip_time_ms` > 300, or `jitter_ms` > 35. Primary focus: Quality Metrics. Purpose-built for 'Google Meet Quality Metrics' in Operations workflows.",
+  "value": "For 'Google Meet Quality Metrics', UC-11.2.15 converts `avg_loss`, `avg_rtt` on `gws:meet_quality` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable Meet quality logging in Admin. Ingest via BigQuery export or Reports API. Baseline per office ASN. Alert when median MOS proxy metrics exceed SLA.",
   "visualization": "Table (worst conferences), Line chart (loss/jitter trend), Bar chart (by network location).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gws`** — Planned work for 'Google Meet Quality Metrics' shifts `avg` over `span=1h` while `conference_id` remains in-scope for UC-11.2.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gws:meet_quality`** — Scheduled automation elevates `organizer_email` without crossing `packet_loss_pct` > 2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `conference_id`** — Health checks in `gws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gws:meet_quality`** — First 48h baseline for `conference_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `conference_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `gws` (UC-11.2.15)** — Planned work for 'Google Meet Quality Metrics' shifts `avg_loss`, `avg_rtt` over `span=1h` while `conference_id`, `organizer_email` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gws:meet_quality`** — Scheduled automation elevates `organizer_email` without crossing `packet_loss_pct` > 2 for UC-11.2.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `conference_id`, `organizer_email`** — Health checks in `gws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gws:meet_quality`** — First 48h baseline for UC-11.2.15 on `conference_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `conference_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

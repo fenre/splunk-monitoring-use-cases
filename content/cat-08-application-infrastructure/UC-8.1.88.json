@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'WildFly Datasource Connection Pool Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_wildfly_datasource_connection_pool_exhaustion` (UC-8.1.88), SOC dashboard panel \"Operations — WildFly Datasource Connection Pool Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='jmx:jboss' where `entity` satisfies `max` > 0 for UC-8.1.88 ('WildFly Datasource Connection Pool Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `jmx:jboss` events where `entity` stays below `max` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.88."
+    "positiveScenario": "UC-8.1.88 positive (WildFly, Datasource, Connection, Pool, Exhaustion): ingest synthetic events into `index=web` sourcetype='jmx:jboss' where `count` grouped by `entity` satisfies `max` > 0, or `pct` >= 95 for 'WildFly Datasource Connection Pool Exhaustion'. Validate filter `mbean=\"*data-source=*statistics*jdbc*\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.88 negative (Pool Exhaustion): ingest benign `web` / `jmx:jboss` events where `entity` stays below `max` > 0, or `pct` >= 95, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'WildFly Datasource Connection Pool Exhaustion'."
   },
   "dataSources": "`index=web` `sourcetype=jmx:jboss` (WildFly `datasources` statistics: `ActiveCount`, `MaxPoolSize`, `AvailableCount`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder; Splunk Add-on for JMX (`Splunk_TA_jmx`); file monitoring for `jboss:server`, structured audit for `wildfly:audit` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"jmx:jboss\"\n| search mbean=\"*data-source=*statistics*jdbc*\"\n| eval active=tonumber(ActiveCount) max=tonumber(MaxPoolSize)\n| eval pct=if(max>0, round(100*active/max,1), null())\n| where pct >= 95",
-  "description": "JDBC pool saturation blocks servlet threads and causes cascading timeouts. JMX statistics expose active versus available connections without parsing stacks.",
-  "value": "JDBC pool saturation blocks servlet threads and causes cascading timeouts. Timely UC-8.1.88 alerting on 'WildFly Datasource Connection Pool Exhaustion' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-8.1.88 — WildFly, Datasource, Connection, Pool, Exhaustion — using `index=web` sourcetype `jmx:jboss`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `max` > 0, or `pct` >= 95. Filter chain includes filter `mbean=\"*data-source=*statistics*jdbc*\"`. Purpose-built for 'WildFly Datasource Connection Pool Exhaustion' in Operations workflows.",
+  "value": "Tracking `activity` via UC-8.1.88 on `jmx:jboss` feeds improves response to 'WildFly Datasource Connection Pool Exhaustion' and reduces operational risk and delayed incident response.",
   "implementation": "Set `statistics-enabled=true` on datasource in `standalone.xml`. Ingest via `Splunk_TA_jmx`. Page when active/max ≥95%.",
   "visualization": "Time series for pool/queue metrics, top stats for failures, event timeline for deploys.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'WildFly Datasource Connection Pool Exhaustion' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.1.88. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jmx:jboss`** — Scheduled automation elevates `active` without crossing `max` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:jboss`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.88)** — Planned work for 'WildFly Datasource Connection Pool Exhaustion' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `mbean=\"*data-source=*statistics*jdbc*\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `jmx:jboss`** — Scheduled automation elevates `active` without crossing `max` > 0 for UC-8.1.88. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:jboss`** — First 48h baseline for UC-8.1.88 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jboss"
   ],

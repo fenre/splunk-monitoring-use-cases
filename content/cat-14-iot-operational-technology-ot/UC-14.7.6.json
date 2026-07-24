@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Edge Data Transformation Error Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_edge_data_transformation_error_rate` (UC-14.7.6), SOC dashboard panel \"Operations — Edge Data Transformation Error Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='litmus:edge' where `gateway_id` satisfies `errors` > 0 for UC-14.7.6 ('Edge Data Transformation Error Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `litmus:edge` events where `gateway_id` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.7.6."
+    "positiveScenario": "UC-14.7.6 positive (Edge, Data, Transformation, Error, Rate): ingest synthetic events into `index=ot` sourcetype='litmus:edge' where `errors` grouped by `gateway_id`, `_time` satisfies `errors` > 0 for 'Edge Data Transformation Error Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.7.6 negative (Error Rate): ingest benign `ot` / `litmus:edge` events where `gateway_id`, `_time` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Edge Data Transformation Error Rate'."
   },
   "dataSources": "`index=ot` `sourcetype=\"litmus:edge\"` error fields or message text Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Litmus Edge (Splunk HEC connector) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"litmus:edge\"\n| eval is_error=if(match(lower(_raw), \"transform error|mapping error|parse error|conversion failed\"), 1, 0)\n| bin _time span=15m\n| stats sum(is_error) as errors, count as total by gateway_id, _time\n| eval error_rate_pct=round(100*errors/total,2)\n| where errors>0\n| table _time, gateway_id, errors, total, error_rate_pct",
-  "description": "Transformation and normalization failures silently drop or corrupt OT fields; tracking error rates ties engineering changes to ingestion health.",
-  "value": "Early 'Edge Data Transformation Error Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-14.7.6 for Edge, Data, Transformation, Error, Rate over `index=ot` sourcetype `litmus:edge` with thresholds `errors` > 0. Groups `errors` by `gateway_id`, `_time` each `15m`. Centered on Error Rate indicators. Supports repeatable operations triage for 'Edge Data Transformation Error Rate'.",
+  "value": "For 'Edge Data Transformation Error Rate', UC-14.7.6 converts `errors` on `litmus:edge` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Route Litmus pipeline diagnostics to Splunk. Alert when error rate exceeds SLO (e.g., >1% over 15 minutes).",
   "visualization": "Line chart (error rate), Stacked bar (errors vs total), Table (top error pipelines), Single value (fleet error rate %).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Edge Data Transformation Error Rate' shifts `sum` over `span=15m` while `gateway_id` remains in-scope for UC-14.7.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `litmus:edge`** — Scheduled automation elevates `_time` without crossing `errors` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `litmus:edge`** — First 48h baseline for `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.7.6)** — Planned work for 'Edge Data Transformation Error Rate' shifts `errors` over `span=15m` while `gateway_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `litmus:edge`** — Scheduled automation elevates `_time` without crossing `errors` > 0 for UC-14.7.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `litmus:edge`** — First 48h baseline for UC-14.7.6 on `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

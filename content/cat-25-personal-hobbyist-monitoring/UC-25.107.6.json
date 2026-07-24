@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Chrono24 Listing Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_chrono24_listing_sync_gap_watch` (UC-25.107.6), SOC dashboard panel \"Personal — Chrono24 Listing Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chrono24:listing' where `brand` satisfies `hours_since` > 24 for UC-25.107.6 ('Chrono24 Listing Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chrono24:listing` events where `brand` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.6."
+    "positiveScenario": "UC-25.107.6 positive (Chrono24, Listing, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='chrono24:listing' where `last_seen` grouped by `brand` satisfies `hours_since` > 24 for 'Chrono24 Listing Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.107.6 negative (Gap Watch): ingest benign `personal` / `chrono24:listing` events where `brand` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Chrono24 Listing Sync Gap Watch'."
   },
   "dataSources": "Chrono24 listings (`chrono24:listing`), WatchBox service records (`watchbox:service`), wrist-time logs (`watch:wristtime`), and watch service history (`watch:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chrono24 listing snapshots, WatchBox service records, wrist-time wear logs, and in-house service history exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chrono24:listing\n| stats max(_time) as last_seen by brand\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when Chrono24 listing data has stopped arriving for a given brand. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Chrono24 listing data has stopped arriving for a given brand. Timely UC-25.107.6 alerting on 'Chrono24 Listing Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces Gap Watch anomalies for UC-25.107.6 with window `the scheduled window` on `index=personal` sourcetype `chrono24:listing`. Combines `last_seen` by `brand` and compares against `hours_since` > 24. Mapped to keywords Chrono24, Listing, Sync, Gap, Watch for dashboard routing.",
+  "value": "Alerting on Chrono24, Listing, Sync, Gap, Watch through UC-25.107.6 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Track the latest event time per brand and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Chrono24 Listing Sync Gap Watch' stops polling `chrono24:listing`; stale `brand` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by brand`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.107.6)** — Connector for 'Chrono24 Listing Sync Gap Watch' stops polling `chrono24:listing`; stale `last_seen` on `brand` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.107.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by brand`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'Chrono24 Listing Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

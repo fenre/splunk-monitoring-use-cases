@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VPC Flow Log Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_vpc_flow_log_analysis` (UC-4.3.3), SOC dashboard panel \"Operations — VPC Flow Log Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `src` satisfies detection threshold for UC-4.3.3 ('VPC Flow Log Analysis'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.3."
+    "positiveScenario": "UC-4.3.3 positive (VPC, Flow, Log, Analysis): ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `total_bytes` grouped by `src`, `dest`, `dest_port` satisfies detection threshold for 'VPC Flow Log Analysis'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.3.3 negative (Log Analysis): ingest benign `gcp` / `google:gcp:pubsub:message` events where `src`, `dest`, `dest_port` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'VPC Flow Log Analysis'."
   },
   "dataSources": "VPC Flow Logs via Pub/Sub Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" logName=\"*vpc_flows\"\n| spath\n| eval src=coalesce(src,'connection.src_ip'), dest=coalesce(dest,'connection.dest_ip'), dest_port=coalesce(dest_port,'connection.dest_port')\n| stats sum(bytes_sent) as total_bytes by src, dest, dest_port\n| sort -total_bytes | head 20",
-  "description": "GCP VPC Flow Logs provide network traffic visibility. Same use case as AWS/Azure — detect rejected traffic, anomalies, exfiltration.",
-  "value": "Early 'VPC Flow Log Analysis' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Log Analysis anomalies for UC-4.3.3 with window `the scheduled window` on `index=gcp` sourcetype `google:gcp:pubsub:message`. Combines `total_bytes` by `src`, `dest`, `dest_port` and compares against configured threshold. Mapped to keywords VPC, Flow, Log, Analysis for dashboard routing.",
+  "value": "Alerting on VPC, Flow, Log, Analysis through UC-4.3.3 reduces operational risk and delayed incident response by surfacing `total_bytes` early.",
   "implementation": "Enable VPC Flow Logs on subnets. Sink to Pub/Sub and ingest in Splunk. Analyze for top talkers, rejected flows, and anomalous destinations.",
   "visualization": "Table, Sankey diagram, Timechart, Map.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'VPC Flow Log Analysis' shifts `sum` over `span=1h` while `src` remains in-scope for UC-4.3.3. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:pubsub:message`** — Scheduled automation elevates `dest` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-4.3.3)** — Planned work for 'VPC Flow Log Analysis' shifts `total_bytes` over `span=1h` while `src`, `dest`, `dest_port` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:pubsub:message`** — Scheduled automation elevates `dest` without crossing configured threshold for UC-4.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`, `dest_port`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for UC-4.3.3 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580",
     "T1526"

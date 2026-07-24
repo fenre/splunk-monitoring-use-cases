@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'CouchDB View Build Times' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_couchdb_view_build_times` (UC-7.2.22), SOC dashboard panel \"Operations — CouchDB View Build Times\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='couchdb:active_tasks' where `entity` satisfies `pct` < 100 for UC-7.2.22 ('CouchDB View Build Times'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `couchdb:active_tasks` events where `entity` stays below `pct` < 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.22."
+    "positiveScenario": "UC-7.2.22 positive (CouchDB, View, Build, Times): ingest synthetic events into `index=database` sourcetype='couchdb:active_tasks' where `count` grouped by `entity` satisfies `pct` < 100, or `updated_in_sec` > 3600 for 'CouchDB View Build Times'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.22 negative (Build Times): ingest benign `database` / `couchdb:active_tasks` events where `entity` stays below `pct` < 100, or `updated_in_sec` > 3600, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'CouchDB View Build Times'."
   },
   "dataSources": "Indexer task type, `progress`, `total_changes` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "CouchDB `_active_tasks`, log ingestion — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"couchdb:active_tasks\" type=indexer\n| eval pct=round(progress/total_changes*100,1)\n| where pct < 100 AND updated_in_sec > 3600\n| table database_name design_doc pct updated_in_sec",
-  "description": "Long-running view index builds block compaction and increase disk I/O. Tracks `_active_tasks` indexer progress and failures.",
-  "value": "Early 'CouchDB View Build Times' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on Build Times activity in UC-7.2.22 ('CouchDB View Build Times') from `index=database` sourcetype `couchdb:active_tasks`. Rolls up `count` by `entity` across `the scheduled window` and pages when `pct` < 100, or `updated_in_sec` > 3600. Covers CouchDB, View, Build, Times. Operations operators treat UC-7.2.22 as the canonical signal.",
+  "value": "Operators running UC-7.2.22 on `couchdb:active_tasks` feeds shorten triage for Build Times tied to 'CouchDB View Build Times', lowering operational risk and delayed incident response.",
   "implementation": "Poll `_active_tasks` every minute. Alert when indexer runs >1h with low progress or task errors. Correlate with data volume growth.",
   "visualization": "Table (design doc, % complete), Line chart (indexer duration), Single value (stuck indexers).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'CouchDB View Build Times' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.2.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `couchdb:active_tasks`** — Scheduled automation elevates `pct` without crossing `pct` < 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `couchdb:active_tasks`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.22)** — Planned work for 'CouchDB View Build Times' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `couchdb:active_tasks`** — Scheduled automation elevates `pct` without crossing `pct` < 100 for UC-7.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `couchdb:active_tasks`** — First 48h baseline for UC-7.2.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

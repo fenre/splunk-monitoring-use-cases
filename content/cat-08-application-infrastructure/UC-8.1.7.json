@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Bot and Crawler Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_bot_and_crawler_detection` (UC-8.1.7), SOC dashboard panel \"Operations — Bot and Crawler Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='access_combined' where `is_bot` satisfies detection threshold for UC-8.1.7 ('Bot and Crawler Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `access_combined` events where `is_bot` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.7."
+    "positiveScenario": "UC-8.1.7 positive (Bot, and, Crawler, Detection): ingest synthetic events into `index=web` sourcetype='access_combined' where `sum` grouped by `is_bot` satisfies detection threshold for 'Bot and Crawler Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.7 negative (Crawler Detection): ingest benign `web` / `access_combined` events where `is_bot` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Bot and Crawler Detection'."
   },
   "dataSources": "Access logs (User-Agent field) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_apache`, `TA-nginx` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"access_combined\"\n| rex field=useragent \"(?<bot_name>Googlebot|Bingbot|baiduspider|bot|crawler|spider)\"\n| eval is_bot=if(isnotnull(bot_name),\"bot\",\"human\")\n| stats count by is_bot\n| eval pct=round(count/sum(count)*100,1)",
-  "description": "Bot traffic inflates metrics and consumes resources. Identification enables accurate capacity planning and bot management policies.",
-  "value": "Early 'Bot and Crawler Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-8.1.7 — Bot, and, Crawler, Detection — using `index=web` sourcetype `access_combined`, grouped by `is_bot`. Outputs `sum` each `the scheduled window`; alert when configured threshold. Primary focus: Crawler Detection. Purpose-built for 'Bot and Crawler Detection' in Operations workflows.",
+  "value": "For 'Bot and Crawler Detection', UC-8.1.7 converts `activity` on `access_combined` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Parse User-Agent from access logs. Maintain a lookup of known bot signatures. Classify traffic as bot vs human. Track bot traffic percentage over time. Alert on unknown bots or suspicious crawling patterns.",
   "visualization": "Pie chart (bot vs human traffic), Bar chart (top bots by request count), Line chart (bot traffic trend).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Bot and Crawler Detection' shifts `sum` over `span=1h` while `is_bot` remains in-scope for UC-8.1.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `access_combined`** — Scheduled automation elevates `is_bot` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `is_bot`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for `is_bot` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `is_bot`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.7)** — Planned work for 'Bot and Crawler Detection' shifts `sum` over `span=1h` while `is_bot` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `access_combined`** — Scheduled automation elevates `is_bot` without crossing configured threshold for UC-8.1.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `is_bot`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for UC-8.1.7 on `is_bot` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `is_bot`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"

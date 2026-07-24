@@ -28,14 +28,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=trading` sourcetype='_json' where `venue` satisfies `latency_ms` > 600000 for UC-22.5.4 ('MiFID II Transaction Reporting Timeliness and Rejection Root-Cause'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `trading` / `_json` events where `venue` stays below `latency_ms` > 600000, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.5.4."
+    "positiveScenario": "UC-22.5.4 positive (MiFID, Transaction, Reporting, Timeliness, and): ingest synthetic events into `index=trading` sourcetype='_json' where `late_or_open`, `distinct_reject_codes` grouped by `venue`, `reject_code` satisfies `latency_ms` > 600000 for 'MiFID II Transaction Reporting Timeliness and Rejection Root-Cause'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.5.4 negative (Root Cause): ingest benign `trading` / `_json` events where `venue`, `reject_code` stays below `latency_ms` > 600000, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'MiFID II Transaction Reporting Timeliness and Rejection Root-Cause'."
   },
   "dataSources": "`index=trading` `sourcetype=\"_json\"` `source=\"http:trx_reporting\"` (transaction_report_id, submit_epoch_ms, ack_epoch_ms, reject_code, venue, instrument_id)",
   "app": "Splunk HTTP Event Collector (core platform) with JSON parsing (Splunkbase)",
   "spl": "index=trading sourcetype=\"_json\" source=\"http:trx_reporting\" earliest=-7d\n| eval latency_ms=ack_epoch_ms-submit_epoch_ms\n| eval late=if(latency_ms>600000 OR isnull(ack_epoch_ms), 1, 0)\n| stats count as reports, sum(late) as late_or_open, dc(reject_code) as distinct_reject_codes by venue, reject_code\n| sort - late_or_open",
-  "description": "Competent authorities expect complete, accurate, and timely transaction reports. Measuring submit-to-acknowledgement latency and clustering rejection codes supports proactive fixes before regulatory breaches and demonstrates surveillance over ARM/APA gateway health.",
-  "value": "Competent authorities expect complete, accurate, and timely transaction reports. Timely UC-22.5.4 alerting on 'MiFID II Transaction Reporting Timeliness and Rejection Root-Cause' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on Root Cause anomalies for UC-22.5.4 with window `the scheduled window` on `index=trading` sourcetype `_json`. Combines `late_or_open`, `distinct_reject_codes` by `venue`, `reject_code` and compares against `latency_ms` > 600000. Mapped to keywords MiFID, Transaction, Reporting, Timeliness, and for dashboard routing.",
+  "value": "Alerting on MiFID, Transaction, Reporting, Timeliness, and through UC-22.5.4 reduces audit findings, regulatory gaps, and attestation delays by surfacing `late_or_open`, `distinct_reject_codes` early.",
   "implementation": "(1) Normalize clocks with NTP on reporting hosts and store epoch milliseconds; (2) treat missing `ack_epoch_ms` after T+1 as open submissions; (3) maintain `reject_code_meanings.csv` lookup for narrative dashboards; (4) alert if `late_or_open/reports>0.01`; (5) feed monthly summary to compliance committee. Indexes required: `index=trading`; Sourcetypes: `sourcetype=_json`.",
   "visualization": "Histogram (latency_ms), Table (venue, reject_code, counts), Single value (late_or_open).",
   "cimModels": [],

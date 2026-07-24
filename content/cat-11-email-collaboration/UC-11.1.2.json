@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Mailbox Audit Logging' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mailbox_audit_logging` (UC-11.1.2), SOC dashboard panel \"Operations — Mailbox Audit Logging\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `UserId` satisfies detection threshold for UC-11.1.2 ('Mailbox Audit Logging'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events where `UserId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.1.2."
+    "positiveScenario": "UC-11.1.2 positive (Mailbox, Audit, Logging): ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `count` grouped by `UserId`, `Operation`, `MailboxOwnerUPN` satisfies detection threshold for 'Mailbox Audit Logging'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.1.2 negative (Audit Logging): ingest benign `o365` / `o365:management:activity` events where `UserId`, `Operation`, `MailboxOwnerUPN` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Mailbox Audit Logging'."
   },
   "dataSources": "O365 unified audit log (ExchangeItem events) Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_MS_O365` — Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=\"Exchange\" Operation IN (\"MailItemsAccessed\",\"Send\",\"SendAs\")\n| stats count by UserId, Operation, MailboxOwnerUPN\n| where UserId!=MailboxOwnerUPN",
-  "description": "Tracks who accesses what mailboxes, including delegate and admin access. Essential for insider threat detection and compliance.",
-  "value": "Early 'Mailbox Audit Logging' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces when Audit Logging criteria fire for 'Mailbox Audit Logging' (UC-11.1.2) in `index=o365` sourcetype `o365:management:activity`. Pipeline aggregates `count` by `UserId`, `Operation`, `MailboxOwnerUPN` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Mailbox, Audit, Logging. Eliminates manual hunting for UC-11.1.2 conditions.",
+  "value": "UC-11.1.2 helps teams contain Mailbox, Audit, Logging scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enable mailbox audit logging in Exchange Online. Ingest via O365 Management Activity API. Alert on non-owner access to sensitive mailboxes. Track delegate activity. Monitor SendAs events for potential impersonation.",
   "visualization": "Table (non-owner mailbox access), Bar chart (access by user), Timeline (audit events).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `o365`** — Planned work for 'Mailbox Audit Logging' shifts `count` over `span=1h` while `UserId` remains in-scope for UC-11.1.2. Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:management:activity`** — Scheduled automation elevates `Operation` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserId`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for `UserId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `UserId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `o365` (UC-11.1.2)** — Planned work for 'Mailbox Audit Logging' shifts `count` over `span=1h` while `UserId`, `Operation`, `MailboxOwnerUPN` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `o365:management:activity`** — Scheduled automation elevates `Operation` without crossing configured threshold for UC-11.1.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `UserId`, `Operation`, `MailboxOwnerUPN`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `o365:management:activity`** — First 48h baseline for UC-11.1.2 on `UserId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `UserId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "m365"

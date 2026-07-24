@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'DNSSEC Validation Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dnssec_validation_failures` (UC-5.6.10), SOC dashboard panel \"Operations — DNSSEC Validation Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='named' where `query_domain` satisfies detection threshold for UC-5.6.10 ('DNSSEC Validation Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `named` events where `query_domain` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.6.10."
+    "positiveScenario": "UC-5.6.10 positive (DNSSEC, Validation, Failures): ingest synthetic events into `index=network` sourcetype='named' where `count` grouped by `query_domain`, `query_type` satisfies detection threshold for 'DNSSEC Validation Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.6.10 negative (Validation Failures): ingest benign `network` / `named` events where `query_domain`, `query_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'DNSSEC Validation Failures'."
   },
   "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=named` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk_TA_infoblox, BIND logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"named\" \"DNSSEC\" (\"validation failure\" OR \"SERVFAIL\" OR \"no valid signature\")\n| rex \"(?<query_domain>[a-zA-Z0-9.-]+\\.)/(?<query_type>\\w+)\"\n| stats count by query_domain, query_type | sort -count",
-  "description": "DNSSEC failures can indicate DNS spoofing attempts or misconfigured zones. Monitoring prevents users from being directed to malicious sites.",
-  "value": "DNS operations teams detect DNSSEC validation failures that make zones unreachable from validating resolvers, identify the root cause (expired signatures, missing keys, clock skew), and quantify user impact.",
+  "description": "Surfaces UC-5.6.10 — DNSSEC, Validation, Failures — using `index=network` sourcetype `named`, grouped by `query_domain`, `query_type`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Validation Failures. Purpose-built for 'DNSSEC Validation Failures' in Operations workflows.",
+  "value": "UC-5.6.10 helps teams contain DNSSEC, Validation, Failures scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enable DNSSEC validation logging. Monitor for validation failures by domain. Cross-reference with known domain registrations. Alert on spikes in DNSSEC failures.",
   "visualization": "Table (domain, failure count), Timechart (failure rate), Bar chart.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'DNSSEC Validation Failures' shifts `count` over `span=1h` while `query_domain` remains in-scope for UC-5.6.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `named`** — Scheduled automation elevates `query_type` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `query_domain`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `named`** — First 48h baseline for `query_domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `query_domain`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.6.10)** — Planned work for 'DNSSEC Validation Failures' shifts `count` over `span=1h` while `query_domain`, `query_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `named`** — Scheduled automation elevates `query_type` without crossing configured threshold for UC-5.6.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `query_domain`, `query_type`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `named`** — First 48h baseline for UC-5.6.10 on `query_domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `query_domain`, `exception_reason`, `valid_until`.",
   "equipment": [
     "infoblox"
   ],

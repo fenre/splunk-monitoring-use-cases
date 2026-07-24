@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Database Patch Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_database_patch_compliance` (UC-7.1.39), SOC dashboard panel \"Operations — Database Patch Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:instance_version' where `entity` satisfies detection threshold for UC-7.1.39 ('Database Patch Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:instance_version` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.39."
+    "positiveScenario": "UC-7.1.39 positive (Database, Patch, Compliance): ingest synthetic events into `index=database` sourcetype='dbconnect:instance_version' where `count` grouped by `entity` satisfies detection threshold for 'Database Patch Compliance'. Validate lookup `approved_db_patch`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.39 negative (Patch Compliance): ingest benign `database` / `dbconnect:instance_version` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Database Patch Compliance'."
   },
   "dataSources": "SQL Server `@@VERSION`, Oracle `opatch`, PostgreSQL `pg_version` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, inventory scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:instance_version\"\n| lookup approved_db_patch matrix_key OUTPUT approved_build\n| where build != approved_build\n| table host, engine, build, approved_build, last_patch_date",
-  "description": "Compares instance `@@VERSION` / `banner` / Oracle `DBA_REGISTRY_HISTORY` to approved patch levels per environment. Supports security patching SLAs.",
-  "value": "Early 'Database Patch Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies 'Database Patch Compliance' (UC-7.1.39) using `index=database` sourcetype `dbconnect:instance_version` via lookup `approved_db_patch` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Database, Patch, Compliance. Focuses on Patch Compliance behaviour so operations teams can triage UC-7.1.39 without ad-hoc log review.",
+  "value": "UC-7.1.39 accelerates insight into Patch Compliance ('Database Patch Compliance') by tracking `activity` on `dbconnect:instance_version` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Maintain `approved_db_patch` lookup (engine, major, approved CU/RU). Daily compare. Alert on non-compliant production instances.",
   "visualization": "Table (non-compliant hosts), Pie chart (compliant %), Single value (drift count).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Database Patch Compliance' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.39. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:instance_version`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:instance_version`** — First 48h baseline for `host` is unstable; join `approved_db_patch` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.39)** — Planned work for 'Database Patch Compliance' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `approved_db_patch`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:instance_version`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.39. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:instance_version`** — First 48h baseline for UC-7.1.39 on `host` is unstable; join `approved_db_patch` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

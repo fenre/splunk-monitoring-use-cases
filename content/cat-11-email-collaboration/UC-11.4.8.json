@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'SMTP Relay Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_smtp_relay_monitoring` (UC-11.4.8), SOC dashboard panel \"Operations — SMTP Relay Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mail` sourcetype='postfix:syslog' where `relay_domain` satisfies `count` > 500 for UC-11.4.8 ('SMTP Relay Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mail` / `postfix:syslog` events where `relay_domain` stays below `count` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.4.8."
+    "positiveScenario": "UC-11.4.8 positive (SMTP, Relay, Monitoring): ingest synthetic events into `index=mail` sourcetype='postfix:syslog' where `count` grouped by `relay_domain`, `action`, `src` satisfies `count` > 500 for 'SMTP Relay Monitoring'. Validate filter `relay=* OR \"relay access denied\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.4.8 negative (Relay Monitoring): ingest benign `mail` / `postfix:syslog` events where `relay_domain`, `action`, `src` stays below `count` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'SMTP Relay Monitoring'."
   },
   "dataSources": "`postfix:syslog` `relay=`, `status=sent`, `reject` relay attempts Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_syslog`, Postfix/Exchange logs — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=mail sourcetype=\"postfix:syslog\" OR sourcetype=syslog process=postfix\n| search relay=* OR \"relay access denied\"\n| stats count by relay_domain, action, src\n| where count > 500",
-  "description": "Tracks messages relayed through internal SMTP gateways vs policy — unexpected relay volume or open relay abuse paths. Searches `index=mail` with sourcetype `postfix:syslog` for UC-11.4.8, aggregating `count` by `relay_domain` over `the scheduled window`. Alerts when grouped results cross `count` > 500 in the saved search. Gives Operations operators a repeatable signal for 'SMTP Relay Monitoring' without manual log review.",
-  "value": "Early 'SMTP Relay Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-11.4.8 for SMTP, Relay, Monitoring over `index=mail` sourcetype `postfix:syslog` with thresholds `count` > 500. Groups `count` by `relay_domain`, `action`, `src` each `the scheduled window`. Differentiated by filter `relay=* OR \"relay access denied\"`. Supports repeatable operations triage for 'SMTP Relay Monitoring'.",
+  "value": "For 'SMTP Relay Monitoring', UC-11.4.8 converts `activity` on `postfix:syslog` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Parse relay lines for authorized vs denied. Alert on high relay denied from single IP (scanning) or high accepted relay to external domains (misconfiguration).",
   "visualization": "Table (relay domain, count), Line chart (relay attempts), Single value (relay denied rate).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mail`** — Planned work for 'SMTP Relay Monitoring' shifts `count` over `span=1h` while `relay_domain` remains in-scope for UC-11.4.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `postfix:syslog`** — Scheduled automation elevates `action` without crossing `count` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `relay_domain`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postfix:syslog`** — First 48h baseline for `relay_domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `relay_domain`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mail` (UC-11.4.8)** — Planned work for 'SMTP Relay Monitoring' shifts `count` over `span=1h` while `relay_domain`, `action`, `src` remains in-scope. Applies filter `relay=* OR \"relay access denied\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `postfix:syslog`** — Scheduled automation elevates `action` without crossing `count` > 500 for UC-11.4.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `relay_domain`, `action`, `src`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `postfix:syslog`** — First 48h baseline for UC-11.4.8 on `relay_domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `relay_domain`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "syslog"

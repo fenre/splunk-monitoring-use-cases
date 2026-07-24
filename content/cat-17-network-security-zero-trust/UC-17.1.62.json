@@ -38,14 +38,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='aws:cloudwatch' where `tunnel_id` satisfies `tunnel_drops` > 0 for UC-17.1.62 ('ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `aws:cloudwatch` events where `tunnel_id` stays below `tunnel_drops` > 0, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.62."
+    "positiveScenario": "UC-17.1.62 positive (ISE, Hybrid, Deployment, Prem, PAN): ingest synthetic events into `index=network` sourcetype='aws:cloudwatch' where `tunnel_state` grouped by `tunnel_id` satisfies `tunnel_drops` > 0 for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.62 negative (and Bandwidth): ingest benign `network` / `aws:cloudwatch` events where `tunnel_id` stays below `tunnel_drops` > 0, or exclude the test entity via `network_exception_register.csv`. Variant 10 confirms zero alert rows for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` for replication-lag fields. Network metrics for the on-prem→cloud path: VPN tunnel state from `index=network sourcetype=cisco:asa` or `cisco:ftd`; tunnel BW from `index=cloud sourcetype=aws:cloudwatch`. Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services` + Cisco firewall TA + cloud TA. — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "(index=network sourcetype IN (\"cisco:asa\",\"cisco:ftd\") \"%ASA-3-713\")\n  OR (index=cloud sourcetype=\"aws:cloudwatch\" metric_name=\"TunnelState\")\n| stats sum(eval(like(_raw, \"%713%\"))) as tunnel_drops, max(value) as tunnel_state by tunnel_id\n| where tunnel_drops > 0 OR tunnel_state==0",
-  "description": "Detects VPN-tunnel issues affecting hybrid on-prem PAN ↔ cloud PSN ISE deployments. When the VPN drops, cloud PSNs lose access to the PAN's policy updates and identity stores.",
-  "value": "Detects VPN-tunnel issues affecting hybrid on-prem PAN ↔ cloud PSN ISE deployments. Timely UC-17.1.62 alerting on 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-17.1.62 — ISE, Hybrid, Deployment, Prem, PAN — using `index=network` sourcetype `aws:cloudwatch`, grouped by `tunnel_id`. Outputs `tunnel_state` each `the scheduled window`; alert when `tunnel_drops` > 0. Primary focus: and Bandwidth. Purpose-built for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth' in Network workflows.",
+  "value": "For 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth', UC-17.1.62 converts `tunnel_state` on `aws:cloudwatch` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 15 min.",
   "visualization": "(1) Tunnel state tile. (2) Tunnel-flap trend.",
   "cimModels": [
@@ -74,7 +74,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth' shifts `sum` over `span=1h` while `tunnel_id` remains in-scope for UC-17.1.62. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `tunnel_drops` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tunnel_id`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `tunnel_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `tunnel_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-17.1.62)** — Planned work for 'ISE Hybrid Deployment — On-Prem PAN to Cloud-PSN Latency and Bandwidth' shifts `tunnel_state` over `span=1h` while `tunnel_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `tunnel_drops` > 0 for UC-17.1.62. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tunnel_id`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-17.1.62 on `tunnel_id` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `tunnel_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "N/A (data-feed liveness — measures ISE pxGrid topic delivery, no attack mapping)"
   ],

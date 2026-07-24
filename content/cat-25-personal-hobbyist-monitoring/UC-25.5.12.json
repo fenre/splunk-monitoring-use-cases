@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sensor Check-In Gap Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sensor_check_in_gap_detection` (UC-25.5.12), SOC dashboard panel \"Personal — Sensor Check-In Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `device` satisfies `minutes_since` > 120 for UC-25.5.12 ('Sensor Check-In Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `zigbee2mqtt:device` events where `device` stays below `minutes_since` > 120, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.5.12."
+    "positiveScenario": "UC-25.5.12 positive (Sensor, Check, Gap, Detection): ingest synthetic events into `index=personal` sourcetype='zigbee2mqtt:device' where `last_seen` grouped by `device` satisfies `minutes_since` > 120 for 'Sensor Check-In Gap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.5.12 negative (Gap Detection): ingest benign `personal` / `zigbee2mqtt:device` events where `device` stays below `minutes_since` > 120, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Sensor Check-In Gap Detection'."
   },
   "dataSources": "Zigbee2MQTT device reports (`zigbee2mqtt:device`), Shelly/Tasmota telemetry (`shelly:status`, `tasmota:sensor`), Hue bridge events (`hue:event`), Nest/Ecobee thermostat (`ecobee:thermostat`), door/leak/motion sensors. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Philips Hue, smart plugs (Tasmota/Shelly/TP-Link Kasa), thermostats (Nest/Ecobee), locks, and Zigbee/Z-Wave sensors via MQTT / Zigbee2MQTT and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=zigbee2mqtt:device\n| stats max(_time) as last_seen by device\n| eval minutes_since=round((now()-last_seen)/60,1)\n| where minutes_since>120\n| sort - minutes_since",
-  "description": "Finds battery sensors and sleepy devices that simply stopped checking in, which is often how low batteries or weak meshes first show themselves.",
-  "value": "Finds battery sensors and sleepy devices that simply stopped checking in, which is often how low batteries.... Timely UC-25.5.12 alerting on 'Sensor Check-In Gap Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on Gap Detection anomalies for UC-25.5.12 with window `the scheduled window` on `index=personal` sourcetype `zigbee2mqtt:device`. Combines `last_seen` by `device` and compares against `minutes_since` > 120. Mapped to keywords Sensor, Check, Gap, Detection for dashboard routing.",
+  "value": "Alerting on Sensor, Check, Gap, Detection through UC-25.5.12 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Forward regular Zigbee2MQTT device reports; alert when a device stays silent beyond its normal reporting interval.",
   "visualization": "Table of devices by minutes since last seen.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sensor Check-In Gap Detection' stops polling `zigbee2mqtt:device`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `minutes_since` > 120. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.5.12)** — Connector for 'Sensor Check-In Gap Detection' stops polling `zigbee2mqtt:device`; stale `last_seen` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.5.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `zigbee2mqtt:device`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `minutes_since` > 120 for 'Sensor Check-In Gap Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "f5",
     "mqtt"

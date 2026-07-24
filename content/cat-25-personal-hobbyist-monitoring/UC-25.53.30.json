@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Budget vs Deposit Exposure' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_budget_vs_deposit_exposure` (UC-25.53.30), SOC dashboard panel \"Personal — Budget vs Deposit Exposure\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='event:deposit' where `vendor_type` satisfies detection threshold for UC-25.53.30 ('Budget vs Deposit Exposure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `event:deposit` events where `vendor_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.53.30."
+    "positiveScenario": "UC-25.53.30 positive (Budget, Deposit, Exposure): ingest synthetic events into `index=personal` sourcetype='event:deposit' where `avg_deposit_exposure_pct` grouped by `vendor_type` satisfies detection threshold for 'Budget vs Deposit Exposure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.53.30 negative (Deposit Exposure): ingest benign `personal` / `event:deposit` events where `vendor_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Budget vs Deposit Exposure'."
   },
   "dataSources": "Planning tasks (`event:checklist`), seating revisions (`event:seating`), vendor contracts (`event:vendor`), deposits (`event:deposit`), planning syncs (`event:sync`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Wedding and event-planning telemetry — The Knot checklist exports, seating-chart revisions, vendor deposit schedules, and RSVP operations — streamed to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=event:deposit vendor_type=* deposit_exposure_pct=*\n| stats avg(deposit_exposure_pct) as avg_deposit_exposure_pct, count as events by vendor_type\n| sort - avg_deposit_exposure_pct",
-  "description": "Shows average deposit exposure percentage by vendor type for budget exposure. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Shows average deposit exposure percentage by vendor type for budget exposure. Timely UC-25.53.30 alerting on 'Budget vs Deposit Exposure' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies Deposit Exposure anomalies for UC-25.53.30 with window `the scheduled window` on `index=personal` sourcetype `event:deposit`. Combines `avg_deposit_exposure_pct` by `vendor_type` and compares against configured threshold. Mapped to keywords Budget, Deposit, Exposure for dashboard routing.",
+  "value": "Alerting on Budget, Deposit, Exposure through UC-25.53.30 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_deposit_exposure_pct` early.",
   "implementation": "Capture `deposit_exposure_pct` on `event:deposit` events and normalize `vendor_type` so Splunk can summarize performance by vendor type.",
   "visualization": "Bar chart of average deposit exposure percentage by vendor type.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Budget vs Deposit Exposure' stops polling `event:deposit`; stale `vendor_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:deposit`. Dedup with `stats latest(*) by vendor_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.53.30)** — Connector for 'Budget vs Deposit Exposure' stops polling `event:deposit`; stale `avg_deposit_exposure_pct` on `vendor_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_deposit_exposure_pct` over `1w` is expected for UC-25.53.30, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `event:deposit`. Dedup with `stats latest(*) by vendor_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Budget vs Deposit Exposure'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

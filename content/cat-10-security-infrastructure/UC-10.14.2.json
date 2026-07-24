@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ICS Protocol Allow-List Violation' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_ics_protocol_allow_list_violation` (UC-10.14.2), SOC dashboard panel \"Security Infra — ICS Protocol Allow-List Violation\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='ics:firewall' where `src` satisfies `count` > 0 for UC-10.14.2 ('ICS Protocol Allow-List Violation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `ics:firewall` events where `src` stays below `count` > 0, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.14.2."
+    "positiveScenario": "UC-10.14.2 positive (ICS, Protocol, Allow, List, Violation): ingest synthetic events into `index=ot` sourcetype='ics:firewall' where `values` grouped by `src`, `proto`, `dest_port`, `zone` satisfies `count` > 0 for 'ICS Protocol Allow-List Violation'. Validate lookup `ot_protocol_allowlist`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.2 negative (List Violation): ingest benign `ot` / `ics:firewall` events where `src`, `proto`, `dest_port`, `zone` stays below `count` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'ICS Protocol Allow-List Violation'."
   },
   "dataSources": "`index=ot` `sourcetype=\"ics:firewall\"` fields `src`, `dest`, `dest_port`, `protocol`, `zone`",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot sourcetype=\"ics:firewall\"\n| eval proto=upper(coalesce(protocol, app_proto))\n| lookup ot_protocol_allowlist proto OUTPUT allowed\n| where isnull(allowed) OR allowed=0\n| stats count earliest(_time) as first_seen latest(_time) as last_seen values(dest) as dest_ips by src, proto, dest_port, zone\n| where count>0",
-  "description": "Detects protocols outside the approved OT baseline (MITRE ATT&CK for ICS T0886), limiting lateral movement and unsafe cross-zone traffic.",
-  "value": "Early 'ICS Protocol Allow-List Violation' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-10.14.2 for ICS, Protocol, Allow, List, Violation over `index=ot` sourcetype `ics:firewall` with thresholds `count` > 0. Groups `values` by `src`, `proto`, `dest_port`, `zone` each `the scheduled window`. Differentiated by lookup `ot_protocol_allowlist`. Supports repeatable security infra triage for 'ICS Protocol Allow-List Violation'.",
+  "value": "For 'ICS Protocol Allow-List Violation', UC-10.14.2 converts `activity` on `ics:firewall` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Requires Splunk ES and OT Security Add-on. Maintain an allow-list lookup aligned with OT network design. Tune false positives per site. Route notables into ES incident review with MITRE T0886 tagging.",
   "visualization": "Sankey (zone to protocol), Stacked bar by protocol, Table of violating endpoints.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'ICS Protocol Allow-List Violation' shifts `values` over `span=1h` while `src` remains in-scope for UC-10.14.2. Cross-check CMDB CHG.\n\n2. **Batch `values` on `ics:firewall`** — Scheduled automation elevates `proto` without crossing `count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:firewall`** — First 48h baseline for `src` is unstable; join `ot_protocol_allowlist` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-10.14.2)** — Planned work for 'ICS Protocol Allow-List Violation' shifts `values` over `span=1h` while `src`, `proto`, `dest_port`, `zone` remains in-scope. Applies lookup `ot_protocol_allowlist`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `ics:firewall`** — Scheduled automation elevates `proto` without crossing `count` > 0 for UC-10.14.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `proto`, `dest_port`, `zone`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:firewall`** — First 48h baseline for UC-10.14.2 on `src` is unstable; join `ot_protocol_allowlist` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

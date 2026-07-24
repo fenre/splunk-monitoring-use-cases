@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cost Allocation by Team' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cost_allocation_by_team` (UC-20.1.6), SOC dashboard panel \"Operations — Cost Allocation by Team\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud_billing` sourcetype='aws:billing:cur' where `team` satisfies detection threshold for UC-20.1.6 ('Cost Allocation by Team'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud_billing` / `aws:billing:cur` events where `team` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.6."
+    "positiveScenario": "UC-20.1.6 positive (Cost, Allocation, Team): ingest synthetic events into `index=cloud_billing` sourcetype='aws:billing:cur' where `total_cost`, `grand_total` grouped by `team` satisfies detection threshold for 'Cost Allocation by Team'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.6 negative (by Team): ingest benign `cloud_billing` / `aws:billing:cur` events where `team` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Cost Allocation by Team'."
   },
   "dataSources": "CUR with tag data, organizational mapping Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for AWS`, cloud billing TAs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud_billing sourcetype=\"aws:billing:cur\"\n| eval cost=tonumber(lineItem_UnblendedCost)\n| eval team=coalesce('resourceTags_user_Team', 'resourceTags_user_team', \"Untagged\")\n| stats sum(cost) as total_cost by team\n| eventstats sum(total_cost) as grand_total\n| eval cost_pct=round((total_cost/grand_total)*100, 1)\n| sort -total_cost\n| table team, total_cost, cost_pct",
-  "description": "Breaking down cloud costs by team/department via tagging creates accountability and enables chargeback/showback. Teams that see their own costs make better optimization decisions, driving organization-wide cost efficiency.",
-  "value": "Early 'Cost Allocation by Team' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-20.1.6 — Cost, Allocation, Team — using `index=cloud_billing` sourcetype `aws:billing:cur`, grouped by `team`. Outputs `total_cost`, `grand_total` each `the scheduled window`; alert when configured threshold. Primary focus: by Team. Purpose-built for 'Cost Allocation by Team' in Operations workflows.",
+  "value": "UC-20.1.6 gives Operations teams earlier visibility into by Team through `aws:billing:cur` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enforce tagging policy requiring Team/Department/Environment tags. Parse resource tags from billing data. Calculate cost allocation by team, department, and environment. Report on untagged resources (assign to \"Unknown\" for follow-up). Generate monthly chargeback reports.",
   "visualization": "Pie chart (cost by team), Bar chart (team costs with trending), Table (detailed allocation), Single value (untagged cost percentage).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud_billing`** — Planned work for 'Cost Allocation by Team' shifts `sum` over `span=1h` while `team` remains in-scope for UC-20.1.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing:cur`** — Scheduled automation elevates `cost` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `team`** — Health checks in `cloud_billing` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing:cur`** — First 48h baseline for `team` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `team`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud_billing` (UC-20.1.6)** — Planned work for 'Cost Allocation by Team' shifts `total_cost`, `grand_total` over `span=1h` while `team` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing:cur`** — Scheduled automation elevates `cost` without crossing configured threshold for UC-20.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `team`** — Health checks in `cloud_billing` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing:cur`** — First 48h baseline for UC-20.1.6 on `team` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `team`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

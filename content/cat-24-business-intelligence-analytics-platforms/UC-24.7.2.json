@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Task Instance Retries and Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_task_instance_retries_and_failures` (UC-24.7.2), SOC dashboard panel \"Operations — Airflow Task Instance Retries and Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='airflow:task' where `dag_id` satisfies `retries` > 3 for UC-24.7.2 ('Airflow Task Instance Retries and Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `airflow:task` events where `dag_id` stays below `retries` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.2."
+    "positiveScenario": "UC-24.7.2 positive (Airflow, Task, Instance, Retries, and): ingest synthetic events into `index=dataops` sourcetype='airflow:task' where `sum` grouped by `dag_id`, `task_id` satisfies `retries` > 3, or `failures` > 0 for 'Airflow Task Instance Retries and Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.2 negative (and Failures): ingest benign `dataops` / `airflow:task` events where `dag_id`, `task_id` stays below `retries` > 3, or `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Airflow Task Instance Retries and Failures'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=airflow:task\n| stats sum(eval(state=\"up_for_retry\")) as retries, sum(eval(state=\"failed\")) as failures by dag_id, task_id\n| where retries>3 OR failures>0\n| sort - failures, - retries",
-  "description": "Surfaces individual Airflow tasks that fail or retry excessively, pinpointing the flaky step inside an otherwise-passing DAG.",
-  "value": "Surfaces individual Airflow tasks that fail or retry excessively, pinpointing the flaky step inside an othe.... Timely UC-24.7.2 alerting on 'Airflow Task Instance Retries and Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects and Failures anomalies for UC-24.7.2 with window `the scheduled window` on `index=dataops` sourcetype `airflow:task`. Combines `sum` by `dag_id`, `task_id` and compares against `retries` > 3, or `failures` > 0. Mapped to keywords Airflow, Task, Instance, Retries, and for dashboard routing.",
+  "value": "Alerting on Airflow, Task, Instance, Retries, and through UC-24.7.2 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest task logs; schedule hourly; alert on chronic retriers. Investigate flaky operators or upstream dependencies.",
   "visualization": "Table by task with retries/failures, timechart.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'Airflow Task Instance Retries and Failures' shifts `sum` over `span=1h` while `dag_id` remains in-scope for UC-24.7.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `airflow:task`** — Scheduled automation elevates `task_id` without crossing `retries` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.7.2)** — Planned work for 'Airflow Task Instance Retries and Failures' shifts `sum` over `span=1h` while `dag_id`, `task_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `airflow:task`** — Scheduled automation elevates `task_id` without crossing `retries` > 3 for UC-24.7.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`, `task_id`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for UC-24.7.2 on `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],

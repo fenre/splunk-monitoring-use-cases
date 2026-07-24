@@ -52,14 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `search_id` satisfies detection threshold for UC-22.35.5 ('Search-head audit-trail completeness — deleted or rewritten search jobs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `_audit` / `target_sourcetype` events where `search_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.35.5."
+    "positiveScenario": "UC-22.35.5 positive (Search, head, audit, trail, completeness): ingest synthetic events into `index=_audit` sourcetype='target_sourcetype' where `values` grouped by `search_id`, `user` satisfies -24h for 'Search-head audit-trail completeness — deleted or rewritten search jobs'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.35.5 negative (search jobs): ingest benign `_audit` / `target_sourcetype` events where `search_id`, `user` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 9 confirms zero alert rows for 'Search-head audit-trail completeness — deleted or rewritten search jobs'."
   },
   "dataSources": "_audit (action=search), /services/search/jobs REST for current artifacts, dispatch directory state via Splunk REST.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=_audit action=search info=completed earliest=-24h\n| stats values(artifact_id) as artifact_ids earliest(_time) as first_seen latest(_time) as last_seen by search_id user\n| mvexpand artifact_ids\n| join type=outer artifact_ids [| rest /services/search/jobs splunk_server=* | fields sid dispatchState | rename sid as artifact_ids]\n| where isnull(dispatchState) AND (now()-last_seen)<86400\n| table user search_id artifact_ids first_seen last_seen",
-  "description": "Reconciles search-head _audit events against the current dispatch artifact state to detect search jobs that were recorded as completed but whose artifacts have since been removed outside the normal dispatch TTL. Mass deletion of dispatch artefacts is a classic post-incident tampering pattern.",
-  "value": "Reconciles search-head _audit events against the current dispatch artifact state to detect search jobs that.... Timely UC-22.35.5 alerting on 'Search-head audit-trail completeness — deleted or rewritten search jobs' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.35.5 — Search, head, audit, trail, completeness — using `index=_audit` sourcetype `configured sourcetype`, grouped by `search_id`, `user`. Outputs `values` each `the scheduled window`; alert when -24h. Primary focus: search jobs. Purpose-built for 'Search-head audit-trail completeness — deleted or rewritten search jobs' in Compliance workflows.",
+  "value": "Operators running UC-22.35.5 on UC-22.35.5 search results shorten triage for search jobs tied to 'Search-head audit-trail completeness — deleted or rewritten search jobs', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ensure _audit is retained for ≥90 days on the evidence cluster; (2) adjust dispatch_ttl per risk tier; (3) schedule every 15 min; (4) on hit, SOAR opens a P2 for the Splunk admin team. Indexes required: `index=_audit`.",
   "visualization": "Time chart of job-vs-artifact reconciliation, table of missing artifacts by user, single-value 'search jobs with artifact present (7d)'.",
   "cimModels": [],

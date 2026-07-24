@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Incident Channel Mix Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_incident_channel_mix_trending` (UC-16.5.7), SOC dashboard panel \"Operations — Incident Channel Mix Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `_time` satisfies detection threshold for UC-16.5.7 ('Incident Channel Mix Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.5.7."
+    "positiveScenario": "UC-16.5.7 positive (Incident, Channel, Mix, Trending): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `week_total` grouped by `_time`, `ch` satisfies -180d for 'Incident Channel Mix Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.5.7 negative (Mix Trending): ingest benign `itsm` / `snow:incident` events where `_time`, `ch` stays below -180d, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Incident Channel Mix Trending'."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:incident\"` (`contact_type`, `channel`, `u_channel`, `opened_at`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" earliest=-180d@d\n| eval ch=lower(coalesce(contact_type, channel, u_channel, \"unknown\"))\n| eval _time=coalesce(opened_at, _time)\n| bin _time span=1w\n| stats count by _time, ch\n| eventstats sum(count) as week_total by _time\n| eval share_pct=round(100*count/nullif(week_total,0),1)\n| sort _time ch",
-  "description": "Channel mix (portal, phone, chat, email) influences staffing models and self-service ROI; trending aligns workforce management with ITIL service desk strategy and digital adoption goals.",
-  "value": "Early 'Incident Channel Mix Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces risk tied to Incident, Channel, Mix, Trending through UC-16.5.7 on `index=itsm` sourcetype `snow:incident`. Summarises `week_total` grouped by `_time`, `ch` across `1w` before applying -180d. Operators tune 'Incident Channel Mix Trending' using UC-16.5.7 runbook steps.",
+  "value": "Tracking `week_total` via UC-16.5.7 on `snow:incident` feeds improves response to 'Incident Channel Mix Trending' and reduces operational risk and delayed incident response.",
   "implementation": "(1) Normalize `ch` with a lookup for legacy values; (2) Exclude automated monitoring tickets via `caller_id` or `category` filters; (3) Review rising phone share weekly with service owners when portal adoption programs are active.",
   "visualization": "Stacked area chart (channel share % over weeks), Line chart (portal % trend), Table (raw counts by channel).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Incident Channel Mix Trending' shifts `sum` over `span=1w` while `_time` remains in-scope for UC-16.5.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `ch` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.5.7)** — Planned work for 'Incident Channel Mix Trending' shifts `week_total` over `span=1w` while `_time`, `ch` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `ch` without crossing configured threshold for UC-16.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `ch`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.5.7 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

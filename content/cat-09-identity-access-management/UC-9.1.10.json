@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Stale Account Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_stale_account_detection` (UC-9.1.10), SOC dashboard panel \"IAM — Stale Account Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='ad:accounts' where `entity` satisfies `days_inactive` > 90 for UC-9.1.10 ('Stale Account Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ad` / `ad:accounts` events where `entity` stays below `days_inactive` > 90, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.10."
+    "positiveScenario": "UC-9.1.10 positive (Stale, Account, Detection): ingest synthetic events into `index=ad` sourcetype='ad:accounts' where `count` grouped by `entity` satisfies `days_inactive` > 90 for 'Stale Account Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.10 negative (Account Detection): ingest benign `ad` / `ad:accounts` events where `entity` stays below `days_inactive` > 90, or exclude the test entity via `iam_exception_register.csv`. Variant 12 confirms zero alert rows for 'Stale Account Detection'."
   },
   "dataSources": "AD attributes (lastLogonTimestamp, pwdLastSet) via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input (PowerShell AD query) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ad sourcetype=\"ad:accounts\"\n| eval days_inactive=round((now()-lastLogon)/86400)\n| where days_inactive > 90 AND enabled=\"True\"\n| table samAccountName, displayName, days_inactive, ou, lastLogon\n| sort -days_inactive",
-  "description": "Stale accounts are an attack surface — unused accounts may be compromised without detection. Regular cleanup reduces risk.",
-  "value": "Early 'Stale Account Detection' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Surfaces UC-9.1.10 — Stale, Account, Detection — using `index=ad` sourcetype `ad:accounts`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_inactive` > 90. Primary focus: Account Detection. Purpose-built for 'Stale Account Detection' in IAM workflows.",
+  "value": "Tracking `activity` via UC-9.1.10 on `ad:accounts` feeds improves response to 'Stale Account Detection' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Run PowerShell script querying AD for lastLogonTimestamp weekly. Export to CSV/JSON and ingest. Flag accounts inactive >90 days. Cross-reference with HR systems for departed employees. Report for access review.",
   "visualization": "Table (stale accounts), Bar chart (stale accounts by OU), Single value (total stale accounts), Pie chart (by account type).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ad`** — Planned work for 'Stale Account Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ad:accounts`** — Scheduled automation elevates `days_inactive` without crossing `days_inactive` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ad:accounts`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ad` (UC-9.1.10)** — Planned work for 'Stale Account Detection' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `ad:accounts`** — Scheduled automation elevates `days_inactive` without crossing `days_inactive` > 90 for UC-9.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ad:accounts`** — First 48h baseline for UC-9.1.10 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.002",
     "T1087.002"

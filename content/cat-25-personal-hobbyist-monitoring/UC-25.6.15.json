@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Panel String Imbalance Trend' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_panel_string_imbalance_trend` (UC-25.6.15), SOC dashboard panel \"Personal — Panel String Imbalance Trend\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `string_id` satisfies `pct_of_avg` < 85 for UC-25.6.15 ('Panel String Imbalance Trend'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `solaredge:power` events where `string_id` stays below `pct_of_avg` < 85, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.15."
+    "positiveScenario": "UC-25.6.15 positive (Panel, String, Imbalance, Trend): ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `avg_power`, `fleet_avg` grouped by `string_id` satisfies `pct_of_avg` < 85 for 'Panel String Imbalance Trend'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.15 negative (Imbalance Trend): ingest benign `personal` / `solaredge:power` events where `string_id` stays below `pct_of_avg` < 85, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Panel String Imbalance Trend'."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=solaredge:power\n| stats avg(power_w) as avg_power by string_id\n| eventstats avg(avg_power) as fleet_avg\n| eval pct_of_avg=round(100*avg_power/fleet_avg,1)\n| where pct_of_avg<85\n| sort pct_of_avg",
-  "description": "Compares average output between strings to identify underperforming sections that may be shaded, dirty, failing, or wired differently than expected.",
-  "value": "Compares average output between strings to identify underperforming sections that may be shaded, dirty, fai.... Timely UC-25.6.15 alerting on 'Panel String Imbalance Trend' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces Imbalance Trend anomalies for UC-25.6.15 with window `the scheduled window` on `index=personal` sourcetype `solaredge:power`. Combines `avg_power`, `fleet_avg` by `string_id` and compares against `pct_of_avg` < 85. Mapped to keywords Panel, String, Imbalance, Trend for dashboard routing.",
+  "value": "Alerting on Panel, String, Imbalance, Trend through UC-25.6.15 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_power`, `fleet_avg` early.",
   "implementation": "Capture per-string inverter data where available; review low-performing strings and inspect the hardware or shading conditions.",
   "visualization": "Table of strings by average output versus fleet average.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Panel String Imbalance Trend' stops polling `solaredge:power`; stale `string_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by string_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct_of_avg` < 85. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.15)** — Connector for 'Panel String Imbalance Trend' stops polling `solaredge:power`; stale `avg_power`, `fleet_avg` on `string_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_power`, `fleet_avg` over `1w` is expected for UC-25.6.15, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by string_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct_of_avg` < 85 for 'Panel String Imbalance Trend'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

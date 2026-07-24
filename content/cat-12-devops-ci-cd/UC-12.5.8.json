@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Helm Release Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_helm_release_health_monitoring` (UC-12.5.8), SOC dashboard panel \"Operations — Helm Release Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='helm:release' where `release` satisfies detection threshold for UC-12.5.8 ('Helm Release Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `helm:release` events where `release` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.5.8."
+    "positiveScenario": "UC-12.5.8 positive (Helm, Release, Health, Monitoring): ingest synthetic events into `index=devops` sourcetype='helm:release' where `values` grouped by `release`, `namespace`, `chart`, `status` satisfies detection threshold for 'Helm Release Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.5.8 negative (Health Monitoring): ingest benign `devops` / `helm:release` events where `release`, `namespace`, `chart`, `status` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Helm Release Health Monitoring'."
   },
   "dataSources": "`sourcetype=helm:release`, `sourcetype=fluxcd:controller` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops (sourcetype=\"helm:release\" OR (sourcetype=\"fluxcd:controller\" AND kind=\"HelmRelease\"))\n| where status IN (\"failed\",\"pending-upgrade\",\"pending-rollback\") OR info_status!=\"deployed\"\n| stats latest(_time) as last_event, values(message) as notes by release, namespace, chart, status\n| sort -last_event",
-  "description": "Failed or pending Helm releases leave workloads partially updated or broken; monitoring release status prevents silent partial deploys.",
-  "value": "Early 'Helm Release Health Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-12.5.8 — Helm, Release, Health, Monitoring — using `index=devops` sourcetype `helm:release`, grouped by `release`, `namespace`, `chart`, `status`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Health Monitoring. Purpose-built for 'Helm Release Health Monitoring' in Operations workflows.",
+  "value": "UC-12.5.8 operationalises 'Helm Release Health Monitoring' against `helm:release` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Helm release status from `helm list -o json` jobs, Flux HelmRelease conditions, or controller logs. Map statuses to deployed/failed/pending. Alert on non-deployed steady states. Include chart version and values hash for change correlation.",
   "visualization": "Table (unhealthy releases), Single value (non-deployed count), Timeline (release operations).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Helm Release Health Monitoring' shifts `values` over `span=1h` while `release` remains in-scope for UC-12.5.8. Cross-check CMDB CHG.\n\n2. **Batch `values` on `helm:release`** — Scheduled automation elevates `namespace` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `release`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `helm:release`** — First 48h baseline for `release` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `release`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.5.8)** — Planned work for 'Helm Release Health Monitoring' shifts `values` over `span=1h` while `release`, `namespace`, `chart`, `status` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `helm:release`** — Scheduled automation elevates `namespace` without crossing configured threshold for UC-12.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `release`, `namespace`, `chart`, `status`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `helm:release`** — First 48h baseline for UC-12.5.8 on `release` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `release`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kubernetes"
   ],

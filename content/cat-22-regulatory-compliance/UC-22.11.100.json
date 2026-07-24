@@ -54,14 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='w32time' where `hostname` satisfies detection threshold for UC-22.11.100 ('PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `w32time` events where `hostname` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.100."
+    "positiveScenario": "UC-22.11.100 positive (PCI, DSS, 10.4, Time, synchronisation:): ingest synthetic events into `index=windows` sourcetype='w32time' where `count` grouped by `hostname` satisfies -15m for 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts'. Validate lookup `cde_hosts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.100 negative (CDE hosts): ingest benign `windows` / `w32time` events where `hostname` stays below -15m, or exclude the test entity via `compliance_exception_register.csv`. Variant 9 confirms zero alert rows for 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts'."
   },
   "dataSources": "`index=windows` sourcetype=w32time; `index=linux` sourcetype=chronyd OR sourcetype=ntpd; CDE lookup `cde_hosts.csv`.",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833) (Splunkbase)",
   "spl": "search (index=windows sourcetype=w32time) OR (index=linux sourcetype IN (chronyd,ntpd)) earliest=-15m\n| stats latest(offset_ms) AS offset_ms latest(stratum) AS stratum latest(_time) AS last_ntp_sync BY hostname\n| lookup cde_hosts.csv hostname OUTPUT in_cde\n| where in_cde=\"yes\" AND (abs(offset_ms)>1000 OR last_ntp_sync<now()-3600)\n| table hostname offset_ms stratum last_ntp_sync",
-  "description": "PCI-DSS 10.4 requires time synchronisation across CDE systems. This UC flags drift > 1s or NTP sync gaps > 1h. Searches `index=windows` with sourcetype `w32time` for UC-22.11.100, aggregating `count` by `hostname` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts' without manual log review.",
-  "value": "PCI-DSS 10. Timely UC-22.11.100 alerting on 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.11.100 — PCI, DSS, 10.4, Time, synchronisation: — using `index=windows` sourcetype `w32time`, grouped by `hostname`. Outputs `count` each `the scheduled window`; alert when -15m. Filter chain includes lookup `cde_hosts.csv`. Purpose-built for 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts' in Compliance workflows.",
+  "value": "Operators running UC-22.11.100 on `w32time` feeds shorten triage for CDE hosts tied to 'PCI-DSS 10.4 — Time synchronisation: NTP drift on CDE hosts', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Enforce w32time/chrony logs to Splunk; (2) maintain cde_hosts.csv; (3) schedule UC every 15m; (4) drift opens a Platform ticket; (5) quarterly sampling for auditor. Indexes required: `index=linux`, `index=windows`; Sourcetypes: `sourcetype=chronyd`, `sourcetype=ntpd`, `sourcetype=ntpd;`, `sourcetype=w32time`.",
   "visualization": "Scatter of offset_ms per host, table of drifted hosts, single value 'hosts over 1s drift'.",
   "cimModels": [

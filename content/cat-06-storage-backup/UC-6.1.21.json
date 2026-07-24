@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Multipath Failover Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_multipath_failover_events` (UC-6.1.21), SOC dashboard panel \"Operations — Multipath Failover Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='linux_syslog' where `host` satisfies `count` > 0 for UC-6.1.21 ('Multipath Failover Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `linux_syslog` events where `host` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.21."
+    "positiveScenario": "UC-6.1.21 positive (Multipath, Failover, Events): ingest synthetic events into `index=os` sourcetype='linux_syslog' where `count` grouped by `host`, `path_id`, `_time` satisfies `count` > 0 for 'Multipath Failover Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.21 negative (Failover Events): ingest benign `os` / `linux_syslog` events where `host`, `path_id`, `_time` stays below `count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Multipath Failover Events'."
   },
   "dataSources": "`multipathd` logs, `mpathadm` status (Solaris), OS MPIO event logs Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Linux `multipathd` journal, Windows MPIO events, syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=os (sourcetype=linux_syslog OR sourcetype=syslog) (multipath OR \"path failed\" OR \"switching path\" OR mpio)\n| rex \"(?i)path (?<path_id>\\S+).*failed|(?i)switching.*path\"\n| bin _time span=1h\n| stats count by host, path_id, _time\n| where count > 0",
-  "description": "Path failovers indicate cable, SFP, HBA, or array port issues. Rapid detection limits prolonged single-path exposure and data loss risk.",
-  "value": "Early 'Multipath Failover Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-6.1.21 — Multipath, Failover, Events — using `index=os` sourcetype `linux_syslog`, grouped by `host`, `path_id`, `_time`. Outputs `count` each `1h`; alert when `count` > 0. Primary focus: Failover Events. Purpose-built for 'Multipath Failover Events' in Operations workflows.",
+  "value": "UC-6.1.21 gives Operations teams earlier visibility into Failover Events through `linux_syslog` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Forward multipath daemon logs from all SAN-attached hosts. Tag events for failback/failover. Alert on any path down >5m or repeated failovers per hour.",
   "visualization": "Timeline (failover events), Table (host, path, count), Single value (failovers last 24h).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'Multipath Failover Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.1.21. Cross-check CMDB CHG.\n\n2. **Batch `count` on `linux_syslog`** — Scheduled automation elevates `path_id` without crossing `count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `linux_syslog`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.1.21)** — Planned work for 'Multipath Failover Events' shifts `count` over `span=1h` while `host`, `path_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `linux_syslog`** — Scheduled automation elevates `path_id` without crossing `count` > 0 for UC-6.1.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `path_id`, `_time`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `linux_syslog`** — First 48h baseline for UC-6.1.21 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "syslog"
   ],

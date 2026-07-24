@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Jenkins Executor Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_jenkins_executor_utilization` (UC-12.2.9), SOC dashboard panel \"Operations — Jenkins Executor Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='jenkins:metrics' where `computer` satisfies `avg_util` > 80 for UC-12.2.9 ('Jenkins Executor Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `jenkins:metrics` events where `computer` stays below `avg_util` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.9."
+    "positiveScenario": "UC-12.2.9 positive (Jenkins, Executor, Utilization): ingest synthetic events into `index=cicd` sourcetype='jenkins:metrics' where `avg_util`, `avg_wait` grouped by `computer` satisfies `avg_util` > 80, or `avg_wait` > 300 for 'Jenkins Executor Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.9 negative (Executor Utilization): ingest benign `cicd` / `jenkins:metrics` events where `computer` stays below `avg_util` > 80, or `avg_wait` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Jenkins Executor Utilization'."
   },
   "dataSources": "Jenkins /metrics, /api/json?tree=computer[displayName,busyExecutors,totalExecutors] Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (Jenkins API, Prometheus metrics endpoint) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"jenkins:metrics\"\n| eval utilization_pct=round(busy_executors/total_executors*100,1)\n| timechart span=15m avg(utilization_pct) as avg_util, avg(queue_wait_sec) as avg_wait by computer\n| where avg_util > 80 OR avg_wait > 300",
-  "description": "Busy executors as % of total and queue wait time indicate CI capacity. High utilization with long queue times signals need for additional agents or executor scaling.",
-  "value": "Early 'Jenkins Executor Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors when Executor Utilization criteria fire for 'Jenkins Executor Utilization' (UC-12.2.9) in `index=cicd` sourcetype `jenkins:metrics`. Pipeline aggregates `avg_util`, `avg_wait` by `computer` over `15m`. Alert logic enforces `avg_util` > 80, or `avg_wait` > 300. Title terms: Jenkins, Executor, Utilization. Eliminates manual hunting for UC-12.2.9 conditions.",
+  "value": "UC-12.2.9 helps teams contain Jenkins, Executor, Utilization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll Jenkins /metrics (Prometheus format) or /computer/api/json for executor counts. Ingest busyExecutors, totalExecutors, and queue wait time. Calculate utilization per node. Alert when utilization >85% sustained for 15 min or queue wait >5 min. Correlate with build duration to right-size capacity.",
   "visualization": "Gauge (current utilization %), Line chart (utilization and queue wait trend), Bar chart (utilization by node), Single value (avg queue wait sec).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Jenkins Executor Utilization' shifts `avg` over `span=15m` while `computer` remains in-scope for UC-12.2.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jenkins:metrics`** — Scheduled automation elevates `utilization_pct` without crossing `avg_util` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `computer`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jenkins:metrics`** — First 48h baseline for `computer` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `computer`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.9)** — Planned work for 'Jenkins Executor Utilization' shifts `avg_util`, `avg_wait` over `span=15m` while `computer` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jenkins:metrics`** — Scheduled automation elevates `utilization_pct` without crossing `avg_util` > 80 for UC-12.2.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `computer`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jenkins:metrics`** — First 48h baseline for UC-12.2.9 on `computer` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `computer`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jenkins",
     "prometheus"

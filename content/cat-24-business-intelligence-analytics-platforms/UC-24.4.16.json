@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Qlik Sense Bulk Export and Download Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_qlik_sense_bulk_export_and_download_audit` (UC-24.4.16), SOC dashboard panel \"Operations — Qlik Sense Bulk Export and Download Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlik:proxy' where `user_id` satisfies detection threshold for UC-24.4.16 ('Qlik Sense Bulk Export and Download Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `qlik:proxy` events where `user_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.16."
+    "positiveScenario": "UC-24.4.16 positive (Qlik, Sense, Bulk, Export, and): ingest synthetic events into `index=bi` sourcetype='qlik:proxy' where `avg_rows`, `sd_rows` grouped by `user_id` satisfies detection threshold for 'Qlik Sense Bulk Export and Download Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.16 negative (Download Audit): ingest benign `bi` / `qlik:proxy` events where `user_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Qlik Sense Bulk Export and Download Audit'."
   },
   "dataSources": "Qlik logs (`qlik:scheduler`, `qlik:engine`, `qlik:proxy`), QRS API (`qlik:qrs`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Qlik Sense logs via UF; QRS API and Qlik Cloud REST API via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlik:proxy (action=\"Export\" OR action=\"Download\")\n| stats count as exports, sum(coalesce(row_count,rows,record_count)) as rows by user_id\n| eventstats avg(rows) as avg_rows, stdev(rows) as sd_rows\n| where rows>avg_rows+3*sd_rows\n| sort - rows",
-  "description": "Watches Qlik Sense for users exporting or downloading unusually large volumes of data, a signal for both data-exfiltration risk and ungoverned spreadsheet sprawl.",
-  "value": "Watches Qlik Sense for users exporting or downloading unusually large volumes of data, a signal for both da.... Timely UC-24.4.16 alerting on 'Qlik Sense Bulk Export and Download Audit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-24.4.16 — Qlik, Sense, Bulk, Export, and — using `index=bi` sourcetype `qlik:proxy`, grouped by `user_id`. Outputs `avg_rows`, `sd_rows` each `the scheduled window`; alert when configured threshold. Primary focus: Download Audit. Purpose-built for 'Qlik Sense Bulk Export and Download Audit' in Operations workflows.",
+  "value": "UC-24.4.16 gives Operations teams earlier visibility into Download Audit through `qlik:proxy` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Qlik Sense export/download events with row counts; schedule daily and alert on 3-sigma export-volume anomalies per user.",
   "visualization": "Table of user by export volume, anomaly markers.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Qlik Sense Bulk Export and Download Audit' shifts `sum` over `span=1h` while `user_id` remains in-scope for UC-24.4.16. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `qlik:proxy`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:proxy`** — First 48h baseline for `user_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.16)** — Planned work for 'Qlik Sense Bulk Export and Download Audit' shifts `avg_rows`, `sd_rows` over `span=1h` while `user_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `qlik:proxy`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.4.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlik:proxy`** — First 48h baseline for UC-24.4.16 on `user_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'DNS Cache Hit Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dns_cache_hit_ratio` (UC-5.6.9), SOC dashboard panel \"Operations — DNS Cache Hit Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='infoblox:dns' where `entity` satisfies `hit_ratio` < 70 for UC-5.6.9 ('DNS Cache Hit Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `infoblox:dns` events where `entity` stays below `hit_ratio` < 70, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.6.9."
+    "positiveScenario": "UC-5.6.9 positive (DNS, Cache, Hit, Ratio): ingest synthetic events into `index=network` sourcetype='infoblox:dns' where `hits`, `total` grouped by `entity` satisfies `hit_ratio` < 70 for 'DNS Cache Hit Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.6.9 negative (Hit Ratio): ingest benign `network` / `infoblox:dns` events where `entity` stays below `hit_ratio` < 70, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'DNS Cache Hit Ratio'."
   },
   "dataSources": "`sourcetype=infoblox:dns`, `sourcetype=named` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk_TA_infoblox, BIND/Unbound logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"infoblox:dns\"\n| eval cache_hit=if(match(message,\"cache hit\"),1,0), total=1\n| timechart span=1h sum(cache_hit) as hits, sum(total) as total\n| eval hit_ratio=round(hits/total*100,1) | where hit_ratio < 70",
-  "description": "Low cache hit ratios indicate either a surge of new queries, cache poisoning attempts, or misconfigured TTLs — all increasing latency and upstream load.",
-  "value": "Low cache hit ratios indicate either a surge of new queries, cache poisoning attempts, or misconfigured TTL.... Timely UC-5.6.9 alerting on 'DNS Cache Hit Ratio' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-5.6.9 — DNS, Cache, Hit, Ratio — using `index=network` sourcetype `infoblox:dns`, grouped by `entity`. Outputs `hits`, `total` each `1h`; alert when `hit_ratio` < 70. Primary focus: Hit Ratio. Purpose-built for 'DNS Cache Hit Ratio' in Operations workflows.",
+  "value": "UC-5.6.9 gives Operations teams earlier visibility into Hit Ratio through `infoblox:dns` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable query logging on DNS resolvers. Track cache hit vs. miss ratio. Alert when hit ratio drops below 70%. Investigate top domains causing misses.",
   "visualization": "Line chart (hit ratio over time), Single value (current ratio), Table (top miss domains).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'DNS Cache Hit Ratio' shifts `sum` over `span=1h` while `host` remains in-scope for UC-5.6.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `infoblox:dns`** — Scheduled automation elevates `cache_hit` without crossing `hit_ratio` < 70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.6.9)** — Planned work for 'DNS Cache Hit Ratio' shifts `hits`, `total` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `infoblox:dns`** — Scheduled automation elevates `cache_hit` without crossing `hit_ratio` < 70 for UC-5.6.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `infoblox:dns`** — First 48h baseline for UC-5.6.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "infoblox"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'DR Rehearsal Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dr_rehearsal_tracking` (UC-6.3.15), SOC dashboard panel \"Operations — DR Rehearsal Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='dr_rehearsal' where `system_name` satisfies `days_since` > 365 for UC-6.3.15 ('DR Rehearsal Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `dr_rehearsal` events where `system_name` stays below `days_since` > 365, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.15."
+    "positiveScenario": "UC-6.3.15 positive (Rehearsal, Tracking): ingest synthetic events into `index=backup` sourcetype='dr_rehearsal' where `count` grouped by `system_name`, `scenario` satisfies `days_since` > 365 for 'DR Rehearsal Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.15 negative (Rehearsal Tracking): ingest benign `backup` / `dr_rehearsal` events where `system_name`, `scenario` stays below `days_since` > 365, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'DR Rehearsal Tracking'."
   },
   "dataSources": "DR test results, DR runbook completion events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (ITSM, spreadsheet ingest, HEC) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"dr_rehearsal\"\n| stats latest(test_date) as last_test, latest(result) as result by system_name, scenario\n| eval days_since=round((now()-strptime(last_test,\"%Y-%m-%d\"))/86400)\n| where days_since > 365 OR result!=\"Pass\"\n| table system_name scenario last_test result days_since",
-  "description": "Tabletop and technical DR tests must occur on schedule. Tracking rehearsal outcomes and dates supports audit and readiness scoring.",
-  "value": "Early 'DR Rehearsal Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-6.3.15 — Rehearsal, Tracking — using `index=backup` sourcetype `dr_rehearsal`, grouped by `system_name`, `scenario`. Outputs `count` each `the scheduled window`; alert when `days_since` > 365. Primary focus: Rehearsal Tracking. Purpose-built for 'DR Rehearsal Tracking' in Operations workflows.",
+  "value": "UC-6.3.15 operationalises 'DR Rehearsal Tracking' against `dr_rehearsal` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Log each rehearsal with scenario, duration, pass/fail. Alert when annual test is overdue or result is not Pass. Correlate with actual restore tests from backup tools.",
   "visualization": "Table (overdue systems), Calendar (scheduled tests), Single value (% scenarios current).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'DR Rehearsal Tracking' shifts `count` over `span=1h` while `system_name` remains in-scope for UC-6.3.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dr_rehearsal`** — Scheduled automation elevates `scenario` without crossing `days_since` > 365. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dr_rehearsal`** — First 48h baseline for `system_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.15)** — Planned work for 'DR Rehearsal Tracking' shifts `count` over `span=1h` while `system_name`, `scenario` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dr_rehearsal`** — Scheduled automation elevates `scenario` without crossing `days_since` > 365 for UC-6.3.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name`, `scenario`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dr_rehearsal`** — First 48h baseline for UC-6.3.15 on `system_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

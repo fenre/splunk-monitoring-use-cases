@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cross-Cloud Identity Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cross_cloud_identity_correlation` (UC-4.4.2), SOC dashboard panel \"Operations — Cross-Cloud Identity Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='target_sourcetype' where `normalized_user` satisfies `clouds_active` > 1 for UC-4.4.2 ('Cross-Cloud Identity Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `target_sourcetype` events where `normalized_user` stays below `clouds_active` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.2."
+    "positiveScenario": "UC-4.4.2 positive (Cross, Cloud, Identity, Correlation): ingest synthetic events into `index=aws` sourcetype='target_sourcetype' where `clouds_active` grouped by `normalized_user` satisfies `clouds_active` > 1 for 'Cross-Cloud Identity Correlation'. Validate lookup `cloud_identity_map`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.4.2 negative (Identity Correlation): ingest benign `aws` / `target_sourcetype` events where `normalized_user` stays below `clouds_active` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Cross-Cloud Identity Correlation'."
   },
   "dataSources": "All cloud audit logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Combined cloud TAs + lookup tables — Universal Forwarder (Splunkbase 617)",
   "spl": "index=aws OR index=azure OR index=gcp\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval user=coalesce(userIdentity.arn, userPrincipalName, protoPayload.authenticationInfo.principalEmail)\n| lookup cloud_identity_map user OUTPUT normalized_user\n| stats count, dc(cloud) as clouds_active, values(cloud) as clouds by normalized_user\n| where clouds_active > 1\n| sort -count",
-  "description": "Users often have identities across AWS/Azure/GCP. Correlating activity provides unified view for security investigation and insider threat detection.",
-  "value": "Early 'Cross-Cloud Identity Correlation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Identity Correlation anomalies for UC-4.4.2 with window `the scheduled window` on `index=aws` sourcetype `configured sourcetype`. Combines `clouds_active` by `normalized_user` and compares against `clouds_active` > 1. Mapped to keywords Cross, Cloud, Identity, Correlation for dashboard routing.",
+  "value": "Alerting on Cross, Cloud, Identity, Correlation through UC-4.4.2 reduces operational risk and delayed incident response by surfacing `clouds_active` early.",
   "implementation": "Create a lookup table mapping cloud identities to a normalized user (e.g., email). Combine audit logs from all three providers. Dashboard showing cross-cloud activity per user.",
   "visualization": "Table (user, clouds, activity count), Sankey diagram (user to cloud to action).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Cross-Cloud Identity Correlation' shifts `dc` over `span=1h` while `normalized_user` remains in-scope for UC-4.4.2. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `cloud` without crossing `clouds_active` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `normalized_user`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `normalized_user` is unstable; join `cloud_identity_map` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `normalized_user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.4.2)** — Planned work for 'Cross-Cloud Identity Correlation' shifts `clouds_active` over `span=1h` while `normalized_user` remains in-scope. Applies lookup `cloud_identity_map`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `cloud` without crossing `clouds_active` > 1 for UC-4.4.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `normalized_user`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-4.4.2 on `normalized_user` is unstable; join `cloud_identity_map` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `normalized_user`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1580"

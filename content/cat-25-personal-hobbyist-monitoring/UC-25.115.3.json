@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wellness Visit Overdue by Pet' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wellness_visit_overdue_by_pet` (UC-25.115.3), SOC dashboard panel \"Personal — Wellness Visit Overdue by Pet\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vet:visit' where `pet_name` satisfies `days_since` > 365 for UC-25.115.3 ('Wellness Visit Overdue by Pet'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vet:visit` events where `pet_name` stays below `days_since` > 365, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.115.3."
+    "positiveScenario": "UC-25.115.3 positive (Wellness, Visit, Overdue, Pet): ingest synthetic events into `index=personal` sourcetype='vet:visit' where `last_wellness` grouped by `pet_name` satisfies `days_since` > 365 for 'Wellness Visit Overdue by Pet'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.115.3 negative (by Pet): ingest benign `personal` / `vet:visit` events where `pet_name` stays below `days_since` > 365, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Wellness Visit Overdue by Pet'."
   },
   "dataSources": "Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vet:visit pet_name=* visit_type=\"wellness\" visit_date=*\n| stats max(visit_date) as last_wellness by pet_name\n| eval days_since=round((now()-strptime(last_wellness,\"%Y-%m-%d\"))/86400,0)\n| where days_since>365\n| sort - days_since\n| table pet_name days_since last_wellness",
-  "description": "Flags pets whose last wellness visit was more than twelve months ago. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Flags pets whose last wellness visit was more than twelve months ago. Timely UC-25.115.3 alerting on 'Wellness Visit Overdue by Pet' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on by Pet anomalies for UC-25.115.3 with window `the scheduled window` on `index=personal` sourcetype `vet:visit`. Combines `last_wellness` by `pet_name` and compares against `days_since` > 365. Mapped to keywords Wellness, Visit, Overdue, Pet for dashboard routing.",
+  "value": "Alerting on Wellness, Visit, Overdue, Pet through UC-25.115.3 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_wellness` early.",
   "implementation": "Log wellness visits with ISO `visit_date` and `pet_name`, then alert when the interval exceeds one year.",
   "visualization": "Table of pets by days since last wellness visit.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wellness Visit Overdue by Pet' stops polling `vet:visit`; stale `pet_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:visit`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 365. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.115.3)** — Connector for 'Wellness Visit Overdue by Pet' stops polling `vet:visit`; stale `last_wellness` on `pet_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_wellness` over `1w` is expected for UC-25.115.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:visit`. Dedup with `stats latest(*) by pet_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_since` > 365 for 'Wellness Visit Overdue by Pet'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

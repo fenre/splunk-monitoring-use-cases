@@ -54,14 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vuln` sourcetype='target_sourcetype' where `host` satisfies `cvss_v3_base` >= 9.0 for UC-22.43.3 ('Internet-facing asset × unpatched critical CVE'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vuln` / `target_sourcetype` events where `host` stays below `cvss_v3_base` >= 9.0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.43.3."
+    "positiveScenario": "UC-22.43.3 positive (Internet, facing, asset, unpatched, critical): ingest synthetic events into `index=vuln` sourcetype='target_sourcetype' where `first_seen` grouped by `host` satisfies `cvss_v3_base` >= 9.0, or `age_days` > 0 for 'Internet-facing asset × unpatched critical CVE'. Validate lookup `external_asset_inventory.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.43.3 negative (critical CVE): ingest benign `vuln` / `target_sourcetype` events where `host` stays below `cvss_v3_base` >= 9.0, or `age_days` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'Internet-facing asset × unpatched critical CVE'."
   },
   "dataSources": "Vulnerability scanner feeds, external-facing inventory (Shodan, Censys, AWS ALB/NLB, cloud LBs).",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=vuln earliest=-24h cvss_v3_base>=9.0\n| lookup external_asset_inventory.csv host OUTPUT external_exposed\n| where external_exposed=\"true\"\n| stats min(_time) as first_seen values(cve) as cves by host\n| eval age_days=round((now()-first_seen)/86400,0)\n| where age_days>0\n| table host cves age_days",
-  "description": "Any Internet-facing asset with an unpatched critical CVE is the single highest-priority audit and security finding; this UC keeps it at one-hour latency.",
-  "value": "Any Internet-facing asset with an unpatched critical CVE is the single highest-priority audit and security.... Timely UC-22.43.3 alerting on 'Internet-facing asset × unpatched critical CVE' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.43.3 for Internet, facing, asset, unpatched, critical over `index=vuln` sourcetype `configured sourcetype` with thresholds `cvss_v3_base` >= 9.0, or `age_days` > 0. Groups `first_seen` by `host` each `the scheduled window`. Differentiated by lookup `external_asset_inventory.csv`. Supports repeatable compliance triage for 'Internet-facing asset × unpatched critical CVE'.",
+  "value": "For 'Internet-facing asset × unpatched critical CVE', UC-22.43.3 converts `first_seen` on lookup `external_asset_inventory.csv` into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Maintain external_asset_inventory.csv refreshed daily from LB config or external attack-surface tooling; (2) run hourly; (3) SOAR auto-escalates on hit. Indexes required: `index=vuln`.",
   "visualization": "Table of Internet-facing hosts with critical CVEs, bar chart of patch-age buckets, single-value 'Internet-facing hosts fully patched'.",
   "cimModels": [

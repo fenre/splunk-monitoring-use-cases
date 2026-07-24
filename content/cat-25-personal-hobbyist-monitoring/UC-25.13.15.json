@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Inbox Zero Recovery Time' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_inbox_zero_recovery_time` (UC-25.13.15), SOC dashboard panel \"Personal — Inbox Zero Recovery Time\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='email:metadata' where `_time` satisfies `peak_unread` > 0 for UC-25.13.15 ('Inbox Zero Recovery Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `email:metadata` events where `_time` stays below `peak_unread` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.15."
+    "positiveScenario": "UC-25.13.15 positive (Inbox, Zero, Recovery, Time): ingest synthetic events into `index=personal` sourcetype='email:metadata' where `peak_unread` grouped by `_time` satisfies `peak_unread` > 0, or `peak_unread` > 20 for 'Inbox Zero Recovery Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.15 negative (Recovery Time): ingest benign `personal` / `email:metadata` events where `_time` stays below `peak_unread` > 0, or `peak_unread` > 20, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Inbox Zero Recovery Time'."
   },
   "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=email:metadata\n| bin _time span=1d\n| stats max(unread_count) as peak_unread, latest(unread_count) as end_unread by _time\n| eval recovered=if(peak_unread>0 AND end_unread=0,1,0)\n| where recovered=0 AND peak_unread>20\n| sort - peak_unread",
-  "description": "Tracks days where unread email spiked and never got fully cleared, helping you understand recovery time instead of only volume.",
-  "value": "Tracks days where unread email spiked and never got fully cleared, helping you understand recovery time ins.... Timely UC-25.13.15 alerting on 'Inbox Zero Recovery Time' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects when Recovery Time criteria fire for 'Inbox Zero Recovery Time' (UC-25.13.15) in `index=personal` sourcetype `email:metadata`. Pipeline aggregates `peak_unread` by `_time` over `1d`. Alert logic enforces `peak_unread` > 0, or `peak_unread` > 20. Title terms: Inbox, Zero, Recovery, Time. Eliminates manual hunting for UC-25.13.15 conditions.",
+  "value": "UC-25.13.15 helps teams contain Inbox, Zero, Recovery, Time scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward a running unread count from your mail workflow; review days with high peaks that still ended in backlog.",
   "visualization": "Daily chart of peak unread count and end-of-day unread status.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Inbox Zero Recovery Time' stops polling `email:metadata`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `email:metadata`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `peak_unread` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.15)** — Connector for 'Inbox Zero Recovery Time' stops polling `email:metadata`; stale `peak_unread` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `peak_unread` over `1d` is expected for UC-25.13.15, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `email:metadata`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `peak_unread` > 0 for 'Inbox Zero Recovery Time'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'dbt Cloud Run Queue Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dbt_cloud_run_queue_time` (UC-24.7.28), SOC dashboard panel \"Operations — dbt Cloud Run Queue Time\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='dbtcloud:run' where `job_name` satisfies `p95_min` > 5 for UC-24.7.28 ('dbt Cloud Run Queue Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `dbtcloud:run` events where `job_name` stays below `p95_min` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.28."
+    "positiveScenario": "UC-24.7.28 positive (dbt, Cloud, Run, Queue, Time): ingest synthetic events into `index=bi` sourcetype='dbtcloud:run' where `avg_q` grouped by `job_name` satisfies `p95_min` > 5 for 'dbt Cloud Run Queue Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.28 negative (Queue Time): ingest benign `bi` / `dbtcloud:run` events where `job_name` stays below `p95_min` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'dbt Cloud Run Queue Time'."
   },
   "dataSources": "dbt Cloud Admin API runs (`dbtcloud:run`), Discovery API, and dbt artifacts (`dbt:run_results`, `dbt:manifest`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "dbt Cloud Admin API (`/api/v2/accounts/{id}/runs`) and Metadata (Discovery) API via HEC scripted inputs; dbt run artifacts (`run_results.json`, `manifest.json`) forwarded as `dbt:run_results`. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dbtcloud:run\n| eval queue_s=coalesce(queued_seconds, duration_queued)\n| stats avg(queue_s) as avg_q, p95(queue_s) as p95_q by job_name\n| eval p95_min=round(p95_q/60,1)\n| where p95_min>5\n| sort - p95_min",
-  "description": "Measures how long dbt Cloud runs wait in the queue before an available run slot picks them up, revealing account-level concurrency limits.",
-  "value": "Measures how long dbt Cloud runs wait in the queue before an available run slot picks them up, revealing ac.... Timely UC-24.7.28 alerting on 'dbt Cloud Run Queue Time' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects 'dbt Cloud Run Queue Time' patterns (UC-24.7.28) sourced from `index=bi` sourcetype `dbtcloud:run`. Threshold bundle: `p95_min` > 5; aggregation grain: `job_name`; metrics: `avg_q`. Watch terms: dbt, Cloud, Run, Queue, Time.",
+  "value": "UC-24.7.28 gives Operations teams earlier visibility into Queue Time through `dbtcloud:run` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Extract queued seconds from the runs API; schedule daily and alert when queue time crosses your tolerance.",
   "visualization": "Table of job by p95 queue time, trend line.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'dbt Cloud Run Queue Time' shifts `avg` over `span=1h` while `job_name` remains in-scope for UC-24.7.28. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbtcloud:run`** — Scheduled automation elevates `queue_s` without crossing `p95_min` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbtcloud:run`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.28)** — Planned work for 'dbt Cloud Run Queue Time' shifts `avg_q` over `span=1h` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbtcloud:run`** — Scheduled automation elevates `queue_s` without crossing `p95_min` > 5 for UC-24.7.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbtcloud:run`** — First 48h baseline for UC-24.7.28 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

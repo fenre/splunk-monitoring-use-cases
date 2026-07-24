@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Broker Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_broker_health_monitoring` (UC-8.3.3), SOC dashboard panel \"Operations — Broker Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:broker' where `broker_id` satisfies `under_replicated` > 0 for UC-8.3.3 ('Broker Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:broker` events where `broker_id` stays below `under_replicated` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.3."
+    "positiveScenario": "UC-8.3.3 positive (Broker, Health, Monitoring): ingest synthetic events into `index=kafka` sourcetype='kafka:broker' where `cluster_controllers` grouped by `broker_id` satisfies `under_replicated` > 0 for 'Broker Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.3 negative (Health Monitoring): ingest benign `kafka` / `kafka:broker` events where `broker_id` stays below `under_replicated` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Broker Health Monitoring'."
   },
   "dataSources": "Kafka JMX (broker metrics), RabbitMQ management API (`/api/nodes`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, broker metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=kafka sourcetype=\"kafka:broker\"\n| stats latest(UnderReplicatedPartitions) as under_replicated, latest(ActiveControllerCount) as controllers by broker_id\n| eventstats sum(controllers) as cluster_controllers\n| where under_replicated > 0 OR cluster_controllers != 1",
-  "description": "Broker failures cause message loss and application disruption. Health monitoring ensures cluster stability. Searches `index=kafka` with sourcetype `kafka:broker` for UC-8.3.3, aggregating `sum` by `broker_id` over `the scheduled window`. Alerts when grouped results cross `under_replicated` > 0 in the saved search. Gives Operations operators a repeatable signal for 'Broker Health Monitoring' without manual log review.",
-  "value": "Early 'Broker Health Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Health Monitoring anomalies for UC-8.3.3 with window `the scheduled window` on `index=kafka` sourcetype `kafka:broker`. Combines `cluster_controllers` by `broker_id` and compares against `under_replicated` > 0. Mapped to keywords Broker, Health, Monitoring for dashboard routing.",
+  "value": "Alerting on Broker, Health, Monitoring through UC-8.3.3 reduces operational risk and delayed incident response by surfacing `cluster_controllers` early.",
   "implementation": "Poll broker health metrics via JMX every minute. Track disk usage, CPU, memory, network I/O. Alert on broker offline, under-replicated partitions, or controller election. Monitor ISR (In-Sync Replica) shrink rate.",
   "visualization": "Status grid (broker × health), Single value (under-replicated partitions), Table (broker metrics), Line chart (broker resource usage).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Broker Health Monitoring' shifts `sum` over `span=1h` while `broker_id` remains in-scope for UC-8.3.3. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafka:broker`** — Scheduled automation elevates `src` without crossing `under_replicated` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_id`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:broker`** — First 48h baseline for `broker_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.3)** — Planned work for 'Broker Health Monitoring' shifts `cluster_controllers` over `span=1h` while `broker_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafka:broker`** — Scheduled automation elevates `src` without crossing `under_replicated` > 0 for UC-8.3.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_id`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:broker`** — First 48h baseline for UC-8.3.3 on `broker_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "rabbitmq"

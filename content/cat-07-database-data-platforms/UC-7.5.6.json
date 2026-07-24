@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Solr Query Cache Hit Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_solr_query_cache_hit_ratio` (UC-7.5.6), SOC dashboard panel \"Operations — Solr Query Cache Hit Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='solr:metrics' where `core` satisfies `hit_ratio` < 0.7 for UC-7.5.6 ('Solr Query Cache Hit Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `solr:metrics` events where `core` stays below `hit_ratio` < 0.7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.5.6."
+    "positiveScenario": "UC-7.5.6 positive (Solr, Query, Cache, Hit, Ratio): ingest synthetic events into `index=database` sourcetype='solr:metrics' where `cache_hit_ratio` grouped by `core`, `metric_path` satisfies `hit_ratio` < 0.7 for 'Solr Query Cache Hit Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.6 negative (Hit Ratio): ingest benign `database` / `solr:metrics` events where `core`, `metric_path` stays below `hit_ratio` < 0.7, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Solr Query Cache Hit Ratio'."
   },
   "dataSources": "`sourcetype=solr:metrics` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (Solr `metrics` API), Solr log ingestion — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"solr:metrics\"\n| where like(metric_path,\"%queryResultCache%\") OR like(metric_path,\"%filterCache%\")\n| eval hit_ratio=lookup_hits / nullif(lookup_hits+lookup_misses,0)\n| where hit_ratio < 0.7\n| timechart span=15m avg(hit_ratio) as cache_hit_ratio by core, metric_path",
-  "description": "Low filter/query cache hit rates increase CPU and latency; tuning caches and queries improves headroom without adding nodes.",
-  "value": "Early 'Solr Query Cache Hit Ratio' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-7.5.6 — Solr, Query, Cache, Hit, Ratio — using `index=database` sourcetype `solr:metrics`, grouped by `core`, `metric_path`. Outputs `cache_hit_ratio` each `15m`; alert when `hit_ratio` < 0.7. Primary focus: Hit Ratio. Purpose-built for 'Solr Query Cache Hit Ratio' in Operations workflows.",
+  "value": "UC-7.5.6 operationalises 'Solr Query Cache Hit Ratio' against `solr:metrics` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll `GET /solr/admin/metrics` (or per-core metrics) every 5 minutes. Map `QUERY.queryResultCache` and `FILTER.filterCache` hits/misses. Compute hit ratio; alert below team-defined threshold (e.g., 0.7). Correlate with query pattern changes and deployments.",
   "visualization": "Gauge (cache hit ratio per core), Line chart (hit ratio trend), Table (cores below threshold).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Solr Query Cache Hit Ratio' shifts `avg` over `span=15m` while `core` remains in-scope for UC-7.5.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `solr:metrics`** — Scheduled automation elevates `metric_path` without crossing `hit_ratio` < 0.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `core`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `solr:metrics`** — First 48h baseline for `core` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `core`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.6)** — Planned work for 'Solr Query Cache Hit Ratio' shifts `cache_hit_ratio` over `span=15m` while `core`, `metric_path` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `solr:metrics`** — Scheduled automation elevates `metric_path` without crossing `hit_ratio` < 0.7 for UC-7.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `core`, `metric_path`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `solr:metrics`** — First 48h baseline for UC-7.5.6 on `core` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `core`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Snapshot Space Consumption' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snapshot_space_consumption` (UC-6.1.8), SOC dashboard panel \"Operations — Snapshot Space Consumption\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='netapp:ontap:volume' where `entity` satisfies `snap_pct` > 20 for UC-6.1.8 ('Snapshot Space Consumption'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `netapp:ontap:volume` events where `entity` stays below `snap_pct` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.8."
+    "positiveScenario": "UC-6.1.8 positive (Snapshot, Space, Consumption): ingest synthetic events into `index=storage` sourcetype='netapp:ontap:volume' where `count` grouped by `entity` satisfies `snap_pct` > 20 for 'Snapshot Space Consumption'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.8 negative (Space Consumption): ingest benign `storage` / `netapp:ontap:volume` events where `entity` stays below `snap_pct` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Snapshot Space Consumption'."
   },
   "dataSources": "Snapshot usage metrics per volume Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vendor TA, REST API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"netapp:ontap:volume\"\n| eval snap_pct=snapshot_used_bytes/size_total*100\n| where snap_pct > 20\n| table volume_name, snap_pct, snapshot_used_bytes, snapshot_count\n| sort -snap_pct",
-  "description": "Runaway snapshot growth can consume all available space, causing volume and application outages. Searches `index=storage` with sourcetype `netapp:ontap:volume` for UC-6.1.8, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `snap_pct` > 20 in the saved search. Gives Operations operators a repeatable signal for 'Snapshot Space Consumption' without manual log review.",
-  "value": "Early 'Snapshot Space Consumption' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-6.1.8 — Snapshot, Space, Consumption — using `index=storage` sourcetype `netapp:ontap:volume`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `snap_pct` > 20. Primary focus: Space Consumption. Purpose-built for 'Snapshot Space Consumption' in Operations workflows.",
+  "value": "UC-6.1.8 accelerates insight into Space Consumption ('Snapshot Space Consumption') by tracking `activity` on `netapp:ontap:volume` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll snapshot usage per volume. Alert when snapshot reserve exceeds threshold (e.g., >20% of volume). Track snapshot count and age. Create scheduled report for snapshot cleanup candidates.",
   "visualization": "Bar chart (snapshot usage by volume), Table (volumes with high snapshot usage), Line chart (snapshot growth trend).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Snapshot Space Consumption' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.1.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:volume`** — Scheduled automation elevates `snap_pct` without crossing `snap_pct` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:volume`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.8)** — Planned work for 'Snapshot Space Consumption' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `netapp:ontap:volume`** — Scheduled automation elevates `snap_pct` without crossing `snap_pct` > 20 for UC-6.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:volume`** — First 48h baseline for UC-6.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp"
   ],

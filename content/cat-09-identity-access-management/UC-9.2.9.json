@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'LDAP Signing Enforcement' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_ldap_signing_enforcement` (UC-9.2.9), SOC dashboard panel \"IAM — LDAP Signing Enforcement\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Directory Service' where `ComputerName` satisfies `count` > 10 for UC-9.2.9 ('LDAP Signing Enforcement'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Directory Service` events where `ComputerName` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.9."
+    "positiveScenario": "UC-9.2.9 positive (LDAP, Signing, Enforcement): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Directory Service' where `count` grouped by `ComputerName`, `EventCode`, `Client_IP` satisfies `count` > 10 for 'LDAP Signing Enforcement'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.2.9 negative (Signing Enforcement): ingest benign `wineventlog` / `WinEventLog:Directory Service` events where `ComputerName`, `EventCode`, `Client_IP` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'LDAP Signing Enforcement'."
   },
   "dataSources": "Directory Service event log (2886 — unsigned LDAP bind, 2887 — unsigned SASL) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Directory Service\" EventCode IN (2886,2887)\n| stats count by ComputerName, EventCode, Client_IP\n| where count > 10\n| sort -count",
-  "description": "Unsigned LDAP binds expose credentials to interception. Tracking enforcement and bind failures ensures GPO and domain controller settings are effective.",
-  "value": "Early 'LDAP Signing Enforcement' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Surfaces Signing Enforcement activity in UC-9.2.9 ('LDAP Signing Enforcement') from `index=wineventlog` sourcetype `WinEventLog:Directory Service`. Rolls up `count` by `ComputerName`, `EventCode`, `Client_IP` across `the scheduled window` and pages when `count` > 10. Covers LDAP, Signing, Enforcement. IAM operators treat UC-9.2.9 as the canonical signal.",
+  "value": "Operators running UC-9.2.9 on `WinEventLog:Directory Service` feeds shorten triage for Signing Enforcement tied to 'LDAP Signing Enforcement', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Enable LDAP signing requirements via GPO. Alert on sustained unsigned binds from specific apps; work with owners to enable signing/TLS. Do not alert on one-off legacy until remediated.",
   "visualization": "Table (clients with unsigned binds), Bar chart (by subnet), Line chart (trend toward zero).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'LDAP Signing Enforcement' shifts `count` over `span=1h` while `ComputerName` remains in-scope for UC-9.2.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Directory Service`** — Scheduled automation elevates `EventCode` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ComputerName`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Directory Service`** — First 48h baseline for `ComputerName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `ComputerName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.2.9)** — Planned work for 'LDAP Signing Enforcement' shifts `count` over `span=1h` while `ComputerName`, `EventCode`, `Client_IP` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Directory Service`** — Scheduled automation elevates `EventCode` without crossing `count` > 10 for UC-9.2.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ComputerName`, `EventCode`, `Client_IP`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Directory Service`** — First 48h baseline for UC-9.2.9 on `ComputerName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `ComputerName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1557"
   ],

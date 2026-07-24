@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ICS Change Management Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ics_change_management_compliance` (UC-14.2.23), SOC dashboard panel \"Operations — ICS Change Management Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='plc:download' where `plc_name` satisfies detection threshold for UC-14.2.23 ('ICS Change Management Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `plc:download` events where `plc_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.23."
+    "positiveScenario": "UC-14.2.23 positive (ICS, Change, Management, Compliance): ingest synthetic events into `index=ot` sourcetype='plc:download' where `count` grouped by `plc_name`, `engineer_id`, `project_version` satisfies detection threshold for 'ICS Change Management Compliance'. Validate lookup `cmms_work_orders`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.23 negative (Management Compliance): ingest benign `ot` / `plc:download` events where `plc_name`, `engineer_id`, `project_version` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'ICS Change Management Compliance'."
   },
   "dataSources": "`sourcetype=\"plc:download\"`, `sourcetype=\"tia:audit\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "PLC programming tools audit, engineering station logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"plc:download\"\n| lookup cmms_work_orders change_id OUTPUT wo_status requester\n| where isnull(wo_status) OR wo_status!=\"approved\"\n| stats count by plc_name, engineer_id, project_version\n| sort -count",
-  "description": "Logic downloads, firmware pushes, or HMI project changes without a linked work order break IEC 62443 SR-7 / internal change policy.",
-  "value": "Early 'ICS Change Management Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects Management Compliance activity in UC-14.2.23 ('ICS Change Management Compliance') from `index=ot` sourcetype `plc:download`. Rolls up `count` by `plc_name`, `engineer_id`, `project_version` across `the scheduled window` and pages when configured threshold. Uses lookup `cmms_work_orders`. Operations operators treat UC-14.2.23 as the canonical signal.",
+  "value": "Operators running UC-14.2.23 on `plc:download` feeds shorten triage for Management Compliance tied to 'ICS Change Management Compliance', lowering operational risk and delayed incident response.",
   "implementation": "Require pre-approved WO for all downloads; correlate with maintenance windows from MES.",
   "visualization": "Table (unauthorized downloads), Bar chart (by line), Gantt (WO vs. event time).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'ICS Change Management Compliance' shifts `count` over `span=1h` while `plc_name` remains in-scope for UC-14.2.23. Cross-check CMDB CHG.\n\n2. **Batch `count` on `plc:download`** — Scheduled automation elevates `engineer_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `plc_name`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `plc:download`** — First 48h baseline for `plc_name` is unstable; join `cmms_work_orders` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `plc_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.23)** — Planned work for 'ICS Change Management Compliance' shifts `count` over `span=1h` while `plc_name`, `engineer_id`, `project_version` remains in-scope. Applies lookup `cmms_work_orders`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `plc:download`** — Scheduled automation elevates `engineer_id` without crossing configured threshold for UC-14.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `plc_name`, `engineer_id`, `project_version`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `plc:download`** — First 48h baseline for UC-14.2.23 on `plc_name` is unstable; join `cmms_work_orders` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `plc_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

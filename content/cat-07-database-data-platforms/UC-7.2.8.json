@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Index Build Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_index_build_monitoring` (UC-7.2.8), SOC dashboard panel \"Operations — Index Build Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:log' where `entity` satisfies detection threshold for UC-7.2.8 ('Index Build Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:log` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.8."
+    "positiveScenario": "UC-7.2.8 positive (Index, Build, Monitoring): ingest synthetic events into `index=database` sourcetype='mongodb:log' where `count` grouped by `entity` satisfies detection threshold for 'Index Build Monitoring'. Validate filter `\"index build\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.8 negative (Build Monitoring): ingest benign `database` / `mongodb:log` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Index Build Monitoring'."
   },
   "dataSources": "MongoDB log (`INDEX` messages), Elasticsearch `_tasks` API Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Database log parsing — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:log\"\n| search \"index build\"\n| rex \"building index on (?<collection>\\S+)\"\n| table _time, host, collection, message",
-  "description": "Index builds consume significant resources and can impact production performance. Tracking ensures builds complete within maintenance windows.",
-  "value": "Early 'Index Build Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces risk tied to Index, Build, Monitoring through UC-7.2.8 on `index=database` sourcetype `mongodb:log`. Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold. Operators tune 'Index Build Monitoring' using UC-7.2.8 runbook steps.",
+  "value": "Tracking `activity` via UC-7.2.8 on `mongodb:log` feeds improves response to 'Index Build Monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Parse database logs for index build events (start, progress, completion). Alert on index builds in production during business hours. Track build duration for capacity planning.",
   "visualization": "Table (active/recent index builds), Timeline (build events), Single value (builds in progress).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Index Build Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.2.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:log`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.8)** — Planned work for 'Index Build Monitoring' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"index build\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.2.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:log`** — First 48h baseline for UC-7.2.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch",
     "mongodb"

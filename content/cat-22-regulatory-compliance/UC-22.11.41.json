@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=db` sourcetype='sql:grants' where `host` satisfies detection threshold for UC-22.11.41 ('Excessive Database Grants on Schemas Storing Tokenized PAN'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `db` / `sql:grants` events where `host` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.41."
+    "positiveScenario": "UC-22.11.41 positive (Excessive, Database, Grants, Schemas, Storing): ingest synthetic events into `index=db` sourcetype='sql:grants' where `values` grouped by `host`, `principal`, `schema_name` satisfies -24h for 'Excessive Database Grants on Schemas Storing Tokenized PAN'. Validate lookup `pci_db_allowed_principals.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.41 negative (Tokenized PAN): ingest benign `db` / `sql:grants` events where `host`, `principal`, `schema_name` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Excessive Database Grants on Schemas Storing Tokenized PAN'."
   },
   "dataSources": "`index=db` `sourcetype=\"sql:grants\"` — `principal`, `permission`, `schema_name`, `host`",
   "app": "Splunk DB Connect, `sourcetype=\"mssql:audit\"` or scripted `sql:grants` HEC (Splunkbase)",
   "spl": "index=db sourcetype=\"sql:grants\" earliest=-24h\n| where match(schema_name,\"(?i)token|vault|payment|cardholder)\")\n| lookup pci_db_allowed_principals.csv principal OUTPUT allowed\n| where isnull(allowed) OR allowed=\"false\"\n| stats values(permission) as perms by host, principal, schema_name\n| sort host, schema_name",
-  "description": "Highlights service accounts or users with `db_owner` or `SELECT` on token vault schemas beyond the documented roster, evidencing least privilege for access to systems with account data.",
-  "value": "Highlights service accounts or users with `db_owner` or `SELECT` on token vault schemas beyond the document.... Timely UC-22.11.41 alerting on 'Excessive Database Grants on Schemas Storing Tokenized PAN' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces Tokenized PAN anomalies for UC-22.11.41 with window `the scheduled window` on `index=db` sourcetype `sql:grants`. Combines `values` by `host`, `principal`, `schema_name` and compares against -24h. Mapped to keywords Excessive, Database, Grants, Schemas, Storing for dashboard routing.",
+  "value": "Alerting on Excessive, Database, Grants, Schemas, Storing through UC-22.11.41 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Export grants nightly via SQL job to HEC. (2) Refresh allowed principal list after each access review. (3) Auto-ticket violations. (4) Store weekly CSV for PCI Req 7 workpapers. Indexes required: `index=db`; Sourcetypes: `sourcetype=sql:grants`; Lookups: `pci_db_allowed_principals`, `pci_db_allowed_principals.csv`.",
   "visualization": "Table (violations), heatmap (principal x schema), single value (distinct excessive grants).",
   "cimModels": [

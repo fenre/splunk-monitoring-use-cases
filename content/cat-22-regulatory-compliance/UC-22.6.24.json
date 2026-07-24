@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `device_name` satisfies detection threshold for UC-22.6.24 ('Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `device_name` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.24."
+    "positiveScenario": "UC-22.6.24 positive (Secure, Disposal, Asset, Decommission, Wipe): ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `count` grouped by `device_name` satisfies -180d for 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire'. Validate filter `index=mdm sourcetype=intune:device_action action=wipe`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.6.24 negative (CMDB Retire): ingest benign `itsm` / `snow:cmdb_ci` events where `device_name` stays below -180d, or exclude the test entity via `compliance_exception_register.csv`. Variant 2 confirms zero alert rows for 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire'."
   },
   "dataSources": "`intune:device_action`; `snow:cmdb_ci` (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Intune, ServiceNow CMDB",
   "spl": "index=itsm sourcetype=snow:cmdb_ci operational_status=Retired earliest=-180d\n| eval retire_epoch=strptime(sys_updated_on,\"%Y-%m-%d %H:%M:%S\")\n| join name [| search index=mdm sourcetype=intune:device_action action=wipe | stats latest(_time) as wipe_time by device_name | rename device_name as name]\n| where isnull(wipe_time) OR wipe_time > retire_epoch",
-  "description": "Requires wipe or crypto-erase confirmation before CMDB retirement timestamp for media disposal chain of custody. Searches `index=itsm` with sourcetype `snow:cmdb_ci` for UC-22.6.24, aggregating `count` by `device_name` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire' without manual log review.",
-  "value": "Requires wipe or crypto-erase confirmation before CMDB retirement timestamp for media disposal chain of cus.... Timely UC-22.6.24 alerting on 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.6.24 for Secure, Disposal, Asset, Decommission, Wipe over `index=itsm` sourcetype `snow:cmdb_ci` with thresholds -180d. Groups `count` by `device_name` each `the scheduled window`. Differentiated by filter `index=mdm sourcetype=intune:device_action action=wipe`. Supports repeatable compliance triage for 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire'.",
+  "value": "For 'Secure Disposal — Asset Decommission Wipe Confirmation Before CMDB Retire', UC-22.6.24 converts `activity` on `snow:cmdb_ci` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Align name keys; (2) legal hold exceptions; (3) asset disposal vendor attestation upload. Indexes required: `index=itsm`, `index=mdm`; Sourcetypes: `sourcetype=intune:device_action`, `sourcetype=snow:cmdb_ci`.",
   "visualization": "Table, Timeline. Key fields: `device_name`, `name`, `retire_epoch`, `wipe_time`.",
   "cimModels": [],

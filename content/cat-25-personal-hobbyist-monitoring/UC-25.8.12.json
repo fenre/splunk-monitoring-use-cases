@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Container CPU Throttle Hotspots' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_container_cpu_throttle_hotspots` (UC-25.8.12), SOC dashboard panel \"Personal — Container CPU Throttle Hotspots\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='docker:stats' where `container_name` satisfies `throttle_periods` > 0 for UC-25.8.12 ('Container CPU Throttle Hotspots'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `docker:stats` events where `container_name` stays below `throttle_periods` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.12."
+    "positiveScenario": "UC-25.8.12 positive (Container, CPU, Throttle, Hotspots): ingest synthetic events into `index=personal` sourcetype='docker:stats' where `throttle_periods`, `avg_cpu` grouped by `container_name` satisfies `throttle_periods` > 0, or `avg_cpu` > 70 for 'Container CPU Throttle Hotspots'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.12 negative (Throttle Hotspots): ingest benign `personal` / `docker:stats` events where `container_name` stays below `throttle_periods` > 0, or `avg_cpu` > 70, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Container CPU Throttle Hotspots'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=docker:stats\n| stats sum(cpu_throttle_periods) as throttle_periods, avg(cpu_pct) as avg_cpu by container_name\n| where throttle_periods>0 AND avg_cpu>70\n| sort - throttle_periods",
-  "description": "Finds containers that are both busy and being throttled by cgroup limits, the precise recipe for confusing intermittent slowness.",
-  "value": "Finds containers that are both busy and being throttled by cgroup limits, the precise recipe for confusing.... Timely UC-25.8.12 alerting on 'Container CPU Throttle Hotspots' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors Throttle Hotspots anomalies for UC-25.8.12 with window `the scheduled window` on `index=personal` sourcetype `docker:stats`. Combines `throttle_periods`, `avg_cpu` by `container_name` and compares against `throttle_periods` > 0, or `avg_cpu` > 70. Mapped to keywords Container, CPU, Throttle, Hotspots for dashboard routing.",
+  "value": "Alerting on Container, CPU, Throttle, Hotspots through UC-25.8.12 reduces missed training goals, stale hobby data, and connector failures by surfacing `throttle_periods`, `avg_cpu` early.",
   "implementation": "Forward Docker stats including throttling counters; review the worst offenders and revisit CPU limits or workload placement.",
   "visualization": "Table of containers by throttle periods and average CPU usage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Container CPU Throttle Hotspots' stops polling `docker:stats`; stale `container_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `docker:stats`. Dedup with `stats latest(*) by container_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `throttle_periods` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.12)** — Connector for 'Container CPU Throttle Hotspots' stops polling `docker:stats`; stale `throttle_periods`, `avg_cpu` on `container_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `throttle_periods`, `avg_cpu` over `1w` is expected for UC-25.8.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `docker:stats`. Dedup with `stats latest(*) by container_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `throttle_periods` > 0 for 'Container CPU Throttle Hotspots'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

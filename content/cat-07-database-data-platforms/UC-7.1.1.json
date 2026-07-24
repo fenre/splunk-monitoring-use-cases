@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Slow Query Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_slow_query_detection` (UC-7.1.1), SOC dashboard panel \"Operations — Slow Query Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mysql:slowquery' where `db` satisfies `query_time` > 5 for UC-7.1.1 ('Slow Query Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mysql:slowquery` events where `db` stays below `query_time` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.1."
+    "positiveScenario": "UC-7.1.1 positive (Slow, Query, Detection): ingest synthetic events into `index=database` sourcetype='mysql:slowquery' where `avg_time` grouped by `db`, `user` satisfies `query_time` > 5 for 'Slow Query Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.1 negative (Query Detection): ingest benign `database` / `mysql:slowquery` events where `db`, `user` stays below `query_time` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Slow Query Detection'."
   },
   "dataSources": "Slow query logs, SQL Server DMVs (`sys.dm_exec_query_stats`), PostgreSQL `pg_stat_statements` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, Splunk_TA_microsoft-sqlserver, MySQL slow query log — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mysql:slowquery\"\n| rex field=_raw \"Query_time:\\s+(?<query_time>[\\d.]+)\"\n| where query_time > 5\n| stats count, avg(query_time) as avg_time by db, user\n| sort -avg_time",
-  "description": "Slow queries at the P95/P99 level directly impact checkout, search, and reporting latency, hitting revenue and SLA commitments. They also hold locks and inflate CPU/IO, degrading performance for other tenants and queries. Prioritize fixes by business-critical endpoint and wait type, not just raw query duration.",
-  "value": "Early 'Slow Query Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-7.1.1 — Slow, Query, Detection — using `index=database` sourcetype `mysql:slowquery`, grouped by `db`, `user`. Outputs `avg_time` each `the scheduled window`; alert when `query_time` > 5. Primary focus: Query Detection. Purpose-built for 'Slow Query Detection' in Operations workflows.",
+  "value": "UC-7.1.1 gives Operations teams earlier visibility into Query Detection through `mysql:slowquery` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable MySQL slow query log (long_query_time=5). For SQL Server, poll DMVs via DB Connect. For PostgreSQL, enable `pg_stat_statements`. Ingest and alert on queries exceeding thresholds. Report top offenders weekly.",
   "visualization": "Table (slow queries with details), Bar chart (top slow queries by avg duration), Line chart (slow query count trend).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Slow Query Detection' shifts `avg` over `span=1h` while `db` remains in-scope for UC-7.1.1. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mysql:slowquery`** — Scheduled automation elevates `user` without crossing `query_time` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `db`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:slowquery`** — First 48h baseline for `db` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `db`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.1)** — Planned work for 'Slow Query Detection' shifts `avg_time` over `span=1h` while `db`, `user` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mysql:slowquery`** — Scheduled automation elevates `user` without crossing `query_time` > 5 for UC-7.1.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `db`, `user`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:slowquery`** — First 48h baseline for UC-7.1.1 on `db` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `db`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'FastF1 Session Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fastf1_session_sync_gap_watch` (UC-25.99.6), SOC dashboard panel \"Personal — FastF1 Session Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fastf1:session' where `session_type` satisfies `hours_since` > 168 for UC-25.99.6 ('FastF1 Session Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fastf1:session` events where `session_type` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.99.6."
+    "positiveScenario": "UC-25.99.6 positive (FastF1, Session, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='fastf1:session' where `last_seen` grouped by `session_type` satisfies `hours_since` > 168 for 'FastF1 Session Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.99.6 negative (Gap Watch): ingest benign `personal` / `fastf1:session` events where `session_type` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'FastF1 Session Sync Gap Watch'."
   },
   "dataSources": "FastF1 session data (`fastf1:session`), Ergast race results (`ergast:result`), F1 Fantasy teams (`f1fantasy:team`), race watch parties (`race:watchparty`), and F1 telemetry laps (`f1telemetry:lap`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "FastF1 session exports, Ergast race results, F1 Fantasy team snapshots, race watch-party logs, and F1 telemetry lap dumps forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fastf1:session\n| stats max(_time) as last_seen by session_type\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
-  "description": "Detects when FastF1 session data has stopped arriving for a given session type. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when FastF1 session data has stopped arriving for a given session type. Timely UC-25.99.6 alerting on 'FastF1 Session Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.99.6 — FastF1, Session, Sync, Gap, Watch — using `index=personal` sourcetype `fastf1:session`, grouped by `session_type`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 168. Primary focus: Gap Watch. Purpose-built for 'FastF1 Session Sync Gap Watch' in Personal workflows.",
+  "value": "Tracking `last_seen` via UC-25.99.6 on `fastf1:session` feeds improves response to 'FastF1 Session Sync Gap Watch' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per session type and alert when the feed is older than 168 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'FastF1 Session Sync Gap Watch' stops polling `fastf1:session`; stale `session_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fastf1:session`. Dedup with `stats latest(*) by session_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.99.6)** — Connector for 'FastF1 Session Sync Gap Watch' stops polling `fastf1:session`; stale `last_seen` on `session_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.99.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fastf1:session`. Dedup with `stats latest(*) by session_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168 for 'FastF1 Session Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

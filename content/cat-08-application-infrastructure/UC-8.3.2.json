@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Queue Depth Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_queue_depth_trending` (UC-8.3.2), SOC dashboard panel \"Operations — Queue Depth Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `queue_name` satisfies `depth` > 1000 for UC-8.3.2 ('Queue Depth Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:queue` events where `queue_name` stays below `depth` > 1000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.2."
+    "positiveScenario": "UC-8.3.2 positive (Queue, Depth, Trending): ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `depth` grouped by `queue_name`, `vhost` satisfies `depth` > 1000 for 'Queue Depth Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.2 negative (Depth Trending): ingest benign `messaging` / `rabbitmq:queue` events where `queue_name`, `vhost` stays below `depth` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Queue Depth Trending'."
   },
   "dataSources": "RabbitMQ management API (`/api/queues`), ActiveMQ JMX Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "RabbitMQ management API, ActiveMQ JMX — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\"\n| timechart span=5m max(messages) as depth by queue_name, vhost\n| where depth > 1000",
-  "description": "Growing queue depths indicate consumers can't keep up or are down. Trending prevents message loss and processing delays.",
-  "value": "Early 'Queue Depth Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-8.3.2 — Queue, Depth, Trending — using `index=messaging` sourcetype `rabbitmq:queue`, grouped by `queue_name`, `vhost`. Outputs `depth` each `5m`; alert when `depth` > 1000. Primary focus: Depth Trending. Purpose-built for 'Queue Depth Trending' in Operations workflows.",
+  "value": "UC-8.3.2 helps teams contain Queue, Depth, Trending scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll RabbitMQ management API every minute via scripted input. Track message count, publish/deliver rates per queue. Alert when depth exceeds threshold or grows consistently. Correlate with consumer status.",
   "visualization": "Line chart (queue depth over time), Bar chart (top queues by depth), Table (queues exceeding threshold).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'Queue Depth Trending' shifts `max` over `span=5m` while `queue_name` remains in-scope for UC-8.3.2. Cross-check CMDB CHG.\n\n2. **Batch `max` on `rabbitmq:queue`** — Scheduled automation elevates `vhost` without crossing `depth` > 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `queue_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for `queue_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `queue_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.3.2)** — Planned work for 'Queue Depth Trending' shifts `depth` over `span=5m` while `queue_name`, `vhost` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `rabbitmq:queue`** — Scheduled automation elevates `vhost` without crossing `depth` > 1000 for UC-8.3.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `queue_name`, `vhost`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for UC-8.3.2 on `queue_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `queue_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "rabbitmq"

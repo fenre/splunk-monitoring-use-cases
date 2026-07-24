@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Edge-to-Splunk Data Pipeline Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_edge_to_splunk_data_pipeline_latency` (UC-14.7.3), SOC dashboard panel \"Operations — Edge-to-Splunk Data Pipeline Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='litmus:tag' where `gateway_id` satisfies `edge_timestamp` > 1 for UC-14.7.3 ('Edge-to-Splunk Data Pipeline Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `litmus:tag` events where `gateway_id` stays below `edge_timestamp` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.7.3."
+    "positiveScenario": "UC-14.7.3 positive (Edge, Splunk, Data, Pipeline, Latency): ingest synthetic events into `index=ot` sourcetype='litmus:tag' where `avg_ms` grouped by `gateway_id`, `_time` satisfies `edge_timestamp` > 1, `edge_sec` > 0, or `p95_ms` > 5000 for 'Edge-to-Splunk Data Pipeline Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.7.3 negative (Pipeline Latency): ingest benign `ot` / `litmus:tag` events where `gateway_id`, `_time` stays below `edge_timestamp` > 1, `edge_sec` > 0, or `p95_ms` > 5000, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Edge-to-Splunk Data Pipeline Latency'."
   },
   "dataSources": "`index=ot` `sourcetype=\"litmus:tag\"` with `edge_timestamp` in JSON payload Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Litmus Edge (Splunk HEC connector) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"litmus:tag\"\n| eval edge_sec=if(edge_timestamp>1e12, edge_timestamp/1000, edge_timestamp)\n| where isnotnull(edge_timestamp) AND edge_sec>0\n| eval latency_ms=abs(_time-edge_sec)*1000\n| bin _time span=5m\n| stats perc95(latency_ms) as p95_ms, avg(latency_ms) as avg_ms by gateway_id, _time\n| where p95_ms > 5000",
-  "description": "End-to-end latency distinguishes edge capture delays from Splunk indexing backlog; spikes indicate broker saturation, HEC backpressure, or clock skew.",
-  "value": "Early 'Edge-to-Splunk Data Pipeline Latency' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-14.7.3 — Edge, Splunk, Data, Pipeline, Latency — using `index=ot` sourcetype `litmus:tag`, grouped by `gateway_id`, `_time`. Outputs `avg_ms` each `5m`; alert when `edge_timestamp` > 1, `edge_sec` > 0, or `p95_ms` > 5000. Primary focus: Pipeline Latency. Purpose-built for 'Edge-to-Splunk Data Pipeline Latency' in Operations workflows.",
+  "value": "Operators running UC-14.7.3 on `litmus:tag` feeds shorten triage for Pipeline Latency tied to 'Edge-to-Splunk Data Pipeline Latency', lowering operational risk and delayed incident response.",
   "implementation": "Configure Litmus to stamp each tag event with capture time in epoch. Keep NTP synchronized on Litmus and Splunk. Alert when p95 exceeds acceptable thresholds.",
   "visualization": "Line chart (p95/p99 latency by gateway), Area chart (latency distribution), Single value (fleet p95 latency).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Edge-to-Splunk Data Pipeline Latency' shifts `avg` over `span=5m` while `gateway_id` remains in-scope for UC-14.7.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `litmus:tag`** — Scheduled automation elevates `_time` without crossing `edge_timestamp` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `litmus:tag`** — First 48h baseline for `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.7.3)** — Planned work for 'Edge-to-Splunk Data Pipeline Latency' shifts `avg_ms` over `span=5m` while `gateway_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `litmus:tag`** — Scheduled automation elevates `_time` without crossing `edge_timestamp` > 1 for UC-14.7.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `gateway_id`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `litmus:tag`** — First 48h baseline for UC-14.7.3 on `gateway_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `gateway_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

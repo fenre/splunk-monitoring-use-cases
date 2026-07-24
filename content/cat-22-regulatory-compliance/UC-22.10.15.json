@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=citrix` sourcetype='citrix:session' where `UserName` satisfies `session_hours` > 12 for UC-22.10.15 ('Automatic Logoff — Stale Clinical Workstation Sessions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `citrix` / `citrix:session` events where `UserName` stays below `session_hours` > 12, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.15."
+    "positiveScenario": "UC-22.10.15 positive (Automatic, Logoff, Stale, Clinical, Workstation): ingest synthetic events into `index=citrix` sourcetype='citrix:session' where `max_hrs` grouped by `UserName`, `client_ip`, `PublishedApplication` satisfies `session_hours` > 12 for 'Automatic Logoff — Stale Clinical Workstation Sessions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.15 negative (Workstation Sessions): ingest benign `citrix` / `citrix:session` events where `UserName`, `client_ip`, `PublishedApplication` stays below `session_hours` > 12, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Automatic Logoff — Stale Clinical Workstation Sessions'."
   },
   "dataSources": "`index=citrix` session start/end, `WinEventLog:Security` 4800/4801 (workstation lock)",
   "app": "Splunk Add-on for Citrix (2757), Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=citrix sourcetype=\"citrix:session\" earliest=-7d\n| eval start=strptime(SessionStart,\"%Y-%m-%d %H:%M:%S\")\n| eval end=if(isnotnull(SessionEnd), strptime(SessionEnd,\"%Y-%m-%d %H:%M:%S\"), now())\n| eval session_hours=round((end-start)/3600,2)\n| where session_hours>12 AND match(Application,\"Hyperspace|Epic\")\n| stats max(session_hours) as max_hrs by UserName, client_ip, PublishedApplication\n| sort - max_hrs",
-  "description": "Identifies unusually long Citrix/VDI sessions and unlocked Windows consoles in patient care areas where automatic logoff may be misconfigured.",
-  "value": "Identifies unusually long Citrix/VDI sessions and unlocked Windows consoles in patient care areas where aut.... Timely UC-22.10.15 alerting on 'Automatic Logoff — Stale Clinical Workstation Sessions' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces Workstation Sessions anomalies for UC-22.10.15 with window `the scheduled window` on `index=citrix` sourcetype `citrix:session`. Combines `max_hrs` by `UserName`, `client_ip`, `PublishedApplication` and compares against `session_hours` > 12. Mapped to keywords Automatic, Logoff, Stale, Clinical, Workstation for dashboard routing.",
+  "value": "Alerting on Automatic, Logoff, Stale, Clinical, Workstation through UC-22.10.15 reduces audit findings, regulatory gaps, and attestation delays by surfacing `max_hrs` early.",
   "implementation": "(1) Align with published idle timeout policy (e.g., 30 min); (2) tune for legitimate long shifts using department lookup; (3) feed findings to desktop engineering for GPO fixes. Indexes required: `index=citrix`; Sourcetypes: `sourcetype=citrix:session`.",
   "visualization": "Bar chart (max session by dept), Table (user, app, hours). Key fields: `PublishedApplication`, `UserName`, `client_ip`, `end`, `max_hrs`, `session_hours`.",
   "cimModels": [],

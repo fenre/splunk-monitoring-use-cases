@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Lambda Error Rate Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lambda_error_rate_monitoring` (UC-4.1.12), SOC dashboard panel \"Operations — Lambda Error Rate Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `metric_name` satisfies detection threshold for UC-4.1.12 ('Lambda Error Rate Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `metric_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.12."
+    "positiveScenario": "UC-4.1.12 positive (Lambda, Error, Rate, Monitoring): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `sum` grouped by `metric_name`, `FunctionName` satisfies detection threshold for 'Lambda Error Rate Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.12 negative (Rate Monitoring): ingest benign `aws` / `aws:cloudwatch` events where `metric_name`, `FunctionName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Lambda Error Rate Monitoring'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (Lambda namespace), Lambda logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Lambda\" (metric_name=\"Errors\" OR metric_name=\"Throttles\" OR metric_name=\"Duration\")\n| timechart span=5m sum(Sum) by metric_name, FunctionName",
-  "description": "Lambda errors affect serverless application reliability. Timeouts indicate functions need more memory/time. Throttling means concurrency limits are hit.",
-  "value": "Early 'Lambda Error Rate Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on Rate Monitoring anomalies for UC-4.1.12 with window `5m` on `index=aws` sourcetype `aws:cloudwatch`. Combines `sum` by `metric_name`, `FunctionName` and compares against configured threshold. Mapped to keywords Lambda, Error, Rate, Monitoring for dashboard routing.",
+  "value": "Alerting on Lambda, Error, Rate, Monitoring through UC-4.1.12 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Ingest CloudWatch metrics (namespace `AWS/Lambda`, metrics `Errors`, `Invocations`, `Throttles`) via the Splunk Add-on for AWS. Compute error rate as `Errors/Invocations` over a 5-minute window; alert when rate exceeds 5% AND invocations exceed 50 (to avoid low-traffic false positives). For throttles, alert on any non-zero value. Forward Lambda CloudWatch Logs for stack trace correlation.",
   "visualization": "Line chart (errors/invocations over time), Bar chart (top error functions), Single value (error rate %).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Lambda Error Rate Monitoring' shifts `sum` over `span=5m` while `metric_name` remains in-scope for UC-4.1.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `FunctionName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.12)** — Planned work for 'Lambda Error Rate Monitoring' shifts `sum` over `span=5m` while `metric_name`, `FunctionName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `FunctionName` without crossing configured threshold for UC-4.1.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`, `FunctionName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.12 on `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

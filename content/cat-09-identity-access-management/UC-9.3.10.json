@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SSO Session Hijacking Indicators' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_sso_session_hijacking_indicators` (UC-9.3.10), SOC dashboard panel \"IAM — SSO Session Hijacking Indicators\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `entity` satisfies detection threshold for UC-9.3.10 ('SSO Session Hijacking Indicators'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.10."
+    "positiveScenario": "UC-9.3.10 positive (SSO, Session, Hijacking, Indicators): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `count` grouped by `entity` satisfies detection threshold for 'SSO Session Hijacking Indicators'. Validate eventType `user.authentication.sso`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.10 negative (Hijacking Indicators): ingest benign `okta` / `OktaIM2:log` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'SSO Session Hijacking Indicators'."
   },
   "dataSources": "IdP `user.authentication.sso` with session correlation ID, device fingerprint fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta`, Entra sign-in logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" eventType=\"user.authentication.sso\"\n| transaction authenticationContext.externalSessionId maxpause=300 maxevents=50\n| eval ua_change=if(mvcount(client.userAgent.rawUserAgent)>2,1,0)\n| where ua_change=1\n| table authenticationContext.externalSessionId, actor.alternateId, client.userAgent.rawUserAgent",
-  "description": "Complements session ID correlation with user-agent flips, ASN changes mid-session, and impossible concurrent SSO from IdP telemetry.",
-  "value": "Early 'SSO Session Hijacking Indicators' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on Hijacking Indicators activity in UC-9.3.10 ('SSO Session Hijacking Indicators') from `index=okta` sourcetype `OktaIM2:log`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Uses eventType `user.authentication.sso`. IAM operators treat UC-9.3.10 as the canonical signal.",
+  "value": "Operators running UC-9.3.10 on `OktaIM2:log` feeds shorten triage for Hijacking Indicators tied to 'SSO Session Hijacking Indicators', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Flag sessions with multiple user agents or countries within short windows. Tune for corporate VPN that rotates egress. Pair with UC-9.3.7 for IP-based hijack detection.",
   "visualization": "Table (suspicious sessions), Timeline, Bar chart (sessions with UA churn).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'SSO Session Hijacking Indicators' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.3.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `ua_change` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.3.10)** — Planned work for 'SSO Session Hijacking Indicators' shifts `count` over `span=1h` while `host` remains in-scope. eventType=user.authentication.sso Applies eventType `user.authentication.sso`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `ua_change` without crossing configured threshold for UC-9.3.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.3.10 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1539",
     "T1550.001"

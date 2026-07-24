@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Key Expiration Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_key_expiration_trending` (UC-8.5.7), SOC dashboard panel \"Operations — Key Expiration Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='redis:info' where `host` satisfies detection threshold for UC-8.5.7 ('Key Expiration Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `redis:info` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.7."
+    "positiveScenario": "UC-8.5.7 positive (Key, Expiration, Trending): ingest synthetic events into `index=cache` sourcetype='redis:info' where `pct_with_ttl` grouped by `host` satisfies detection threshold for 'Key Expiration Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.7 negative (Expiration Trending): ingest benign `cache` / `redis:info` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Key Expiration Trending'."
   },
   "dataSources": "Redis INFO keyspace (expires, expired_keys) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"redis:info\"\n| eval expire_pct=round(expires/keys*100,1)\n| timechart span=15m avg(expire_pct) as pct_with_ttl, per_second(expired_keys) as expire_rate by host",
-  "description": "Monitoring TTL patterns ensures cache freshness strategy is working. Unusual patterns may indicate application bugs. Searches `index=cache` with sourcetype `redis:info` for UC-8.5.7, aggregating `avg` by `host` over `15m`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Key Expiration Trending' without manual log review.",
-  "value": "Early 'Key Expiration Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Key Expiration Trending' (UC-8.5.7) using `index=cache` sourcetype `redis:info` by aggregating `pct_with_ttl` grouped by `host` over `15m` and alerting when configured threshold. Keywords: Key, Expiration, Trending. Focuses on Expiration Trending behaviour so operations teams can triage UC-8.5.7 without ad-hoc log review.",
+  "value": "UC-8.5.7 accelerates insight into Expiration Trending ('Key Expiration Trending') by tracking `pct_with_ttl` on `redis:info` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Track keys with TTL vs total keys. Monitor expiration rate. Alert if expire_pct drops significantly (new code not setting TTL on keys). Track expired_stale_perc for lazy expiration health.",
   "visualization": "Line chart (expiration rate), Dual-axis (keys with TTL % + expiration rate), Single value (% keys with TTL).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Key Expiration Trending' shifts `avg` over `span=15m` while `host` remains in-scope for UC-8.5.7. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `expire_pct` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.5.7)** — Planned work for 'Key Expiration Trending' shifts `pct_with_ttl` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `redis:info`** — Scheduled automation elevates `expire_pct` without crossing configured threshold for UC-8.5.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-8.5.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],

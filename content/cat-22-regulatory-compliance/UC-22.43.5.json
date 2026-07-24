@@ -54,14 +54,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `vendor` satisfies `cvss_v3_base` >= 7.0 for UC-22.43.5 ('SBOM vendor-component CVE exposure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `vendor` stays below `cvss_v3_base` >= 7.0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.43.5."
+    "positiveScenario": "UC-22.43.5 positive (SBOM, vendor, component, CVE, exposure): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `max_cvss` grouped by `vendor`, `component`, `version` satisfies `cvss_v3_base` >= 7.0 for 'SBOM vendor-component CVE exposure'. Validate lookup `cve_feed.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.43.5 negative (CVE exposure): ingest benign `target_index` / `target_sourcetype` events where `vendor`, `component`, `version` stays below `cvss_v3_base` >= 7.0, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'SBOM vendor-component CVE exposure'."
   },
   "dataSources": "Vendor SBOMs (CycloneDX/SPDX), CVE feed (NVD, vendor advisories). — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| inputlookup vendor_sbom.csv\n| lookup cve_feed.csv component version OUTPUT cve cvss_v3_base\n| where isnotnull(cve) AND cvss_v3_base>=7.0\n| stats values(cve) as cves, max(cvss_v3_base) as max_cvss by vendor component version\n| table vendor component version cves max_cvss",
-  "description": "Uses the vendor SBOM register to answer 'which vendor components in my estate are affected by the CVE published today?'.",
-  "value": "Uses the vendor SBOM register to answer 'which vendor components in my estate are affected by the CVE publi.... Timely UC-22.43.5 alerting on 'SBOM vendor-component CVE exposure' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.43.5 — SBOM, vendor, component, CVE, exposure — using `index=target_index` sourcetype `configured sourcetype`, grouped by `vendor`, `component`, `version`. Outputs `max_cvss` each `the scheduled window`; alert when `cvss_v3_base` >= 7.0. Filter chain includes lookup `cve_feed.csv`. Purpose-built for 'SBOM vendor-component CVE exposure' in Compliance workflows.",
+  "value": "For 'SBOM vendor-component CVE exposure', UC-22.43.5 converts `max_cvss` on lookup `cve_feed.csv` into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ingest vendor SBOMs from the procurement workflow; (2) subscribe to NVD feed into cve_feed.csv; (3) run daily; (4) SOAR opens a case per vendor-affected component.",
   "visualization": "Table of exposed components, bar chart of CVE count by vendor, single-value 'SBOM-indexed components with no open CVE'.",
   "cimModels": [

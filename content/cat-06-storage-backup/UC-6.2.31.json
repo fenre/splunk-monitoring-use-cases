@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph scrub and deep-scrub error detection from cluster logs' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_scrub_and_deep_scrub_error_detection_from_c` (UC-6.2.31), SOC dashboard panel \"Operations — Ceph scrub and deep-scrub error detection from cluster logs\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' where `host` satisfies `scrub_errors` > 0 for UC-6.2.31 ('Ceph scrub and deep-scrub error detection from cluster logs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ceph:log` events where `host` stays below `scrub_errors` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.31."
+    "positiveScenario": "UC-6.2.31 positive (Ceph, scrub, and, deep, scrub): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `host`, `pg_id` satisfies `scrub_errors` > 0 for 'Ceph scrub and deep-scrub error detection from cluster logs'. Validate filter `scrub AND (error OR mismatch OR \"deep-scrub\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.31 negative (cluster logs): ingest benign `os` / `ceph:log` events where `host`, `pg_id` stays below `scrub_errors` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Ceph scrub and deep-scrub error detection from cluster logs'."
   },
   "dataSources": "OSD logs indexed as `ceph:log` with scrub error patterns Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Universal Forwarder on OSD nodes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-24h\n| search scrub AND (error OR mismatch OR \"deep-scrub\")\n| rex field=_raw \"(?i)pg\\s+(?<pg_id>[0-9a-f]+\\.(?<pg_num>[0-9a-f]+))\"\n| stats count as scrub_errors latest(_time) as last_seen by host, pg_id\n| where scrub_errors > 0\n| sort - scrub_errors",
-  "description": "Scrub errors can indicate silent disk corruption or firmware bugs. They require immediate investigation to avoid data loss on erasure-coded pools.",
-  "value": "Scrub errors can indicate silent disk corruption or firmware bugs. Timely UC-6.2.31 alerting on 'Ceph scrub and deep-scrub error detection from cluster logs' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces cluster logs anomalies for UC-6.2.31 with window `the scheduled window` on `index=os` sourcetype `ceph:log`. Combines `count` by `host`, `pg_id` and compares against `scrub_errors` > 0. Mapped to keywords Ceph, scrub, and, deep, scrub for dashboard routing.",
+  "value": "Alerting on Ceph, scrub, and, deep, scrub through UC-6.2.31 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Route high-severity copies to a restricted index. Correlate `pg_id` with `ceph:pg` state snapshots.",
   "visualization": "Table (host, pg, errors), timeline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'Ceph scrub and deep-scrub error detection from cluster logs' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.2.31. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `pg_id` without crossing `scrub_errors` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.2.31)** — Planned work for 'Ceph scrub and deep-scrub error detection from cluster logs' shifts `count` over `span=1h` while `host`, `pg_id` remains in-scope. Applies filter `scrub AND (error OR mismatch OR \"deep-scrub\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `pg_id` without crossing `scrub_errors` > 0 for UC-6.2.31. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `pg_id`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.31 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

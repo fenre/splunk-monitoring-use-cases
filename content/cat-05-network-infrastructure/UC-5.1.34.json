@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PoE Power Budget Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_poe_power_budget_utilization` (UC-5.1.34), SOC dashboard panel \"Operations — PoE Power Budget Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:poe' where `host` satisfies `util_pct` > 80 for UC-5.1.34 ('PoE Power Budget Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:poe` events where `host` stays below `util_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.34."
+    "positiveScenario": "UC-5.1.34 positive (PoE, Power, Budget, Utilization): ingest synthetic events into `index=network` sourcetype='snmp:poe' where `count` grouped by `host` satisfies `util_pct` > 80 for 'PoE Power Budget Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.34 negative (Budget Utilization): ingest benign `network` / `snmp:poe` events where `host` stays below `util_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'PoE Power Budget Utilization'."
   },
   "dataSources": "POWER-ETHERNET-MIB (pethMainPseOperStatus, pethMainPseConsumptionPower, pethMainPsePower) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=snmp:poe\n| eval util_pct=round(pethMainPseConsumptionPower/pethMainPsePower*100,1)\n| where pethMainPseOperStatus=\"on\" AND util_pct > 80\n| stats latest(util_pct) as poe_util, latest(pethMainPseConsumptionPower) as used_w, latest(pethMainPsePower) as total_w by host\n| table host poe_util used_w total_w",
-  "description": "Power over Ethernet budget approaching capacity per switch. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams trend PoE power budget utilization over 30 days to project capacity exhaustion and plan PoE infrastructure expansion before powered devices are denied power reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
+  "description": "Detects when Budget Utilization criteria fire for 'PoE Power Budget Utilization' (UC-5.1.34) in `index=network` sourcetype `snmp:poe`. Pipeline aggregates `count` by `host` over `the scheduled window`. Alert logic enforces `util_pct` > 80. Title terms: PoE, Power, Budget, Utilization. Eliminates manual hunting for UC-5.1.34 conditions.",
+  "value": "UC-5.1.34 helps teams contain PoE, Power, Budget, Utilization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll POWER-ETHERNET-MIB (pethMainPsePower, pethMainPseConsumptionPower) every 300s. Alert when utilization exceeds 80%. Track per PSE unit on modular switches.",
   "visualization": "Gauge (utilization), Table (host, used, total), Line chart.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'PoE Power Budget Utilization' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.1.34. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:poe`** — Scheduled automation elevates `util_pct` without crossing `util_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:poe`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.34)** — Planned work for 'PoE Power Budget Utilization' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:poe`** — Scheduled automation elevates `util_pct` without crossing `util_pct` > 80 for UC-5.1.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:poe`** — First 48h baseline for UC-5.1.34 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

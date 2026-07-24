@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=epic` sourcetype='epic:audit' where `USER_ID` satisfies detection threshold for UC-22.10.38 ('Deceased Patient Records — Access After Death Date'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `epic` / `epic:audit` events where `USER_ID` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.38."
+    "positiveScenario": "UC-22.10.38 positive (Deceased, Patient, Records, Access, After): ingest synthetic events into `index=epic` sourcetype='epic:audit' where `count` grouped by `USER_ID`, `PAT_ID` satisfies -90d for 'Deceased Patient Records — Access After Death Date'. Validate lookup `patient_death_index.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.38 negative (Death Date): ingest benign `epic` / `epic:audit` events where `USER_ID`, `PAT_ID` stays below -90d, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'Deceased Patient Records — Access After Death Date'."
   },
   "dataSources": "`index=epic` `sourcetype=epic:audit`, `lookup patient_death_index.csv` (`PAT_ID`, `death_dttm`, `restricted_flag`)",
   "app": "Splunk DB Connect (2686) (Splunkbase)",
   "spl": "index=epic sourcetype=\"epic:audit\" AccessType=\"PatientChart\" earliest=-90d\n| lookup patient_death_index.csv PAT_ID OUTPUT death_dttm, restricted_flag\n| where isnotnull(death_dttm) AND _time > strptime(death_dttm,\"%Y-%m-%d %H:%M:%S\")\n| lookup post_mortem_allowed_roles.csv USER_ID OUTPUT allowed_role\n| where isnull(allowed_role)\n| stats count by USER_ID, PAT_ID\n| sort - count",
-  "description": "Monitors chart access after documented death timestamps for users not on approved post-mortem workflows (HIM, organ donation, medical examiner).",
-  "value": "Monitors chart access after documented death timestamps for users not on approved post-mortem workflows (HI.... Timely UC-22.10.38 alerting on 'Deceased Patient Records — Access After Death Date' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.10.38 — Deceased, Patient, Records, Access, After — using `index=epic` sourcetype `epic:audit`, grouped by `USER_ID`, `PAT_ID`. Outputs `count` each `the scheduled window`; alert when -90d. Filter chain includes lookup `patient_death_index.csv`. Purpose-built for 'Deceased Patient Records — Access After Death Date' in Compliance workflows.",
+  "value": "UC-22.10.38 operationalises 'Deceased Patient Records — Access After Death Date' against `epic:audit` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Refresh death index from ADT feed within SLA; (2) legal guidance on state law vs HIPAA; (3) sensitive dashboard ACLs. Indexes required: `index=epic`; Sourcetypes: `sourcetype=epic:audit`, `sourcetype=epic:audit``; Lookups: `patient_death_index`, `patient_death_index.csv`, `post_mortem_allowed_roles`, `post_mortem_allowed_roles.csv`.",
   "visualization": "Table (user, patient, events), Single value (restricted accesses). Key fields: `PAT_ID`, `USER_ID`.",
   "cimModels": [],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Looker Dashboard Query Runtime p95' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_looker_dashboard_query_runtime_p95` (UC-24.3.18), SOC dashboard panel \"Operations — Looker Dashboard Query Runtime p95\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `dashboard_title` satisfies `p95_s` > 30 for UC-24.3.18 ('Looker Dashboard Query Runtime p95'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `looker:system_activity` events where `dashboard_title` stays below `p95_s` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.3.18."
+    "positiveScenario": "UC-24.3.18 positive (Looker, Dashboard, Query, Runtime, p95): ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `avg_s` grouped by `dashboard_title` satisfies `p95_s` > 30 for 'Looker Dashboard Query Runtime p95'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.3.18 negative (Runtime p95): ingest benign `bi` / `looker:system_activity` events where `dashboard_title` stays below `p95_s` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Looker Dashboard Query Runtime p95'."
   },
   "dataSources": "Looker System Activity (`looker:system_activity`), Looker API (`looker:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Looker System Activity via DB Connect/API; Looker instance logs via UF; plan and query events via HEC. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity source=\"history\" status=\"complete\"\n| eval dur_s=round(runtime/1,2)\n| stats avg(dur_s) as avg_s, p95(dur_s) as p95_s, count as runs by dashboard_title\n| where p95_s>30\n| sort - p95_s",
-  "description": "Computes the 95th-percentile query runtime for each dashboard in Looker and flags the slowest, pointing owners at the specific content or jobs that need optimisation.",
-  "value": "Computes the 95th-percentile query runtime for each dashboard in Looker and flags the slowest, pointing own.... Timely UC-24.3.18 alerting on 'Looker Dashboard Query Runtime p95' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects 'Looker Dashboard Query Runtime p95' patterns (UC-24.3.18) sourced from `index=bi` sourcetype `looker:system_activity`. Threshold bundle: `p95_s` > 30; aggregation grain: `dashboard_title`; metrics: `avg_s`. Watch terms: Looker, Dashboard, Query, Runtime, p95.",
+  "value": "UC-24.3.18 gives Operations teams earlier visibility into Runtime p95 through `looker:system_activity` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Looker timing data; schedule daily over a trailing week and review the slowest dashboards with their owners.",
   "visualization": "Table of dashboard by p95 query runtime, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Looker Dashboard Query Runtime p95' shifts `avg` over `span=1h` while `dashboard_title` remains in-scope for UC-24.3.18. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `looker:system_activity`** — Scheduled automation elevates `dur_s` without crossing `p95_s` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dashboard_title`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for `dashboard_title` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dashboard_title`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.3.18)** — Planned work for 'Looker Dashboard Query Runtime p95' shifts `avg_s` over `span=1h` while `dashboard_title` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `looker:system_activity`** — Scheduled automation elevates `dur_s` without crossing `p95_s` > 30 for UC-24.3.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dashboard_title`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for UC-24.3.18 on `dashboard_title` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dashboard_title`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

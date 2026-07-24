@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MDS Slow Drain Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mds_slow_drain_detection` (UC-6.1.28), SOC dashboard panel \"Operations — MDS Slow Drain Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:mds' where `switch` satisfies `max_txwait` > 100 for UC-6.1.28 ('MDS Slow Drain Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:mds` events where `switch` stays below `max_txwait` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.28."
+    "positiveScenario": "UC-6.1.28 positive (MDS, Slow, Drain, Detection): ingest synthetic events into `index=network` sourcetype='cisco:mds' where `max_txwait` grouped by `switch`, `port`, `_time` satisfies `max_txwait` > 100 for 'MDS Slow Drain Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.28 negative (Drain Detection): ingest benign `network` / `cisco:mds` events where `switch`, `port`, `_time` stays below `max_txwait` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'MDS Slow Drain Detection'."
   },
   "dataSources": "MDS syslog (PORT-MONITOR, SLOW-DRAIN events), SNMP counters (TxWait, B2B credit zeros)",
   "app": "`cisco:mds` syslog, SNMP TA, Cisco DC Networking Application (Splunkbase 7777)",
   "spl": "index=network sourcetype=\"cisco:mds\" \"SLOW_DRAIN\" OR \"PORT-5-IF_TXWAIT\" OR \"PORT-MONITOR\"\n| rex \"port (?<port>\\S+).*txwait=(?<txwait>\\d+)\"\n| stats max(txwait) as max_txwait count by switch, port, _time\n| where max_txwait > 100\n| sort -max_txwait",
-  "description": "Slow drain occurs when a target device (storage or host) cannot accept frames fast enough, exhausting buffer-to-buffer credits and stalling the entire FC path. A single slow-drain device can impact hundreds of hosts sharing the same ISL. Early detection via TxWait and B2B credit metrics is essential.",
-  "value": "Early 'MDS Slow Drain Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-6.1.28 for MDS, Slow, Drain, Detection over `index=network` sourcetype `cisco:mds` with thresholds `max_txwait` > 100. Groups `max_txwait` by `switch`, `port`, `_time` each `the scheduled window`. Centered on Drain Detection indicators. Supports repeatable operations triage for 'MDS Slow Drain Detection'.",
+  "value": "For 'MDS Slow Drain Detection', UC-6.1.28 converts `max_txwait` on `cisco:mds` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Enable port-monitor policies on MDS switches with appropriate TxWait thresholds. Forward syslog to Splunk. Poll SNMP slow-drain counters. Alert immediately on sustained TxWait. Cross-reference with FLOGI database (UC-6.1.30) to identify the offending host or storage port.",
   "visualization": "Table (ports with slow drain), Line chart (TxWait over time), Topology (affected path highlighting).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'MDS Slow Drain Detection' shifts `max` over `span=1h` while `switch` remains in-scope for UC-6.1.28. Cross-check CMDB CHG.\n\n2. **Batch `max` on `cisco:mds`** — Scheduled automation elevates `port` without crossing `max_txwait` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:mds`** — First 48h baseline for `switch` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-6.1.28)** — Planned work for 'MDS Slow Drain Detection' shifts `max_txwait` over `span=1h` while `switch`, `port`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `cisco:mds`** — Scheduled automation elevates `port` without crossing `max_txwait` > 100 for UC-6.1.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`, `port`, `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:mds`** — First 48h baseline for UC-6.1.28 on `switch` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

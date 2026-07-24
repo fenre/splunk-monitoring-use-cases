@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Default or Shared Credentials on OT Devices' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_default_or_shared_credentials_on_ot_devices` (UC-10.14.3), SOC dashboard panel \"Security Infra — Default or Shared Credentials on OT Devices\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot_security` sourcetype='ics:auth' where `src` satisfies detection threshold for UC-10.14.3 ('Default or Shared Credentials on OT Devices'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot_security` / `ics:auth` events where `src` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.14.3."
+    "positiveScenario": "UC-10.14.3 positive (Default, Shared, Credentials, Devices): ingest synthetic events into `index=ot_security` sourcetype='ics:auth' where `count` grouped by `src`, `dest_host`, `user`, `vendor` satisfies detection threshold for 'Default or Shared Credentials on OT Devices'. Validate lookup `ot_default_creds`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.3 negative (OT Devices): ingest benign `ot_security` / `ics:auth` events where `src`, `dest_host`, `user`, `vendor` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 7 confirms zero alert rows for 'Default or Shared Credentials on OT Devices'."
   },
   "dataSources": "`index=ot_security` `sourcetype=\"ics:auth\"` RADIUS/TACACS+, HMI/SCADA login logs",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot_security sourcetype=\"ics:auth\"\n| eval user=lower(trim(user))\n| lookup ot_default_creds user OUTPUT is_default\n| where is_default=1 OR match(user, \"admin|root|operator|guest\")\n| stats count by src, dest_host, user, vendor\n| sort - count",
-  "description": "Surfaces authentication using vendor default or shared accounts on PLCs, RTUs, and HMIs (T0812), enabling trivial takeover and process manipulation.",
-  "value": "Early 'Default or Shared Credentials on OT Devices' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-10.14.3 — Default, Shared, Credentials, Devices — using `index=ot_security` sourcetype `ics:auth`, grouped by `src`, `dest_host`, `user`, `vendor`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `ot_default_creds`. Purpose-built for 'Default or Shared Credentials on OT Devices' in Security Infra workflows.",
+  "value": "UC-10.14.3 operationalises 'Default or Shared Credentials on OT Devices' against `ics:auth` feeds so operators reduce missed threat campaigns, control regressions, and SOC SLA breaches without manual correlation.",
   "implementation": "Integrate OT authentication logs with ES. Pair with password policy and account governance. Escalate repeated default-credential use referencing T0812.",
   "visualization": "Bar chart by user/asset, Timeline of default logins, Table with vendor and site.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot_security`** — Planned work for 'Default or Shared Credentials on OT Devices' shifts `count` over `span=1h` while `src` remains in-scope for UC-10.14.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics:auth`** — Scheduled automation elevates `dest_host` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ot_security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:auth`** — First 48h baseline for `src` is unstable; join `ot_default_creds` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot_security` (UC-10.14.3)** — Planned work for 'Default or Shared Credentials on OT Devices' shifts `count` over `span=1h` while `src`, `dest_host`, `user`, `vendor` remains in-scope. Applies lookup `ot_default_creds`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics:auth`** — Scheduled automation elevates `dest_host` without crossing configured threshold for UC-10.14.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest_host`, `user`, `vendor`** — Health checks in `ot_security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:auth`** — First 48h baseline for UC-10.14.3 on `src` is unstable; join `ot_default_creds` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

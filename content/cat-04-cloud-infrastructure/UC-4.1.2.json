@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Root Account Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_root_account_usage` (UC-4.1.2), SOC dashboard panel \"Operations — Root Account Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `entity` satisfies detection threshold for UC-4.1.2 ('Root Account Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.2."
+    "positiveScenario": "UC-4.1.2 positive (Root, Account, Usage): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `entity` satisfies detection threshold for 'Root Account Usage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.2 negative (Account Usage): ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Root Account Usage'."
   },
   "dataSources": "`sourcetype=aws:cloudtrail` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" userIdentity.type=\"Root\"\n| table _time eventName sourceIPAddress userAgent errorCode\n| sort -_time",
-  "description": "The AWS root account has unrestricted access and should never be used for daily operations. Any root activity is a critical security event.",
-  "value": "Early 'Root Account Usage' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors when Account Usage criteria fire for 'Root Account Usage' (UC-4.1.2) in `index=aws` sourcetype `aws:cloudtrail`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: Root, Account, Usage. Eliminates manual hunting for UC-4.1.2 conditions.",
+  "value": "UC-4.1.2 helps teams contain Root, Account, Usage scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "CloudTrail must be enabled in all regions. Create a critical real-time alert on any event where `userIdentity.type=Root`. Exclude expected events (e.g., automated billing).",
   "visualization": "Events list (critical alert), Single value (root events last 30d), Timeline.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Root Account Usage' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.1.2. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.2)** — Planned work for 'Root Account Usage' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.1.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.1.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Functions Execution Duration' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_functions_execution_duration` (UC-4.5.5), SOC dashboard panel \"Operations — Azure Functions Execution Duration\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' where `resourceName` satisfies `max_ms` > 10000 for UC-4.5.5 ('Azure Functions Execution Duration'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:metrics` events where `resourceName` stays below `max_ms` > 10000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.5."
+    "positiveScenario": "UC-4.5.5 positive (Azure, Functions, Execution, Duration): ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' where `avg_ms`, `max_ms` grouped by `resourceName` satisfies `max_ms` > 10000 for 'Azure Functions Execution Duration'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.5.5 negative (Execution Duration): ingest benign `azure` / `mscs:azure:metrics` events where `resourceName` stays below `max_ms` > 10000, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Azure Functions Execution Duration'."
   },
   "dataSources": "`sourcetype=mscs:azure:metrics` (Function metrics) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:metrics\" metricName=\"FunctionExecutionDuration\"\n| timechart span=5m avg(average) as avg_ms, max(maximum) as max_ms by resourceName\n| where max_ms > 10000",
-  "description": "Long-running functions tie up scale-out units and can hit timeout limits; duration trending guides right-sizing, connection pooling, and async patterns.",
-  "value": "Early 'Azure Functions Execution Duration' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Execution Duration activity in UC-4.5.5 ('Azure Functions Execution Duration') from `index=azure` sourcetype `mscs:azure:metrics`. Rolls up `avg_ms`, `max_ms` by `resourceName` across `5m` and pages when `max_ms` > 10000. Covers Azure, Functions, Execution, Duration. Operations operators treat UC-4.5.5 as the canonical signal.",
+  "value": "Operators running UC-4.5.5 on `mscs:azure:metrics` feeds shorten triage for Execution Duration tied to 'Azure Functions Execution Duration', lowering operational risk and delayed incident response.",
   "implementation": "Enable Azure Monitor metrics for Function Apps and ingest via the TA (dimensions: function name where available). Establish baselines per function. Alert when p95 duration approaches the function timeout or degrades after releases.",
   "visualization": "Line chart (avg/max duration by app or function), Heatmap (duration by hour), Table (resourceName, avg_ms, max_ms).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Functions Execution Duration' shifts `avg` over `span=5m` while `resourceName` remains in-scope for UC-4.5.5. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mscs:azure:metrics`** — Scheduled automation elevates `src` without crossing `max_ms` > 10000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resourceName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:metrics`** — First 48h baseline for `resourceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resourceName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.5.5)** — Planned work for 'Azure Functions Execution Duration' shifts `avg_ms`, `max_ms` over `span=5m` while `resourceName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mscs:azure:metrics`** — Scheduled automation elevates `src` without crossing `max_ms` > 10000 for UC-4.5.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resourceName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:metrics`** — First 48h baseline for UC-4.5.5 on `resourceName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resourceName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

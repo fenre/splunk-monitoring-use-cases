@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB Index Inefficiency (Usage vs Size)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_index_inefficiency_usage_vs_size` (UC-7.2.23), SOC dashboard panel \"Operations — MongoDB Index Inefficiency (Usage vs Size)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:index_stats' where `entity` satisfies `index_size_bytes` > 104857600 for UC-7.2.23 ('MongoDB Index Inefficiency (Usage vs Size)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:index_stats` events where `entity` stays below `index_size_bytes` > 104857600, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.23."
+    "positiveScenario": "UC-7.2.23 positive (MongoDB, Index, Inefficiency, (Usage, Size)): ingest synthetic events into `index=database` sourcetype='mongodb:index_stats' where `count` grouped by `entity` satisfies `index_size_bytes` > 104857600, or `usage` < 10 for 'MongoDB Index Inefficiency (Usage vs Size)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.23 negative (vs Size)): ingest benign `database` / `mongodb:index_stats` events where `entity` stays below `index_size_bytes` > 104857600, or `usage` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'MongoDB Index Inefficiency (Usage vs Size)'."
   },
   "dataSources": "`collStats`, `$indexStats` output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "mongosh `$indexStats`, log export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:index_stats\"\n| eval usage=ops_since_start\n| where index_size_bytes > 104857600 AND usage < 10\n| table ns, name, index_size_bytes, usage\n| sort -index_size_bytes",
-  "description": "Indexes with near-zero `accesses.ops` and large `size` waste RAM and slow writes. Identifies candidates for drop or partial indexes.",
-  "value": "Early 'MongoDB Index Inefficiency (Usage vs Size)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors when vs Size) criteria fire for 'MongoDB Index Inefficiency (Usage vs Size)' (UC-7.2.23) in `index=database` sourcetype `mongodb:index_stats`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces `index_size_bytes` > 104857600, or `usage` < 10. Title terms: MongoDB, Index, Inefficiency, (Usage, Size). Eliminates manual hunting for UC-7.2.23 conditions.",
+  "value": "UC-7.2.23 helps teams contain MongoDB, Index, Inefficiency, (Usage, Size) scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Weekly job exports `$indexStats`. Flag large indexes with minimal usage. Exclude `_id` and required unique indexes via lookup.",
   "visualization": "Table (namespace, index, size, ops), Bar chart (wasted index size), Single value (low-usage large indexes count).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB Index Inefficiency (Usage vs Size)' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.2.23. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:index_stats`** — Scheduled automation elevates `usage` without crossing `index_size_bytes` > 104857600. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:index_stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.23)** — Planned work for 'MongoDB Index Inefficiency (Usage vs Size)' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:index_stats`** — Scheduled automation elevates `usage` without crossing `index_size_bytes` > 104857600 for UC-7.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:index_stats`** — First 48h baseline for UC-7.2.23 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],

@@ -39,14 +39,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `phase` satisfies detection threshold for UC-17.1.73 ('Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:wlc:syslog` events where `phase` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.73."
+    "positiveScenario": "UC-17.1.73 positive (Cisco, WLC, ISE, Wireless, Authentication): ingest synthetic events into `index=network` sourcetype='cisco:wlc:syslog' where `count` grouped by `phase` satisfies detection threshold for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.73 negative (→ Posture): ingest benign `network` / `cisco:wlc:syslog` events where `phase` stays below detection threshold, or exclude the test entity via `network_exception_register.csv`. Variant 6 confirms zero alert rows for 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture'."
   },
   "dataSources": "Combined: ISE syslog `index=nac sourcetype=cisco:ise:syslog` (codes 5200/5400 — auth pass/fail; 5417 — accounting; posture 80001-80003) + Cisco WLC syslog `index=network sourcetype=cisco:wlc:syslog` (association events) + DHCP `index=network sourcetype=dhcp` lease events. Field common: `client_mac`, `ssid`, `ap_name`, `bssid`. Time-series correlation across the four phases. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services` + `Splunk Add-on for Cisco Wireless`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:wlc:syslog\" \"associated\" \n| eval phase=\"associated\"\n| append [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400) | eval phase=\"auth\"]\n| append [search index=network sourcetype=\"dhcp\" \"DHCPACK\" | eval phase=\"dhcp\"]\n| append [search index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=80003 | eval phase=\"posture\"]\n| transaction client_mac maxspan=10m\n| stats count by phase\n| eval funnel_drop=phase",
-  "description": "Tracks the wireless-onboarding funnel — associate → authenticate → DHCP → posture. Identifies which phase fails most for a given SSID, AP, or building.",
-  "value": "Tracks the wireless-onboarding funnel — associate → authenticate → DHCP → posture. Timely UC-17.1.73 alerting on 'Cisco WLC + ISE Wireless Authentication Funnel — Association → Auth → DHCP → Posture' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
+  "description": "Surfaces → Posture anomalies for UC-17.1.73 with window `10m` on `index=network` sourcetype `cisco:wlc:syslog`. Combines `count` by `phase` and compares against configured threshold. Mapped to keywords Cisco, WLC, ISE, Wireless, Authentication for dashboard routing.",
+  "value": "Alerting on Cisco, WLC, ISE, Wireless, Authentication through UC-17.1.73 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Schedule every 30 min. Requires WLC and DHCP logs in Splunk.",
   "visualization": "Sankey diagram of funnel; per-SSID drop-off heatmap; per-AP phase failure breakdown.",
   "cimModels": [

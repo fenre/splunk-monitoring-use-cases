@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MQTT Broker Overload' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mqtt_broker_overload` (UC-14.4.15), SOC dashboard panel \"Operations — MQTT Broker Overload\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='mqtt:broker_metrics' where `entity` satisfies `cpu_pct` > 85 for UC-14.4.15 ('MQTT Broker Overload'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `mqtt:broker_metrics` events where `entity` stays below `cpu_pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.15."
+    "positiveScenario": "UC-14.4.15 positive (MQTT, Broker, Overload): ingest synthetic events into `index=iot` sourcetype='mqtt:broker_metrics' where `conn`, `cpu`, `drops` grouped by `entity` satisfies `cpu_pct` > 85, or `dropped_messages` > 0 for 'MQTT Broker Overload'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.4.15 negative (Broker Overload): ingest benign `iot` / `mqtt:broker_metrics` events where `entity` stays below `cpu_pct` > 85, or `dropped_messages` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'MQTT Broker Overload'."
   },
   "dataSources": "`sourcetype=\"mqtt:broker_metrics\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Mosquitto/HiveMQ/AWS IoT metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"mqtt:broker_metrics\"\n| where connections > max_connections*0.9 OR cpu_pct > 85 OR dropped_messages > 0\n| timechart span=1m avg(connections) as conn, avg(cpu_pct) as cpu, sum(dropped_messages) as drops",
-  "description": "Broker CPU, connection count, and retained message backlog indicate need to shard or scale. Searches `index=iot` with sourcetype `mqtt:broker_metrics` for UC-14.4.15, aggregating `avg` by `entity` over `1m`. Alerts when grouped results cross `cpu_pct` > 85 in the saved search. Gives Operations operators a repeatable signal for 'MQTT Broker Overload' without manual log review.",
-  "value": "Early 'MQTT Broker Overload' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'MQTT Broker Overload' (UC-14.4.15) using `index=iot` sourcetype `mqtt:broker_metrics` by aggregating `conn`, `cpu`, `drops` grouped by `entity` over `1m` and alerting when `cpu_pct` > 85, or `dropped_messages` > 0. Keywords: MQTT, Broker, Overload. Focuses on Broker Overload behaviour so operations teams can triage UC-14.4.15 without ad-hoc log review.",
+  "value": "UC-14.4.15 accelerates insight into Broker Overload ('MQTT Broker Overload') by tracking `conn`, `cpu`, `drops` on `mqtt:broker_metrics` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Scrape Prometheus or vendor API. Alert on sustained high utilization or any dropped messages. Correlate with misbehaving clients publishing at high QoS0 rate.",
   "visualization": "Line chart (connections and CPU), Table (brokers with drops), Gauge (connection %).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'MQTT Broker Overload' shifts `avg` over `span=1m` while `host` remains in-scope for UC-14.4.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mqtt:broker_metrics`** — Scheduled automation elevates `src` without crossing `cpu_pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt:broker_metrics`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.4.15)** — Planned work for 'MQTT Broker Overload' shifts `conn`, `cpu`, `drops` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mqtt:broker_metrics`** — Scheduled automation elevates `src` without crossing `cpu_pct` > 85 for UC-14.4.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt:broker_metrics`** — First 48h baseline for UC-14.4.15 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "mqtt",

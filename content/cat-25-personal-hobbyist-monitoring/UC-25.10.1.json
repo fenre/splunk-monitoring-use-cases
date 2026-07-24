@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Indoor Air Quality Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_indoor_air_quality_alert` (UC-25.10.1), SOC dashboard panel \"Personal — Indoor Air Quality Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='airgradient:sensor' where `location` satisfies `pm25` > 35 for UC-25.10.1 ('Indoor Air Quality Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `airgradient:sensor` events where `location` stays below `pm25` > 35, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.1."
+    "positiveScenario": "UC-25.10.1 positive (Indoor, Air, Quality, Alert): ingest synthetic events into `index=personal` sourcetype='airgradient:sensor' where `count` grouped by `location` satisfies `pm25` > 35, `co2` > 1000, or `voc` > 250 for 'Indoor Air Quality Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.1 negative (Quality Alert): ingest benign `personal` / `airgradient:sensor` events where `location` stays below `pm25` > 35, `co2` > 1000, or `voc` > 250, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Indoor Air Quality Alert'."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil/greenhouse sensors, aquarium controllers. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=airgradient:sensor\n| stats latest(pm25) as pm25, latest(co2_ppm) as co2, latest(voc_index) as voc by location\n| eval concern=case(pm25>35,\"high particulates\",co2>1000,\"stuffy air\",voc>250,\"high VOCs\",1=1,\"good\")\n| where concern!=\"good\"",
-  "description": "Watches indoor air-quality sensors for high particulates, stale carbon dioxide, or volatile chemicals and tells you which room needs a window open.",
-  "value": "Watches indoor air-quality sensors for high particulates, stale carbon dioxide, or volatile chemicals and t.... Timely UC-25.10.1 alerting on 'Indoor Air Quality Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.10.1 — Indoor, Air, Quality, Alert — using `index=personal` sourcetype `airgradient:sensor`, grouped by `location`. Outputs `count` each `the scheduled window`; alert when `pm25` > 35, `co2` > 1000, or `voc` > 250. Primary focus: Quality Alert. Purpose-built for 'Indoor Air Quality Alert' in Personal workflows.",
+  "value": "Alerting on Indoor, Air, Quality, Alert through UC-25.10.1 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Forward air-quality sensor readings to HEC; schedule every 15 minutes and alert when a room crosses a health threshold.",
   "visualization": "Table of rooms by particulates, carbon dioxide, and chemical levels.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Indoor Air Quality Alert' stops polling `airgradient:sensor`; stale `location` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airgradient:sensor`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pm25` > 35. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.1)** — Connector for 'Indoor Air Quality Alert' stops polling `airgradient:sensor`; stale `count` on `location` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.10.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `airgradient:sensor`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pm25` > 35 for 'Indoor Air Quality Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

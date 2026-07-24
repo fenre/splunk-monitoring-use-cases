@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Mail Delivery Rate and Bounce Rate by Domain' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mail_delivery_rate_and_bounce_rate_by_domain` (UC-11.4.5), SOC dashboard panel \"Operations — Mail Delivery Rate and Bounce Rate by Domain\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mail` sourcetype='mail_delivery' where `domain` satisfies `bounce_rate` > 5 for UC-11.4.5 ('Mail Delivery Rate and Bounce Rate by Domain'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mail` / `mail_delivery` events where `domain` stays below `bounce_rate` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.4.5."
+    "positiveScenario": "UC-11.4.5 positive (Mail, Delivery, Rate, and, Bounce): ingest synthetic events into `index=mail` sourcetype='mail_delivery' where `count` grouped by `domain`, `_time` satisfies `bounce_rate` > 5, or `delivered` < 10 for 'Mail Delivery Rate and Bounce Rate by Domain'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.4.5 negative (by Domain): ingest benign `mail` / `mail_delivery` events where `domain`, `_time` stays below `bounce_rate` > 5, or `delivered` < 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Mail Delivery Rate and Bounce Rate by Domain'."
   },
   "dataSources": "Postfix/Sendmail delivery status, bounce messages, Exchange tracking logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Mail server logs, bounce logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mail sourcetype=mail_delivery\n| bin _time span=1h\n| stats count(eval(status=\"delivered\")) as delivered, count(eval(status=\"bounce\")) as bounces by domain, _time\n| eval bounce_rate=round(bounces/(delivered+bounces)*100, 2)\n| where bounce_rate > 5 OR delivered < 10\n| table domain delivered bounces bounce_rate",
-  "description": "Sudden drop in delivery rate or spike in bounces for a domain indicates reputation or configuration issues. Trending supports deliverability and capacity planning.",
-  "value": "Early 'Mail Delivery Rate and Bounce Rate by Domain' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-11.4.5 — Mail, Delivery, Rate, and, Bounce — using `index=mail` sourcetype `mail_delivery`, grouped by `domain`, `_time`. Outputs `count` each `1h`; alert when `bounce_rate` > 5, or `delivered` < 10. Primary focus: by Domain. Purpose-built for 'Mail Delivery Rate and Bounce Rate by Domain' in Operations workflows.",
+  "value": "UC-11.4.5 gives Operations teams earlier visibility into by Domain through `mail_delivery` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Parse delivery and bounce events by recipient domain. Compute hourly delivery and bounce rate. Alert when bounce rate exceeds 5% or delivery volume drops significantly for critical domains.",
   "visualization": "Line chart (delivery and bounce rate by domain), Table (domain, delivered, bounces, %), Bar chart (bounce rate by domain).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mail`** — Planned work for 'Mail Delivery Rate and Bounce Rate by Domain' shifts `count` over `span=1h` while `domain` remains in-scope for UC-11.4.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mail_delivery`** — Scheduled automation elevates `_time` without crossing `bounce_rate` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `domain`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mail_delivery`** — First 48h baseline for `domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `domain`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mail` (UC-11.4.5)** — Planned work for 'Mail Delivery Rate and Bounce Rate by Domain' shifts `count` over `span=1h` while `domain`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mail_delivery`** — Scheduled automation elevates `_time` without crossing `bounce_rate` > 5 for UC-11.4.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `domain`, `_time`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mail_delivery`** — First 48h baseline for UC-11.4.5 on `domain` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `domain`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange"
   ],

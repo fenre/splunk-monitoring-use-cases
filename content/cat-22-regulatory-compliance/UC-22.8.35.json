@@ -55,14 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=soar` sourcetype='phantom:incident' where `incident_id` satisfies detection threshold for UC-22.8.35 ('SOC 2 CC7.4 — Incident response: post-incident review completion SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `soar` / `phantom:incident` events where `incident_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.8.35."
+    "positiveScenario": "UC-22.8.35 positive (SOC, CC7.4, Incident, response:, post): ingest synthetic events into `index=soar` sourcetype='phantom:incident' where `count` grouped by `incident_id`, `incident_id]` satisfies -30d for 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.8.35 negative (completion SLA): ingest benign `soar` / `phantom:incident` events where `incident_id`, `incident_id]` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA'."
   },
   "dataSources": "`index=soar` sourcetype=phantom:incident; `index=ticketing` sourcetype=jira:issue (PIR project).",
   "app": "Splunk SOAR (Splunkbase)",
   "spl": "index=soar sourcetype=phantom:incident state=closed earliest=-30d\n| stats latest(closed_at) AS closed_at BY incident_id\n| join type=outer incident_id\n  [search index=ticketing sourcetype=jira:issue project=PIR earliest=-60d\n   | stats latest(_time) AS pir_completed_at BY incident_id]\n| eval pir_sla_met=if(isnotnull(pir_completed_at) AND pir_completed_at<=closed_at+604800,1,0)\n| where pir_sla_met=0\n| table incident_id closed_at pir_completed_at pir_sla_met",
-  "description": "CC7.4 requires the entity to 'respond, including by establishing a post-incident review'. This UC measures 7-day PIR completion SLA per closed incident.",
-  "value": "CC7. Timely UC-22.8.35 alerting on 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.8.35 — SOC, CC7.4, Incident, response:, post — using `index=soar` sourcetype `phantom:incident`, grouped by `incident_id`, `incident_id]`. Outputs `count` each `the scheduled window`; alert when -30d. Primary focus: completion SLA. Purpose-built for 'SOC 2 CC7.4 — Incident response: post-incident review completion SLA' in Compliance workflows.",
+  "value": "UC-22.8.35 accelerates insight into completion SLA ('SOC 2 CC7.4 — Incident response: post-incident review completion SLA') by tracking `activity` on `phantom:incident` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Ensure PIR Jira project is populated; (2) schedule UC daily; (3) pir_sla_met=0 opens a reminder ticket; (4) weekly SOC report; (5) quarterly Board report. Indexes required: `index=soar`, `index=ticketing`; Sourcetypes: `sourcetype=jira:issue`, `sourcetype=phantom:incident`, `sourcetype=phantom:incident;`.",
   "visualization": "Waterfall of incidents → PIR completed → on time, single value 'open incidents overdue PIR'. Key fields: `closed_at`, `incident_id`, `incident_id]`, `pir_completed_at`, `pir_sla_met`.",
   "cimModels": [

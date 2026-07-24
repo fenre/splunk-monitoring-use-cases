@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'CVS Refill Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cvs_refill_sync_gap_watch` (UC-25.110.12), SOC dashboard panel \"Personal — CVS Refill Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cvs:refill' where `drug_name` satisfies `hours_since` > 168 for UC-25.110.12 ('CVS Refill Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cvs:refill` events where `drug_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.110.12."
+    "positiveScenario": "UC-25.110.12 positive (CVS, Refill, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='cvs:refill' where `last_seen` grouped by `drug_name` satisfies `hours_since` > 168 for 'CVS Refill Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.110.12 negative (Gap Watch): ingest benign `personal` / `cvs:refill` events where `drug_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'CVS Refill Sync Gap Watch'."
   },
   "dataSources": "GoodRx prices (`goodrx:price`), CVS refills (`cvs:refill`), pharmacy pickups (`pharmacy:pickup`), and prescription adherence logs (`prescription:adherence`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "GoodRx price lookups, CVS refill confirmations, pharmacy pickup logs, and prescription adherence trackers streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cvs:refill\n| stats max(_time) as last_seen by drug_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
-  "description": "Detects when CVS refill data has stopped arriving for a given drug. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when CVS refill data has stopped arriving for a given drug. Timely UC-25.110.12 alerting on 'CVS Refill Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.110.12 — CVS, Refill, Sync, Gap, Watch — using `index=personal` sourcetype `cvs:refill`, grouped by `drug_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 168. Primary focus: Gap Watch. Purpose-built for 'CVS Refill Sync Gap Watch' in Personal workflows.",
+  "value": "UC-25.110.12 gives Personal teams earlier visibility into Gap Watch through `cvs:refill` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per drug and alert when the feed is older than 168 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'CVS Refill Sync Gap Watch' stops polling `cvs:refill`; stale `drug_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cvs:refill`. Dedup with `stats latest(*) by drug_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.110.12)** — Connector for 'CVS Refill Sync Gap Watch' stops polling `cvs:refill`; stale `last_seen` on `drug_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.110.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cvs:refill`. Dedup with `stats latest(*) by drug_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168 for 'CVS Refill Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "snmp"
   ],

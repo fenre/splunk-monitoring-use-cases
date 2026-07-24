@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Envoy Downstream HTTP 429 Local Rate Limit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_envoy_downstream_http_429_local_rate_limit` (UC-8.1.28), SOC dashboard panel \"Operations — Envoy Downstream HTTP 429 Local Rate Limit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mesh` sourcetype='envoy:stats' where `listener` satisfies `rq_429` > 0 for UC-8.1.28 ('Envoy Downstream HTTP 429 Local Rate Limit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mesh` / `envoy:stats` events where `listener` stays below `rq_429` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.28."
+    "positiveScenario": "UC-8.1.28 positive (Envoy, Downstream, HTTP, 429, Local): ingest synthetic events into `index=mesh` sourcetype='envoy:stats' where `count` grouped by `listener` satisfies `rq_429` > 0 for 'Envoy Downstream HTTP 429 Local Rate Limit'. Validate filter `\"downstream_rq_429\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.28 negative (Rate Limit): ingest benign `mesh` / `envoy:stats` events where `listener` stays below `rq_429` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Envoy Downstream HTTP 429 Local Rate Limit'."
   },
   "dataSources": "`index=mesh` `sourcetype=envoy:stats` (`http.*.downstream_rq_429` counters) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Envoy admin `/stats`, OpenTelemetry Collector, or Prometheus scraper to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mesh sourcetype=\"envoy:stats\"\n| search \"downstream_rq_429\"\n| rex \"http\\\\.(?<listener>[^.]+)\\\\.downstream_rq_429=(?<v>\\d+)\"\n| stats latest(v) as rq_429 by listener\n| where rq_429 > 0",
-  "description": "429 responses from local rate limits protect upstreams but can signal abuse, mis-tuned quotas, or partner traffic spikes.",
-  "value": "429 responses from local rate limits protect upstreams but can signal abuse, mis-tuned quotas, or partner t.... Timely UC-8.1.28 alerting on 'Envoy Downstream HTTP 429 Local Rate Limit' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies Rate Limit activity in UC-8.1.28 ('Envoy Downstream HTTP 429 Local Rate Limit') from `index=mesh` sourcetype `envoy:stats`. Rolls up `count` by `listener` across `the scheduled window` and pages when `rq_429` > 0. Uses filter `\"downstream_rq_429\"`. Operations operators treat UC-8.1.28 as the canonical signal.",
+  "value": "Operators running UC-8.1.28 on `envoy:stats` feeds shorten triage for Rate Limit tied to 'Envoy Downstream HTTP 429 Local Rate Limit', lowering operational risk and delayed incident response.",
   "implementation": "Scrape Prometheus text or stats lines; ensure listener dimensions are parsed. Correlate with `envoy.access` logs if enabled.",
   "visualization": "Single value (429 rate), line chart per listener, table (cluster × route).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mesh`** — Planned work for 'Envoy Downstream HTTP 429 Local Rate Limit' shifts `count` over `span=1h` while `listener` remains in-scope for UC-8.1.28. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:stats`** — Scheduled automation elevates `src` without crossing `rq_429` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `listener`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:stats`** — First 48h baseline for `listener` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `listener`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mesh` (UC-8.1.28)** — Planned work for 'Envoy Downstream HTTP 429 Local Rate Limit' shifts `count` over `span=1h` while `listener` remains in-scope. Applies filter `\"downstream_rq_429\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `envoy:stats`** — Scheduled automation elevates `src` without crossing `rq_429` > 0 for UC-8.1.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `listener`** — Health checks in `mesh` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `envoy:stats`** — First 48h baseline for UC-8.1.28 on `listener` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `listener`, `exception_reason`, `valid_until`.",
   "equipment": [
     "envoy",
     "opentelemetry",

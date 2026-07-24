@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='pan:traffic' where `ext_src` satisfies detection threshold for UC-22.13.15 ('ESP Inbound First-Seen External Source Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `pan:traffic` events where `ext_src` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.15."
+    "positiveScenario": "UC-22.13.15 positive (ESP, Inbound, First, Seen, External): ingest synthetic events into `index=network` sourcetype='pan:traffic' where `values` grouped by `ext_src`, `rule` satisfies -24h for 'ESP Inbound First-Seen External Source Detection'. Validate lookup `esp_inbound_baseline.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.15 negative (Source Detection): ingest benign `network` / `pan:traffic` events where `ext_src`, `rule` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 3 confirms zero alert rows for 'ESP Inbound First-Seen External Source Detection'."
   },
   "dataSources": "`index=network` `sourcetype=pan:traffic`, lookup `esp_inbound_baseline.csv` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=network sourcetype=pan:traffic dest_zone=\"ESP_DMZ\" action=allowed earliest=-24h\n| eval ext_src=if(cidrmatch(\"10.0.0.0/8\",src) OR cidrmatch(\"172.16.0.0/12\",src) OR cidrmatch(\"192.168.0.0/16\",src),null(),src)\n| where isnotnull(ext_src)\n| lookup esp_inbound_baseline.csv ext_src AS ext_src OUTPUT approved_vendor\n| where isnull(approved_vendor)\n| stats earliest(_time) as first_seen values(dest) as targets by ext_src, rule\n| sort - first_seen",
-  "description": "We detect new external sources allowed through ESP entry rules so undocumented inbound paths are reviewed before they become normal traffic.",
-  "value": "We detect new external sources allowed through ESP entry rules so undocumented inbound paths are reviewed b.... Timely UC-22.13.15 alerting on 'ESP Inbound First-Seen External Source Detection' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces when Source Detection criteria fire for 'ESP Inbound First-Seen External Source Detection' (UC-22.13.15) in `index=network` sourcetype `pan:traffic`. Pipeline aggregates `values` by `ext_src`, `rule` over `the scheduled window`. Alert logic enforces -24h. SPL signature: lookup `esp_inbound_baseline.csv`. Eliminates manual hunting for UC-22.13.15 conditions.",
+  "value": "UC-22.13.15 helps teams contain ESP, Inbound, First, Seen, External scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Seed `esp_inbound_baseline.csv` with known vendor ranges. (2) Promote reviewed sources into the baseline. (3) Create ES notable for first-seen. (4) Map rules to EAP register fields. Indexes required: `index=network`; Sourcetypes: `sourcetype=pan:traffic`, `sourcetype=pan:traffic``.",
   "visualization": "Table (new sources), Map (geo), Time chart (first-seen rate). Key fields: `ext_src`, `first_seen`, `rule`, `targets`.",
   "cimModels": [

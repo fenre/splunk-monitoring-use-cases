@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Okta Authentication Failures' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_okta_authentication_failures` (UC-9.5.1), SOC dashboard panel \"IAM — Okta Authentication Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `actor.alternateId` satisfies `count` > 5 for UC-9.5.1 ('Okta Authentication Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events where `actor.alternateId` stays below `count` > 5, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.5.1."
+    "positiveScenario": "UC-9.5.1 positive (Okta, Authentication, Failures): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `count` grouped by `actor.alternateId`, `client.ipAddress`, `_time` satisfies `count` > 5 for 'Okta Authentication Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.5.1 negative (Authentication Failures): ingest benign `okta` / `OktaIM2:log` events where `actor.alternateId`, `client.ipAddress`, `_time` stays below `count` > 5, or exclude the test entity via `iam_exception_register.csv`. Variant 7 confirms zero alert rows for 'Okta Authentication Failures'."
   },
   "dataSources": "`sourcetype=OktaIM2:log` (`user.authentication.sso`, `user.authentication.auth_via_*`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" outcome.result=\"FAILURE\"\n| bin _time span=15m\n| stats count by actor.alternateId, client.ipAddress, _time\n| where count > 5\n| sort -count",
-  "description": "Spikes in failed logins reveal credential attacks, misconfigured apps, or lockout conditions before accounts are fully compromised.",
-  "value": "Early 'Okta Authentication Failures' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.5.1 — Okta, Authentication, Failures — using `index=okta` sourcetype `OktaIM2:log`, grouped by `actor.alternateId`, `client.ipAddress`, `_time`. Outputs `count` each `15m`; alert when `count` > 5. Primary focus: Authentication Failures. Purpose-built for 'Okta Authentication Failures' in IAM workflows.",
+  "value": "UC-9.5.1 operationalises 'Okta Authentication Failures' against `OktaIM2:log` feeds so operators reduce account takeover risk, help-desk load, and audit findings without manual correlation.",
   "implementation": "Ingest Okta System Log via the TA. Normalize `outcome.result` and actor fields. Baseline failures per user and IP; alert on threshold breaches and on impossible concurrent sources. Correlate with Duo denials if both are present.",
   "visualization": "Table (user, IP, failure count), Line chart (failures over time), Bar chart (top source IPs).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'Okta Authentication Failures' shifts `count` over `span=15m` while `actor.alternateId` remains in-scope for UC-9.5.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `client.ipAddress` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.alternateId`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for `actor.alternateId` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.alternateId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.5.1)** — Planned work for 'Okta Authentication Failures' shifts `count` over `span=15m` while `actor.alternateId`, `client.ipAddress`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `client.ipAddress` without crossing `count` > 5 for UC-9.5.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.alternateId`, `client.ipAddress`, `_time`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.5.1 on `actor.alternateId` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.alternateId`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1110",
     "T1110.003"

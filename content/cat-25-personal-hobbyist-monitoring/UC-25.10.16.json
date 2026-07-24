@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Aquarium Heater Duty-Cycle Spike' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_aquarium_heater_duty_cycle_spike` (UC-25.10.16), SOC dashboard panel \"Personal — Aquarium Heater Duty-Cycle Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='aquarium:sensor' where `tank` satisfies `heater_pct` > 60 for UC-25.10.16 ('Aquarium Heater Duty-Cycle Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `aquarium:sensor` events where `tank` stays below `heater_pct` > 60, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.16."
+    "positiveScenario": "UC-25.10.16 positive (Aquarium, Heater, Duty, Cycle, Spike): ingest synthetic events into `index=personal` sourcetype='aquarium:sensor' where `heater_pct`, `temp` grouped by `tank`, `_time` satisfies `heater_pct` > 60, or `temp` < 24 for 'Aquarium Heater Duty-Cycle Spike'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.16 negative (Cycle Spike): ingest benign `personal` / `aquarium:sensor` events where `tank`, `_time` stays below `heater_pct` > 60, or `temp` < 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Aquarium Heater Duty-Cycle Spike'."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=aquarium:sensor\n| bin _time span=1d\n| stats avg(heater_on_pct) as heater_pct, avg(temp_c) as temp by tank _time\n| where heater_pct>60 AND temp<24\n| sort - heater_pct",
-  "description": "Measures how hard the aquarium heater is working and catches tanks that are spending lots of time heating without actually holding temperature.",
-  "value": "Measures how hard the aquarium heater is working and catches tanks that are spending lots of time heating w.... Timely UC-25.10.16 alerting on 'Aquarium Heater Duty-Cycle Spike' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.10.16 — Aquarium, Heater, Duty, Cycle, Spike — using `index=personal` sourcetype `aquarium:sensor`, grouped by `tank`, `_time`. Outputs `heater_pct`, `temp` each `1d`; alert when `heater_pct` > 60, or `temp` < 24. Primary focus: Cycle Spike. Purpose-built for 'Aquarium Heater Duty-Cycle Spike' in Personal workflows.",
+  "value": "UC-25.10.16 operationalises 'Aquarium Heater Duty-Cycle Spike' against `aquarium:sensor` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward tank temperature and heater-state metrics; review daily when duty cycle spikes without stable temperature.",
   "visualization": "Daily chart of heater duty cycle versus tank temperature.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Aquarium Heater Duty-Cycle Spike' stops polling `aquarium:sensor`; stale `tank` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `aquarium:sensor`. Dedup with `stats latest(*) by tank`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `heater_pct` > 60. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.16)** — Connector for 'Aquarium Heater Duty-Cycle Spike' stops polling `aquarium:sensor`; stale `heater_pct`, `temp` on `tank`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `heater_pct`, `temp` over `1d` is expected for UC-25.10.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `aquarium:sensor`. Dedup with `stats latest(*) by tank`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `heater_pct` > 60 for 'Aquarium Heater Duty-Cycle Spike'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

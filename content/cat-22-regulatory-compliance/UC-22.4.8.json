@@ -40,14 +40,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:sc_req_item' where `verified` satisfies detection threshold for UC-22.4.8 ('CCPA Authorized Agent Request Verification and Fulfillment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:sc_req_item` events where `verified` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.4.8."
+    "positiveScenario": "UC-22.4.8 positive (CCPA, Authorized, Agent, Request, Verification): ingest synthetic events into `index=itsm` sourcetype='snow:sc_req_item' where `closed` grouped by `verified` satisfies -90d for 'CCPA Authorized Agent Request Verification and Fulfillment'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.4.8 negative (and Fulfillment): ingest benign `itsm` / `snow:sc_req_item` events where `verified` stays below -90d, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'CCPA Authorized Agent Request Verification and Fulfillment'."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:sc_req_item\"` (number, short_description, u_agent_verified, u_power_of_attorney_on_file, state, opened_at)",
   "app": "Splunk Add-on for ServiceNow (Splunkbase 1928)",
   "spl": "index=itsm sourcetype=\"snow:sc_req_item\" earliest=-90d\n    (short_description=\"*authorized agent*\" OR short_description=\"*power of attorney*\")\n| eval verified=coalesce(u_agent_verified, \"unknown\")\n| eval fulfilled=if(match(state,\"(?i)closed|resolved|complete\"),1,0)\n| stats count as tickets,\n        sum(eval(verified=\"false\" OR verified=\"unknown\")) as not_verified,\n        sum(fulfilled) as closed\n    by verified\n| eval risk_pct=round(100*not_verified/tickets,1)\n| sort - tickets",
-  "description": "Businesses may require authorized agents to submit proof of signing authority. Tracking agent-submitted tickets with verification outcomes reduces fraud risk and demonstrates consistent authentication before disclosing or deleting consumer data.",
-  "value": "Businesses may require authorized agents to submit proof of signing authority. Timely UC-22.4.8 alerting on 'CCPA Authorized Agent Request Verification and Fulfillment' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.4.8 — CCPA, Authorized, Agent, Request, Verification — using `index=itsm` sourcetype `snow:sc_req_item`, grouped by `verified`. Outputs `closed` each `the scheduled window`; alert when -90d. Primary focus: and Fulfillment. Purpose-built for 'CCPA Authorized Agent Request Verification and Fulfillment' in Compliance workflows.",
+  "value": "Tracking `closed` via UC-22.4.8 on `snow:sc_req_item` feeds improves response to 'CCPA Authorized Agent Request Verification and Fulfillment' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Add custom fields on the privacy request form for agent verification and PoA storage references; (2) block fulfillment workflows until `u_agent_verified=true` except where statute allows; (3) schedule weekly review of `not_verified`; (4) integrate DocuSign webhook optional second sourcetype; (5) redact attachments from Splunk—index metadata only. Indexes required: `index=itsm`.",
   "visualization": "Table (verification state x counts), Donut chart (verified vs not), Timeline (median days to close by verified).",
   "cimModels": [],

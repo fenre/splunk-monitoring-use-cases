@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Pool Slot Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_pool_slot_exhaustion` (UC-24.7.13), SOC dashboard panel \"Operations — Airflow Pool Slot Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:statsd' where `pool` satisfies `open_slots` <= 0 for UC-24.7.13 ('Airflow Pool Slot Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airflow:statsd` events where `pool` stays below `open_slots` <= 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.13."
+    "positiveScenario": "UC-24.7.13 positive (Airflow, Pool, Slot, Exhaustion): ingest synthetic events into `index=bi` sourcetype='airflow:statsd' where `open_slots` grouped by `pool` satisfies `open_slots` <= 0 for 'Airflow Pool Slot Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.13 negative (Slot Exhaustion): ingest benign `bi` / `airflow:statsd` events where `pool` stays below `open_slots` <= 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Airflow Pool Slot Exhaustion'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:statsd metric_name=\"pool.open_slots.*\"\n| rex field=metric_name \"pool\\.open_slots\\.(?<pool>.+)\"\n| timechart span=5m min(value) as open_slots by pool\n| untable _time pool open_slots\n| where open_slots<=0",
-  "description": "Tracks Airflow pool open-slot gauges and flags pools that hit zero available slots, meaning tasks are queueing behind a concurrency limit rather than running.",
-  "value": "Tracks Airflow pool open-slot gauges and flags pools that hit zero available slots, meaning tasks are queue.... Timely UC-24.7.13 alerting on 'Airflow Pool Slot Exhaustion' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects Slot Exhaustion activity in UC-24.7.13 ('Airflow Pool Slot Exhaustion') from `index=bi` sourcetype `airflow:statsd`. Rolls up `open_slots` by `pool` across `5m` and pages when `open_slots` <= 0. Covers Airflow, Pool, Slot, Exhaustion. Operations operators treat UC-24.7.13 as the canonical signal.",
+  "value": "Operators running UC-24.7.13 on `airflow:statsd` feeds shorten triage for Slot Exhaustion tied to 'Airflow Pool Slot Exhaustion', lowering operational risk and delayed incident response.",
   "implementation": "Emit Airflow StatsD metrics to a StatsD-to-HEC bridge; schedule every 5 minutes and alert when a business-critical pool sits at zero slots for consecutive intervals.",
   "visualization": "Timechart of open slots per pool, single-value of exhausted pools, alert.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airflow Pool Slot Exhaustion' shifts `min` over `span=5m` while `pool` remains in-scope for UC-24.7.13. Cross-check CMDB CHG.\n\n2. **Batch `min` on `airflow:statsd`** — Scheduled automation elevates `src` without crossing `open_slots` <= 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:statsd`** — First 48h baseline for `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.13)** — Planned work for 'Airflow Pool Slot Exhaustion' shifts `open_slots` over `span=5m` while `pool` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `min` on `airflow:statsd`** — Scheduled automation elevates `src` without crossing `open_slots` <= 0 for UC-24.7.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:statsd`** — First 48h baseline for UC-24.7.13 on `pool` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"

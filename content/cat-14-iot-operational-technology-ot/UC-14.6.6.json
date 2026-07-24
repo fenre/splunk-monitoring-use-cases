@@ -82,14 +82,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='zeek:modbus_detailed:json' where `reg_key` satisfies detection threshold for UC-14.6.6 ('Modbus Register Value Change Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `zeek:modbus_detailed:json` events where `reg_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.6.6."
+    "positiveScenario": "UC-14.6.6 positive (Modbus, Register, Value, Change, Tracking): ingest synthetic events into `index=ot` sourcetype='zeek:modbus_detailed:json' where `count` grouped by `reg_key` satisfies detection threshold for 'Modbus Register Value Change Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.6 negative (Change Tracking): ingest benign `ot` / `zeek:modbus_detailed:json` events where `reg_key` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Modbus Register Value Change Tracking'."
   },
   "dataSources": "`index=ot` `sourcetype=\"zeek:modbus_detailed:json\"` (`func`, `address`, `unit`, `request_values`, `response_values`, `matched`, `network_direction`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:modbus_detailed:json\" matched=true\n| where func IN (\"0x06\",\"6\",\"0x10\",\"16\")\n| eval reg_key=destination_h.\"|\".unit.\"|\".address\n| sort 0 reg_key _time\n| streamstats window=2 global=f earliest(response_values) as earlier_resp latest(response_values) as later_resp by reg_key\n| where isnotnull(earlier_resp) AND mvjoin(earlier_resp,\",\")!=mvjoin(later_resp,\",\")\n| table _time source_h destination_h unit address func earlier_resp later_resp request_values",
-  "description": "Covert changes to holding registers can alter setpoints or interlocks; comparing matched request/response values highlights tampering distinct from normal operator writes.",
-  "value": "Early 'Modbus Register Value Change Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-14.6.6 — Modbus, Register, Value, Change, Tracking — using `index=ot` sourcetype `zeek:modbus_detailed:json`, grouped by `reg_key`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Change Tracking. Purpose-built for 'Modbus Register Value Change Tracking' in Operations workflows.",
+  "value": "UC-14.6.6 gives Operations teams earlier visibility into Change Tracking through `zeek:modbus_detailed:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Zeek with ICSNPP-Modbus on taps near RTUs; ensure `request_values`/`response_values` are indexed. Focus on critical register ranges from asset documentation; schedule correlation with historian trends for validation.",
   "visualization": "Table (register_key, old vs new values), Timeline (changes), Line chart (change rate per hour).",
   "cimModels": [
@@ -118,7 +118,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Modbus Register Value Change Tracking' shifts `count` over `span=1h` while `reg_key` remains in-scope for UC-14.6.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:modbus_detailed:json`** — Scheduled automation elevates `reg_key` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `reg_key`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:modbus_detailed:json`** — First 48h baseline for `reg_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `reg_key`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.6)** — Planned work for 'Modbus Register Value Change Tracking' shifts `count` over `span=1h` while `reg_key` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:modbus_detailed:json`** — Scheduled automation elevates `reg_key` without crossing configured threshold for UC-14.6.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `reg_key`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:modbus_detailed:json`** — First 48h baseline for UC-14.6.6 on `reg_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `reg_key`, `exception_reason`, `valid_until`.",
   "equipment": [
     "modbus"
   ],

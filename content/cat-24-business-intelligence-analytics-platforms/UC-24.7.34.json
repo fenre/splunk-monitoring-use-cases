@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Dag Freshness SLA' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_dag_freshness_sla` (UC-24.7.34), SOC dashboard panel \"Operations — Airflow Dag Freshness SLA\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:task' where `dag_id` satisfies `hours_stale` > 12 for UC-24.7.34 ('Airflow Dag Freshness SLA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airflow:task` events where `dag_id` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.34."
+    "positiveScenario": "UC-24.7.34 positive (Airflow, Dag, Freshness, SLA): ingest synthetic events into `index=bi` sourcetype='airflow:task' where `count` grouped by `dag_id` satisfies `hours_stale` > 12 for 'Airflow Dag Freshness SLA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.34 negative (Freshness SLA): ingest benign `bi` / `airflow:task` events where `dag_id` stays below `hours_stale` > 12, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Airflow Dag Freshness SLA'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), REST API, StatsD (`airflow:statsd`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airflow logs via UF; Airflow REST API and StatsD metrics via HEC; metadata DB via DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:task state=\"success\"\n| stats latest(_time) as last_success by dag_id\n| eval hours_stale=round((now()-last_success)/3600,1)\n| where hours_stale>12\n| sort - hours_stale",
-  "description": "Tracks the last successful update of each Airflow DAG and flags those that have not refreshed within their freshness window, catching stale data even when no job reports a failure.",
-  "value": "Tracks the last successful update of each Airflow DAG and flags those that have not refreshed within their.... Timely UC-24.7.34 alerting on 'Airflow Dag Freshness SLA' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-24.7.34 — Airflow, Dag, Freshness, SLA — using `index=bi` sourcetype `airflow:task`, grouped by `dag_id`. Outputs `count` each `the scheduled window`; alert when `hours_stale` > 12. Primary focus: Freshness SLA. Purpose-built for 'Airflow Dag Freshness SLA' in Operations workflows.",
+  "value": "UC-24.7.34 operationalises 'Airflow Dag Freshness SLA' against `airflow:task` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Airflow success events; schedule hourly and alert when a critical DAG exceeds its freshness window.",
   "visualization": "Table of DAG by hours stale, freshness heat map.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airflow Dag Freshness SLA' shifts `count` over `span=1h` while `dag_id` remains in-scope for UC-24.7.34. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.34)** — Planned work for 'Airflow Dag Freshness SLA' shifts `count` over `span=1h` while `dag_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `airflow:task`** — Scheduled automation elevates `hours_stale` without crossing `hours_stale` > 12 for UC-24.7.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for UC-24.7.34 on `dag_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

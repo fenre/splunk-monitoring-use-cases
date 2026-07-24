@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Duplicate CI Name Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_duplicate_ci_name_detection` (UC-16.2.17), SOC dashboard panel \"Operations — Duplicate CI Name Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `norm_name` satisfies `distinct_ids` > 1 for UC-16.2.17 ('Duplicate CI Name Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `norm_name` stays below `distinct_ids` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.17."
+    "positiveScenario": "UC-16.2.17 positive (Duplicate, Name, Detection): ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `distinct_ids` grouped by `norm_name` satisfies `distinct_ids` > 1 for 'Duplicate CI Name Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.17 negative (Name Detection): ingest benign `itsm` / `snow:cmdb_ci` events where `norm_name` stays below `distinct_ids` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Duplicate CI Name Detection'."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:cmdb_ci\"` (`name`, `sys_id`, `ci_class`, `serial_number`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:cmdb_ci\" earliest=-1d\n| eval norm_name=lower(trim(name))\n| where norm_name!=\"\" AND isnotnull(norm_name)\n| stats values(sys_id) as sys_ids, dc(sys_id) as distinct_ids, values(ci_class) as classes by norm_name\n| where distinct_ids>1\n| table norm_name, distinct_ids, classes, sys_ids\n| sort -distinct_ids",
-  "description": "Duplicate names break joins between incidents, changes, and monitoring; detecting duplicates early restores CMDB accuracy and reduces routing errors across ITSM processes.",
-  "value": "Early 'Duplicate CI Name Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies 'Duplicate CI Name Detection' (UC-16.2.17) using `index=itsm` sourcetype `snow:cmdb_ci` by aggregating `distinct_ids` grouped by `norm_name` over `the scheduled window` and alerting when `distinct_ids` > 1. Keywords: Duplicate, Name, Detection. Focuses on Name Detection behaviour so operations teams can triage UC-16.2.17 without ad-hoc log review.",
+  "value": "UC-16.2.17 accelerates insight into Name Detection ('Duplicate CI Name Detection') by tracking `distinct_ids` on `snow:cmdb_ci` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "(1) Extend normalization if your naming standard strips domains (`mvindex(split(name,\".\"),0)`); (2) Enrich with `serial_number` when names collide legitimately; (3) Feed results into a CMDB merge workflow and track `distinct_ids` trend monthly.",
   "visualization": "Table (duplicate name clusters), Single value (duplicate name count), Bar chart (duplicates by CI class).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Duplicate CI Name Detection' shifts `values` over `span=1h` while `norm_name` remains in-scope for UC-16.2.17. Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:cmdb_ci`** — Scheduled automation elevates `norm_name` without crossing `distinct_ids` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `norm_name`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for `norm_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `norm_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.2.17)** — Planned work for 'Duplicate CI Name Detection' shifts `distinct_ids` over `span=1h` while `norm_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `snow:cmdb_ci`** — Scheduled automation elevates `norm_name` without crossing `distinct_ids` > 1 for UC-16.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `norm_name`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for UC-16.2.17 on `norm_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `norm_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

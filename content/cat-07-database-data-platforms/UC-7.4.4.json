@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Credit / Cost per Query' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_credit_cost_per_query` (UC-7.4.4), SOC dashboard panel \"Operations — Credit / Cost per Query\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `USER_NAME` satisfies detection threshold for UC-7.4.4 ('Credit / Cost per Query'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `snowflake:query_history` events where `USER_NAME` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.4."
+    "positiveScenario": "UC-7.4.4 positive (Credit, Cost, per, Query): ingest synthetic events into `index=datawarehouse` sourcetype='snowflake:query_history' where `total_cost` grouped by `USER_NAME`, `WAREHOUSE_NAME` satisfies detection threshold for 'Credit / Cost per Query'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.4.4 negative (per Query): ingest benign `datawarehouse` / `snowflake:query_history` events where `USER_NAME`, `WAREHOUSE_NAME` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Credit / Cost per Query'."
   },
   "dataSources": "Snowflake `QUERY_HISTORY` (CREDITS_USED), BigQuery `INFORMATION_SCHEMA.JOBS` (total_bytes_billed) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom API input (Snowflake ACCOUNT_USAGE) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=datawarehouse sourcetype=\"snowflake:query_history\"\n| eval cost=CREDITS_USED_CLOUD_SERVICES * 3\n| stats sum(cost) as total_cost, count as query_count by USER_NAME, WAREHOUSE_NAME\n| eval cost_per_query=round(total_cost/query_count,2)\n| sort -total_cost",
-  "description": "Directly ties compute cost to individual queries, enabling chargeback and cost optimization. Identifies runaway queries consuming excessive resources.",
-  "value": "Early 'Credit / Cost per Query' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-7.4.4 — Credit, Cost, per, Query — using `index=datawarehouse` sourcetype `snowflake:query_history`, grouped by `USER_NAME`, `WAREHOUSE_NAME`. Outputs `total_cost` each `the scheduled window`; alert when configured threshold. Primary focus: per Query. Purpose-built for 'Credit / Cost per Query' in Operations workflows.",
+  "value": "UC-7.4.4 helps teams contain Credit, Cost, per, Query scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll query history with cost metrics daily. Calculate cost per query, per user, and per team (using role mapping). Create weekly cost report. Alert on individual queries exceeding cost threshold. Set up warehouse-level budgets.",
   "visualization": "Bar chart (cost by user/warehouse), Table (most expensive queries), Line chart (daily cost trend), Pie chart (cost by team).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'Credit / Cost per Query' shifts `sum` over `span=1h` while `USER_NAME` remains in-scope for UC-7.4.4. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snowflake:query_history`** — Scheduled automation elevates `WAREHOUSE_NAME` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `USER_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for `USER_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `USER_NAME`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.4.4)** — Planned work for 'Credit / Cost per Query' shifts `total_cost` over `span=1h` while `USER_NAME`, `WAREHOUSE_NAME` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snowflake:query_history`** — Scheduled automation elevates `WAREHOUSE_NAME` without crossing configured threshold for UC-7.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `USER_NAME`, `WAREHOUSE_NAME`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snowflake:query_history`** — First 48h baseline for UC-7.4.4 on `USER_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `USER_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow",
     "snowflake"

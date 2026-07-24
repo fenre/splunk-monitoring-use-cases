@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'BigQuery Cost Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_bigquery_cost_anomalies` (UC-7.4.12), SOC dashboard panel \"Operations — BigQuery Cost Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=datawarehouse` sourcetype='bigquery:jobs' where `project_id` satisfies detection threshold for UC-7.4.12 ('BigQuery Cost Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `datawarehouse` / `bigquery:jobs` events where `project_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.4.12."
+    "positiveScenario": "UC-7.4.12 positive (BigQuery, Cost, Anomalies): ingest synthetic events into `index=datawarehouse` sourcetype='bigquery:jobs' where `bytes`, `avg_b`, `s` grouped by `project_id`, `user_email`, `_time` satisfies detection threshold for 'BigQuery Cost Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.4.12 negative (Cost Anomalies): ingest benign `datawarehouse` / `bigquery:jobs` events where `project_id`, `user_email`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'BigQuery Cost Anomalies'."
   },
   "dataSources": "`total_bytes_billed`, `total_slot_ms`, `creation_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "BigQuery `INFORMATION_SCHEMA.JOBS`, billing export to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=datawarehouse sourcetype=\"bigquery:jobs\"\n| bin _time span=1d\n| stats sum(total_bytes_billed) as bytes by project_id, user_email, _time\n| eventstats avg(bytes) as avg_b, stdev(bytes) as s by project_id\n| where bytes > avg_b + 3*s\n| eval gb=round(bytes/1073741824,2)",
-  "description": "Sudden jumps in bytes billed or slot usage often trace to one bad query or new scheduled job. Statistical alerting limits surprise invoices.",
-  "value": "Early 'BigQuery Cost Anomalies' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-7.4.12 — BigQuery, Cost, Anomalies — using `index=datawarehouse` sourcetype `bigquery:jobs`, grouped by `project_id`, `user_email`, `_time`. Outputs `bytes`, `avg_b`, `s` each `1d`; alert when configured threshold. Primary focus: Cost Anomalies. Purpose-built for 'BigQuery Cost Anomalies' in Operations workflows.",
+  "value": "UC-7.4.12 operationalises 'BigQuery Cost Anomalies' against `bigquery:jobs` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest completed jobs daily. Alert on project-day cost outliers. Drill into `job_id` for top offenders. Integrate with GCP billing export for ground truth.",
   "visualization": "Line chart (daily bytes billed), Table (anomalous days/projects), Bar chart (top users by cost).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `datawarehouse`** — Planned work for 'BigQuery Cost Anomalies' shifts `sum` over `span=1d` while `project_id` remains in-scope for UC-7.4.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bigquery:jobs`** — Scheduled automation elevates `user_email` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project_id`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bigquery:jobs`** — First 48h baseline for `project_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `datawarehouse` (UC-7.4.12)** — Planned work for 'BigQuery Cost Anomalies' shifts `bytes`, `avg_b`, `s` over `span=1d` while `project_id`, `user_email`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `bigquery:jobs`** — Scheduled automation elevates `user_email` without crossing configured threshold for UC-7.4.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `project_id`, `user_email`, `_time`** — Health checks in `datawarehouse` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bigquery:jobs`** — First 48h baseline for UC-7.4.12 on `project_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `project_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

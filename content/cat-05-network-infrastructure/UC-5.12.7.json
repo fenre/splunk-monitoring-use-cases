@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'IMS Registration Failure Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ims_registration_failure_rate` (UC-5.12.7), SOC dashboard panel \"Operations — IMS Registration Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ims` sourcetype='ims:sip' where `entity` satisfies `fail_rate` > 5 for UC-5.12.7 ('IMS Registration Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ims` / `ims:sip` events where `entity` stays below `fail_rate` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.12.7."
+    "positiveScenario": "UC-5.12.7 positive (IMS, Registration, Failure, Rate): ingest synthetic events into `index=ims` sourcetype='ims:sip' where `fails` grouped by `entity` satisfies `fail_rate` > 5 for 'IMS Registration Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.12.7 negative (Failure Rate): ingest benign `ims` / `ims:sip` events where `entity` stays below `fail_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'IMS Registration Failure Rate'."
   },
   "dataSources": "`sourcetype=\"ims:sip\"` `method=REGISTER`, `sourcetype=\"stream:sip\"` — context: `cisco:ucm:cdr`, `asterisk:cdr`, `stream:sip` (Stream), `ims:cscf` (IMS) as deployed Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "P-CSCF logs, IMS CDR — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=ims sourcetype=\"ims:sip\" method=\"REGISTER\"\n| eval fail=if(match(reply_code,\"^(401|403|408|5..)$\"),1,0)\n| timechart span=5m sum(fail) as fails, count as attempts\n| eval fail_rate=round(100*fails/attempts,2)\n| where fail_rate > 5",
-  "description": "HSS/UDM or P-CSCF failures show up as elevated 401/403/timeout on REGISTER — impacts VoLTE attach and VoWiFi. Searches `index=ims` with sourcetype `ims:sip` for UC-5.12.7, aggregating `sum` by `entity` over `5m`. Alerts when grouped results cross `fail_rate` > 5 in the saved search. Gives Operations operators a repeatable signal for 'IMS Registration Failure Rate' without manual log review.",
-  "value": "HSS/UDM or P-CSCF failures show up as elevated 401/403/timeout on REGISTER — impacts VoLTE attach and VoWiFi. Timely UC-5.12.7 alerting on 'IMS Registration Failure Rate' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-5.12.7 — IMS, Registration, Failure, Rate — using `index=ims` sourcetype `ims:sip`, grouped by `entity`. Outputs `fails` each `5m`; alert when `fail_rate` > 5. Primary focus: Failure Rate. Purpose-built for 'IMS Registration Failure Rate' in Operations workflows.",
+  "value": "Tracking `fails` via UC-5.12.7 on `ims:sip` feeds improves response to 'IMS Registration Failure Rate' and reduces operational risk and delayed incident response.",
   "implementation": "Break out by `visited_network` for roaming; correlate with certificate expiry on IPSec for VoWiFi.",
   "visualization": "Line chart (fail rate), Bar chart (SIP reason by S-CSCF), Table (IMSI hash top failures).",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ims`** — Planned work for 'IMS Registration Failure Rate' shifts `sum` over `span=5m` while `host` remains in-scope for UC-5.12.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ims:sip`** — Scheduled automation elevates `fail` without crossing `fail_rate` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ims` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ims:sip`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ims` (UC-5.12.7)** — Planned work for 'IMS Registration Failure Rate' shifts `fails` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `ims:sip`** — Scheduled automation elevates `fail` without crossing `fail_rate` > 5 for UC-5.12.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ims` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ims:sip`** — First 48h baseline for UC-5.12.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "asterisk",
     "cisco"

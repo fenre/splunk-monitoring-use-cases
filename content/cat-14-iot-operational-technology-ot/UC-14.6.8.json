@@ -14,14 +14,14 @@
   "exclusions": "Covers the detection logic documented for 'DNP3 Unsolicited Response Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dnp3_unsolicited_response_monitoring` (UC-14.6.8), SOC dashboard panel \"Operations — DNP3 Unsolicited Response Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='zeek:dnp3:json' where `_time` satisfies `count` > 10 for UC-14.6.8 ('DNP3 Unsolicited Response Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `zeek:dnp3:json` events where `_time` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.6.8."
+    "positiveScenario": "UC-14.6.8 positive (DNP3, Unsolicited, Response, Monitoring): ingest synthetic events into `index=ot` sourcetype='zeek:dnp3:json' where `med` grouped by `_time`, `source_h`, `destination_h` satisfies `count` > 10 for 'DNP3 Unsolicited Response Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.8 negative (Response Monitoring): ingest benign `ot` / `zeek:dnp3:json` events where `_time`, `source_h`, `destination_h` stays below `count` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'DNP3 Unsolicited Response Monitoring'."
   },
   "dataSources": "`index=ot` `sourcetype=\"zeek:dnp3:json\"` (Zeek `dnp3.log` / application function text, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:dnp3:json\"\n| where match(_raw,\"UNSOLICITED\") OR function=\"UNSOLICITED_RESPONSE\"\n| bin _time span=1m\n| stats count by _time source_h destination_h\n| eventstats median(count) as med by destination_h\n| where count > med*3 AND count > 10\n| table _time source_h destination_h count med",
-  "description": "Unsolicited responses carry event-driven telemetry; abnormal volume or timing can indicate flooding, misconfiguration, or spoofed outstations affecting SCADA visibility.",
-  "value": "Early 'DNP3 Unsolicited Response Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'DNP3 Unsolicited Response Monitoring' patterns (UC-14.6.8) sourced from `index=ot` sourcetype `zeek:dnp3:json`. Threshold bundle: `count` > 10; aggregation grain: `_time`, `source_h`, `destination_h`; metrics: `med`. Watch terms: DNP3, Unsolicited, Response, Monitoring.",
+  "value": "UC-14.6.8 gives Operations teams earlier visibility into Response Monitoring through `zeek:dnp3:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Zeek with DNP3 on serial-Ethernet gateways’ segments; verify `function` or raw tokens for unsolicited responses in your build. Baseline per-master/outstation pair; alert on bursts that exceed rolling median.",
   "visualization": "Timeline (unsolicited rate), Line chart (count vs median), Table (spikes).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'DNP3 Unsolicited Response Monitoring' shifts `median` over `span=1m` while `_time` remains in-scope for UC-14.6.8. Cross-check CMDB CHG.\n\n2. **Batch `median` on `zeek:dnp3:json`** — Scheduled automation elevates `source_h` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:dnp3:json`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.8)** — Planned work for 'DNP3 Unsolicited Response Monitoring' shifts `med` over `span=1m` while `_time`, `source_h`, `destination_h` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `zeek:dnp3:json`** — Scheduled automation elevates `source_h` without crossing `count` > 10 for UC-14.6.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `source_h`, `destination_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:dnp3:json`** — First 48h baseline for UC-14.6.8 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

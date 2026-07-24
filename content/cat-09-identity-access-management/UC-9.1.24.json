@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Stale Computer Account Cleanup' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_stale_computer_account_cleanup` (UC-9.1.24), SOC dashboard panel \"IAM — Stale Computer Account Cleanup\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ad` sourcetype='ad:computers' where `entity` satisfies `days_stale` > 90 for UC-9.1.24 ('Stale Computer Account Cleanup'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ad` / `ad:computers` events where `entity` stays below `days_stale` > 90, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.24."
+    "positiveScenario": "UC-9.1.24 positive (Stale, Computer, Account, Cleanup): ingest synthetic events into `index=ad` sourcetype='ad:computers' where `count` grouped by `entity` satisfies `days_stale` > 90 for 'Stale Computer Account Cleanup'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.24 negative (Account Cleanup): ingest benign `ad` / `ad:computers` events where `entity` stays below `days_stale` > 90, or exclude the test entity via `iam_exception_register.csv`. Variant 14 confirms zero alert rows for 'Stale Computer Account Cleanup'."
   },
   "dataSources": "AD computer attributes (`lastLogonTimestamp`, `pwdLastSet`, `whenCreated`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input (PowerShell `Get-ADComputer`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ad sourcetype=\"ad:computers\"\n| eval days_stale=round((now()-lastLogonTimestamp)/86400)\n| where days_stale > 90 AND Enabled=\"True\"\n| table samAccountName, operatingSystem, days_stale, distinguishedName\n| sort -days_stale",
-  "description": "Stale computer objects enable rogue domain joins and clutter access reviews. Tracking supports automated disable/delete workflows.",
-  "value": "Early 'Stale Computer Account Cleanup' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies UC-9.1.24 — Stale, Computer, Account, Cleanup — using `index=ad` sourcetype `ad:computers`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_stale` > 90. Primary focus: Account Cleanup. Purpose-built for 'Stale Computer Account Cleanup' in IAM workflows.",
+  "value": "Alerting on Stale, Computer, Account, Cleanup through UC-9.1.24 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Export computer inventory weekly. Join with DHCP/DNS for false positives. Feed cleanup automation; exclude known appliance OUs via lookup.",
   "visualization": "Table (stale computers), Bar chart (stale count by OU), Single value (candidates for cleanup).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ad`** — Planned work for 'Stale Computer Account Cleanup' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ad:computers`** — Scheduled automation elevates `days_stale` without crossing `days_stale` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ad:computers`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ad` (UC-9.1.24)** — Planned work for 'Stale Computer Account Cleanup' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `ad:computers`** — Scheduled automation elevates `days_stale` without crossing `days_stale` > 90 for UC-9.1.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ad` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ad:computers`** — First 48h baseline for UC-9.1.24 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.002",
     "T1087.002"

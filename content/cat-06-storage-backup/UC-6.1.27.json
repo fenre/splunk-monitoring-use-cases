@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'MDS Inter-Switch Link (ISL) Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mds_inter_switch_link_isl_utilization` (UC-6.1.27), SOC dashboard panel \"Operations — MDS Inter-Switch Link (ISL) Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:if' where `switch` satisfies `avg_util` > 70 for UC-6.1.27 ('MDS Inter-Switch Link (ISL) Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:if` events where `switch` stays below `avg_util` > 70, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.27."
+    "positiveScenario": "UC-6.1.27 positive (MDS, Inter, Switch, Link, (ISL)): ingest synthetic events into `index=network` sourcetype='snmp:if' where `avg_util` grouped by `switch`, `port` satisfies `avg_util` > 70 for 'MDS Inter-Switch Link (ISL) Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.27 negative ((ISL) Utilization): ingest benign `network` / `snmp:if` events where `switch`, `port` stays below `avg_util` > 70, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'MDS Inter-Switch Link (ISL) Utilization'."
   },
   "dataSources": "SNMP IF-MIB (ifHCInOctets/ifHCOutOctets on ISL ports), MDS syslog Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP TA, `cisco:mds` syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=network sourcetype=\"snmp:if\" host=\"mds*\" port_type=\"ISL\"\n| eval util_pct=round((ifHCInOctets_delta+ifHCOutOctets_delta)*8/speed/poll_interval*100,1)\n| timechart span=5m avg(util_pct) as avg_util by switch, port\n| where avg_util > 70",
-  "description": "ISLs carry all inter-switch SAN traffic. Saturated ISLs cause frame queuing, slow drain propagation, and storage latency spikes. Proactive monitoring prevents cascading congestion before hosts see I/O timeouts.",
-  "value": "Early 'MDS Inter-Switch Link (ISL) Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-6.1.27 — MDS, Inter, Switch, Link, (ISL) — using `index=network` sourcetype `snmp:if`, grouped by `switch`, `port`. Outputs `avg_util` each `5m`; alert when `avg_util` > 70. Primary focus: (ISL) Utilization. Purpose-built for 'MDS Inter-Switch Link (ISL) Utilization' in Operations workflows.",
+  "value": "UC-6.1.27 operationalises 'MDS Inter-Switch Link (ISL) Utilization' against `snmp:if` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll ISL port counters via SNMP every 60 seconds. Tag ISL ports in a lookup. Alert at 70% sustained utilization (5-min average). Correlate with storage latency (UC-6.1.2) and FC port errors (UC-6.1.9).",
   "visualization": "Line chart (ISL utilization over time), Heatmap (switch x ISL port), Single value (peak ISL utilization), Topology map.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'MDS Inter-Switch Link (ISL) Utilization' shifts `avg` over `span=5m` while `switch` remains in-scope for UC-6.1.27. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:if`** — Scheduled automation elevates `port` without crossing `avg_util` > 70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:if`** — First 48h baseline for `switch` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-6.1.27)** — Planned work for 'MDS Inter-Switch Link (ISL) Utilization' shifts `avg_util` over `span=5m` while `switch`, `port` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `snmp:if`** — Scheduled automation elevates `port` without crossing `avg_util` > 70 for UC-6.1.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`, `port`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:if`** — First 48h baseline for UC-6.1.27 on `switch` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

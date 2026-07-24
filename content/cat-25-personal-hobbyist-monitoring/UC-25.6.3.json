@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Powerwall Battery Cycle and Reserve Tracking' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_powerwall_battery_cycle_and_reserve_tracking` (UC-25.6.3), SOC dashboard panel \"Personal — Powerwall Battery Cycle and Reserve Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='powerwall:aggregate' where `_time` satisfies detection threshold for UC-25.6.3 ('Powerwall Battery Cycle and Reserve Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `powerwall:aggregate` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.3."
+    "positiveScenario": "UC-25.6.3 positive (Powerwall, Battery, Cycle, and, Reserve): ingest synthetic events into `index=personal` sourcetype='powerwall:aggregate' where `discharged`, `min_soc`, `max_soc` grouped by `_time` satisfies detection threshold for 'Powerwall Battery Cycle and Reserve Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.3 negative (Reserve Tracking): ingest benign `personal` / `powerwall:aggregate` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Powerwall Battery Cycle and Reserve Tracking'."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=powerwall:aggregate\n| bin _time span=1d\n| stats sum(battery_discharge_wh) as discharged, min(soc_pct) as min_soc, max(soc_pct) as max_soc by _time\n| eval cycles=round(discharged/13500,2)\n| sort - _time",
-  "description": "Estimates how many full battery cycles your home battery does each day and how low it drains, which drives both savings and long-term battery health.",
-  "value": "Estimates how many full battery cycles your home battery does each day and how low it drains, which drives.... Timely UC-25.6.3 alerting on 'Powerwall Battery Cycle and Reserve Tracking' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects 'Powerwall Battery Cycle and Reserve Tracking' patterns (UC-25.6.3) sourced from `index=personal` sourcetype `powerwall:aggregate`. Threshold bundle: configured threshold; aggregation grain: `_time`; metrics: `discharged`, `min_soc`, `max_soc`. Watch terms: Powerwall, Battery, Cycle, and, Reserve.",
+  "value": "UC-25.6.3 gives Personal teams earlier visibility into Reserve Tracking through `powerwall:aggregate` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Powerwall aggregate data; schedule daily and review cycles and minimum state of charge.",
   "visualization": "Chart of daily battery cycles and state-of-charge range.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Powerwall Battery Cycle and Reserve Tracking' stops polling `powerwall:aggregate`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powerwall:aggregate`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.3)** — Connector for 'Powerwall Battery Cycle and Reserve Tracking' stops polling `powerwall:aggregate`; stale `discharged`, `min_soc`, `max_soc` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `discharged`, `min_soc`, `max_soc` over `1d` is expected for UC-25.6.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `powerwall:aggregate`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Powerwall Battery Cycle and Reserve Tracking'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

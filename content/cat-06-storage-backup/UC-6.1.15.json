@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NFS Export Availability' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nfs_export_availability` (UC-6.1.15), SOC dashboard panel \"Operations — NFS Export Availability\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='nfs:probe' where `entity` satisfies `latency_ms` > 500 for UC-6.1.15 ('NFS Export Availability'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `nfs:probe` events where `entity` stays below `latency_ms` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.15."
+    "positiveScenario": "UC-6.1.15 positive (NFS, Export, Availability): ingest synthetic events into `index=storage` sourcetype='nfs:probe' where `count` grouped by `entity` satisfies `latency_ms` > 500 for 'NFS Export Availability'. Validate filter `status!=\"ok\" OR latency_ms>500`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.15 negative (Export Availability): ingest benign `storage` / `nfs:probe` events where `entity` stays below `latency_ms` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'NFS Export Availability'."
   },
   "dataSources": "NFS mount probe results, rpcinfo output Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (showmount, mount probes) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"nfs:probe\"\n| search status!=\"ok\" OR latency_ms>500\n| table _time, export_path, server, status, latency_ms, error_message\n| sort -_time",
-  "description": "NFS mount point reachability and latency directly affect application availability. Monitoring from client perspective ensures end-to-end access validation.",
-  "value": "Early 'NFS Export Availability' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-6.1.15 — NFS, Export, Availability — using `index=storage` sourcetype `nfs:probe`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `latency_ms` > 500. Filter chain includes filter `status!=\"ok\" OR latency_ms>500`. Purpose-built for 'NFS Export Availability' in Operations workflows.",
+  "value": "For 'NFS Export Availability', UC-6.1.15 converts `activity` on `nfs:probe` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Deploy scripted input on one or more probe hosts. Script performs `showmount -e <server>` and attempts `mount -t nfs <server>:<export> <mountpoint>` or uses `rpcinfo -p` and a simple read/write test. Measure latency and record success/failure. Run every 5–10 minutes. Index results with export_path, server, status, latency_ms. Alert on status != ok or latency > 500 ms.",
   "visualization": "Table (exports with status and latency), Single value (unreachable exports count), Line chart (latency trend per export), Status grid (export × server).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'NFS Export Availability' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.1.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nfs:probe`** — Scheduled automation elevates `src` without crossing `latency_ms` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nfs:probe`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.15)** — Planned work for 'NFS Export Availability' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `status!=\"ok\" OR latency_ms>500`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nfs:probe`** — Scheduled automation elevates `src` without crossing `latency_ms` > 500 for UC-6.1.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nfs:probe`** — First 48h baseline for UC-6.1.15 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

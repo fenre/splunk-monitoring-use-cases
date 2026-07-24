@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'CPAP Therapy Usage Consistency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_cpap_therapy_usage_consistency` (UC-25.25.28), SOC dashboard panel \"Personal — CPAP Therapy Usage Consistency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='cpap:session' where `_time` satisfies `usage_hours` >= 4 for UC-25.25.28 ('CPAP Therapy Usage Consistency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `cpap:session` events where `_time` stays below `usage_hours` >= 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.28."
+    "positiveScenario": "UC-25.25.28 positive (CPAP, Therapy, Usage, Consistency): ingest synthetic events into `index=personal` sourcetype='cpap:session' where `count` grouped by `_time`, `mask_type` satisfies `usage_hours` >= 4, or `attempts` > 0 for 'CPAP Therapy Usage Consistency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.25.28 negative (Usage Consistency): ingest benign `personal` / `cpap:session` events where `_time`, `mask_type` stays below `usage_hours` >= 4, or `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'CPAP Therapy Usage Consistency'."
   },
   "dataSources": "Oura stress and recovery (`oura:stress`), CPAP therapy sessions (`cpap:session`), oral thermometer readings (`thermometer:reading`), and body-composition scale snapshots (`bodycomp:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal health telemetry from Oura, OSCAR CPAP exports, oral thermometer readings, and smart body-composition scales sent to Splunk HEC via APIs and CSV exports. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=cpap:session\n| bin _time span=1w\n| stats count as attempts count(eval(usage_hours>=4)) as successful by _time mask_type\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time",
-  "description": "Tracks success rate for CPAP therapy nights by mask type. Runs scheduled SPL against `index=personal` to surface **CPAP Therapy Usage Consistency** so you can spot drift before it becomes a habit.",
-  "value": "Tracks success rate for CPAP therapy nights by mask type. Timely UC-25.25.28 alerting on 'CPAP Therapy Usage Consistency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects Usage Consistency anomalies for UC-25.25.28 with window `1w` on `index=personal` sourcetype `cpap:session`. Combines `count` by `_time`, `mask_type` and compares against `usage_hours` >= 4, or `attempts` > 0. Mapped to keywords CPAP, Therapy, Usage, Consistency for dashboard routing.",
+  "value": "Alerting on CPAP, Therapy, Usage, Consistency through UC-25.25.28 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Capture explicit outcome states for CPAP therapy nights events in `index=personal` and review both attempts and success percentage over time.",
   "visualization": "Time chart of success percentage for CPAP therapy nights by mask type.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'CPAP Therapy Usage Consistency' stops polling `cpap:session`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cpap:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `usage_hours` >= 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.25.28)** — Connector for 'CPAP Therapy Usage Consistency' stops polling `cpap:session`; stale `count` on `_time`, `mask_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.25.28, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `cpap:session`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `usage_hours` >= 4 for 'CPAP Therapy Usage Consistency'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

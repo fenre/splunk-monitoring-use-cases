@@ -11,8 +11,8 @@
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:site:topology` from the `site_topology` modular input in `TA_cisco_catalyst` (Splunkbase 7538). The TA polls `GET /dna/intent/api/v1/topology/site-topology` using token auth. Default poll interval: 3600s (1h). Volume: ~1 event per site per poll × ~300 bytes. A campus with 200 sites: ~200 events/poll × 24 polls/day ≈ 4,800 events/day ≈ 1.4 MB/day. Key fields: `siteId` (UUID), `siteName` (string), `siteType` (string: area/building/floor), `parentSiteName` (string). CIM data model: Compute_Inventory.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:site:topology\"\n| stats latest(siteName) as name latest(siteType) as type latest(parentSiteName) as parent by siteId\n| sort parent, type, name",
-  "description": "Provides a complete inventory of the Catalyst Center site hierarchy — every area, building, and floor — as the foundational reference that enables all location-based analytics (UC-5.13.5, UC-5.13.13, UC-5.13.19, UC-5.13.26) and powers the `catalyst_site_lookup` used across the Catalyst Center UC family.",
-  "value": "Provides a complete inventory of the Catalyst Center site hierarchy — every area, building, and floor — as.... Timely UC-5.13.51 alerting on 'Site Hierarchy Inventory' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces 'Site Hierarchy Inventory' patterns (UC-5.13.51) sourced from `index=catalyst` sourcetype `cisco:dnac:site:topology`. Threshold bundle: configured threshold; aggregation grain: `siteId`; metrics: `count`. Watch terms: Site, Hierarchy, Inventory.",
+  "value": "UC-5.13.51 gives Operations teams earlier visibility into Hierarchy Inventory through `cisco:dnac:site:topology` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable the `site_topology` input (Inputs → Create → Site Topology: account `catcenter-prod`, index `catalyst`, interval `3600`). Build the `catalyst_site_lookup` from this data for use across all site-based UCs. Schedule a daily `outputlookup` to keep the lookup current.",
   "visualization": "(1) Table: siteId, name, type, parent — sorted hierarchically. (2) Tree diagram or indented list showing the Global > Area > Building > Floor hierarchy. (3) Single value: total site count. (4) Timechart: `| timechart span=1d dc(siteId) as site_count` for site growth tracking.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://www.cisco.com/c/en/us/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Site Hierarchy Inventory' shifts `count` over `span=1h` while `siteId` remains in-scope for UC-5.13.51. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:site:topology`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `siteId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:site:topology`** — First 48h baseline for `siteId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `siteId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.51)** — Planned work for 'Site Hierarchy Inventory' shifts `count` over `span=1h` while `siteId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:site:topology`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.13.51. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `siteId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:site:topology`** — First 48h baseline for UC-5.13.51 on `siteId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `siteId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -52,7 +52,7 @@
   "prerequisiteUseCases": [],
   "wave": "crawl",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:site:topology' where `siteId` satisfies detection threshold for UC-5.13.51 ('Site Hierarchy Inventory'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:site:topology` events where `siteId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.51."
+    "positiveScenario": "UC-5.13.51 positive (Site, Hierarchy, Inventory): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:site:topology' where `count` grouped by `siteId` satisfies detection threshold for 'Site Hierarchy Inventory'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.51 negative (Hierarchy Inventory): ingest benign `catalyst` / `cisco:dnac:site:topology` events where `siteId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Site Hierarchy Inventory'."
   }
 }

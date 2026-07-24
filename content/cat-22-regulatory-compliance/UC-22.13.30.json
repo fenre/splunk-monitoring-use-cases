@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=patch` sourcetype='patch:status' where `entity` satisfies detection threshold for UC-22.13.30 ('Patch Installation or Mitigation within 35-Day Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `patch` / `patch:status` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.30."
+    "positiveScenario": "UC-22.13.30 positive (Patch, Installation, Mitigation, within, Day): ingest synthetic events into `index=patch` sourcetype='patch:status' where `count` grouped by `entity` satisfies -120d for 'Patch Installation or Mitigation within 35-Day Window'. Validate lookup `cip007_mitigation_plans.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.30 negative (Day Window): ingest benign `patch` / `patch:status` events where `entity` stays below -120d, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'Patch Installation or Mitigation within 35-Day Window'."
   },
   "dataSources": "`index=patch` `sourcetype=patch:status`, `cip007_mitigation_plans.csv` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=patch sourcetype=patch:status bes_asset=1 earliest=-120d\n| eval eval_epoch=strptime(eval_completed,\"%Y-%m-%d\")\n| eval due_epoch=eval_epoch+(35*86400)\n| eval applied=if(match(status,\"(?i)installed\"),1,0)\n| lookup cip007_mitigation_plans.csv patch_id OUTPUT plan_id approved_until\n| eval mitigated=if(isnotnull(plan_id),1,0)\n| where applied=0 AND mitigated=0 AND now()>due_epoch\n| table host, patch_id, eval_completed, due_epoch, status",
-  "description": "We highlight applicable patches past thirty-five days from completed evaluation without apply or approved mitigation plan.",
-  "value": "We highlight applicable patches past thirty-five days from completed evaluation without apply or approved m.... Timely UC-22.13.30 alerting on 'Patch Installation or Mitigation within 35-Day Window' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces Day Window activity in UC-22.13.30 ('Patch Installation or Mitigation within 35-Day Window') from `index=patch` sourcetype `patch:status`. Rolls up `count` by `entity` across `the scheduled window` and pages when -120d. Uses lookup `cip007_mitigation_plans.csv`. Compliance operators treat UC-22.13.30 as the canonical signal.",
+  "value": "Operators running UC-22.13.30 on `patch:status` feeds shorten triage for Day Window tied to 'Patch Installation or Mitigation within 35-Day Window', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Align `eval_completed` with official evaluation logs. (2) Import mitigation plans from GRC. (3) Daily alert to server owners. (4) Ticket exceptions through CIP-003. Indexes required: `index=patch`; Sourcetypes: `sourcetype=patch:status`, `sourcetype=patch:status``; Lookups: `cip007_mitigation_plans`, `cip007_mitigation_plans.csv`.",
   "visualization": "Table (overdue patches), Column chart (by team), Single value (asset count). Key fields: `applied`, `due_epoch`, `eval_completed`, `eval_epoch`, `host`, `mitigated`.",
   "cimModels": [],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'NVR Recording Gap Detection for Splunk CCTV Pipelines' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nvr_recording_gap_detection_for_splunk_cctv_pipe` (UC-15.5.1), SOC dashboard panel \"Operations — NVR Recording Gap Detection for Splunk CCTV Pipelines\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='nvr:recording_health' where `cam` satisfies `gap_s` > 120 for UC-15.5.1 ('NVR Recording Gap Detection for Splunk CCTV Pipelines'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `nvr:recording_health` events where `cam` stays below `gap_s` > 120, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.5.1."
+    "positiveScenario": "UC-15.5.1 positive (NVR, Recording, Gap, Detection, for): ingest synthetic events into `index=physical` sourcetype='nvr:recording_health' where `total_gap_s` grouped by `cam`, `nvr_name` satisfies `gap_s` > 120 for 'NVR Recording Gap Detection for Splunk CCTV Pipelines'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.5.1 negative (CCTV Pipelines): ingest benign `physical` / `nvr:recording_health` events where `cam`, `nvr_name` stays below `gap_s` > 120, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'NVR Recording Gap Detection for Splunk CCTV Pipelines'."
   },
   "dataSources": "`index=physical` · `sourcetype=\"nvr:recording_health\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom TA (NVR REST/syslog), ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"nvr:recording_health\" earliest=-48h\n| eval cam=coalesce(camera_id, channel, \"\")\n| eval gap_s=tonumber(coalesce(gap_seconds, recording_gap_s, \"\"))\n| where gap_s>120 OR recording_state!=\"continuous_ok\"\n| stats sum(gap_s) as total_gap_s by cam nvr_name",
-  "description": "Missing video blocks investigations and compliance replay; health feeds expose scheduler or disk stalls before operators notice.",
-  "value": "Missing video blocks investigations and compliance replay; health feeds expose scheduler or disk stalls bef.... Timely UC-15.5.1 alerting on 'NVR Recording Gap Detection for Splunk CCTV Pipelines' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces CCTV Pipelines anomalies for UC-15.5.1 with window `the scheduled window` on `index=physical` sourcetype `nvr:recording_health`. Combines `total_gap_s` by `cam`, `nvr_name` and compares against `gap_s` > 120. Mapped to keywords NVR, Recording, Gap, Detection, for for dashboard routing.",
+  "value": "Alerting on NVR, Recording, Gap, Detection, for through UC-15.5.1 reduces operational risk and delayed incident response by surfacing `total_gap_s` early.",
   "implementation": "(1) Ingest NVR health JSON every minute. (2) Map `recording_state`. (3) Alert on cumulative gap.",
   "visualization": "Timeline gaps; table cameras worst gap.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'NVR Recording Gap Detection for Splunk CCTV Pipelines' shifts `sum` over `span=1h` while `cam` remains in-scope for UC-15.5.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `nvr:recording_health`** — Scheduled automation elevates `nvr_name` without crossing `gap_s` > 120. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cam`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:recording_health`** — First 48h baseline for `cam` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cam`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.5.1)** — Planned work for 'NVR Recording Gap Detection for Splunk CCTV Pipelines' shifts `total_gap_s` over `span=1h` while `cam`, `nvr_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `nvr:recording_health`** — Scheduled automation elevates `nvr_name` without crossing `gap_s` > 120 for UC-15.5.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cam`, `nvr_name`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nvr:recording_health`** — First 48h baseline for UC-15.5.1 on `cam` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cam`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cctv",
     "syslog"

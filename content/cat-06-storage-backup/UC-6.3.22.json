@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Backup Job Overlap and Schedule Conflict Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_backup_job_overlap_and_schedule_conflict_detecti` (UC-6.3.22), SOC dashboard panel \"Operations — Backup Job Overlap and Schedule Conflict Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='backup_job' where `host` satisfies detection threshold for UC-6.3.22 ('Backup Job Overlap and Schedule Conflict Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `backup_job` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.22."
+    "positiveScenario": "UC-6.3.22 positive (Backup, Job, Overlap, and, Schedule): ingest synthetic events into `index=backup` sourcetype='backup_job' where `values` grouped by `host`, `_time` satisfies detection threshold for 'Backup Job Overlap and Schedule Conflict Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.22 negative (Conflict Detection): ingest benign `backup` / `backup_job` events where `host`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Backup Job Overlap and Schedule Conflict Detection'."
   },
   "dataSources": "Backup job start/end timestamps, job type (full/incremental) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Backup vendor logs or API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=backup_job\n| eval start_epoch=_time end_epoch=_time+duration_sec\n| stats values(job_name) as jobs by host, _time\n| where mvcount(jobs) > 3\n| table _time host jobs",
-  "description": "Overlapping full backups or too many concurrent jobs overload the backup infrastructure and extend backup windows. Detecting overlap supports schedule tuning and resource sizing.",
-  "value": "Early 'Backup Job Overlap and Schedule Conflict Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-6.3.22 — Backup, Job, Overlap, and, Schedule — using `index=backup` sourcetype `backup_job`, grouped by `host`, `_time`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: Conflict Detection. Purpose-built for 'Backup Job Overlap and Schedule Conflict Detection' in Operations workflows.",
+  "value": "UC-6.3.22 gives Operations teams earlier visibility into Conflict Detection through `backup_job` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest job start and duration. For each time window, count concurrent jobs per host or media server. Alert when more than N full backups run concurrently or when backup window is exceeded.",
   "visualization": "Timeline (jobs by start/end), Table (overlapping jobs), Single value (max concurrent).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Backup Job Overlap and Schedule Conflict Detection' shifts `values` over `span=1h` while `host` remains in-scope for UC-6.3.22. Cross-check CMDB CHG.\n\n2. **Batch `values` on `backup_job`** — Scheduled automation elevates `_time` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `backup_job`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.22)** — Planned work for 'Backup Job Overlap and Schedule Conflict Detection' shifts `values` over `span=1h` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `backup_job`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-6.3.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `backup_job`** — First 48h baseline for UC-6.3.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

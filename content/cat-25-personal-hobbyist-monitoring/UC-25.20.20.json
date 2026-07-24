@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Lightning Cluster by Storm Hour' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_lightning_cluster_by_storm_hour` (UC-25.20.20), SOC dashboard panel \"Personal — Lightning Cluster by Storm Hour\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='lightning:strike' where `station` satisfies `strikes` > 10 for UC-25.20.20 ('Lightning Cluster by Storm Hour'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `lightning:strike` events where `station` stays below `strikes` > 10, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.20.20."
+    "positiveScenario": "UC-25.20.20 positive (Lightning, Cluster, Storm, Hour): ingest synthetic events into `index=personal` sourcetype='lightning:strike' where `nearest_km` grouped by `station`, `_time` satisfies `strikes` > 10, or `nearest_km` < 5 for 'Lightning Cluster by Storm Hour'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.20.20 negative (Storm Hour): ingest benign `personal` / `lightning:strike` events where `station`, `_time` stays below `strikes` > 10, or `nearest_km` < 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Lightning Cluster by Storm Hour'."
   },
   "dataSources": "Citizen-science telemetry (`seismo:reading`, `geiger:cpm`, `lightning:strike`, `airgradient:sensor`, `radon:reading`, `allsky:capture`, `magnetometer:reading`, `weatherstation:reading`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Raspberry Shake, Safecast, Blitzortung-compatible lightning sensors, AirGradient CO2 sensors, radon monitors, allsky cameras, and magnetometers streamed to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=lightning:strike\n| bin _time span=1h\n| stats count as strikes, min(distance_km) as nearest_km by station _time\n| where strikes>10 OR nearest_km<5\n| sort - strikes",
-  "description": "Uses Lightning detector feeds telemetry to monitor storm hours with dense strike activity or very near hits in index=personal.",
-  "value": "Uses Lightning detector feeds telemetry to monitor storm hours with dense strike activity or very near hits.... Timely UC-25.20.20 alerting on 'Lightning Cluster by Storm Hour' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.20.20 — Lightning, Cluster, Storm, Hour — using `index=personal` sourcetype `lightning:strike`, grouped by `station`, `_time`. Outputs `nearest_km` each `1h`; alert when `strikes` > 10, or `nearest_km` < 5. Primary focus: Storm Hour. Purpose-built for 'Lightning Cluster by Storm Hour' in Personal workflows.",
+  "value": "Alerting on Lightning, Cluster, Storm, Hour through UC-25.20.20 reduces missed training goals, stale hobby data, and connector failures by surfacing `nearest_km` early.",
   "implementation": "Ingest Lightning detector feeds data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Hourly lightning-cluster table.",
   "cimModels": [],
@@ -60,7 +60,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Lightning Cluster by Storm Hour' stops polling `lightning:strike`; stale `station` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightning:strike`. Dedup with `stats latest(*) by station`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `strikes` > 10. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.20.20)** — Connector for 'Lightning Cluster by Storm Hour' stops polling `lightning:strike`; stale `nearest_km` on `station`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `nearest_km` over `1h` is expected for UC-25.20.20, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `lightning:strike`. Dedup with `stats latest(*) by station`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `strikes` > 10 for 'Lightning Cluster by Storm Hour'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

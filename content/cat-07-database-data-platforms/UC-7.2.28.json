@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MySQL Group Replication Member Not ONLINE' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mysql_group_replication_member_not_online` (UC-7.2.28), SOC dashboard panel \"Operations — MySQL Group Replication Member Not ONLINE\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mysql:gr_member' where `CHANNEL_NAME` satisfies detection threshold for UC-7.2.28 ('MySQL Group Replication Member Not ONLINE'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mysql:gr_member` events where `CHANNEL_NAME` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.28."
+    "positiveScenario": "UC-7.2.28 positive (MySQL, Group, Replication, Member, Not): ingest synthetic events into `index=database` sourcetype='mysql:gr_member' where `count` grouped by `CHANNEL_NAME`, `GROUP_NAME`, `host` satisfies detection threshold for 'MySQL Group Replication Member Not ONLINE'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.28 negative (Not ONLINE): ingest benign `database` / `mysql:gr_member` events where `CHANNEL_NAME`, `GROUP_NAME`, `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'MySQL Group Replication Member Not ONLINE'."
   },
   "dataSources": "`performance_schema.replication_group_members`.MEMBER_STATE (ingested as `mysql:gr_member` or DB Connect batch)",
   "app": "Splunk DB Connect (Splunkbase 2686)",
   "spl": "index=database sourcetype=\"mysql:gr_member\"\n| where MEMBER_STATE!=\"ONLINE\"\n| stats latest(MEMBER_STATE) as state latest(MEMBER_HOST) as member_host by CHANNEL_NAME, GROUP_NAME, host\n| sort state",
-  "description": "Group Replication requires members to reach ONLINE state for write certification. MEMBER_STATE in ERROR, RECOVERING, or OFFLINE is a standard failover and incident trigger.",
-  "value": "Group Replication requires members to reach ONLINE state for write certification. Timely UC-7.2.28 alerting on 'MySQL Group Replication Member Not ONLINE' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-7.2.28 — MySQL, Group, Replication, Member, Not — using `index=database` sourcetype `mysql:gr_member`, grouped by `CHANNEL_NAME`, `GROUP_NAME`, `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Not ONLINE. Purpose-built for 'MySQL Group Replication Member Not ONLINE' in Operations workflows.",
+  "value": "UC-7.2.28 gives Operations teams earlier visibility into Not ONLINE through `mysql:gr_member` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Schedule a DB Connect query to replication_group_members on each instance. Include MEMBER_ROLE to distinguish PRIMARY/SECONDARY. Alert on any non-ONLINE state outside maintenance. Correlate with network and disk on the affected host.",
   "visualization": "Table (group, member, state, role), Timeline (state transitions), Single value (bad members).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MySQL Group Replication Member Not ONLINE' shifts `count` over `span=1h` while `CHANNEL_NAME` remains in-scope for UC-7.2.28. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mysql:gr_member`** — Scheduled automation elevates `GROUP_NAME` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `CHANNEL_NAME`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:gr_member`** — First 48h baseline for `CHANNEL_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `CHANNEL_NAME`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.28)** — Planned work for 'MySQL Group Replication Member Not ONLINE' shifts `count` over `span=1h` while `CHANNEL_NAME`, `GROUP_NAME`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mysql:gr_member`** — Scheduled automation elevates `GROUP_NAME` without crossing configured threshold for UC-7.2.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `CHANNEL_NAME`, `GROUP_NAME`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mysql:gr_member`** — First 48h baseline for UC-7.2.28 on `CHANNEL_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `CHANNEL_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mysql"

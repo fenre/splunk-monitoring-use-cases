@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SAML Assertion Replay Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_saml_assertion_replay_detection` (UC-9.3.8), SOC dashboard panel \"IAM — SAML Assertion Replay Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=saml` sourcetype='saml:assertion' where `assertion_id` satisfies `count` > 1 for UC-9.3.8 ('SAML Assertion Replay Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `saml` / `saml:assertion` events where `assertion_id` stays below `count` > 1, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.8."
+    "positiveScenario": "UC-9.3.8 positive (SAML, Assertion, Replay, Detection): ingest synthetic events into `index=saml` sourcetype='saml:assertion' where `count` grouped by `assertion_id`, `sp_entity_id` satisfies `count` > 1 for 'SAML Assertion Replay Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.8 negative (Replay Detection): ingest benign `saml` / `saml:assertion` events where `assertion_id`, `sp_entity_id` stays below `count` > 1, or exclude the test entity via `iam_exception_register.csv`. Variant 2 confirms zero alert rows for 'SAML Assertion Replay Detection'."
   },
   "dataSources": "SAML response logs with `AssertionID`, `InResponseTo`, `NotOnOrAfter` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IdP logs, application SAML trace (e.g., Shibboleth, Okta, ADFS) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=saml sourcetype=\"saml:assertion\"\n| stats count by assertion_id, sp_entity_id\n| where count > 1\n| table assertion_id, sp_entity_id, count",
-  "description": "Replayed SAML assertions can grant access without fresh authentication. Correlating assertion IDs and NotOnOrAfter windows catches reuse.",
-  "value": "Early 'SAML Assertion Replay Detection' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.3.8 for SAML, Assertion, Replay, Detection over `index=saml` sourcetype `saml:assertion` with thresholds `count` > 1. Groups `count` by `assertion_id`, `sp_entity_id` each `the scheduled window`. Centered on Replay Detection indicators. Supports repeatable iam triage for 'SAML Assertion Replay Detection'.",
+  "value": "For 'SAML Assertion Replay Detection', UC-9.3.8 converts `activity` on `saml:assertion` feeds into actionable rows and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Ingest assertion IDs from IdP or SP debug logs (privacy-safe hashing if needed). Alert on duplicate assertion_id for same SP. Enforce short assertion lifetimes at IdP.",
   "visualization": "Table (duplicate assertions), Timeline, Single value (replay attempts).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `saml`** — Planned work for 'SAML Assertion Replay Detection' shifts `count` over `span=1h` while `assertion_id` remains in-scope for UC-9.3.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `saml:assertion`** — Scheduled automation elevates `sp_entity_id` without crossing `count` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `assertion_id`** — Health checks in `saml` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `saml:assertion`** — First 48h baseline for `assertion_id` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `assertion_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `saml` (UC-9.3.8)** — Planned work for 'SAML Assertion Replay Detection' shifts `count` over `span=1h` while `assertion_id`, `sp_entity_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `saml:assertion`** — Scheduled automation elevates `sp_entity_id` without crossing `count` > 1 for UC-9.3.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `assertion_id`, `sp_entity_id`** — Health checks in `saml` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `saml:assertion`** — First 48h baseline for UC-9.3.8 on `assertion_id` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `assertion_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1550.001"
   ],

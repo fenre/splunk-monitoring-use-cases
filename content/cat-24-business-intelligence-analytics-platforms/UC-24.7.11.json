@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'dbt Source Freshness Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dbt_source_freshness_failures` (UC-24.7.11), SOC dashboard panel \"Operations — dbt Source Freshness Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dataops` sourcetype='dbt:sources' where `source_name` satisfies `stale` > 0 for UC-24.7.11 ('dbt Source Freshness Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dataops` / `dbt:sources` events where `source_name` stays below `stale` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.11."
+    "positiveScenario": "UC-24.7.11 positive (dbt, Source, Freshness, Failures): ingest synthetic events into `index=dataops` sourcetype='dbt:sources' where `sum` grouped by `source_name`, `table_name` satisfies `stale` > 0 for 'dbt Source Freshness Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.11 negative (Freshness Failures): ingest benign `dataops` / `dbt:sources` events where `source_name`, `table_name` stays below `stale` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'dbt Source Freshness Failures'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:task`), Airflow StatsD/OTel metrics, dbt `run_results.json`/`sources.json` (`dbt:run_results`), dbt Cloud API run history, Dagster/Prefect run events. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Airflow scheduler/worker logs and StatsD/OTel metrics via HEC; dbt run-results/manifest artifacts and dbt Cloud API via HEC scripted inputs; Dagster/Prefect event logs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dataops sourcetype=dbt:sources\n| stats count as checks, sum(eval(status IN (\"error\",\"warn\"))) as stale by source_name, table_name\n| where stale>0\n| sort - stale",
-  "description": "Consumes dbt source-freshness results to flag raw source tables that have not loaded recently, catching upstream data delays before transformations run on stale inputs.",
-  "value": "Consumes dbt source-freshness results to flag raw source tables that have not loaded recently, catching ups.... Timely UC-24.7.11 alerting on 'dbt Source Freshness Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-24.7.11 — dbt, Source, Freshness, Failures — using `index=dataops` sourcetype `dbt:sources`, grouped by `source_name`, `table_name`. Outputs `sum` each `the scheduled window`; alert when `stale` > 0. Primary focus: Freshness Failures. Purpose-built for 'dbt Source Freshness Failures' in Operations workflows.",
+  "value": "UC-24.7.11 accelerates insight into Freshness Failures ('dbt Source Freshness Failures') by tracking `activity` on `dbt:sources` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Emit `sources.json` from `dbt source freshness` to HEC; schedule after freshness runs; alert on stale critical sources.",
   "visualization": "Table of stale sources, timechart of freshness failures.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `dataops`** — Planned work for 'dbt Source Freshness Failures' shifts `sum` over `span=1h` while `source_name` remains in-scope for UC-24.7.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbt:sources`** — Scheduled automation elevates `table_name` without crossing `stale` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:sources`** — First 48h baseline for `source_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `dataops` (UC-24.7.11)** — Planned work for 'dbt Source Freshness Failures' shifts `sum` over `span=1h` while `source_name`, `table_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbt:sources`** — Scheduled automation elevates `table_name` without crossing `stale` > 0 for UC-24.7.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_name`, `table_name`** — Health checks in `dataops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:sources`** — First 48h baseline for UC-24.7.11 on `source_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache"
   ],

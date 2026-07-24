@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Change Failure Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_change_failure_rate` (UC-12.2.23), SOC dashboard panel \"Operations — Change Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `application` satisfies `cfr` > 15 for UC-12.2.23 ('Change Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `deployment_event` events where `application` stays below `cfr` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.23."
+    "positiveScenario": "UC-12.2.23 positive (Change, Failure, Rate): ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `fails` grouped by `application` satisfies `cfr` > 15 for 'Change Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.23 negative (Failure Rate): ingest benign `cicd` / `deployment_event` events where `application` stays below `cfr` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Change Failure Rate'."
   },
   "dataSources": "`deployment_event` outcome, post-deploy incident within 1h Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Deployment + incident linkage — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| eval failed=if(status=\"failed\" OR incident_within_1h=\"true\",1,0)\n| stats sum(failed) as fails, count as total by application\n| eval cfr=round(fails/total*100,2)\n| where cfr > 15\n| sort -cfr",
-  "description": "Ratio of failed deployments or hotfix-required releases to total deployments—DORA metric. Searches `index=cicd` with sourcetype `deployment_event` for UC-12.2.23, aggregating `sum` by `application` over `the scheduled window`. Alerts when grouped results cross `cfr` > 15 in the saved search. Gives Operations operators a repeatable signal for 'Change Failure Rate' without manual log review.",
-  "value": "Early 'Change Failure Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Change Failure Rate' (UC-12.2.23) using `index=cicd` sourcetype `deployment_event` by aggregating `fails` grouped by `application` over `the scheduled window` and alerting when `cfr` > 15. Keywords: Change, Failure, Rate. Focuses on Failure Rate behaviour so operations teams can triage UC-12.2.23 without ad-hoc log review.",
+  "value": "UC-12.2.23 accelerates insight into Failure Rate ('Change Failure Rate') by tracking `fails` on `deployment_event` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Flag incidents linked to version within 1h window. Target CFR <15% for mature teams. Review outliers in postmortems.",
   "visualization": "Bar chart (CFR by app), Line chart (CFR trend), Single value (org CFR).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Change Failure Rate' shifts `sum` over `span=1h` while `application` remains in-scope for UC-12.2.23. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `deployment_event`** — Scheduled automation elevates `failed` without crossing `cfr` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `application`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for `application` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `application`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.23)** — Planned work for 'Change Failure Rate' shifts `fails` over `span=1h` while `application` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `deployment_event`** — Scheduled automation elevates `failed` without crossing `cfr` > 15 for UC-12.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `application`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for UC-12.2.23 on `application` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `application`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'RDS Performance Insights' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rds_performance_insights` (UC-4.1.11), SOC dashboard panel \"Operations — RDS Performance Insights\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `metric_name` satisfies detection threshold for UC-4.1.11 ('RDS Performance Insights'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `metric_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.11."
+    "positiveScenario": "UC-4.1.11 positive (RDS, Performance, Insights): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `avg` grouped by `metric_name`, `DBInstanceIdentifier` satisfies detection threshold for 'RDS Performance Insights'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.11 negative (Performance Insights): ingest benign `aws` / `aws:cloudwatch` events where `metric_name`, `DBInstanceIdentifier` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'RDS Performance Insights'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (RDS namespace), RDS logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/RDS\" (metric_name=\"CPUUtilization\" OR metric_name=\"DatabaseConnections\" OR metric_name=\"ReadLatency\" OR metric_name=\"ReplicaLag\")\n| timechart span=5m avg(Average) by metric_name, DBInstanceIdentifier",
-  "description": "Database performance issues directly impact application experience. Monitoring connections, CPU, IOPS, and replica lag catches problems before users notice.",
-  "value": "Early 'RDS Performance Insights' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-4.1.11 — RDS, Performance, Insights — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `metric_name`, `DBInstanceIdentifier`. Outputs `avg` each `5m`; alert when configured threshold. Primary focus: Performance Insights. Purpose-built for 'RDS Performance Insights' in Operations workflows.",
+  "value": "Operators running UC-4.1.11 on `aws:cloudwatch` feeds shorten triage for Performance Insights tied to 'RDS Performance Insights', lowering operational risk and delayed incident response.",
   "implementation": "Enable CloudWatch metric collection for RDS namespace. Also forward RDS logs (slow query, error, general) to Splunk via CloudWatch Logs. Alert on ReplicaLag >30s, CPU >80%, or connection count nearing max.",
   "visualization": "Multi-metric line chart, Gauge (connections vs. max), Table.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'RDS Performance Insights' shifts `avg` over `span=5m` while `metric_name` remains in-scope for UC-4.1.11. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `DBInstanceIdentifier` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.11)** — Planned work for 'RDS Performance Insights' shifts `avg` over `span=5m` while `metric_name`, `DBInstanceIdentifier` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `DBInstanceIdentifier` without crossing configured threshold for UC-4.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`, `DBInstanceIdentifier`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.11 on `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

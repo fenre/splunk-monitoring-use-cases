@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wallet Concentration Risk' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wallet_concentration_risk` (UC-25.12.12), SOC dashboard panel \"Personal — Wallet Concentration Risk\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='wallet:balance' where `asset` satisfies `pct` > 50 for UC-25.12.12 ('Wallet Concentration Risk'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `wallet:balance` events where `asset` stays below `pct` > 50, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.12.12."
+    "positiveScenario": "UC-25.12.12 positive (Wallet, Concentration, Risk): ingest synthetic events into `index=personal` sourcetype='wallet:balance' where `portfolio_usd` grouped by `asset` satisfies `pct` > 50 for 'Wallet Concentration Risk'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.12.12 negative (Concentration Risk): ingest benign `personal` / `wallet:balance` events where `asset` stays below `pct` > 50, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Wallet Concentration Risk'."
   },
   "dataSources": "Crypto prices/holdings (`crypto:price`, `wallet:balance`), exchange transactions (`coinbase:txn`), budget/transaction exports (`firefly:txn`, `ynab:txn`), bill feeds. Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Crypto exchange/wallet APIs (Coinbase, on-chain), budgeting exports (YNAB/Firefly III), and subscription trackers via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=wallet:balance\n| stats latest(balance_usd) as usd by asset\n| eventstats sum(usd) as portfolio_usd\n| eval pct=round(100*usd/portfolio_usd,1)\n| where pct>50\n| sort - pct",
-  "description": "Shows whether one asset has grown to dominate your tracked portfolio, turning a few green weeks into hidden concentration risk.",
-  "value": "Shows whether one asset has grown to dominate your tracked portfolio, turning a few green weeks into hidden.... Timely UC-25.12.12 alerting on 'Wallet Concentration Risk' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.12.12 — Wallet, Concentration, Risk — using `index=personal` sourcetype `wallet:balance`, grouped by `asset`. Outputs `portfolio_usd` each `the scheduled window`; alert when `pct` > 50. Primary focus: Concentration Risk. Purpose-built for 'Wallet Concentration Risk' in Personal workflows.",
+  "value": "UC-25.12.12 gives Personal teams earlier visibility into Concentration Risk through `wallet:balance` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward wallet balances in USD terms; review allocation whenever an asset crosses your comfort threshold.",
   "visualization": "Portfolio table of assets by current value and share percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wallet Concentration Risk' stops polling `wallet:balance`; stale `asset` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wallet:balance`. Dedup with `stats latest(*) by asset`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct` > 50. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.12.12)** — Connector for 'Wallet Concentration Risk' stops polling `wallet:balance`; stale `portfolio_usd` on `asset` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `portfolio_usd` over `1w` is expected for UC-25.12.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `wallet:balance`. Dedup with `stats latest(*) by asset`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `pct` > 50 for 'Wallet Concentration Risk'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "exchange",
     "m365"

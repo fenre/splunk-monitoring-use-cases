@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Continuous Glucose Time-in-Range' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_continuous_glucose_time_in_range` (UC-25.2.7), SOC dashboard panel \"Personal — Continuous Glucose Time-in-Range\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='dexcom:egv' where `band` satisfies `glucose_mgdl` < 70 for UC-25.2.7 ('Continuous Glucose Time-in-Range'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `dexcom:egv` events where `band` stays below `glucose_mgdl` < 70, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.7."
+    "positiveScenario": "UC-25.2.7 positive (Continuous, Glucose, Time, Range): ingest synthetic events into `index=personal` sourcetype='dexcom:egv' where `total` grouped by `band` satisfies `glucose_mgdl` < 70, or `glucose_mgdl` <= 180 for 'Continuous Glucose Time-in-Range'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.7 negative (in Range): ingest benign `personal` / `dexcom:egv` events where `band` stays below `glucose_mgdl` < 70, or `glucose_mgdl` <= 180, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Continuous Glucose Time-in-Range'."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring readiness/sleep (`oura:daily`), Whoop recovery/strain (`whoop:cycle`), Withings measurements (`withings:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export or Shortcuts) via HEC; Oura, Whoop, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=dexcom:egv\n| eval band=case(glucose_mgdl<70,\"low\",glucose_mgdl<=180,\"in range\",1=1,\"high\")\n| stats count by band\n| eventstats sum(count) as total\n| eval pct=round(100*count/total,1)",
-  "description": "Calculates what fraction of the day your glucose stays within the healthy target band, the headline metric clinicians use for glucose management.",
-  "value": "Calculates what fraction of the day your glucose stays within the healthy target band, the headline metric.... Timely UC-25.2.7 alerting on 'Continuous Glucose Time-in-Range' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies risk tied to Continuous, Glucose, Time, Range through UC-25.2.7 on `index=personal` sourcetype `dexcom:egv`. Summarises `total` grouped by `band` across `the scheduled window` before applying `glucose_mgdl` < 70, or `glucose_mgdl` <= 180. Operators tune 'Continuous Glucose Time-in-Range' using UC-25.2.7 runbook steps.",
+  "value": "Tracking `total` via UC-25.2.7 on `dexcom:egv` feeds improves response to 'Continuous Glucose Time-in-Range' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest continuous-glucose-monitor values into `index=personal`; schedule daily and track the in-range percentage over time.",
   "visualization": "Pie or bar chart of time spent low, in range, and high.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Continuous Glucose Time-in-Range' stops polling `dexcom:egv`; stale `band` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dexcom:egv`. Dedup with `stats latest(*) by band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `glucose_mgdl` < 70. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.7)** — Connector for 'Continuous Glucose Time-in-Range' stops polling `dexcom:egv`; stale `total` on `band` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total` over `1w` is expected for UC-25.2.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `dexcom:egv`. Dedup with `stats latest(*) by band`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `glucose_mgdl` < 70 for 'Continuous Glucose Time-in-Range'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

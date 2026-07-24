@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Aging Ticket Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aging_ticket_alerts` (UC-16.1.8), SOC dashboard panel \"Operations — Aging Ticket Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `entity` satisfies detection threshold for UC-16.1.8 ('Aging Ticket Alerts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.8."
+    "positiveScenario": "UC-16.1.8 positive (Aging, Ticket, Alerts): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `count` grouped by `entity` satisfies detection threshold for 'Aging Ticket Alerts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.8 negative (Ticket Alerts): ingest benign `itsm` / `snow:incident` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Aging Ticket Alerts'."
   },
   "dataSources": "ServiceNow open incidents and task states (snow:incident) with opened_at, priority, and assignment Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" state IN (\"new\",\"in_progress\",\"on_hold\")\n| eval age_days=round((now()-opened_at)/86400)\n| eval age_threshold=case(priority=1,1, priority=2,3, priority=3,7, 1=1,14)\n| where age_days > age_threshold\n| table number, short_description, priority, assignment_group, age_days\n| sort -age_days",
-  "description": "Aging tickets indicate stuck processes or forgotten issues. Alerts ensure nothing falls through the cracks. Searches `index=itsm` with sourcetype `snow:incident` for UC-16.1.8, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Aging Ticket Alerts' without manual log review.",
-  "value": "Early 'Aging Ticket Alerts' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Ticket Alerts anomalies for UC-16.1.8 with window `the scheduled window` on `index=itsm` sourcetype `snow:incident`. Combines `count` by `entity` and compares against configured threshold. Mapped to keywords Aging, Ticket, Alerts for dashboard routing.",
+  "value": "Alerting on Aging, Ticket, Alerts through UC-16.1.8 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Calculate ticket age against priority-based thresholds. Alert when tickets exceed expected resolution time. Escalate automatically via workflow rules. Report on aging ticket inventory daily.",
   "visualization": "Table (aging tickets), Bar chart (aging by priority), Single value (total aging tickets), Line chart (aging trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Aging Ticket Alerts' shifts `count` over `span=1h` while `host` remains in-scope for UC-16.1.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `age_days` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.8)** — Planned work for 'Aging Ticket Alerts' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `age_days` without crossing configured threshold for UC-16.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

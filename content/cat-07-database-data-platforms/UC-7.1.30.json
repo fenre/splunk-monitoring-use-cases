@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Oracle Tablespace Growth Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_oracle_tablespace_growth_trending` (UC-7.1.30), SOC dashboard panel \"Operations — Oracle Tablespace Growth Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:oracle_tablespace' where `TABLESPACE_NAME` satisfies `growth_gb` > 10 for UC-7.1.30 ('Oracle Tablespace Growth Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:oracle_tablespace` events where `TABLESPACE_NAME` stays below `growth_gb` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.30."
+    "positiveScenario": "UC-7.1.30 positive (Oracle, Tablespace, Growth, Trending): ingest synthetic events into `index=database` sourcetype='dbconnect:oracle_tablespace' where `count` grouped by `TABLESPACE_NAME` satisfies `growth_gb` > 10 for 'Oracle Tablespace Growth Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.30 negative (Growth Trending): ingest benign `database` / `dbconnect:oracle_tablespace` events where `TABLESPACE_NAME` stays below `growth_gb` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Oracle Tablespace Growth Trending'."
   },
   "dataSources": "`DBA_TABLESPACE_USAGE_METRICS` (used_space, tablespace_size) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:oracle_tablespace\"\n| timechart span=1d latest(USED_SPACE) as used_bytes by TABLESPACE_NAME\n| streamstats window=7 range(used_bytes) as growth_7d by TABLESPACE_NAME\n| eval growth_gb=round(growth_7d/1073741824,2)\n| where growth_gb > 10",
-  "description": "Week-over-week growth rate per tablespace drives forecast and ASM/space procurement. Extends point-in-time utilization with trend.",
-  "value": "Early 'Oracle Tablespace Growth Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-7.1.30 — Oracle, Tablespace, Growth, Trending — using `index=database` sourcetype `dbconnect:oracle_tablespace`, grouped by `TABLESPACE_NAME`. Outputs `count` each `1d`; alert when `growth_gb` > 10. Primary focus: Growth Trending. Purpose-built for 'Oracle Tablespace Growth Trending' in Operations workflows.",
+  "value": "Tracking `activity` via UC-7.1.30 on `dbconnect:oracle_tablespace` feeds improves response to 'Oracle Tablespace Growth Trending' and reduces operational risk and delayed incident response.",
   "implementation": "Daily snapshot. Alert on >10GB/week growth on critical tablespaces. Use `predict` on used_bytes for runway to maxsize.",
   "visualization": "Line chart (used GB trend), Table (tablespace, growth GB/week), Single value (fastest growing).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Oracle Tablespace Growth Trending' shifts `count` over `span=1d` while `TABLESPACE_NAME` remains in-scope for UC-7.1.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:oracle_tablespace`** — Scheduled automation elevates `growth_gb` without crossing `growth_gb` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TABLESPACE_NAME`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:oracle_tablespace`** — First 48h baseline for `TABLESPACE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TABLESPACE_NAME`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.30)** — Planned work for 'Oracle Tablespace Growth Trending' shifts `count` over `span=1d` while `TABLESPACE_NAME` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:oracle_tablespace`** — Scheduled automation elevates `growth_gb` without crossing `growth_gb` > 10 for UC-7.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TABLESPACE_NAME`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:oracle_tablespace`** — First 48h baseline for UC-7.1.30 on `TABLESPACE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TABLESPACE_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "oracle"

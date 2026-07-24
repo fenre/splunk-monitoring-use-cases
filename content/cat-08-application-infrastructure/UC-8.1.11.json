@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NGINX Upstream Response Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_nginx_upstream_response_errors` (UC-8.1.11), SOC dashboard panel \"Operations — NGINX Upstream Response Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:access' where `host` satisfies `upstream_status` >= 500 for UC-8.1.11 ('NGINX Upstream Response Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `nginx:access` events where `host` stays below `upstream_status` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.11."
+    "positiveScenario": "UC-8.1.11 positive (NGINX, Upstream, Response, Errors): ingest synthetic events into `index=web` sourcetype='nginx:access' where `upstream_errors` grouped by `host`, `upstream_addr` satisfies `upstream_status` >= 500, or `err_rate` > 2 for 'NGINX Upstream Response Errors'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.11 negative (Response Errors): ingest benign `web` / `nginx:access` events where `host`, `upstream_addr` stays below `upstream_status` >= 500, or `err_rate` > 2, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'NGINX Upstream Response Errors'."
   },
   "dataSources": "`access_combined` with `upstream_status`, `nginx:error` upstream messages Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-nginx` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"nginx:access\" OR sourcetype=\"access_combined\"\n| eval up_err=if(upstream_status>=500 OR status=502 OR status=504,1,0)\n| stats sum(up_err) as upstream_errors, count as total by host, upstream_addr\n| eval err_rate=round(upstream_errors/total*100,2)\n| where err_rate > 2",
-  "description": "Counts upstream HTTP 5xx and connect/timeout errors from NGINX access/error logs. Isolates reverse-proxy vs origin issues faster than aggregate 5xx alone.",
-  "value": "Early 'NGINX Upstream Response Errors' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-8.1.11 — NGINX, Upstream, Response, Errors — using `index=web` sourcetype `nginx:access`, grouped by `host`, `upstream_addr`. Outputs `upstream_errors` each `the scheduled window`; alert when `upstream_status` >= 500, or `err_rate` > 2. Primary focus: Response Errors. Purpose-built for 'NGINX Upstream Response Errors' in Operations workflows.",
+  "value": "UC-8.1.11 accelerates insight into Response Errors ('NGINX Upstream Response Errors') by tracking `upstream_errors` on `nginx:access` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Enable `upstream_status` and `upstream_addr` in log_format. Alert on upstream error rate >2% for 5m. Correlate with backend pool health.",
   "visualization": "Line chart (upstream error rate), Table (upstream_addr, errors), Bar chart (5xx by upstream).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'NGINX Upstream Response Errors' shifts `sum` over `span=1h` while `host` remains in-scope for UC-8.1.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `nginx:access`** — Scheduled automation elevates `upstream_addr` without crossing `upstream_status` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:access`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.11)** — Planned work for 'NGINX Upstream Response Errors' shifts `upstream_errors` over `span=1h` while `host`, `upstream_addr` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `nginx:access`** — Scheduled automation elevates `upstream_addr` without crossing `upstream_status` >= 500 for UC-8.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `upstream_addr`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:access`** — First 48h baseline for UC-8.1.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "nginx"
   ],

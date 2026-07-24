@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Spanner Instance Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_spanner_instance_health` (UC-7.3.10), SOC dashboard panel \"Operations — Cloud Spanner Instance Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='gcp:monitoring' where `instance_id` satisfies `cpu_util` > 0.65 for UC-7.3.10 ('Cloud Spanner Instance Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `gcp:monitoring` events where `instance_id` stays below `cpu_util` > 0.65, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.10."
+    "positiveScenario": "UC-7.3.10 positive (Cloud, Spanner, Instance, Health): ingest synthetic events into `index=gcp` sourcetype='gcp:monitoring' where `cpu_util` grouped by `instance_id` satisfies `cpu_util` > 0.65 for 'Cloud Spanner Instance Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.10 negative (Instance Health): ingest benign `gcp` / `gcp:monitoring` events where `instance_id` stays below `cpu_util` > 0.65, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Cloud Spanner Instance Health'."
   },
   "dataSources": "`spanner.googleapis.com/instance/cpu/utilization`, `transaction_count`, `streaming_pull_response_count` Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "GCP Monitoring TA, scripted export — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"gcp:monitoring\" metric_type=\"spanner.googleapis.com/instance/cpu/utilization\"\n| timechart span=5m avg(value) as cpu_util by instance_id\n| where cpu_util > 0.65",
-  "description": "CPU utilization, hot spots, and replication delay for Spanner nodes indicate risk of write/read stalls on globally distributed data.",
-  "value": "Early 'Cloud Spanner Instance Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-7.3.10 — Cloud, Spanner, Instance, Health — using `index=gcp` sourcetype `gcp:monitoring`, grouped by `instance_id`. Outputs `cpu_util` each `5m`; alert when `cpu_util` > 0.65. Primary focus: Instance Health. Purpose-built for 'Cloud Spanner Instance Health' in Operations workflows.",
+  "value": "UC-7.3.10 operationalises 'Cloud Spanner Instance Health' against `gcp:monitoring` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Spanner instance metrics per project. Alert on high CPU or increasing 99p latency metrics. Use query insights export for hot keys if enabled.",
   "visualization": "Line chart (CPU and latency), Table (instances over SLO), Heatmap (instance × region).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'Cloud Spanner Instance Health' shifts `avg` over `span=5m` while `instance_id` remains in-scope for UC-7.3.10. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gcp:monitoring`** — Scheduled automation elevates `src` without crossing `cpu_util` > 0.65. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance_id`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gcp:monitoring`** — First 48h baseline for `instance_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-7.3.10)** — Planned work for 'Cloud Spanner Instance Health' shifts `cpu_util` over `span=5m` while `instance_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gcp:monitoring`** — Scheduled automation elevates `src` without crossing `cpu_util` > 0.65 for UC-7.3.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance_id`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gcp:monitoring`** — First 48h baseline for UC-7.3.10 on `instance_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

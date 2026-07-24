@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sleep Debt Accumulation Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sleep_debt_accumulation_watch` (UC-25.2.12), SOC dashboard panel \"Personal — Sleep Debt Accumulation Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='oura:daily' where `user` satisfies `sleep_debt` > 0 for UC-25.2.12 ('Sleep Debt Accumulation Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `oura:daily` events where `user` stays below `sleep_debt` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.12."
+    "positiveScenario": "UC-25.2.12 positive (Sleep, Debt, Accumulation, Watch): ingest synthetic events into `index=personal` sourcetype='oura:daily' where `debt_7d` grouped by `user` satisfies `sleep_debt` > 0, or `debt_7d` > 5 for 'Sleep Debt Accumulation Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.12 negative (Accumulation Watch): ingest benign `personal` / `oura:daily` events where `user` stays below `sleep_debt` > 0, or `debt_7d` > 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Sleep Debt Accumulation Watch'."
   },
   "dataSources": "Apple Health metrics (`apple:health`), Oura Ring daily readiness/sleep (`oura:daily`), WHOOP recovery/strain (`whoop:cycle`), Withings body and blood-pressure (`withings:measure`), Dexcom CGM glucose (`dexcom:egv`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports (Health Auto Export, Shortcuts) via HEC; Oura, WHOOP, Withings, and Dexcom APIs via scripted REST inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=oura:daily\n| eval sleep_debt=target_sleep_hours-sleep_hours\n| where sleep_debt>0\n| sort 0 user _time\n| streamstats window=7 sum(sleep_debt) as debt_7d by user\n| where debt_7d>5\n| sort - _time",
-  "description": "Adds up your past week's sleep shortfall and flags when the debt has become large enough that caffeine and optimism are no longer hiding it.",
-  "value": "Adds up your past week's sleep shortfall and flags when the debt has become large enough that caffeine and.... Timely UC-25.2.12 alerting on 'Sleep Debt Accumulation Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.2.12 — Sleep, Debt, Accumulation, Watch — using `index=personal` sourcetype `oura:daily`, grouped by `user`. Outputs `debt_7d` each `the scheduled window`; alert when `sleep_debt` > 0, or `debt_7d` > 5. Primary focus: Accumulation Watch. Purpose-built for 'Sleep Debt Accumulation Watch' in Personal workflows.",
+  "value": "UC-25.2.12 operationalises 'Sleep Debt Accumulation Watch' against `oura:daily` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward Oura daily totals with target sleep hours; schedule each morning and alert when rolling sleep debt gets too high.",
   "visualization": "Daily line chart of seven-day sleep debt.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sleep Debt Accumulation Watch' stops polling `oura:daily`; stale `user` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by user`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `sleep_debt` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.12)** — Connector for 'Sleep Debt Accumulation Watch' stops polling `oura:daily`; stale `debt_7d` on `user` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `debt_7d` over `1w` is expected for UC-25.2.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `oura:daily`. Dedup with `stats latest(*) by user`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `sleep_debt` > 0 for 'Sleep Debt Accumulation Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

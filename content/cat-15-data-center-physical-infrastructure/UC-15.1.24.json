@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Rack PDU Load and Phase Balance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_rack_pdu_load_and_phase_balance` (UC-15.1.24), SOC dashboard panel \"Operations — Rack PDU Load and Phase Balance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='pdu:metrics' where `pdu_id` satisfies `load` > 80 for UC-15.1.24 ('Rack PDU Load and Phase Balance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `pdu:metrics` events where `pdu_id` stays below `load` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.24."
+    "positiveScenario": "UC-15.1.24 positive (Rack, PDU, Load, and, Phase): ingest synthetic events into `index=physical` sourcetype='pdu:metrics' where `avg` grouped by `pdu_id`, `phase` satisfies `load` > 80, or `imbalance` > 10 for 'Rack PDU Load and Phase Balance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.1.24 negative (Phase Balance): ingest benign `physical` / `pdu:metrics` events where `pdu_id`, `phase` stays below `load` > 80, or `imbalance` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Rack PDU Load and Phase Balance'."
   },
   "dataSources": "PDU current/load per phase, per outlet Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "PDU SNMP or API, DCIM — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"pdu:metrics\"\n| stats latest(current_a) as current, latest(kw) as load by pdu_id, phase\n| eval imbalance=abs(current - avg(current) over (partition by pdu_id))\n| where load > 80 OR imbalance > 10\n| table pdu_id, phase, current, load, imbalance",
-  "description": "PDU overload or phase imbalance risks circuit trips and equipment failure. Monitoring supports capacity planning and safe load distribution.",
-  "value": "Early 'Rack PDU Load and Phase Balance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-15.1.24 — Rack, PDU, Load, and, Phase — using `index=physical` sourcetype `pdu:metrics`, grouped by `pdu_id`, `phase`. Outputs `avg` each `the scheduled window`; alert when `load` > 80, or `imbalance` > 10. Primary focus: Phase Balance. Purpose-built for 'Rack PDU Load and Phase Balance' in Operations workflows.",
+  "value": "Tracking `activity` via UC-15.1.24 on `pdu:metrics` feeds improves response to 'Rack PDU Load and Phase Balance' and reduces operational risk and delayed incident response.",
   "implementation": "Poll PDU metrics via SNMP or API. Alert when load exceeds 80% or phase imbalance exceeds threshold. Report on load trend and top-loaded PDUs. Balance loads across phases as needed.",
   "visualization": "Table (PDU load by phase), Bar chart (phase balance), Line chart (load trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'Rack PDU Load and Phase Balance' shifts `avg` over `span=1h` while `pdu_id` remains in-scope for UC-15.1.24. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `pdu:metrics`** — Scheduled automation elevates `phase` without crossing `load` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pdu_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pdu:metrics`** — First 48h baseline for `pdu_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pdu_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.1.24)** — Planned work for 'Rack PDU Load and Phase Balance' shifts `avg` over `span=1h` while `pdu_id`, `phase` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `pdu:metrics`** — Scheduled automation elevates `phase` without crossing `load` > 80 for UC-15.1.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pdu_id`, `phase`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `pdu:metrics`** — First 48h baseline for UC-15.1.24 on `pdu_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pdu_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB Oplog Window Sufficiency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_oplog_window_sufficiency` (UC-7.2.18), SOC dashboard panel \"Operations — MongoDB Oplog Window Sufficiency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:replication_info' where `entity` satisfies detection threshold for UC-7.2.18 ('MongoDB Oplog Window Sufficiency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:replication_info` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.18."
+    "positiveScenario": "UC-7.2.18 positive (MongoDB, Oplog, Window, Sufficiency): ingest synthetic events into `index=database` sourcetype='mongodb:replication_info' where `count` grouped by `entity` satisfies detection threshold for 'MongoDB Oplog Window Sufficiency'. Validate lookup `mongo_replica_tier`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.18 negative (Window Sufficiency): ingest benign `database` / `mongodb:replication_info` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'MongoDB Oplog Window Sufficiency'."
   },
   "dataSources": "`getReplicationInfo()`, `rs.printReplicationInfo()` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "mongosh scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:replication_info\"\n| eval window_hrs=round(timeDiff/3600,2)\n| lookup mongo_replica_tier class OUTPUT min_oplog_window_hrs\n| where window_hrs < min_oplog_window_hrs\n| table host window_hrs min_oplog_window_hrs",
-  "description": "Validates minimum oplog window hours against replica catch-up time under peak load. Extends oplog monitoring with capacity-style thresholds per deployment class.",
-  "value": "Early 'MongoDB Oplog Window Sufficiency' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'MongoDB Oplog Window Sufficiency' patterns (UC-7.2.18) sourced from `index=database` sourcetype `mongodb:replication_info`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Enrichment path: lookup `mongo_replica_tier`.",
+  "value": "UC-7.2.18 gives Operations teams earlier visibility into Window Sufficiency through `mongodb:replication_info` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Define minimum window per environment in lookup. Alert below tier minimum. Recommend oplog size change when consistently borderline.",
   "visualization": "Line chart (oplog window hours), Table (hosts below tier min), Gauge (worst window).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB Oplog Window Sufficiency' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.2.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:replication_info`** — Scheduled automation elevates `window_hrs` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:replication_info`** — First 48h baseline for `host` is unstable; join `mongo_replica_tier` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.18)** — Planned work for 'MongoDB Oplog Window Sufficiency' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `mongo_replica_tier`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:replication_info`** — Scheduled automation elevates `window_hrs` without crossing configured threshold for UC-7.2.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:replication_info`** — First 48h baseline for UC-7.2.18 on `host` is unstable; join `mongo_replica_tier` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],

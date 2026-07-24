@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'DynamoDB Throttling Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dynamodb_throttling_events` (UC-7.2.16), SOC dashboard panel \"Operations — DynamoDB Throttling Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `TableName` satisfies `throttled` > 0 for UC-7.2.16 ('DynamoDB Throttling Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `TableName` stays below `throttled` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.16."
+    "positiveScenario": "UC-7.2.16 positive (DynamoDB, Throttling, Events): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `throttled` grouped by `TableName`, `Operation` satisfies `throttled` > 0 for 'DynamoDB Throttling Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.16 negative (Throttling Events): ingest benign `aws` / `aws:cloudwatch` events where `TableName`, `Operation` stays below `throttled` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'DynamoDB Throttling Events'."
   },
   "dataSources": "`UserErrors`, `ThrottledRequests`, `ConsumedReadCapacityUnits` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` (CloudWatch) — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/DynamoDB\" metric_name=\"ThrottledRequests\"\n| timechart span=5m sum(Sum) as throttled by TableName, Operation\n| where throttled > 0",
-  "description": "Read/write throttle events mean application retries and latency spikes. Identifies hot partitions and undersized capacity modes.",
-  "value": "Early 'DynamoDB Throttling Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-7.2.16 — DynamoDB, Throttling, Events — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `TableName`, `Operation`. Outputs `throttled` each `5m`; alert when `throttled` > 0. Primary focus: Throttling Events. Purpose-built for 'DynamoDB Throttling Events' in Operations workflows.",
+  "value": "UC-7.2.16 operationalises 'DynamoDB Throttling Events' against `aws:cloudwatch` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable DynamoDB metrics with table dimension. Alert on any sustained throttling. Correlate with hot key patterns from access logs if available.",
   "visualization": "Line chart (throttled requests), Table (table, operation), Single value (throttle bursts per day).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'DynamoDB Throttling Events' shifts `sum` over `span=5m` while `TableName` remains in-scope for UC-7.2.16. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `Operation` without crossing `throttled` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TableName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `TableName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TableName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-7.2.16)** — Planned work for 'DynamoDB Throttling Events' shifts `throttled` over `span=5m` while `TableName`, `Operation` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `Operation` without crossing `throttled` > 0 for UC-7.2.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TableName`, `Operation`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-7.2.16 on `TableName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TableName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'HTTP Error Rate Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_http_error_rate_monitoring` (UC-8.1.1), SOC dashboard panel \"Operations — HTTP Error Rate Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='access_combined' where `entity` satisfies `status` >= 400 for UC-8.1.1 ('HTTP Error Rate Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `access_combined` events where `entity` stays below `status` >= 400, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.1."
+    "positiveScenario": "UC-8.1.1 positive (HTTP, Error, Rate, Monitoring): ingest synthetic events into `index=web` sourcetype='access_combined' where `errors` grouped by `entity` satisfies `status` >= 400, or `error_rate` > 5 for 'HTTP Error Rate Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.1 negative (Rate Monitoring): ingest benign `web` / `access_combined` events where `entity` stays below `status` >= 400, or `error_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'HTTP Error Rate Monitoring'."
   },
   "dataSources": "Web server access logs (Apache combined, NGINX combined, IIS W3C) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_apache`, `TA-nginx`, IIS via Windows TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"access_combined\"\n| eval error=if(status>=400,1,0)\n| timechart span=5m sum(error) as errors, count as total\n| eval error_rate=round(errors/total*100,2)\n| where error_rate > 5",
-  "description": "Rising error rates signal application issues, backend failures, or attacks. Rapid detection reduces user impact and MTTR.",
-  "value": "Early 'HTTP Error Rate Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-8.1.1 — HTTP, Error, Rate, Monitoring — using `index=web` sourcetype `access_combined`, grouped by `entity`. Outputs `errors` each `5m`; alert when `status` >= 400, or `error_rate` > 5. Primary focus: Rate Monitoring. Purpose-built for 'HTTP Error Rate Monitoring' in Operations workflows.",
+  "value": "Tracking `errors` via UC-8.1.1 on `access_combined` feeds improves response to 'HTTP Error Rate Monitoring' and reduces operational risk and delayed incident response.",
   "implementation": "Install appropriate web server TA. Forward access logs via UF. Enable response time logging in web server config. Create tiered alerts: >5% error rate (warning), >10% (critical). Split 4xx from 5xx for different response.",
   "visualization": "Timechart (line) for 5xx rate % and a second series for 4xx rate % to show trends; stacked column for 4xx vs 5xx counts when triaging the class mix; single-value panel for current 5xx % (the SLA-facing metric); horizontal bar chart for top URIs by 5xx count to guide developer investigation.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'HTTP Error Rate Monitoring' shifts `sum` over `span=5m` while `host` remains in-scope for UC-8.1.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `access_combined`** — Scheduled automation elevates `error` without crossing `status` >= 400. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.1)** — Planned work for 'HTTP Error Rate Monitoring' shifts `errors` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `access_combined`** — Scheduled automation elevates `error` without crossing `status` >= 400 for UC-8.1.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `access_combined`** — First 48h baseline for UC-8.1.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "iis",

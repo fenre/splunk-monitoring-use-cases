@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openbanking` sourcetype='ob:api:access' where `aspsp_id` satisfies `http_status` >= 400 for UC-22.22.18 ('Mutual TLS and OAuth Client Certificate Authentication Audits'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openbanking` / `ob:api:access` events where `aspsp_id` stays below `http_status` >= 400, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.22.18."
+    "positiveScenario": "UC-22.22.18 positive (Mutual, TLS, and, OAuth, Client): ingest synthetic events into `index=openbanking` sourcetype='ob:api:access' where `sm`, `tpp` grouped by `aspsp_id`, `api_tag`, `is_prod` satisfies `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50 for 'Mutual TLS and OAuth Client Certificate Authentication Audits'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.22.18 negative (Authentication Audits): ingest benign `openbanking` / `ob:api:access` events where `aspsp_id`, `api_tag`, `is_prod` stays below `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50, or exclude the test entity via `compliance_exception_register.csv`. Variant 5 confirms zero alert rows for 'Mutual TLS and OAuth Client Certificate Authentication Audits'."
   },
   "dataSources": "`index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out",
   "app": "Splunk Enterprise Security (263), Splunk Add-on for AWS (1876) (Splunkbase)",
   "spl": "index=openbanking sourcetype=\"ob:api:access\" earliest=-24h\n| eval api_tag=\"mtls\"\n| eval is_prod=if(match(environment,\"(?i)prod\"),1,0)\n| eval scope_mismatch=if(isnotnull(consent_scope) AND isnotnull(accessed_scope) AND consent_scope!=accessed_scope,1,0)\n| stats count as calls, sum(eval(http_status>=400)) as err, sum(scope_mismatch) as sm, dc(tpp_id) as tpp by aspsp_id, api_tag, is_prod\n| eval uc_id=\"22.22.18\"\n| eval err_rate=round(100*err/calls,2)\n| where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)\n| sort - err_rate",
-  "description": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.",
-  "value": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PS.... Timely UC-22.22.18 alerting on 'Mutual TLS and OAuth Client Certificate Authentication Audits' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces 'Mutual TLS and OAuth Client Certificate Authentication Audits' patterns (UC-22.22.18) sourced from `index=openbanking` sourcetype `ob:api:access`. Threshold bundle: `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50; aggregation grain: `aspsp_id`, `api_tag`, `is_prod`; metrics: `sm`, `tpp`. Watch terms: Mutual, TLS, and, OAuth, Client.",
+  "value": "UC-22.22.18 gives Compliance teams earlier visibility into Authentication Audits through `ob:api:access` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review. Indexes required: `index=openbanking`; Sourcetypes: `sourcetype=ob:api:access`.",
   "visualization": "Time chart (err_rate), Bar chart (calls by tpp_id), Table (scope_mismatch samples)",
   "cimModels": [],

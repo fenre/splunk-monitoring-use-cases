@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Redshift Cluster Health and Connection Count' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_redshift_cluster_health_and_connection_count` (UC-4.1.41), SOC dashboard panel \"Operations — Redshift Cluster Health and Connection Count\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `_time` satisfies `connections` > 80 for UC-4.1.41 ('Redshift Cluster Health and Connection Count'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `_time` stays below `connections` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.41."
+    "positiveScenario": "UC-4.1.41 positive (Redshift, Cluster, Health, and, Connection): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `connections` grouped by `_time`, `ClusterIdentifier` satisfies `connections` > 80 for 'Redshift Cluster Health and Connection Count'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.41 negative (Connection Count): ingest benign `aws` / `aws:cloudwatch` events where `_time`, `ClusterIdentifier` stays below `connections` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Redshift Cluster Health and Connection Count'."
   },
   "dataSources": "CloudWatch Redshift metrics (DatabaseConnections, CPUUtilization, PercentageDiskSpaceUsed) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/Redshift\" metric_name=\"DatabaseConnections\"\n| bin _time span=5m\n| stats avg(Average) as connections by _time, ClusterIdentifier\n| where connections > 80",
-  "description": "Redshift cluster health and connection exhaustion impact analytics workloads. Monitoring supports capacity and connection limit management.",
-  "value": "Early 'Redshift Cluster Health and Connection Count' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-4.1.41 — Redshift, Cluster, Health, and, Connection — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `_time`, `ClusterIdentifier`. Outputs `connections` each `5m`; alert when `connections` > 80. Primary focus: Connection Count. Purpose-built for 'Redshift Cluster Health and Connection Count' in Operations workflows.",
+  "value": "Alerting on Redshift, Cluster, Health, and, Connection through UC-4.1.41 reduces operational risk and delayed incident response by surfacing `connections` early.",
   "implementation": "Collect Redshift metrics. Alert when DatabaseConnections approaches max (e.g. 90% of limit) or CPUUtilization/PercentageDiskSpaceUsed is high. Correlate with query queue length.",
   "visualization": "Line chart (connections, CPU, disk by cluster), Table (cluster, metrics), Gauge (connection %).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Redshift Cluster Health and Connection Count' shifts `avg` over `span=5m` while `_time` remains in-scope for UC-4.1.41. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `ClusterIdentifier` without crossing `connections` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.41)** — Planned work for 'Redshift Cluster Health and Connection Count' shifts `connections` over `span=5m` while `_time`, `ClusterIdentifier` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `aws:cloudwatch`** — Scheduled automation elevates `ClusterIdentifier` without crossing `connections` > 80 for UC-4.1.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `ClusterIdentifier`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.41 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

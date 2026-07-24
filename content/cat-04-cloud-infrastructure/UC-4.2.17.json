@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Service Bus Queue Message Count and Dead Letter' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_service_bus_queue_message_count_and_dead_letter` (UC-4.2.17), SOC dashboard panel \"Operations — Service Bus Queue Message Count and Dead Letter\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' where `_time` satisfies `active_messages` > 1000 for UC-4.2.17 ('Service Bus Queue Message Count and Dead Letter'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:metrics` events where `_time` stays below `active_messages` > 1000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.17."
+    "positiveScenario": "UC-4.2.17 positive (Service, Bus, Queue, Message, Count): ingest synthetic events into `index=azure` sourcetype='mscs:azure:metrics' where `active_messages` grouped by `_time`, `EntityName` satisfies `active_messages` > 1000 for 'Service Bus Queue Message Count and Dead Letter'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.17 negative (Dead Letter): ingest benign `azure` / `mscs:azure:metrics` events where `_time`, `EntityName` stays below `active_messages` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Service Bus Queue Message Count and Dead Letter'."
   },
   "dataSources": "Azure Monitor metrics (ActiveMessageCount, DeadletterMessageCount) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:metrics\" namespace=\"Microsoft.ServiceBus/namespaces\" metricName=\"ActiveMessageCount\"\n| bin _time span=5m\n| stats avg(average) as active_messages by _time, EntityName\n| where active_messages > 1000",
-  "description": "Growing queue or dead-letter count indicates consumers falling behind or message processing failures. Prevents backlog and lost messages.",
-  "value": "Early 'Service Bus Queue Message Count and Dead Letter' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces risk tied to Service, Bus, Queue, Message, Count through UC-4.2.17 on `index=azure` sourcetype `mscs:azure:metrics`. Summarises `active_messages` grouped by `_time`, `EntityName` across `5m` before applying `active_messages` > 1000. Operators tune 'Service Bus Queue Message Count and Dead Letter' using UC-4.2.17 runbook steps.",
+  "value": "Tracking `active_messages` via UC-4.2.17 on `mscs:azure:metrics` feeds improves response to 'Service Bus Queue Message Count and Dead Letter' and reduces operational risk and delayed incident response.",
   "implementation": "Collect Service Bus metrics per queue/topic. Alert when ActiveMessageCount exceeds threshold or DeadletterMessageCount > 0. Monitor message age via custom metric or run history if available.",
   "visualization": "Line chart (message count, dead letter by queue), Table (queue, active, dead letter), Single value.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Service Bus Queue Message Count and Dead Letter' shifts `avg` over `span=5m` while `_time` remains in-scope for UC-4.2.17. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mscs:azure:metrics`** — Scheduled automation elevates `EntityName` without crossing `active_messages` > 1000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:metrics`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.17)** — Planned work for 'Service Bus Queue Message Count and Dead Letter' shifts `active_messages` over `span=5m` while `_time`, `EntityName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `mscs:azure:metrics`** — Scheduled automation elevates `EntityName` without crossing `active_messages` > 1000 for UC-4.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `EntityName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:metrics`** — First 48h baseline for UC-4.2.17 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

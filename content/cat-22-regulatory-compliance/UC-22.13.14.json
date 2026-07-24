@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:ptalog' where `user` satisfies `age_days` > 2555 for UC-22.13.14 ('Background Investigation Recency for ESP and PAM Users'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `cyberark:ptalog` events where `user` stays below `age_days` > 2555, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.14."
+    "positiveScenario": "UC-22.13.14 positive (Background, Investigation, Recency, for, ESP): ingest synthetic events into `index=pam` sourcetype='cyberark:ptalog' where `count` grouped by `user` satisfies `age_days` > 2555 for 'Background Investigation Recency for ESP and PAM Users'. Validate lookup `hr_background`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.14 negative (PAM Users): ingest benign `pam` / `cyberark:ptalog` events where `user` stays below `age_days` > 2555, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'Background Investigation Recency for ESP and PAM Users'."
   },
   "dataSources": "`index=hr` `sourcetype=hr:background`, `index=pam` CyberArk logons — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for CyberArk (4295) (Splunkbase)",
   "spl": "| inputlookup esp_privileged_personnel.csv\n| lookup hr_background employee_id OUTPUT investigation_date\n| eval inv_epoch=strptime(investigation_date,\"%Y-%m-%d\")\n| eval age_days=round((now()-inv_epoch)/86400,0)\n| join type=left employee_id [\n    search index=pam sourcetype=cyberark:ptalog action=\"Logon\" earliest=-30d\n    | stats latest(_time) as last_pam by user\n    | rename user as employee_id\n  ]\n| where age_days>2555 AND isnotnull(last_pam)\n| table employee_id, investigation_date, age_days, last_pam",
-  "description": "We flag active PAM users whose background investigation date exceeds policy limits so personnel suitability evidence stays current.",
-  "value": "We flag active PAM users whose background investigation date exceeds policy limits so personnel suitability.... Timely UC-22.13.14 alerting on 'Background Investigation Recency for ESP and PAM Users' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.13.14 — Background, Investigation, Recency, for, ESP — using `index=pam` sourcetype `cyberark:ptalog`, grouped by `user`. Outputs `count` each `the scheduled window`; alert when `age_days` > 2555. Filter chain includes lookup `hr_background`. Purpose-built for 'Background Investigation Recency for ESP and PAM Users' in Compliance workflows.",
+  "value": "Alerting on Background, Investigation, Recency, for, ESP through UC-22.13.14 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Replace `2555` with your policy threshold lookup. (2) Weekly sync from HR. (3) Suspend access per procedure when triggered. (4) Document waivers in CIP-003 exceptions. Indexes required: `index=hr`, `index=pam`; Sourcetypes: `sourcetype=cyberark:ptalog`, `sourcetype=hr:background``.",
   "visualization": "Table (stale investigations), Single value (count), Timeline. Key fields: `age_days`, `employee_id`, `inv_epoch`, `investigation_date`, `last_pam`.",
   "cimModels": [

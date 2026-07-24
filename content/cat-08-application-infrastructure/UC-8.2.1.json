@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'JVM Heap Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_jvm_heap_utilization` (UC-8.2.1), SOC dashboard panel \"Operations — JVM Heap Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=jmx` sourcetype='jmx:memory' where `host` satisfies `heap_usage` > 85 for UC-8.2.1 ('JVM Heap Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `jmx` / `jmx:memory` events where `host` stays below `heap_usage` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.1."
+    "positiveScenario": "UC-8.2.1 positive (JVM, Heap, Utilization): ingest synthetic events into `index=jmx` sourcetype='jmx:memory' where `heap_usage` grouped by `host` satisfies `heap_usage` > 85 for 'JVM Heap Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.1 negative (Heap Utilization): ingest benign `jmx` / `jmx:memory` events where `host` stays below `heap_usage` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'JVM Heap Utilization'."
   },
   "dataSources": "JMX MBeans (`java.lang:type=Memory`), Prometheus JMX exporter Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-jmx`, OpenTelemetry — Universal Forwarder (Splunkbase 617)",
   "spl": "index=jmx sourcetype=\"jmx:memory\"\n| eval heap_pct=round(HeapMemoryUsage.used/HeapMemoryUsage.max*100,1)\n| timechart span=5m avg(heap_pct) as heap_usage by host\n| where heap_usage > 85",
-  "description": "JVM heap exhaustion causes OutOfMemoryError, crashing the application. Monitoring enables tuning before failures occur. Searches `index=jmx` with sourcetype `jmx:memory` for UC-8.2.1, aggregating `avg` by `host` over `5m`. Alerts when grouped results cross `heap_usage` > 85 in the saved search. Gives Operations operators a repeatable signal for 'JVM Heap Utilization' without manual log review.",
-  "value": "Early 'JVM Heap Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-8.2.1 — JVM, Heap, Utilization — using `index=jmx` sourcetype `jmx:memory`, grouped by `host`. Outputs `heap_usage` each `5m`; alert when `heap_usage` > 85. Primary focus: Heap Utilization. Purpose-built for 'JVM Heap Utilization' in Operations workflows.",
+  "value": "Tracking `heap_usage` via UC-8.2.1 on `jmx:memory` feeds improves response to 'JVM Heap Utilization' and reduces operational risk and delayed incident response.",
   "implementation": "Deploy JMX TA on a heavy forwarder. Configure JMX connection to each app server. Poll memory MBeans every minute. Alert at 85% heap usage. Track heap growth pattern to detect memory leaks (sawtooth with increasing floor).",
   "visualization": "Line chart (heap usage over time), Gauge (current heap %), Area chart (heap used vs max).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `jmx`** — Planned work for 'JVM Heap Utilization' shifts `avg` over `span=5m` while `host` remains in-scope for UC-8.2.1. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jmx:memory`** — Scheduled automation elevates `heap_pct` without crossing `heap_usage` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jmx` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:memory`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `jmx` (UC-8.2.1)** — Planned work for 'JVM Heap Utilization' shifts `heap_usage` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jmx:memory`** — Scheduled automation elevates `heap_pct` without crossing `heap_usage` > 85 for UC-8.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jmx` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jmx:memory`** — First 48h baseline for UC-8.2.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opentelemetry",
     "prometheus"

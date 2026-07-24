@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PLC/RTU Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_plc_rtu_health_monitoring` (UC-14.2.1), SOC dashboard panel \"Operations — PLC/RTU Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='opcua:metrics' where `entity` satisfies `plc_cpu_pct` > 80 for UC-14.2.1 ('PLC/RTU Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `opcua:metrics` events where `entity` stays below `plc_cpu_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.1."
+    "positiveScenario": "UC-14.2.1 positive (PLC, RTU, Health, Monitoring): ingest synthetic events into `index=ot` sourcetype='opcua:metrics' where `count` grouped by `entity` satisfies `plc_cpu_pct` > 80, or `plc_memory_pct` > 90 for 'PLC/RTU Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.1 negative (Health Monitoring): ingest benign `ot` / `opcua:metrics` events where `entity` stays below `plc_cpu_pct` > 80, or `plc_memory_pct` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'PLC/RTU Health Monitoring'."
   },
   "dataSources": "OPC-UA metrics (CPU, memory, I/O status), Modbus register data Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "OPC-UA input, Modbus TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"opcua:metrics\"\n| where plc_cpu_pct > 80 OR plc_memory_pct > 90 OR comm_status!=\"OK\"\n| table _time, plc_name, plc_cpu_pct, plc_memory_pct, comm_status",
-  "description": "Controller failures halt industrial processes. Monitoring CPU, memory, and communication status prevents unplanned downtime.",
-  "value": "Early 'PLC/RTU Health Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on Health Monitoring activity in UC-14.2.1 ('PLC/RTU Health Monitoring') from `index=ot` sourcetype `opcua:metrics`. Rolls up `count` by `entity` across `the scheduled window` and pages when `plc_cpu_pct` > 80, or `plc_memory_pct` > 90. Covers PLC, RTU, Health, Monitoring. Operations operators treat UC-14.2.1 as the canonical signal.",
+  "value": "Operators running UC-14.2.1 on `opcua:metrics` feeds shorten triage for Health Monitoring tied to 'PLC/RTU Health Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Connect to PLCs via OPC-UA server or Modbus gateway through Splunk Edge Hub. Poll health metrics every 30 seconds. Alert on CPU >80%, memory >90%, or communication loss. Track uptime per controller.",
   "visualization": "Status grid (PLC × health), Gauge (CPU/memory per PLC), Line chart (health trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'PLC/RTU Health Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.2.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `opcua:metrics`** — Scheduled automation elevates `src` without crossing `plc_cpu_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua:metrics`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.1)** — Planned work for 'PLC/RTU Health Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opcua:metrics`** — Scheduled automation elevates `src` without crossing `plc_cpu_pct` > 80 for UC-14.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opcua:metrics`** — First 48h baseline for UC-14.2.1 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub",
     "modbus",

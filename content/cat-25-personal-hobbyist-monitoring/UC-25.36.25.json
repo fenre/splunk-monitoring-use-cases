@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Subscribe-and-Save Miss Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_subscribe_and_save_miss_rate` (UC-25.36.25), SOC dashboard panel \"Personal — Subscribe-and-Save Miss Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='amazon:order' where `_time` satisfies `attempts` > 0 for UC-25.36.25 ('Subscribe-and-Save Miss Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `amazon:order` events where `_time` stays below `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.25."
+    "positiveScenario": "UC-25.36.25 positive (Subscribe, and, Save, Miss, Rate): ingest synthetic events into `index=personal` sourcetype='amazon:order' where `count` grouped by `_time`, `category` satisfies `attempts` > 0 for 'Subscribe-and-Save Miss Rate'. Validate filter `order_type=\"subscribe_save\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.36.25 negative (Miss Rate): ingest benign `personal` / `amazon:order` events where `_time`, `category` stays below `attempts` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Subscribe-and-Save Miss Rate'."
   },
   "dataSources": "Amazon order records (`amazon:order`), meal-plan inventory (`mealplan:item`), and pharmacy refill events (`pharmacy:refill`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics telemetry from Amazon order history, meal-plan inventory tools, and pharmacy refill portals sent to Splunk HEC via exports and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=amazon:order\n| search order_type=\"subscribe_save\"\n| bin _time span=1w\n| stats count as attempts count(eval(delivered_on_time=\"true\")) as successful by _time category\n| eval success_pct=if(attempts>0,round(100*successful/attempts,1),0)\n| sort - _time",
-  "description": "Tracks success rate for Subscribe-and-Save deliveries by category. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Tracks success rate for Subscribe-and-Save deliveries by category. Timely UC-25.36.25 alerting on 'Subscribe-and-Save Miss Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on 'Subscribe-and-Save Miss Rate' patterns (UC-25.36.25) sourced from `index=personal` sourcetype `amazon:order`. Threshold bundle: `attempts` > 0; aggregation grain: `_time`, `category`; metrics: `count`. Enrichment path: filter `order_type=\"subscribe_save\"`.",
+  "value": "UC-25.36.25 gives Personal teams earlier visibility into Miss Rate through `amazon:order` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture explicit outcome states for Subscribe-and-Save deliveries events in `index=personal` and review both attempts and success percentage over time.",
   "visualization": "Time chart of success percentage for Subscribe-and-Save deliveries by category.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Subscribe-and-Save Miss Rate' stops polling `amazon:order`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `amazon:order`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `attempts` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.36.25)** — Connector for 'Subscribe-and-Save Miss Rate' stops polling `amazon:order`; stale `count` on `_time`, `category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.36.25, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `amazon:order`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `attempts` > 0 for 'Subscribe-and-Save Miss Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

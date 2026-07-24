@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Database Connection Pool Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_database_connection_pool_exhaustion` (UC-7.1.17), SOC dashboard panel \"Operations — Database Connection Pool Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `entity` satisfies `usage_pct` > 85 for UC-7.1.17 ('Database Connection Pool Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `usage_pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.17."
+    "positiveScenario": "UC-7.1.17 positive (Database, Connection, Pool, Exhaustion): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `conn_count` grouped by `entity` satisfies `usage_pct` > 85 for 'Database Connection Pool Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.17 negative (Pool Exhaustion): ingest benign `target_index` / `target_sourcetype` events where `entity` stays below `usage_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Database Connection Pool Exhaustion'."
   },
   "dataSources": "Oracle `V$SESSION`/`V$PROCESS`, PostgreSQL `pg_stat_activity`, MySQL `SHOW PROCESSLIST`, SQL Server `sys.dm_exec_connections` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`splunk_app_db_connect`, database performance views — Universal Forwarder (Splunkbase 617)",
   "spl": "| dbxquery connection=\"oracle_prod\" query=\"SELECT COUNT(*) AS conn_count FROM v\\$session WHERE type='USER'\"\n| eval usage_pct=round(conn_count/400*100, 1)\n| where usage_pct > 85\n| table conn_count usage_pct",
-  "description": "When the application connection pool or database max_connections is exhausted, new requests fail with connection errors. Detecting high connection count and pool saturation prevents outages.",
-  "value": "Early 'Database Connection Pool Exhaustion' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-7.1.17 — Database, Connection, Pool, Exhaustion — using `index=target_index` sourcetype `configured sourcetype`, grouped by `entity`. Outputs `conn_count` each `the scheduled window`; alert when `usage_pct` > 85. Primary focus: Pool Exhaustion. Purpose-built for 'Database Connection Pool Exhaustion' in Operations workflows.",
+  "value": "Operators running UC-7.1.17 on UC-7.1.17 search results shorten triage for Pool Exhaustion tied to 'Database Connection Pool Exhaustion', lowering operational risk and delayed incident response.",
   "implementation": "Use DB Connect to poll session/connection count every 1–5 minutes. Compare to max_connections (or pool size). Alert when utilization exceeds 85%. Correlate with application logs for connection leak or traffic spike.",
   "visualization": "Gauge (connection count vs max), Line chart (connections over time), Table (by program/user).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `target_index`** — Planned work for 'Database Connection Pool Exhaustion' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `usage_pct` without crossing `usage_pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `target_index` (UC-7.1.17)** — Planned work for 'Database Connection Pool Exhaustion' shifts `conn_count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `usage_pct` without crossing `usage_pct` > 85 for UC-7.1.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-7.1.17 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

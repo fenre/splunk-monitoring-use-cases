@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kerberos Ticket Anomalies' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_kerberos_ticket_anomalies` (UC-9.1.5), SOC dashboard panel \"IAM — Kerberos Ticket Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4769 where `Account_Name` satisfies `count` > 5 for UC-9.1.5 ('Kerberos Ticket Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `count` > 5, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.5."
+    "positiveScenario": "UC-9.1.5 positive (Kerberos, Ticket, Anomalies): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4769 where `count` grouped by `Account_Name`, `Service_Name` satisfies `count` > 5 for 'Kerberos Ticket Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.5 negative (Ticket Anomalies): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `Service_Name` stays below `count` > 5, or exclude the test entity via `iam_exception_register.csv`. Variant 0 confirms zero alert rows for 'Kerberos Ticket Anomalies'."
   },
   "dataSources": "Security Event Log (4768 — TGT request, 4769 — TGS request) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4769 Ticket_Encryption_Type=0x17\n| stats count by Account_Name, Service_Name\n| where count > 5\n| sort -count",
-  "description": "Detects Kerberoasting and Golden Ticket attacks, which are advanced AD compromise techniques. Essential for security monitoring.",
-  "value": "Early 'Kerberos Ticket Anomalies' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Monitors 'Kerberos Ticket Anomalies' (UC-9.1.5) using `index=wineventlog` sourcetype `WinEventLog:Security` by aggregating `count` grouped by `Account_Name`, `Service_Name` over `the scheduled window` and alerting when `count` > 5. Keywords: Kerberos, Ticket, Anomalies. Focuses on Ticket Anomalies behaviour so iam teams can triage UC-9.1.5 without ad-hoc log review.",
+  "value": "UC-9.1.5 accelerates insight into Ticket Anomalies ('Kerberos Ticket Anomalies') by tracking `activity` on `WinEventLog:Security` feeds, reducing account takeover risk, help-desk load, and audit findings before spreadsheet checks hide regressions.",
   "implementation": "Forward 4768/4769 events from DCs. Detect Kerberoasting by filtering for RC4 encryption (0x17) on TGS requests. Detect Golden Ticket by looking for TGT requests with unusual encryption types or from non-DC sources.",
   "visualization": "Table (suspicious Kerberos requests), Bar chart (requests by encryption type), Timeline (anomalous events).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'Kerberos Ticket Anomalies' shifts `count` over `span=1h` while `Account_Name` remains in-scope for UC-9.1.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4769)** — Scheduled automation elevates `Service_Name` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `Account_Name` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.1.5)** — Planned work for 'Kerberos Ticket Anomalies' shifts `count` over `span=1h` while `Account_Name`, `Service_Name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4769)** — Scheduled automation elevates `Service_Name` without crossing `count` > 5 for UC-9.1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`, `Service_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-9.1.5 on `Account_Name` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1558.001",
     "T1558.003"

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Guest Network Daily Consumption' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_guest_network_daily_consumption` (UC-25.9.11), SOC dashboard panel \"Personal — Guest Network Daily Consumption\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `network_name` satisfies detection threshold for UC-25.9.11 ('Guest Network Daily Consumption'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `network_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.11."
+    "positiveScenario": "UC-25.9.11 positive (Guest, Network, Daily, Consumption): ingest synthetic events into `index=personal` sourcetype='unifi:event' where `rx_bytes`, `tx_bytes` grouped by `network_name`, `_time` satisfies detection threshold for 'Guest Network Daily Consumption'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.11 negative (Daily Consumption): ingest benign `personal` / `unifi:event` events where `network_name`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Guest Network Daily Consumption'."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event\n| bin _time span=1d\n| stats sum(rx_bytes) as rx_bytes, sum(tx_bytes) as tx_bytes by network_name _time\n| eval total_gb=round((rx_bytes+tx_bytes)/1073741824,2)\n| where network_name=\"guest\"\n| sort - _time",
-  "description": "Tracks how much traffic actually flows over the guest network each day, which is useful for capacity, courtesy, and spotting a guest SSID nobody needs anymore.",
-  "value": "Tracks how much traffic actually flows over the guest network each day, which is useful for capacity, court.... Timely UC-25.9.11 alerting on 'Guest Network Daily Consumption' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies risk tied to Guest, Network, Daily, Consumption through UC-25.9.11 on `index=personal` sourcetype `unifi:event`. Summarises `rx_bytes`, `tx_bytes` grouped by `network_name`, `_time` across `1d` before applying configured threshold. Operators tune 'Guest Network Daily Consumption' using UC-25.9.11 runbook steps.",
+  "value": "Tracking `rx_bytes`, `tx_bytes` via UC-25.9.11 on `unifi:event` feeds improves response to 'Guest Network Daily Consumption' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward per-network traffic events from UniFi; review daily guest-SSID volume and right-size the network or QoS policies accordingly.",
   "visualization": "Daily chart of guest-network total traffic in gigabytes.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Guest Network Daily Consumption' stops polling `unifi:event`; stale `network_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by network_name`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.11)** — Connector for 'Guest Network Daily Consumption' stops polling `unifi:event`; stale `rx_bytes`, `tx_bytes` on `network_name`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `rx_bytes`, `tx_bytes` over `1d` is expected for UC-25.9.11, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by network_name`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Guest Network Daily Consumption'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

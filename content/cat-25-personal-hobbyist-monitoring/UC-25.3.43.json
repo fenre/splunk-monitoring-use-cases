@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tessie Vehicle Snapshot Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tessie_vehicle_snapshot_sync_gap_watch` (UC-25.3.43), SOC dashboard panel \"Personal — Tessie Vehicle Snapshot Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tessie:vehicle' where `model` satisfies `hours_since` > 1 for UC-25.3.43 ('Tessie Vehicle Snapshot Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tessie:vehicle` events where `model` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.43."
+    "positiveScenario": "UC-25.3.43 positive (Tessie, Vehicle, Snapshot, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='tessie:vehicle' where `last_seen` grouped by `model` satisfies `hours_since` > 1 for 'Tessie Vehicle Snapshot Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.43 negative (Gap Watch): ingest benign `personal` / `tessie:vehicle` events where `model` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Tessie Vehicle Snapshot Sync Gap Watch'."
   },
   "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tessie:vehicle\n| stats max(_time) as last_seen by model\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since",
-  "description": "Detects when Tessie vehicle snapshot data has stopped arriving for a given model. Searches `index=personal` with sourcetype `tessie:vehicle` for UC-25.3.43, aggregating `max` by `model` over `the scheduled window`. Alerts when grouped results cross `hours_since` > 1 in the saved search. Gives Personal operators a repeatable signal for 'Tessie Vehicle Snapshot Sync Gap Watch' without manual log review.",
-  "value": "Detects when Tessie vehicle snapshot data has stopped arriving for a given model. Timely UC-25.3.43 alerting on 'Tessie Vehicle Snapshot Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.3.43 — Tessie, Vehicle, Snapshot, Sync, Gap — using `index=personal` sourcetype `tessie:vehicle`, grouped by `model`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 1. Primary focus: Gap Watch. Purpose-built for 'Tessie Vehicle Snapshot Sync Gap Watch' in Personal workflows.",
+  "value": "Tracking `last_seen` via UC-25.3.43 on `tessie:vehicle` feeds improves response to 'Tessie Vehicle Snapshot Sync Gap Watch' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per model and alert when the feed is older than 1 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tessie Vehicle Snapshot Sync Gap Watch' stops polling `tessie:vehicle`; stale `model` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tessie:vehicle`. Dedup with `stats latest(*) by model`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.43)** — Connector for 'Tessie Vehicle Snapshot Sync Gap Watch' stops polling `tessie:vehicle`; stale `last_seen` on `model` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.3.43, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tessie:vehicle`. Dedup with `stats latest(*) by model`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1 for 'Tessie Vehicle Snapshot Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

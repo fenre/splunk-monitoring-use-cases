@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' where `SamAccountName` satisfies detection threshold for UC-22.11.54 ('Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Security` events where `SamAccountName` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.54."
+    "positiveScenario": "UC-22.11.54 positive (Service, Account, Inventory, Reconciliation, Unexpected): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' where `values` grouped by `SamAccountName`, `SubjectUserName` satisfies -7d for 'Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes'. Validate lookup `pci_service_accounts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.54 negative (Delegation Changes): ingest benign `windows` / `WinEventLog:Security` events where `SamAccountName`, `SubjectUserName` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes'."
   },
   "dataSources": "`index=windows` EventCode 4742,4738,5136 (Directory Service Changes for `servicePrincipalName`)",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=windows sourcetype=\"WinEventLog:Security\" EventCode IN (4742,4738) earliest=-7d\n| where match(_raw,\"(?i)servicePrincipalName|TrustedToAuthForDelegation|msDS-AllowedToDelegateTo)\")\n| lookup pci_service_accounts.csv SamAccountName OUTPUT pci_svc\n| where pci_svc=\"true\"\n| stats earliest(_time) as first_change, values(EventCode) as codes by SamAccountName, SubjectUserName\n| sort - first_change",
-  "description": "Tracks modifications to Kerberos SPNs and constrained delegation on payment-related service accounts so non-human identities stay inventoried and cannot silently gain broader authentication rights.",
-  "value": "Tracks modifications to Kerberos SPNs and constrained delegation on payment-related service accounts so non.... Timely UC-22.11.54 alerting on 'Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.11.54 — Service, Account, Inventory, Reconciliation, Unexpected — using `index=windows` sourcetype `WinEventLog:Security`, grouped by `SamAccountName`, `SubjectUserName`. Outputs `values` each `the scheduled window`; alert when -7d. Filter chain includes lookup `pci_service_accounts.csv`. Purpose-built for 'Service Account Inventory Reconciliation — Unexpected SPN or Delegation Changes' in Compliance workflows.",
+  "value": "UC-22.11.54 helps teams contain Service, Account, Inventory, Reconciliation, Unexpected scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Maintain `pci_service_accounts.csv` from CMDB. (2) Map EventCode descriptions for auditors. (3) Require CAB for SPN edits. (4) Daily diff email to identity team. Indexes required: `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`.",
   "visualization": "Table (changes), timeline, single value (weekly change count). Key fields: `SamAccountName`, `SubjectUserName`, `codes`, `first_change`.",
   "cimModels": [

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'TrueNAS replication task lag failures and last snapshot age' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_truenas_replication_task_lag_failures_and_last_s` (UC-6.2.43), SOC dashboard panel \"Operations — TrueNAS replication task lag failures and last snapshot age\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='truenas:replication' where `entity` satisfies `lag` > 3600 for UC-6.2.43 ('TrueNAS replication task lag failures and last snapshot age'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `truenas:replication` events where `entity` stays below `lag` > 3600, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.43."
+    "positiveScenario": "UC-6.2.43 positive (TrueNAS, replication, task, lag, failures): ingest synthetic events into `index=storage` sourcetype='truenas:replication' where `count` grouped by `entity` satisfies `lag` > 3600 for 'TrueNAS replication task lag failures and last snapshot age'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.43 negative (snapshot age): ingest benign `storage` / `truenas:replication` events where `entity` stays below `lag` > 3600, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'TrueNAS replication task lag failures and last snapshot age'."
   },
   "dataSources": "Replication tasks indexed as `truenas:replication` from `/api/v2.0/replication` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "REST poller every 5 minutes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"truenas:replication\" earliest=-2h\n| eval state=coalesce(state, status, job_state)\n| eval lag=coalesce(lag_seconds, delay_seconds, snapshot_age_sec)\n| where match(state, \"(?i)error|fail\") OR lag > 3600\n| eval task=coalesce(task_name, name, id)\n| table _time, hostname, task, state, lag",
-  "description": "ZFS replication protects against ransomware and site loss. Failed tasks or multi-hour lag silently invalidate DR assumptions for remote datasets.",
-  "value": "ZFS replication protects against ransomware and site loss. Timely UC-6.2.43 alerting on 'TrueNAS replication task lag failures and last snapshot age' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies 'TrueNAS replication task lag failures and last snapshot age' patterns (UC-6.2.43) sourced from `index=storage` sourcetype `truenas:replication`. Threshold bundle: `lag` > 3600; aggregation grain: `entity`; metrics: `count`. Watch terms: TrueNAS, replication, task, lag, failures.",
+  "value": "UC-6.2.43 gives Operations teams earlier visibility into snapshot age through `truenas:replication` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Flatten recursive task trees if using periodic snapshots. Join `task` to dataset mapping via lookup for owner paging.",
   "visualization": "Timeline of failures, table (task, lag).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'TrueNAS replication task lag failures and last snapshot age' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.2.43. Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:replication`** — Scheduled automation elevates `state` without crossing `lag` > 3600. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:replication`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.43)** — Planned work for 'TrueNAS replication task lag failures and last snapshot age' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `truenas:replication`** — Scheduled automation elevates `state` without crossing `lag` > 3600 for UC-6.2.43. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `truenas:replication`** — First 48h baseline for UC-6.2.43 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "truenas"
   ],

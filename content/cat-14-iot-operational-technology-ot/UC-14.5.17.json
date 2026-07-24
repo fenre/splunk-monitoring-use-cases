@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MQTT Shared Subscription Load Distribution' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mqtt_shared_subscription_load_distribution` (UC-14.5.17), SOC dashboard panel \"Operations — MQTT Shared Subscription Load Distribution\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='mqtt:message' where `share_group` satisfies detection threshold for UC-14.5.17 ('MQTT Shared Subscription Load Distribution'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `mqtt:message` events where `share_group` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.5.17."
+    "positiveScenario": "UC-14.5.17 positive (MQTT, Shared, Subscription, Load, Distribution): ingest synthetic events into `index=ot` sourcetype='mqtt:message' where `total_by_topic` grouped by `share_group`, `base_topic` satisfies detection threshold for 'MQTT Shared Subscription Load Distribution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.17 negative (Load Distribution): ingest benign `ot` / `mqtt:message` events where `share_group`, `base_topic` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'MQTT Shared Subscription Load Distribution'."
   },
   "dataSources": "`index=ot` `sourcetype=\"mqtt:message\"` fields `topic`, optional `subscription_group`",
   "app": "HiveMQ Splunk Extension, MQTT Modular Input (Splunkbase 1890)",
   "spl": "index=ot sourcetype=\"mqtt:message\"\n| eval t=lower(topic)\n| where like(t,\"$share/%\")\n| rex field=topic \"^\\$share\\/(?<share_group>[^/]+)\\/(?<base_topic>.+)\"\n| stats count as msgs by share_group, base_topic\n| eventstats sum(msgs) as total_by_topic by base_topic\n| eval share_pct=round(100*msgs/total_by_topic,2)\n| sort base_topic, -msgs",
-  "description": "Shared subscriptions should balance load across consumers; skew indicates stuck consumers or broker-side dispatch issues that inflate latency.",
-  "value": "Early 'MQTT Shared Subscription Load Distribution' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-14.5.17 — MQTT, Shared, Subscription, Load, Distribution — using `index=ot` sourcetype `mqtt:message`, grouped by `share_group`, `base_topic`. Outputs `total_by_topic` each `the scheduled window`; alert when configured threshold. Primary focus: Load Distribution. Purpose-built for 'MQTT Shared Subscription Load Distribution' in Operations workflows.",
+  "value": "Alerting on MQTT, Shared, Subscription, Load, Distribution through UC-14.5.17 reduces operational risk and delayed incident response by surfacing `total_by_topic` early.",
   "implementation": "If the modular input does not preserve `$share/...` in topic, enable broker metrics for shared subscriptions or ingest dispatch logs. For high volume, sample at the broker or pre-aggregate.",
   "visualization": "Bar chart (messages per share group), Heatmap (group × time), Table (skew: max/min share_pct per base topic).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'MQTT Shared Subscription Load Distribution' shifts `sum` over `span=1h` while `share_group` remains in-scope for UC-14.5.17. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mqtt:message`** — Scheduled automation elevates `base_topic` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `share_group`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt:message`** — First 48h baseline for `share_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `share_group`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.5.17)** — Planned work for 'MQTT Shared Subscription Load Distribution' shifts `total_by_topic` over `span=1h` while `share_group`, `base_topic` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mqtt:message`** — Scheduled automation elevates `base_topic` without crossing configured threshold for UC-14.5.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `share_group`, `base_topic`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mqtt:message`** — First 48h baseline for UC-14.5.17 on `share_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `share_group`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OpenSearch Search Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_opensearch_search_latency` (UC-7.5.4), SOC dashboard panel \"Operations — OpenSearch Search Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='opensearch:search_latency' where `cluster_name` satisfies `took_ms` > 500 for UC-7.5.4 ('OpenSearch Search Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `opensearch:search_latency` events where `cluster_name` stays below `took_ms` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.5.4."
+    "positiveScenario": "UC-7.5.4 positive (OpenSearch, Search, Latency): ingest synthetic events into `index=database` sourcetype='opensearch:search_latency' where `count` grouped by `cluster_name` satisfies `took_ms` > 500 for 'OpenSearch Search Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.4 negative (Search Latency): ingest benign `database` / `opensearch:search_latency` events where `cluster_name` stays below `took_ms` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'OpenSearch Search Latency'."
   },
   "dataSources": "`sourcetype=opensearch:search_latency`, `sourcetype=opensearch:slowlog` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`_nodes/stats` search, slow log), OpenSearch slow search log — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"opensearch:search_latency\" OR sourcetype=\"opensearch:slowlog\"\n| eval took_ms=coalesce(took_ms, took)\n| where took_ms > 500\n| timechart span=5m perc95(took_ms) as p95_ms, perc99(took_ms) as p99_ms by cluster_name",
-  "description": "P95/P99 query latency directly affects application UX; separating queue time from query time narrows tuning to thread pools vs. mappings and shards.",
-  "value": "Early 'OpenSearch Search Latency' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'OpenSearch Search Latency' patterns (UC-7.5.4) sourced from `index=database` sourcetype `opensearch:search_latency`. Threshold bundle: `took_ms` > 500; aggregation grain: `cluster_name`; metrics: `count`. Watch terms: OpenSearch, Search, Latency.",
+  "value": "UC-7.5.4 gives Operations teams earlier visibility into Search Latency through `opensearch:search_latency` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest node-level search metrics (`primaries.search.query_time_in_millis` / `query_total`) for derived latency, and/or enable slow search logging and forward with a dedicated sourcetype. Baseline p95 per cluster; alert when p95 exceeds threshold for 15+ minutes. Correlate with heap GC and segment merges.",
   "visualization": "Line chart (p95/p99 search latency), Table (slow queries from slowlog), Histogram of `took_ms`.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'OpenSearch Search Latency' shifts `count` over `span=5m` while `cluster_name` remains in-scope for UC-7.5.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `opensearch:search_latency`** — Scheduled automation elevates `took_ms` without crossing `took_ms` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opensearch:search_latency`** — First 48h baseline for `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.4)** — Planned work for 'OpenSearch Search Latency' shifts `count` over `span=5m` while `cluster_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `opensearch:search_latency`** — Scheduled automation elevates `took_ms` without crossing `took_ms` > 500 for UC-7.5.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cluster_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opensearch:search_latency`** — First 48h baseline for UC-7.5.4 on `cluster_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cluster_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch"
   ],

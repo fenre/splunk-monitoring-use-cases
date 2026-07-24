@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Top Denied Traffic Sources' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_top_denied_traffic_sources` (UC-5.2.1), SOC dashboard panel \"Operations — Top Denied Traffic Sources\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=firewall` sourcetype='target_sourcetype' where `src` satisfies detection threshold for UC-5.2.1 ('Top Denied Traffic Sources'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `firewall` / `target_sourcetype` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.2.1."
+    "positiveScenario": "UC-5.2.1 positive (Top, Denied, Traffic, Sources): ingest synthetic events into `index=firewall` sourcetype='target_sourcetype' where `unique_dests` grouped by `src` satisfies detection threshold for 'Top Denied Traffic Sources'. Validate lookup `geoip`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.2.1 negative (Traffic Sources): ingest benign `firewall` / `target_sourcetype` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Top Denied Traffic Sources'."
   },
   "dataSources": "`sourcetype=pan:traffic`, `sourcetype=fgt_traffic`, `sourcetype=cisco:firepower:syslog` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_paloalto`, `TA-fortinet_fortigate`, Cisco Secure Firewall Add-on, `Splunk_TA_juniper` (SRX) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=firewall action=\"denied\" OR action=\"drop\"\n| stats count as denials, dc(dest) as unique_dests by src\n| sort -denials | head 20 | lookup geoip ip as src OUTPUT Country",
-  "description": "Identifies top blocked traffic sources — useful for rule tuning, detecting scanning, and misconfigured apps. NIST SP 800-119 expects IPv6 firewall and filtering parity with IPv4 — include IPv6 deny visibility in the same program.",
-  "value": "Security teams identify top denied traffic sources across multi-vendor firewalls, distinguishing reconnaissance scanning from misconfigured applications using target diversity and port spread analysis reduces operational risk and delayed incident response by surfacing actionable rows before manual triage or audit channels escalate the issue.",
+  "description": "Alerts on UC-5.2.1 — Top, Denied, Traffic, Sources — using `index=firewall` sourcetype `configured sourcetype`, grouped by `src`. Outputs `unique_dests` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `geoip`. Purpose-built for 'Top Denied Traffic Sources' in Operations workflows.",
+  "value": "Alerting on Top, Denied, Traffic, Sources through UC-5.2.1 reduces operational risk and delayed incident response by surfacing `unique_dests` early.",
   "implementation": "Forward firewall traffic logs via syslog. Install vendor TA for CIM-compliant fields. Create top-N dashboard.",
   "visualization": "Table (source, denials, dests), Map (GeoIP), Bar chart.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `firewall`** — Planned work for 'Top Denied Traffic Sources' shifts `dc` over `span=1h` while `src` remains in-scope for UC-5.2.1. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; join `geoip` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `firewall` (UC-5.2.1)** — Planned work for 'Top Denied Traffic Sources' shifts `unique_dests` over `span=1h` while `src` remains in-scope. Applies lookup `geoip`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `configured_sourcetype`** — Scheduled automation elevates `src` without crossing configured threshold for UC-5.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `firewall` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.2.1 on `src` is unstable; join `geoip` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "fortinet",

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=stream` sourcetype='stream:tls' where `tls_ver` satisfies detection threshold for UC-22.11.22 ('TLS 1.2 Minimum Version Violations on Payment APIs'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `stream` / `stream:tls` events where `tls_ver` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.22."
+    "positiveScenario": "UC-22.11.22 positive (TLS, 1.2, Minimum, Version, Violations): ingest synthetic events into `index=stream` sourcetype='stream:tls' where `count` grouped by `tls_ver`, `dest_ip`, `src_ip`, `server_name` satisfies -24h for 'TLS 1.2 Minimum Version Violations on Payment APIs'. Validate lookup `pci_payment_endpoints.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.22 negative (Payment APIs): ingest benign `stream` / `stream:tls` events where `tls_ver`, `dest_ip`, `src_ip`, `server_name` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 0 confirms zero alert rows for 'TLS 1.2 Minimum Version Violations on Payment APIs'."
   },
   "dataSources": "`index=stream` `sourcetype=\"stream:tls\"`; `index=aws` `sourcetype=\"aws:elb:accesslogs\"` with `ssl_protocol`",
   "app": "Splunk Stream (1809), Splunk Add-on for AWS (1876) (Splunkbase)",
   "spl": "(index=stream sourcetype=\"stream:tls\" earliest=-24h)\n OR (index=aws sourcetype=\"aws:elb:accesslogs\" earliest=-24h)\n| eval tls_ver=coalesce(tls_version, ssl_protocol)\n| lookup pci_payment_endpoints.csv dest_ip OUTPUT in_scope\n| where in_scope=\"true\"\n| where tls_ver IN (\"TLSv1\",\"TLSv1.0\",\"TLSv1.1\",\"SSLv3\") OR match(tls_ver,\"(?i)^ssl\")\n| stats count by tls_ver, dest_ip, src_ip, server_name\n| sort - count",
-  "description": "Surfaces handshakes negotiated below TLS 1.2 on in-scope listeners so weak transmission protections are remediated before external vulnerability scanning deadlines.",
-  "value": "Surfaces handshakes negotiated below TLS 1. Timely UC-22.11.22 alerting on 'TLS 1.2 Minimum Version Violations on Payment APIs' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects 'TLS 1.2 Minimum Version Violations on Payment APIs' (UC-22.11.22) using `index=stream` sourcetype `stream:tls` via lookup `pci_payment_endpoints.csv` by aggregating `count` grouped by `tls_ver`, `dest_ip`, `src_ip`, `server_name` over `the scheduled window` and alerting when -24h. Keywords: TLS, 1.2, Minimum, Version, Violations. Focuses on Payment APIs behaviour so compliance teams can triage UC-22.11.22 without ad-hoc log review.",
+  "value": "UC-22.11.22 accelerates insight into Payment APIs ('TLS 1.2 Minimum Version Violations on Payment APIs') by tracking `activity` on `stream:tls` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Normalize TLS version strings per data source. (2) Map `dest_ip` to payment VLANs. (3) Exclude lab subnets via lookup. (4) Feed to vulnerability management for ASV correlation. Indexes required: `index=aws`, `index=stream`; Sourcetypes: `sourcetype=aws:elb:accesslogs`, `sourcetype=stream:tls`.",
   "visualization": "Bar chart (by tls_ver), table (top client IPs), geomap optional.",
   "cimModels": [

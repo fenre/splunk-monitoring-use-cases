@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Calendar Travel-Time Overbook' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_calendar_travel_time_overbook` (UC-25.13.30), SOC dashboard panel \"Personal — Calendar Travel-Time Overbook\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:event' where `calendar` satisfies `travel_min` > 120 for UC-25.13.30 ('Calendar Travel-Time Overbook'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `calendar:event` events where `calendar` stays below `travel_min` > 120, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.30."
+    "positiveScenario": "UC-25.13.30 positive (Calendar, Travel, Time, Overbook): ingest synthetic events into `index=personal` sourcetype='calendar:event' where `travel_min`, `meeting_min` grouped by `calendar`, `_time` satisfies `travel_min` > 120, or `meeting_min` > 240 for 'Calendar Travel-Time Overbook'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.30 negative (Time Overbook): ingest benign `personal` / `calendar:event` events where `calendar`, `_time` stays below `travel_min` > 120, or `meeting_min` > 240, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Calendar Travel-Time Overbook'."
   },
   "dataSources": "Personal productivity telemetry (`obsidian:sync`, `obsidian:note`, `todoist:task`, `toggl:timeentry`, `calendar:freebusy`, `calendar:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Obsidian Sync, Todoist, Toggl Track, Google Calendar / iCloud calendar exports, and task metadata ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=calendar:event\n| bin _time span=1d\n| stats sum(travel_min) as travel_min, sum(duration_min) as meeting_min by calendar _time\n| where travel_min>120 AND meeting_min>240\n| sort - travel_min",
-  "description": "Uses Calendar event metadata telemetry to monitor days where travel time piled on top of a heavy meeting load in index=personal.",
-  "value": "Uses Calendar event metadata telemetry to monitor days where travel time piled on top of a heavy meeting lo.... Timely UC-25.13.30 alerting on 'Calendar Travel-Time Overbook' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies 'Calendar Travel-Time Overbook' patterns (UC-25.13.30) sourced from `index=personal` sourcetype `calendar:event`. Threshold bundle: `travel_min` > 120, or `meeting_min` > 240; aggregation grain: `calendar`, `_time`; metrics: `travel_min`, `meeting_min`. Watch terms: Calendar, Travel, Time, Overbook.",
+  "value": "UC-25.13.30 gives Personal teams earlier visibility into Time Overbook through `calendar:event` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Calendar event metadata data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily calendar table of meeting and travel minutes.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Calendar Travel-Time Overbook' stops polling `calendar:event`; stale `calendar` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by calendar`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `travel_min` > 120. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.30)** — Connector for 'Calendar Travel-Time Overbook' stops polling `calendar:event`; stale `travel_min`, `meeting_min` on `calendar`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `travel_min`, `meeting_min` over `1d` is expected for UC-25.13.30, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by calendar`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `travel_min` > 120 for 'Calendar Travel-Time Overbook'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

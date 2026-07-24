@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Backup SLA Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_backup_sla_compliance` (UC-6.3.6), SOC dashboard panel \"Operations — Backup SLA Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:job' where `system_name]` satisfies detection threshold for UC-6.3.6 ('Backup SLA Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:job` events where `system_name]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.6."
+    "positiveScenario": "UC-6.3.6 positive (Backup, SLA, Compliance): ingest synthetic events into `index=backup` sourcetype='veeam:job' where `backup_size` grouped by `system_name]` satisfies -7d for 'Backup SLA Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.6 negative (SLA Compliance): ingest benign `backup` / `veeam:job` events where `system_name]` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Backup SLA Compliance'."
   },
   "dataSources": "Backup job logs, CMDB/asset inventory Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Combined backup data + CMDB lookup — Universal Forwarder (Splunkbase 617)",
   "spl": "| inputlookup cmdb_systems.csv WHERE requires_backup=\"yes\"\n| join type=left max=1 system_name\n    [search index=backup sourcetype=\"veeam:job\" status=\"Success\" earliest=-7d\n     | stats latest(_time) as last_backup, max(data_size) as backup_size by system_name]\n| eval compliant=if(isnotnull(last_backup),\"Yes\",\"No\")\n| stats count(eval(compliant=\"Yes\")) as covered, count as total\n| eval coverage_pct=round(covered/total*100,1)",
-  "description": "Consolidated view of backup coverage and RPO/RTO compliance. Essential for management reporting and audit evidence. Searches `index=backup` with sourcetype `veeam:job` for UC-6.3.6, aggregating `max` by `system_name]` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Backup SLA Compliance' without manual log review.",
-  "value": "Early 'Backup SLA Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces SLA Compliance anomalies for UC-6.3.6 with window `the scheduled window` on `index=backup` sourcetype `veeam:job`. Combines `backup_size` by `system_name]` and compares against -7d. Mapped to keywords Backup, SLA, Compliance for dashboard routing.",
+  "value": "Alerting on Backup, SLA, Compliance through UC-6.3.6 reduces operational risk and delayed incident response by surfacing `backup_size` early.",
   "implementation": "Cross-reference CMDB inventory with backup job data. Identify systems with no backup coverage. Calculate RPO compliance (time since last successful backup vs required RPO). Produce weekly executive report.",
   "visualization": "Single value (SLA compliance %), Table (non-compliant systems), Pie chart (covered vs uncovered), Dashboard with filters by business unit.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Backup SLA Compliance' shifts `max` over `span=1h` while `system_name]` remains in-scope for UC-6.3.6. Cross-check CMDB CHG.\n\n2. **Batch `max` on `veeam:job`** — Scheduled automation elevates `compliant` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name]`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job`** — First 48h baseline for `system_name]` is unstable; join `cmdb_systems.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name]`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.6)** — Planned work for 'Backup SLA Compliance' shifts `backup_size` over `span=1h` while `system_name]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `veeam:job`** — Scheduled automation elevates `compliant` without crossing configured threshold for UC-6.3.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `system_name]`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job`** — First 48h baseline for UC-6.3.6 on `system_name]` is unstable; join `cmdb_systems.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `system_name]`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],

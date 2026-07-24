@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'BigQuery Audit and Cost' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_bigquery_audit_and_cost` (UC-4.3.7), SOC dashboard panel \"Operations — BigQuery Audit and Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `user` satisfies detection threshold for UC-4.3.7 ('BigQuery Audit and Cost'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `gcp` / `google:gcp:pubsub:message` events where `user` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.3.7."
+    "positiveScenario": "UC-4.3.7 positive (BigQuery, Audit, and, Cost): ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `total_cost` grouped by `user` satisfies detection threshold for 'BigQuery Audit and Cost'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.3.7 negative (and Cost): ingest benign `gcp` / `google:gcp:pubsub:message` events where `user` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'BigQuery Audit and Cost'."
   },
   "dataSources": "BigQuery audit logs via Pub/Sub Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
   "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"bigquery.googleapis.com\" protoPayload.methodName=\"jobservice.jobcompleted\"\n| spath output=bytes_billed path=protoPayload.serviceData.jobCompletedEvent.job.jobStatistics.totalBilledBytes\n| spath output=user path=protoPayload.authenticationInfo.principalEmail\n| eval cost_usd = round(bytes_billed / 1099511627776 * 5, 4)\n| stats sum(cost_usd) as total_cost, count as queries by user\n| sort -total_cost",
-  "description": "BigQuery can generate massive costs from poorly optimized queries. Audit and cost tracking prevents bill shock and identifies optimization opportunities.",
-  "value": "Early 'BigQuery Audit and Cost' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'BigQuery Audit and Cost' (UC-4.3.7) using `index=gcp` sourcetype `google:gcp:pubsub:message` by aggregating `total_cost` grouped by `user` over `the scheduled window` and alerting when configured threshold. Keywords: BigQuery, Audit, and, Cost. Focuses on and Cost behaviour so operations teams can triage UC-4.3.7 without ad-hoc log review.",
+  "value": "UC-4.3.7 accelerates insight into and Cost ('BigQuery Audit and Cost') by tracking `total_cost` on `google:gcp:pubsub:message` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Forward BigQuery audit logs via Pub/Sub. Calculate cost from billed bytes ($5/TB). Create dashboard showing cost per user, top expensive queries, and slot utilization.",
   "visualization": "Table (user, queries, cost), Bar chart (top costly queries), Trend line (daily cost).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gcp`** — Planned work for 'BigQuery Audit and Cost' shifts `sum` over `span=1h` while `user` remains in-scope for UC-4.3.7. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:pubsub:message`** — Scheduled automation elevates `cost_usd` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-4.3.7)** — Planned work for 'BigQuery Audit and Cost' shifts `total_cost` over `span=1h` while `user` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `google:gcp:pubsub:message`** — Scheduled automation elevates `cost_usd` without crossing configured threshold for UC-4.3.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for UC-4.3.7 on `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1530",
     "T1619"

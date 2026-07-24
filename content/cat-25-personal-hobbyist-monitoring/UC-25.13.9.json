@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Calendar Fragmentation Score' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_calendar_fragmentation_score` (UC-25.13.9), SOC dashboard panel \"Personal — Calendar Fragmentation Score\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:event' where `_time` satisfies `meetings` > 6 for UC-25.13.9 ('Calendar Fragmentation Score'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `calendar:event` events where `_time` stays below `meetings` > 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.9."
+    "positiveScenario": "UC-25.13.9 positive (Calendar, Fragmentation, Score): ingest synthetic events into `index=personal` sourcetype='calendar:event' where `total_minutes`, `calendars` grouped by `_time` satisfies `meetings` > 6 for 'Calendar Fragmentation Score'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.9 negative (Fragmentation Score): ingest benign `personal` / `calendar:event` events where `_time` stays below `meetings` > 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Calendar Fragmentation Score'."
   },
   "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=calendar:event\n| bin _time span=1d\n| stats count as meetings, sum(duration_min) as total_minutes, dc(calendar_name) as calendars by _time\n| eval fragmentation=round(meetings+calendars+(total_minutes/60),1)\n| where meetings>6\n| sort - fragmentation",
-  "description": "Builds a rough fragmentation score for days full of short meetings and calendar context switching instead of large blocks of protected time.",
-  "value": "Builds a rough fragmentation score for days full of short meetings and calendar context switching instead o.... Timely UC-25.13.9 alerting on 'Calendar Fragmentation Score' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.13.9 — Calendar, Fragmentation, Score — using `index=personal` sourcetype `calendar:event`, grouped by `_time`. Outputs `total_minutes`, `calendars` each `1d`; alert when `meetings` > 6. Primary focus: Fragmentation Score. Purpose-built for 'Calendar Fragmentation Score' in Personal workflows.",
+  "value": "Alerting on Calendar, Fragmentation, Score through UC-25.13.9 reduces missed training goals, stale hobby data, and connector failures by surfacing `total_minutes`, `calendars` early.",
   "implementation": "Forward calendar events with duration and source calendar; review high-fragmentation days and protect bigger blocks next week.",
   "visualization": "Daily chart of meeting count, duration, and fragmentation score.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Calendar Fragmentation Score' stops polling `calendar:event`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `meetings` > 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.9)** — Connector for 'Calendar Fragmentation Score' stops polling `calendar:event`; stale `total_minutes`, `calendars` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_minutes`, `calendars` over `1d` is expected for UC-25.13.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `meetings` > 6 for 'Calendar Fragmentation Score'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"

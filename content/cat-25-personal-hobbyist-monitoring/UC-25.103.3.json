@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Meet Time Personal Best Delta' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_meet_time_personal_best_delta` (UC-25.103.3), SOC dashboard panel \"Personal — Meet Time Personal Best Delta\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='swim:meet' where `event_name` satisfies detection threshold for UC-25.103.3 ('Meet Time Personal Best Delta'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `swim:meet` events where `event_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.103.3."
+    "positiveScenario": "UC-25.103.3 positive (Meet, Time, Personal, Best, Delta): ingest synthetic events into `index=personal` sourcetype='swim:meet' where `best_time` grouped by `event_name` satisfies detection threshold for 'Meet Time Personal Best Delta'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.103.3 negative (Best Delta): ingest benign `personal` / `swim:meet` events where `event_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Meet Time Personal Best Delta'."
   },
   "dataSources": "Swim.com workouts (`swimcom:workout`), MySwimPro sessions (`myswimpro:session`), pool lap logs (`pool:lap`), and swim meet results (`swim:meet`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Swim.com workout exports, MySwimPro session logs, pool lap counters, swim meet results, and interval pace trackers forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=swim:meet event_name=* finish_time_seconds=*\n| stats min(finish_time_seconds) as best_time, latest(finish_time_seconds) as latest_time by event_name\n| eval delta_seconds=round(latest_time-best_time,2)\n| sort delta_seconds\n| table event_name best_time latest_time delta_seconds",
-  "description": "Compares latest swim meet finish times against personal bests for each event. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Compares latest swim meet finish times against personal bests for each event. Timely UC-25.103.3 alerting on 'Meet Time Personal Best Delta' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies 'Meet Time Personal Best Delta' (UC-25.103.3) using `index=personal` sourcetype `swim:meet` by aggregating `best_time` grouped by `event_name` over `the scheduled window` and alerting when configured threshold. Keywords: Meet, Time, Personal, Best, Delta. Focuses on Best Delta behaviour so personal teams can triage UC-25.103.3 without ad-hoc log review.",
+  "value": "UC-25.103.3 accelerates insight into Best Delta ('Meet Time Personal Best Delta') by tracking `best_time` on `swim:meet` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Log `event_name` and `finish_time_seconds` for every meet and review deltas after each competition.",
   "visualization": "Table of events with best, latest, and delta seconds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Meet Time Personal Best Delta' stops polling `swim:meet`; stale `event_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `min` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `swim:meet`. Dedup with `stats latest(*) by event_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.103.3)** — Connector for 'Meet Time Personal Best Delta' stops polling `swim:meet`; stale `best_time` on `event_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `best_time` over `1w` is expected for UC-25.103.3, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `swim:meet`. Dedup with `stats latest(*) by event_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Meet Time Personal Best Delta'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

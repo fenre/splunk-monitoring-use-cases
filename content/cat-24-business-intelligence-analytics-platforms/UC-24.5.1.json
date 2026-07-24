@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Superset Async Query Worker Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_superset_async_query_worker_backlog` (UC-24.5.1), SOC dashboard panel \"Operations — Superset Async Query Worker Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='superset:app' where `_time` satisfies `pending` > 25 for UC-24.5.1 ('Superset Async Query Worker Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `superset:app` events where `_time` stays below `pending` > 25, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.1."
+    "positiveScenario": "UC-24.5.1 positive (Superset, Async, Query, Worker, Backlog): ingest synthetic events into `index=bi` sourcetype='superset:app' where `sum` grouped by `_time` satisfies `pending` > 25 for 'Superset Async Query Worker Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.1 negative (Worker Backlog): ingest benign `bi` / `superset:app` events where `_time` stays below `pending` > 25, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Superset Async Query Worker Backlog'."
   },
   "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=superset:app logger=celery\n| bin _time span=5m\n| stats sum(eval(task_state=\"PENDING\")) as pending, sum(eval(task_state=\"STARTED\")) as running by _time\n| where pending>25\n| sort - _time",
-  "description": "Watches the Celery task queue that runs Superset async and cached queries and flags backlog growth that delays chart loads and scheduled reports.",
-  "value": "Watches the Celery task queue that runs Superset async and cached queries and flags backlog growth that del.... Timely UC-24.5.1 alerting on 'Superset Async Query Worker Backlog' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-24.5.1 — Superset, Async, Query, Worker, Backlog — using `index=bi` sourcetype `superset:app`, grouped by `_time`. Outputs `sum` each `5m`; alert when `pending` > 25. Primary focus: Worker Backlog. Purpose-built for 'Superset Async Query Worker Backlog' in Operations workflows.",
+  "value": "UC-24.5.1 operationalises 'Superset Async Query Worker Backlog' against `superset:app` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ship Superset/Celery logs; schedule every 5 minutes; alert on sustained backlog. Scale worker replicas or Redis broker.",
   "visualization": "Timechart of pending vs running tasks, alert.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Superset Async Query Worker Backlog' shifts `sum` over `span=5m` while `_time` remains in-scope for UC-24.5.1. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `superset:app`** — Scheduled automation elevates `src` without crossing `pending` > 25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.1)** — Planned work for 'Superset Async Query Worker Backlog' shifts `sum` over `span=5m` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `superset:app`** — Scheduled automation elevates `src` without crossing `pending` > 25 for UC-24.5.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for UC-24.5.1 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect",

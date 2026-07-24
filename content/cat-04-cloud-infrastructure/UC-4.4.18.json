@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Endpoint and DNS Resolution Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_endpoint_and_dns_resolution_health` (UC-4.4.18), SOC dashboard panel \"Operations — Cloud Endpoint and DNS Resolution Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud` sourcetype='endpoint:health' where `endpoint_id` satisfies `rtt` > 500 for UC-4.4.18 ('Cloud Endpoint and DNS Resolution Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud` / `endpoint:health` events where `endpoint_id` stays below `rtt` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.18."
+    "positiveScenario": "UC-4.4.18 positive (Cloud, Endpoint, and, DNS, Resolution): ingest synthetic events into `index=cloud` sourcetype='endpoint:health' where `count` grouped by `endpoint_id`, `vpc_id` satisfies `rtt` > 500 for 'Cloud Endpoint and DNS Resolution Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.4.18 negative (Resolution Health): ingest benign `cloud` / `endpoint:health` events where `endpoint_id`, `vpc_id` stays below `rtt` > 500, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Cloud Endpoint and DNS Resolution Health'."
   },
   "dataSources": "Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cloud sourcetype=\"endpoint:health\"\n| stats latest(connect_ok) as ok, latest(rtt_ms) as rtt by endpoint_id, vpc_id\n| where ok != 1 OR rtt > 500\n| table endpoint_id vpc_id ok rtt _time",
-  "description": "PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.",
-  "value": "Early 'Cloud Endpoint and DNS Resolution Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Resolution Health anomalies for UC-4.4.18 with window `the scheduled window` on `index=cloud` sourcetype `endpoint:health`. Combines `count` by `endpoint_id`, `vpc_id` and compares against `rtt` > 500. Mapped to keywords Cloud, Endpoint, and, DNS, Resolution for dashboard routing.",
+  "value": "Alerting on Cloud, Endpoint, and, DNS, Resolution through UC-4.4.18 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Run periodic probes (DNS lookup for private hosted zone, HTTPS to VPC endpoint) from a central host or Lambda. Ingest success/failure and latency. Alert when endpoint is unreachable or RTT exceeds threshold.",
   "visualization": "Status grid (endpoint, OK/fail), Table (endpoint, RTT), Line chart (RTT over time).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud`** — Planned work for 'Cloud Endpoint and DNS Resolution Health' shifts `count` over `span=1h` while `endpoint_id` remains in-scope for UC-4.4.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `endpoint:health`** — Scheduled automation elevates `vpc_id` without crossing `rtt` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `endpoint_id`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `endpoint:health`** — First 48h baseline for `endpoint_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `endpoint_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.4.18)** — Planned work for 'Cloud Endpoint and DNS Resolution Health' shifts `count` over `span=1h` while `endpoint_id`, `vpc_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `endpoint:health`** — Scheduled automation elevates `vpc_id` without crossing `rtt` > 500 for UC-4.4.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `endpoint_id`, `vpc_id`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `endpoint:health`** — First 48h baseline for UC-4.4.18 on `endpoint_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `endpoint_id`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1580"
   ],

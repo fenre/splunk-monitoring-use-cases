@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Problem Management Root Cause Linking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_problem_management_root_cause_linking` (UC-16.1.19), SOC dashboard panel \"Operations — Problem Management Root Cause Linking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `category` satisfies `closed_inc` > 20 for UC-16.1.19 ('Problem Management Root Cause Linking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `category` stays below `closed_inc` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.19."
+    "positiveScenario": "UC-16.1.19 positive (Problem, Management, Root, Cause, Linking): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `sum` grouped by `category` satisfies `closed_inc` > 20, or `link_pct` < 30 for 'Problem Management Root Cause Linking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.19 negative (Cause Linking): ingest benign `itsm` / `snow:incident` events where `category` stays below `closed_inc` > 20, or `link_pct` < 30, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Problem Management Root Cause Linking'."
   },
   "dataSources": "`sourcetype=snow:incident`, `sourcetype=snow:problem` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-90d\n| eval has_pr=if(isnotnull(problem_id) AND problem_id!=\"\",\"1\",\"0\")\n| stats count as closed_inc, sum(eval(if(has_pr=\"1\",1,0))) as with_pr by category\n| eval link_pct=round(100*with_pr/closed_inc,1)\n| where closed_inc>20 AND link_pct < 30\n| sort link_pct",
-  "description": "Ensures resolved incidents are tied to problem records with root cause when repeat patterns exist — closing the loop for ITIL problem management.",
-  "value": "Early 'Problem Management Root Cause Linking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies risk tied to Problem, Management, Root, Cause, Linking through UC-16.1.19 on `index=itsm` sourcetype `snow:incident`. Summarises `sum` grouped by `category` across `the scheduled window` before applying `closed_inc` > 20, or `link_pct` < 30. Operators tune 'Problem Management Root Cause Linking' using UC-16.1.19 runbook steps.",
+  "value": "Tracking `activity` via UC-16.1.19 on `snow:incident` feeds improves response to 'Problem Management Root Cause Linking' and reduces operational risk and delayed incident response.",
   "implementation": "Map `problem_id` or `caused_by` from incident to problem. Report link rate by category and assignment group. Alert when categories with high volume have low problem linkage. Exclude categories excluded by policy.",
   "visualization": "Bar chart (problem link % by category), Table (gaps), Single value (overall link %).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Problem Management Root Cause Linking' shifts `sum` over `span=1h` while `category` remains in-scope for UC-16.1.19. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `has_pr` without crossing `closed_inc` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.19)** — Planned work for 'Problem Management Root Cause Linking' shifts `sum` over `span=1h` while `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `has_pr` without crossing `closed_inc` > 20 for UC-16.1.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.19 on `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

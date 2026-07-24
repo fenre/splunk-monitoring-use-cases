@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Firmware Update Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_firmware_update_compliance` (UC-14.4.13), SOC dashboard panel \"Operations — Firmware Update Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='iot:ota' where `device_id` satisfies detection threshold for UC-14.4.13 ('Firmware Update Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `iot:ota` events where `device_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.13."
+    "positiveScenario": "UC-14.4.13 positive (Firmware, Update, Compliance): ingest synthetic events into `index=iot` sourcetype='iot:ota' where `count` grouped by `device_id`, `]` satisfies detection threshold for 'Firmware Update Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.4.13 negative (Update Compliance): ingest benign `iot` / `iot:ota` events where `device_id`, `]` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Firmware Update Compliance'."
   },
   "dataSources": "`sourcetype=\"iot:ota\"` (job_id, status, version) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "IoT DM, OTA job logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"iot:ota\"\n| stats latest(target_version) as tgt by device_id\n| join max=1 device_id [\n  search index=iot sourcetype=\"iot_platform:devices\"\n  | stats latest(firmware_version) as cur by device_id\n]\n| where cur!=tgt\n| table device_id, cur, tgt",
-  "description": "OTA campaigns must complete; stragglers remain vulnerable to known exploits. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'Firmware Update Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'Firmware Update Compliance' patterns (UC-14.4.13) sourced from `index=iot` sourcetype `iot:ota`. Threshold bundle: configured threshold; aggregation grain: `device_id`, `]`; metrics: `count`. Watch terms: Firmware, Update, Compliance.",
+  "value": "UC-14.4.13 gives Operations teams earlier visibility into Update Compliance through `iot:ota` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Compare device inventory to OTA target per wave. Escalate devices >7 days behind.",
   "visualization": "Bar chart (compliance by wave), Table (lagging devices).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'Firmware Update Compliance' shifts `count` over `span=1h` while `device_id` remains in-scope for UC-14.4.13. Cross-check CMDB CHG.\n\n2. **Batch `count` on `iot:ota`** — Scheduled automation elevates `]` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iot:ota`** — First 48h baseline for `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.4.13)** — Planned work for 'Firmware Update Compliance' shifts `count` over `span=1h` while `device_id`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `iot:ota`** — Scheduled automation elevates `]` without crossing configured threshold for UC-14.4.13. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_id`, `]`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iot:ota`** — First 48h baseline for UC-14.4.13 on `device_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

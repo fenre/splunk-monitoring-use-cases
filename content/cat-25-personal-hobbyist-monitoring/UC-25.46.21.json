@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Roll20 Session Start Delay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_roll20_session_start_delay` (UC-25.46.21), SOC dashboard panel \"Personal — Roll20 Session Start Delay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='rpg:session' where `campaign` satisfies detection threshold for UC-25.46.21 ('Roll20 Session Start Delay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `rpg:session` events where `campaign` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.46.21."
+    "positiveScenario": "UC-25.46.21 positive (Roll20, Session, Start, Delay): ingest synthetic events into `index=personal` sourcetype='rpg:session' where `avg_lag_hours`, `worst_lag_hours` grouped by `campaign` satisfies detection threshold for 'Roll20 Session Start Delay'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.46.21 negative (Start Delay): ingest benign `personal` / `rpg:session` events where `campaign` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Roll20 Session Start Delay'."
   },
   "dataSources": "Character sheets (`rpg:character`), VTT sessions (`rpg:session`), initiative rounds (`rpg:initiative`), encounters (`rpg:combat`), campaign ops (`rpg:ops`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tabletop campaign telemetry — D&D Beyond character exports, Roll20 session logs, initiative trackers, and campaign asset checklists — streamed to Splunk HEC via APIs, exports, and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=rpg:session campaign=* scheduled_start_epoch=* actual_start_epoch=*\n| eval lag_hours=round((actual_start_epoch-scheduled_start_epoch)/3600,1)\n| stats avg(lag_hours) as avg_lag_hours, max(lag_hours) as worst_lag_hours by campaign\n| sort - avg_lag_hours",
-  "description": "Measures session start delay by campaign for Roll20 session starts. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Measures session start delay by campaign for Roll20 session starts. Timely UC-25.46.21 alerting on 'Roll20 Session Start Delay' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.46.21 — Roll20, Session, Start, Delay — using `index=personal` sourcetype `rpg:session`, grouped by `campaign`. Outputs `avg_lag_hours`, `worst_lag_hours` each `the scheduled window`; alert when configured threshold. Primary focus: Start Delay. Purpose-built for 'Roll20 Session Start Delay' in Personal workflows.",
+  "value": "For 'Roll20 Session Start Delay', UC-25.46.21 converts `avg_lag_hours`, `worst_lag_hours` on `rpg:session` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture the timestamps needed to compute `session start delay` on `rpg:session` events and aggregate them by `campaign`.",
   "visualization": "Table of campaign with average and worst session start delay.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Roll20 Session Start Delay' stops polling `rpg:session`; stale `campaign` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:session`. Dedup with `stats latest(*) by campaign`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.46.21)** — Connector for 'Roll20 Session Start Delay' stops polling `rpg:session`; stale `avg_lag_hours`, `worst_lag_hours` on `campaign` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_lag_hours`, `worst_lag_hours` over `1w` is expected for UC-25.46.21, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `rpg:session`. Dedup with `stats latest(*) by campaign`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Roll20 Session Start Delay'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

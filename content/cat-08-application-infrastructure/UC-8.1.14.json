@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SSL Certificate Expiry Countdown' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ssl_certificate_expiry_countdown` (UC-8.1.14), SOC dashboard panel \"Operations — SSL Certificate Expiry Countdown\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=certificates` sourcetype='cert_check' where `host` satisfies `soonest` < 45 for UC-8.1.14 ('SSL Certificate Expiry Countdown'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `certificates` / `cert_check` events where `host` stays below `soonest` < 45, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.14."
+    "positiveScenario": "UC-8.1.14 positive (SSL, Certificate, Expiry, Countdown): ingest synthetic events into `index=certificates` sourcetype='cert_check' where `soonest` grouped by `host`, `port` satisfies `soonest` < 45 for 'SSL Certificate Expiry Countdown'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.14 negative (Expiry Countdown): ingest benign `certificates` / `cert_check` events where `host`, `port` stays below `soonest` < 45, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'SSL Certificate Expiry Countdown'."
   },
   "dataSources": "`cert_check` with `cert_expiry_epoch`, `cn` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted cert check, `openssl` input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=certificates sourcetype=\"cert_check\"\n| eval days_left=round((cert_expiry_epoch-now())/86400,0)\n| stats min(days_left) as soonest by host, port\n| where soonest < 45\n| sort soonest",
-  "description": "Days-to-expiry dashboard for all TLS endpoints monitored by cert checks. Complements UC-8.1.5 with trend and earliest-expiry focus.",
-  "value": "Early 'SSL Certificate Expiry Countdown' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'SSL Certificate Expiry Countdown' patterns (UC-8.1.14) sourced from `index=certificates` sourcetype `cert_check`. Threshold bundle: `soonest` < 45; aggregation grain: `host`, `port`; metrics: `soonest`. Watch terms: SSL, Certificate, Expiry, Countdown.",
+  "value": "UC-8.1.14 gives Operations teams earlier visibility into Expiry Countdown through `cert_check` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Daily collection. Alert tiers at 45/30/14/7 days. Include chain validation failures as severity 1.",
   "visualization": "Table (host, port, days_left), Single value (minimum days_left fleet-wide), Column chart (certs by expiry bucket).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `certificates`** — Planned work for 'SSL Certificate Expiry Countdown' shifts `min` over `span=1h` while `host` remains in-scope for UC-8.1.14. Cross-check CMDB CHG.\n\n2. **Batch `min` on `cert_check`** — Scheduled automation elevates `port` without crossing `soonest` < 45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_check`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `certificates` (UC-8.1.14)** — Planned work for 'SSL Certificate Expiry Countdown' shifts `soonest` over `span=1h` while `host`, `port` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `min` on `cert_check`** — Scheduled automation elevates `port` without crossing `soonest` < 45 for UC-8.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `port`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_check`** — First 48h baseline for UC-8.1.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

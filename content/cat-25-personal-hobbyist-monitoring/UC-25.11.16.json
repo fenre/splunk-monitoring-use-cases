@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Feeding Schedule Drift' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_feeding_schedule_drift` (UC-25.11.16), SOC dashboard panel \"Personal — Feeding Schedule Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='petfeeder:event' where `feeder` satisfies `hour_sd` > 1.5 for UC-25.11.16 ('Feeding Schedule Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `petfeeder:event` events where `feeder` stays below `hour_sd` > 1.5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.11.16."
+    "positiveScenario": "UC-25.11.16 positive (Feeding, Schedule, Drift): ingest synthetic events into `index=personal` sourcetype='petfeeder:event' where `avg_hour`, `hour_sd` grouped by `feeder`, `_time` satisfies `hour_sd` > 1.5 for 'Feeding Schedule Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.11.16 negative (Schedule Drift): ingest benign `personal` / `petfeeder:event` events where `feeder`, `_time` stays below `hour_sd` > 1.5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Feeding Schedule Drift'."
   },
   "dataSources": "Pet tracker location/activity (`tractive:position`, `whistle:activity`), smart feeder events (`petfeeder:event`), litter-box usage (`litterrobot:cycle`), bird-feeder detections (`birdfeeder:detection`), doorbell/package events (`doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Pet GPS/activity trackers (Tractive/Fi/Whistle), smart feeders and litter boxes, bird feeders/cams, and home-life sensors via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=petfeeder:event event_type=dispense\n| eval feed_hour=strftime(_time,\"%H\")\n| bin _time span=1d\n| stats avg(feed_hour) as avg_hour, stdev(feed_hour) as hour_sd by feeder _time\n| where hour_sd>1.5\n| sort - hour_sd",
-  "description": "Measures how stable the actual dispense times are day to day, helping you verify that feeding automation follows the routine you thought you set.",
-  "value": "Measures how stable the actual dispense times are day to day, helping you verify that feeding automation fo.... Timely UC-25.11.16 alerting on 'Feeding Schedule Drift' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects risk tied to Feeding, Schedule, Drift through UC-25.11.16 on `index=personal` sourcetype `petfeeder:event`. Summarises `avg_hour`, `hour_sd` grouped by `feeder`, `_time` across `1d` before applying `hour_sd` > 1.5. Operators tune 'Feeding Schedule Drift' using UC-25.11.16 runbook steps.",
+  "value": "Tracking `avg_hour`, `hour_sd` via UC-25.11.16 on `petfeeder:event` feeds improves response to 'Feeding Schedule Drift' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward dispense events from the feeder; review daily schedule variance and tighten timers if needed.",
   "visualization": "Daily chart of average feeding hour and timing variability.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Feeding Schedule Drift' stops polling `petfeeder:event`; stale `feeder` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `petfeeder:event`. Dedup with `stats latest(*) by feeder`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour_sd` > 1.5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.11.16)** — Connector for 'Feeding Schedule Drift' stops polling `petfeeder:event`; stale `avg_hour`, `hour_sd` on `feeder`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_hour`, `hour_sd` over `1d` is expected for UC-25.11.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `petfeeder:event`. Dedup with `stats latest(*) by feeder`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `hour_sd` > 1.5 for 'Feeding Schedule Drift'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

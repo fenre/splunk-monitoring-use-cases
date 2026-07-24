@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'CDP/LLDP Neighbor Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cdp_lldp_neighbor_changes` (UC-5.1.18), SOC dashboard panel \"Operations — CDP/LLDP Neighbor Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:cdp' where `host` satisfies detection threshold for UC-5.1.18 ('CDP/LLDP Neighbor Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:cdp` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.18."
+    "positiveScenario": "UC-5.1.18 positive (CDP, LLDP, Neighbor, Changes): ingest synthetic events into `index=network` sourcetype='snmp:cdp' where `count` grouped by `host`, `cdpCacheIfIndex` satisfies detection threshold for 'CDP/LLDP Neighbor Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.18 negative (Neighbor Changes): ingest benign `network` / `snmp:cdp` events where `host`, `cdpCacheIfIndex` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'CDP/LLDP Neighbor Changes'."
   },
   "dataSources": "`sourcetype=snmp:cdp`, `sourcetype=cisco:ios` Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP Modular Input, CISCO-CDP-MIB, LLDP-MIB, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"snmp:cdp\"\n| stats latest(cdpCacheDeviceId) as neighbor, latest(cdpCachePlatform) as platform by host, cdpCacheIfIndex\n| appendpipe [| inputlookup cdp_baseline.csv]\n| eventstats latest(neighbor) as current, first(neighbor) as baseline by host, cdpCacheIfIndex\n| where current!=baseline | table host, cdpCacheIfIndex, baseline, current, platform",
-  "description": "Unexpected neighbor changes indicate cabling modifications, device replacements, or unauthorized devices connecting to the network.",
-  "value": "Network engineers monitor CDP/LLDP neighbor changes to detect physical topology modifications, unauthorized device connections, and native VLAN mismatches across the switching fabric.",
+  "description": "Surfaces UC-5.1.18 — CDP, LLDP, Neighbor, Changes — using `index=network` sourcetype `snmp:cdp`, grouped by `host`, `cdpCacheIfIndex`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Neighbor Changes. Purpose-built for 'CDP/LLDP Neighbor Changes' in Operations workflows.",
+  "value": "UC-5.1.18 gives Operations teams earlier visibility into Neighbor Changes through `snmp:cdp` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll CDP-MIB/LLDP-MIB at 600s intervals. Create a baseline lookup via `outputlookup`. Compare current neighbors against baseline. Alert on new/removed neighbors.",
   "visualization": "Table (host, interface, old neighbor, new neighbor), Change log timeline.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'CDP/LLDP Neighbor Changes' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.1.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:cdp`** — Scheduled automation elevates `cdpCacheIfIndex` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:cdp`** — First 48h baseline for `host` is unstable; join `cdp_baseline.csv]` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.18)** — Planned work for 'CDP/LLDP Neighbor Changes' shifts `count` over `span=1h` while `host`, `cdpCacheIfIndex` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:cdp`** — Scheduled automation elevates `cdpCacheIfIndex` without crossing configured threshold for UC-5.1.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `cdpCacheIfIndex`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:cdp`** — First 48h baseline for UC-5.1.18 on `host` is unstable; join `cdp_baseline.csv]` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

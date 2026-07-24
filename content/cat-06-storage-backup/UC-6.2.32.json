@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph monitor clock skew between mon hosts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_monitor_clock_skew_between_mon_hosts` (UC-6.2.32), SOC dashboard panel \"Operations — Ceph monitor clock skew between mon hosts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ceph:log' where `host` satisfies `skew_events` > 3 for UC-6.2.32 ('Ceph monitor clock skew between mon hosts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ceph:log` events where `host` stays below `skew_events` > 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.32."
+    "positiveScenario": "UC-6.2.32 positive (Ceph, monitor, clock, skew, between): ingest synthetic events into `index=os` sourcetype='ceph:log' where `count` grouped by `host`, `mon_id` satisfies `skew_events` > 3 for 'Ceph monitor clock skew between mon hosts'. Validate filter `\"clock skew\" OR \"clock drift\" OR \"time skew\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.32 negative (mon hosts): ingest benign `os` / `ceph:log` events where `host`, `mon_id` stays below `skew_events` > 3, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Ceph monitor clock skew between mon hosts'."
   },
   "dataSources": "Monitor logs `ceph:log` with clock skew warnings or `ceph:health` time sync fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Forwarder + NTP telemetry optional — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ceph:log\" earliest=-2h\n| search \"clock skew\" OR \"clock drift\" OR \"time skew\"\n| rex field=_raw \"(?i)mon\\.(?<mon_id>\\S+)\"\n| stats count as skew_events latest(_time) as last_seen by host, mon_id\n| where skew_events > 3\n| sort - skew_events",
-  "description": "Monitors rely on tight clock agreement; skew causes false peon timeouts and spurious quorum transitions that destabilize the whole cluster.",
-  "value": "Monitors rely on tight clock agreement; skew causes false peon timeouts and spurious quorum transitions tha.... Timely UC-6.2.32 alerting on 'Ceph monitor clock skew between mon hosts' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-6.2.32 — Ceph, monitor, clock, skew, between — using `index=os` sourcetype `ceph:log`, grouped by `host`, `mon_id`. Outputs `count` each `the scheduled window`; alert when `skew_events` > 3. Filter chain includes filter `\"clock skew\" OR \"clock drift\" OR \"time skew\"`. Purpose-built for 'Ceph monitor clock skew between mon hosts' in Operations workflows.",
+  "value": "Alerting on Ceph, monitor, clock, skew, between through UC-6.2.32 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Also monitor `chrony`/`ntpd` metrics on mon hosts in parallel. Alert integration with DC ops for stratum changes.",
   "visualization": "Table (mon, skew_events), timeline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'Ceph monitor clock skew between mon hosts' shifts `count` over `span=1h` while `host` remains in-scope for UC-6.2.32. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `mon_id` without crossing `skew_events` > 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-6.2.32)** — Planned work for 'Ceph monitor clock skew between mon hosts' shifts `count` over `span=1h` while `host`, `mon_id` remains in-scope. Applies filter `\"clock skew\" OR \"clock drift\" OR \"time skew\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:log`** — Scheduled automation elevates `mon_id` without crossing `skew_events` > 3 for UC-6.2.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `mon_id`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:log`** — First 48h baseline for UC-6.2.32 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

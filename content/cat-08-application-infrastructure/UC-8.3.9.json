@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Partition Leader Elections' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_partition_leader_elections` (UC-8.3.9), SOC dashboard panel \"Operations — Partition Leader Elections\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:controller' where `entity` satisfies `elections` > 10 for UC-8.3.9 ('Partition Leader Elections'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:controller` events where `entity` stays below `elections` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.9."
+    "positiveScenario": "UC-8.3.9 positive (Partition, Leader, Elections): ingest synthetic events into `index=kafka` sourcetype='kafka:controller' where `count` grouped by `entity` satisfies `elections` > 10 for 'Partition Leader Elections'. Validate filter `\"leader\" \"election\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.9 negative (Leader Elections): ingest benign `kafka` / `kafka:controller` events where `entity` stays below `elections` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Partition Leader Elections'."
   },
   "dataSources": "Kafka JMX (`LeaderElectionRateAndTimeMs`), controller logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, Kafka controller logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=kafka sourcetype=\"kafka:controller\"\n| search \"leader\" \"election\"\n| timechart span=15m count as elections\n| where elections > 10",
-  "description": "Frequent leader elections indicate broker instability, causing temporary unavailability for affected partitions. Searches `index=kafka` with sourcetype `kafka:controller` for UC-8.3.9, aggregating `count` by `entity` over `15m`. Alerts when grouped results cross `elections` > 10 in the saved search. Gives Operations operators a repeatable signal for 'Partition Leader Elections' without manual log review.",
-  "value": "Early 'Partition Leader Elections' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-8.3.9 — Partition, Leader, Elections — using `index=kafka` sourcetype `kafka:controller`, grouped by `entity`. Outputs `count` each `15m`; alert when `elections` > 10. Filter chain includes filter `\"leader\" \"election\"`. Purpose-built for 'Partition Leader Elections' in Operations workflows.",
+  "value": "UC-8.3.9 gives Operations teams earlier visibility into Leader Elections through `kafka:controller` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Monitor Kafka controller logs and JMX metrics. Track leader election rate and duration. Alert on elevated election rates. Correlate with broker restarts, network events, and ZooKeeper/KRaft issues.",
   "visualization": "Line chart (elections over time), Single value (elections per hour), Table (affected topics/partitions).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Partition Leader Elections' shifts `count` over `span=15m` while `host` remains in-scope for UC-8.3.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:controller`** — Scheduled automation elevates `src` without crossing `elections` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:controller`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.9)** — Planned work for 'Partition Leader Elections' shifts `count` over `span=15m` while `host` remains in-scope. Applies filter `\"leader\" \"election\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:controller`** — Scheduled automation elevates `src` without crossing `elections` > 10 for UC-8.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:controller`** — First 48h baseline for UC-8.3.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "zookeeper"

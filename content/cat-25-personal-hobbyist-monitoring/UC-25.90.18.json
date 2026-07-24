@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Instacart Order Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_instacart_order_sync_gap_watch` (UC-25.90.18), SOC dashboard panel \"Personal — Instacart Order Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='instacart:order' where `store_name` satisfies `hours_since` > 72 for UC-25.90.18 ('Instacart Order Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `instacart:order` events where `store_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.90.18."
+    "positiveScenario": "UC-25.90.18 positive (Instacart, Order, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='instacart:order' where `last_seen` grouped by `store_name` satisfies `hours_since` > 72 for 'Instacart Order Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.90.18 negative (Gap Watch): ingest benign `personal` / `instacart:order` events where `store_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 7 confirms zero alert rows for 'Instacart Order Sync Gap Watch'."
   },
   "dataSources": "Mealime meal plans (`mealime:plan`), AnyList grocery lists (`anylist:grocery`), Instacart orders (`instacart:order`), Paprika recipes (`paprika:recipe`), and pantry inventory counts (`pantry:inventory`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mealime weekly plans, AnyList grocery lists, Instacart order history, Paprika recipe exports, and pantry inventory scans ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=instacart:order\n| stats max(_time) as last_seen by store_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
-  "description": "Detects when Instacart order data has stopped arriving for a given store. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Instacart order data has stopped arriving for a given store. Timely UC-25.90.18 alerting on 'Instacart Order Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.90.18 — Instacart, Order, Sync, Gap, Watch — using `index=personal` sourcetype `instacart:order`, grouped by `store_name`. Outputs `last_seen` each `the scheduled window`; alert when `hours_since` > 72. Primary focus: Gap Watch. Purpose-built for 'Instacart Order Sync Gap Watch' in Personal workflows.",
+  "value": "UC-25.90.18 operationalises 'Instacart Order Sync Gap Watch' against `instacart:order` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Track the latest event time per store and alert when the feed is older than 72 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Instacart Order Sync Gap Watch' stops polling `instacart:order`; stale `store_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `instacart:order`. Dedup with `stats latest(*) by store_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.90.18)** — Connector for 'Instacart Order Sync Gap Watch' stops polling `instacart:order`; stale `last_seen` on `store_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.90.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `instacart:order`. Dedup with `stats latest(*) by store_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72 for 'Instacart Order Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

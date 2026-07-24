@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph BlueStore compression ratio effectiveness by pool' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_bluestore_compression_ratio_effectiveness_b` (UC-6.2.26), SOC dashboard panel \"Operations — Ceph BlueStore compression ratio effectiveness by pool\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='ceph:pool' where `pool_name` satisfies `raw` > 0 for UC-6.2.26 ('Ceph BlueStore compression ratio effectiveness by pool'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `ceph:pool` events where `pool_name` stays below `raw` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.26."
+    "positiveScenario": "UC-6.2.26 positive (Ceph, BlueStore, compression, ratio, effectiveness): ingest synthetic events into `index=storage` sourcetype='ceph:pool' where `count` grouped by `pool_name` satisfies `raw` > 0 for 'Ceph BlueStore compression ratio effectiveness by pool'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.26 negative (by pool): ingest benign `storage` / `ceph:pool` events where `pool_name` stays below `raw` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Ceph BlueStore compression ratio effectiveness by pool'."
   },
   "dataSources": "Pool statistics in `ceph:pool` with `compression_*`, `stored`, `stored_raw` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input `ceph df detail -f json` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"ceph:pool\" earliest=-1h\n| eval stored=coalesce(stored_bytes, stored)\n| eval raw=coalesce(stored_raw_bytes, stored_raw)\n| eval ratio=if(raw>0, round(stored/raw,3), null())\n| where isnotnull(ratio) AND compression_mode!=\"none\"\n| timechart span=6h latest(ratio) as compress_ratio by pool_name",
-  "description": "Compression that no longer yields ratio >1 wastes CPU and obscures capacity planning. Pool-level ratios highlight mis-set `compression_algorithm` or incompressible data.",
-  "value": "Compression that no longer yields ratio >1 wastes CPU and obscures capacity planning. Timely UC-6.2.26 alerting on 'Ceph BlueStore compression ratio effectiveness by pool' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-6.2.26 — Ceph, BlueStore, compression, ratio, effectiveness — using `index=storage` sourcetype `ceph:pool`, grouped by `pool_name`. Outputs `count` each `6h`; alert when `raw` > 0. Primary focus: by pool. Purpose-built for 'Ceph BlueStore compression ratio effectiveness by pool' in Operations workflows.",
+  "value": "UC-6.2.26 operationalises 'Ceph BlueStore compression ratio effectiveness by pool' against `ceph:pool` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Flatten `pools` array from `ceph df detail`. Join pool to application owner via lookup for chargeback.",
   "visualization": "Line chart (ratio by pool), table (pool, mode, ratio).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Ceph BlueStore compression ratio effectiveness by pool' shifts `count` over `span=6h` while `pool_name` remains in-scope for UC-6.2.26. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:pool`** — Scheduled automation elevates `stored` without crossing `raw` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:pool`** — First 48h baseline for `pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.26)** — Planned work for 'Ceph BlueStore compression ratio effectiveness by pool' shifts `count` over `span=6h` while `pool_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `ceph:pool`** — Scheduled automation elevates `stored` without crossing `raw` > 0 for UC-6.2.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:pool`** — First 48h baseline for UC-6.2.26 on `pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

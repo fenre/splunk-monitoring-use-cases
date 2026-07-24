@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vrbo Reservation Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vrbo_reservation_sync_gap_watch` (UC-25.106.12), SOC dashboard panel \"Personal — Vrbo Reservation Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vrbo:reservation' where `property_name` satisfies `hours_since` > 48 for UC-25.106.12 ('Vrbo Reservation Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vrbo:reservation` events where `property_name` stays below `hours_since` > 48, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.106.12."
+    "positiveScenario": "UC-25.106.12 positive (Vrbo, Reservation, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='vrbo:reservation' where `last_seen` grouped by `property_name` satisfies `hours_since` > 48 for 'Vrbo Reservation Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.106.12 negative (Gap Watch): ingest benign `personal` / `vrbo:reservation` events where `property_name` stays below `hours_since` > 48, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Vrbo Reservation Sync Gap Watch'."
   },
   "dataSources": "Airbnb bookings (`airbnb:booking`), Vrbo reservations (`vrbo:reservation`), Airbnb payouts (`airbnb:payout`), and guest reviews (`guest:review`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Airbnb booking exports, Vrbo reservation webhooks, Airbnb payout statements, guest review logs, and turnover checklists streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vrbo:reservation\n| stats max(_time) as last_seen by property_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>48\n| sort - hours_since",
-  "description": "Detects when Vrbo reservation data has stopped arriving for a given property. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Vrbo reservation data has stopped arriving for a given property. Timely UC-25.106.12 alerting on 'Vrbo Reservation Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies risk tied to Vrbo, Reservation, Sync, Gap, Watch through UC-25.106.12 on `index=personal` sourcetype `vrbo:reservation`. Summarises `last_seen` grouped by `property_name` across `the scheduled window` before applying `hours_since` > 48. Operators tune 'Vrbo Reservation Sync Gap Watch' using UC-25.106.12 runbook steps.",
+  "value": "Tracking `last_seen` via UC-25.106.12 on `vrbo:reservation` feeds improves response to 'Vrbo Reservation Sync Gap Watch' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per property and alert when the feed is older than 48 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vrbo Reservation Sync Gap Watch' stops polling `vrbo:reservation`; stale `property_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vrbo:reservation`. Dedup with `stats latest(*) by property_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 48. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.106.12)** — Connector for 'Vrbo Reservation Sync Gap Watch' stops polling `vrbo:reservation`; stale `last_seen` on `property_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.106.12, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vrbo:reservation`. Dedup with `stats latest(*) by property_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 48 for 'Vrbo Reservation Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

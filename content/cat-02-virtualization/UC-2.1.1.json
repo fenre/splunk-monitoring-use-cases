@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ESXi Host CPU Contention' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_esxi_host_cpu_contention` (UC-2.1.1), SOC dashboard panel \"Linux — ESXi Host CPU Contention\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vmware` sourcetype='vmware:perf:cpu' where `host` satisfies `avg_ready` > 5 for UC-2.1.1 ('ESXi Host CPU Contention'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vmware` / `vmware:perf:cpu` events where `host` stays below `avg_ready` > 5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.1.1."
+    "positiveScenario": "UC-2.1.1 positive (ESXi, Host, CPU, Contention): ingest synthetic events into `index=vmware` sourcetype='vmware:perf:cpu' where `avg_ready` grouped by `host`, `vm_name` satisfies `avg_ready` > 5 for 'ESXi Host CPU Contention'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.1.1 negative (CPU Contention): ingest benign `vmware` / `vmware:perf:cpu` events where `host`, `vm_name` stays below `avg_ready` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'ESXi Host CPU Contention'."
   },
   "dataSources": "`sourcetype=vmware:perf:cpu`, vCenter performance metrics Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready by host, vm_name\n| where avg_ready > 5\n| sort -avg_ready",
-  "description": "CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.",
-  "value": "Early 'ESXi Host CPU Contention' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-2.1.1 — ESXi, Host, CPU, Contention — using `index=vmware` sourcetype `vmware:perf:cpu`, grouped by `host`, `vm_name`. Outputs `avg_ready` each `the scheduled window`; alert when `avg_ready` > 5. Primary focus: CPU Contention. Purpose-built for 'ESXi Host CPU Contention' in Linux workflows.",
+  "value": "Operators running UC-2.1.1 on `vmware:perf:cpu` feeds shorten triage for CPU Contention tied to 'ESXi Host CPU Contention', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Install `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.",
   "visualization": "Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).",
   "cimModels": [

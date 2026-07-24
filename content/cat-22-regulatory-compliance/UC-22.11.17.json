@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `asset_id` satisfies detection threshold for UC-22.11.17 ('Cryptographic Erasure Verification After Decommission'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `asset_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.17."
+    "positiveScenario": "UC-22.11.17 positive (Cryptographic, Erasure, Verification, After, Decommission): ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `wipe_ok` grouped by `asset_id`, `]` satisfies -30d for 'Cryptographic Erasure Verification After Decommission'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.17 negative (After Decommission): ingest benign `itsm` / `snow:cmdb_ci` events where `asset_id`, `]` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'Cryptographic Erasure Verification After Decommission'."
   },
   "dataSources": "`index=sec` `sourcetype=\"disk:wipe:log\"`; `index=aws` `eventName` DeleteVolume; `index=itsm` retirement tickets",
   "app": "Splunk Add-on for AWS (1876), Splunk Add-on for Windows (742) (Splunkbase)",
   "spl": "index=itsm sourcetype=\"snow:cmdb_ci\" earliest=-30d\n| where match(short_description,\"(?i)decommission|retire\") AND match(short_description,\"(?i)CDE|PCI|payment\")\n| rename sys_id as asset_id, number as chg_ticket\n| join type=left max=0 asset_id [\n    search index=sec sourcetype=\"disk:wipe:log\" earliest=-30d\n    | stats max(wipe_status) as wipe_ok by asset_id\n  ]\n| where isnull(wipe_ok) OR wipe_ok!=\"VERIFIED\"\n| table chg_ticket, asset_id, short_description, wipe_ok",
-  "description": "Correlates disk wipe or crypto-shred completion events with asset retirement tickets so media and VMs that held account data cannot return to production without verified erasure evidence.",
-  "value": "Correlates disk wipe or crypto-shred completion events with asset retirement tickets so media and VMs that.... Timely UC-22.11.17 alerting on 'Cryptographic Erasure Verification After Decommission' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.11.17 — Cryptographic, Erasure, Verification, After, Decommission — using `index=itsm` sourcetype `snow:cmdb_ci`, grouped by `asset_id`, `]`. Outputs `wipe_ok` each `the scheduled window`; alert when -30d. Primary focus: After Decommission. Purpose-built for 'Cryptographic Erasure Verification After Decommission' in Compliance workflows.",
+  "value": "UC-22.11.17 accelerates insight into After Decommission ('Cryptographic Erasure Verification After Decommission') by tracking `wipe_ok` on `snow:cmdb_ci` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Ensure wipe tooling emits `asset_id` matching CMDB. (2) Define `wipe_status` enumeration with `VERIFIED`. (3) Escalate open rows weekly. (4) Store closure export for PCI media controls. Indexes required: `index=aws`, `index=itsm`, `index=sec`; Sourcetypes: `sourcetype=disk:wipe:log`, `sourcetype=snow:cmdb_ci`.",
   "visualization": "Table (exceptions), gauge (% verified), timeline (ticket opened vs wipe event). Key fields: `asset_id`, `chg_ticket`, `short_description`, `wipe_ok`.",
   "cimModels": [

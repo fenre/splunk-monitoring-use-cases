@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `_time` satisfies `p95` > 0 for UC-22.11.5 ('DMZ Originated Sessions Hitting CDE Internal Segments'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netfw` / `pan:traffic` events where `_time` stays below `p95` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.5."
+    "positiveScenario": "UC-22.11.5 positive (DMZ, Originated, Sessions, Hitting, CDE): ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `count` grouped by `_time`, `src`, `dest`, `app` satisfies `p95` > 0 for 'DMZ Originated Sessions Hitting CDE Internal Segments'. Validate lookup `pci_dmz_assets.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.5 negative (Internal Segments): ingest benign `netfw` / `pan:traffic` events where `_time`, `src`, `dest`, `app` stays below `p95` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 13 confirms zero alert rows for 'DMZ Originated Sessions Hitting CDE Internal Segments'."
   },
   "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"`; asset lookup `pci_dmz_assets.csv` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise Security (263), Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=netfw sourcetype=\"pan:traffic\" action=allowed earliest=-7d\n| lookup pci_dmz_assets.csv ip AS src OUTPUT in_dmz\n| lookup pci_cde_internal.csv ip AS dest OUTPUT in_cde_internal\n| where in_dmz=\"true\" AND in_cde_internal=\"true\"\n| bin _time span=1h\n| stats count by _time, src, dest, app, dest_port\n| eventstats perc95(count) as p95 globally\n| where count>p95 AND p95>0\n| sort - count",
-  "description": "Detects allowed paths from DMZ assets into internal CDE networks that violate one-way DMZ design, reducing the chance a compromised web tier pivots into systems that store or process account data.",
-  "value": "Detects allowed paths from DMZ assets into internal CDE networks that violate one-way DMZ design, reducing.... Timely UC-22.11.5 alerting on 'DMZ Originated Sessions Hitting CDE Internal Segments' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.11.5 — DMZ, Originated, Sessions, Hitting, CDE — using `index=netfw` sourcetype `pan:traffic`, grouped by `_time`, `src`, `dest`, `app`. Outputs `count` each `1h`; alert when `p95` > 0. Filter chain includes lookup `pci_dmz_assets.csv`. Purpose-built for 'DMZ Originated Sessions Hitting CDE Internal Segments' in Compliance workflows.",
+  "value": "UC-22.11.5 gives Compliance teams earlier visibility into Internal Segments through `pan:traffic` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Refresh DMZ and CDE internal inventories weekly from CMDB. (2) Validate expected admin SSH paths. (3) Create ES notable for sustained spikes. (4) Document compensating controls if architecture requires exceptions. Indexes required: `index=netfw`; Sourcetypes: `sourcetype=pan:traffic`; Lookups: ``pci_dmz_assets.csv`, `pci_cde_internal`, `pci_cde_internal.csv`, `pci_dmz_assets`, `pci_dmz_assets.csv`.",
   "visualization": "Line chart (hourly counts), bubble chart (src size by count), table (spike windows).",
   "cimModels": [

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Connection Count Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_connection_count_monitoring` (UC-7.2.7), SOC dashboard panel \"Operations — Connection Count Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:server_status' where `host` satisfies `connection_pct` > 80 for UC-7.2.7 ('Connection Count Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:server_status` events where `host` stays below `connection_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.7."
+    "positiveScenario": "UC-7.2.7 positive (Connection, Count, Monitoring): ingest synthetic events into `index=database` sourcetype='mongodb:server_status' where `connection_pct` grouped by `host` satisfies `connection_pct` > 80 for 'Connection Count Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.7 negative (Count Monitoring): ingest benign `database` / `mongodb:server_status` events where `host` stays below `connection_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Connection Count Monitoring'."
   },
   "dataSources": "MongoDB `serverStatus().connections`, Redis `INFO clients`, Elasticsearch `_nodes/stats/transport` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:server_status\"\n| eval pct_used=round(connections.current/connections.available*100,1)\n| timechart span=5m max(pct_used) as connection_pct by host\n| where connection_pct > 80",
-  "description": "Approaching connection limits causes client rejections. Monitoring enables proactive limit adjustment or connection pooling.",
-  "value": "Early 'Connection Count Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Connection Count Monitoring' (UC-7.2.7) using `index=database` sourcetype `mongodb:server_status` by aggregating `connection_pct` grouped by `host` over `5m` and alerting when `connection_pct` > 80. Keywords: Connection, Count, Monitoring. Focuses on Count Monitoring behaviour so operations teams can triage UC-7.2.7 without ad-hoc log review.",
+  "value": "UC-7.2.7 accelerates insight into Count Monitoring ('Connection Count Monitoring') by tracking `connection_pct` on `mongodb:server_status` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll connection metrics every 5 minutes. Calculate percentage of max connections used. Alert at 80% and 95%. Track by client application to identify connection leaks.",
   "visualization": "Gauge (% connections used per node), Line chart (connection count over time), Table (nodes approaching limit).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Connection Count Monitoring' shifts `max` over `span=5m` while `host` remains in-scope for UC-7.2.7. Cross-check CMDB CHG.\n\n2. **Batch `max` on `mongodb:server_status`** — Scheduled automation elevates `pct_used` without crossing `connection_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:server_status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.7)** — Planned work for 'Connection Count Monitoring' shifts `connection_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `mongodb:server_status`** — Scheduled automation elevates `pct_used` without crossing `connection_pct` > 80 for UC-7.2.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:server_status`** — First 48h baseline for UC-7.2.7 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "elasticsearch",
     "mongodb",

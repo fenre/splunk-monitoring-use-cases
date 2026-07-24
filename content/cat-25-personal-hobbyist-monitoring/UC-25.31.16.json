@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mood Recovery Time After Hard Days' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mood_recovery_time_after_hard_days` (UC-25.31.16), SOC dashboard panel \"Personal — Mood Recovery Time After Hard Days\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' where `entity` satisfies `prev_score` < 3 for UC-25.31.16 ('Mood Recovery Time After Hard Days'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mood:entry` events where `entity` stays below `prev_score` < 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.16."
+    "positiveScenario": "UC-25.31.16 positive (Mood, Recovery, Time, After, Hard): ingest synthetic events into `index=personal` sourcetype='mood:entry' where `avg_days_to_recover` grouped by `entity` satisfies `prev_score` < 3, or `mood_score` >= 4 for 'Mood Recovery Time After Hard Days'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.31.16 negative (Hard Days): ingest benign `personal` / `mood:entry` events where `entity` stays below `prev_score` < 3, or `mood_score` >= 4, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Mood Recovery Time After Hard Days'."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mood:entry\n| sort 0 _time\n| streamstats current=f last(mood_score) as prev_score last(_time) as prev_time\n| eval recovery_days=round((_time-prev_time)/86400,1)\n| where prev_score<3 AND mood_score>=4\n| stats count as recoveries, avg(recovery_days) as avg_days_to_recover, perc90(recovery_days) as p90_days",
-  "description": "Measures how quickly your mood usually rebounds after a notably bad day. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Measures how quickly your mood usually rebounds after a notably bad day. Timely UC-25.31.16 alerting on 'Mood Recovery Time After Hard Days' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.31.16 — Mood, Recovery, Time, After, Hard — using `index=personal` sourcetype `mood:entry`, grouped by `entity`. Outputs `avg_days_to_recover` each `the scheduled window`; alert when `prev_score` < 3, or `mood_score` >= 4. Primary focus: Hard Days. Purpose-built for 'Mood Recovery Time After Hard Days' in Personal workflows.",
+  "value": "UC-25.31.16 gives Personal teams earlier visibility into Hard Days through `mood:entry` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log mood scores into `index=personal`; calculate the gap between low-score days and the next clearly recovered entry.",
   "visualization": "Single-value recovery summary with average and p90 days to rebound.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mood Recovery Time After Hard Days' stops polling `mood:entry`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `prev_score` < 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.31.16)** — Connector for 'Mood Recovery Time After Hard Days' stops polling `mood:entry`; stale `avg_days_to_recover` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_days_to_recover` over `1w` is expected for UC-25.31.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `prev_score` < 3 for 'Mood Recovery Time After Hard Days'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

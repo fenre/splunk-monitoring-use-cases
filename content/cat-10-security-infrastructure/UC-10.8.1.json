@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Certificate Expiry Monitoring' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_certificate_expiry_monitoring` (UC-10.8.1), SOC dashboard panel \"Security Infra — Certificate Expiry Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=certificates` sourcetype='cert_inventory' where `entity` satisfies `days_to_expiry` < 90 for UC-10.8.1 ('Certificate Expiry Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `certificates` / `cert_inventory` events where `entity` stays below `days_to_expiry` < 90, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.8.1."
+    "positiveScenario": "UC-10.8.1 positive (Certificate, Expiry, Monitoring): ingest synthetic events into `index=certificates` sourcetype='cert_inventory' where `count` grouped by `entity` satisfies `days_to_expiry` < 90 for 'Certificate Expiry Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.8.1 negative (Expiry Monitoring): ingest benign `certificates` / `cert_inventory` events where `entity` stays below `days_to_expiry` < 90, or exclude the test entity via `soc_exception_register.csv`. Variant 12 confirms zero alert rows for 'Certificate Expiry Monitoring'."
   },
   "dataSources": "Certificate inventory scans (openssl, certutil, CT logs) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=certificates sourcetype=\"cert_inventory\"\n| eval days_to_expiry=round((cert_not_after_epoch-now())/86400)\n| where days_to_expiry < 90\n| table cn, san, issuer, days_to_expiry, host, port\n| sort days_to_expiry",
-  "description": "Expired certificates cause service outages, authentication failures, and security warnings. Proactive monitoring is the simplest prevention.",
-  "value": "Early 'Certificate Expiry Monitoring' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-10.8.1 — Certificate, Expiry, Monitoring — using `index=certificates` sourcetype `cert_inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_to_expiry` < 90. Primary focus: Expiry Monitoring. Purpose-built for 'Certificate Expiry Monitoring' in Security Infra workflows.",
+  "value": "Tracking `activity` via UC-10.8.1 on `cert_inventory` feeds improves response to 'Certificate Expiry Monitoring' and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Deploy scripted input scanning all known endpoints (HTTPS, LDAPS, SMTPS, etc.) daily. Parse certificate metadata. Alert at 90/60/30/7 day thresholds with escalating severity. Maintain endpoint inventory for comprehensive coverage.",
   "visualization": "Table (certs with expiry countdown), Single value (certs expiring within 30d), Status grid (cert × expiry status), Bar chart (certs by expiry bucket).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `certificates`** — Planned work for 'Certificate Expiry Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.8.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cert_inventory`** — Scheduled automation elevates `days_to_expiry` without crossing `days_to_expiry` < 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_inventory`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `certificates` (UC-10.8.1)** — Planned work for 'Certificate Expiry Monitoring' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cert_inventory`** — Scheduled automation elevates `days_to_expiry` without crossing `days_to_expiry` < 90 for UC-10.8.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `certificates` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cert_inventory`** — First 48h baseline for UC-10.8.1 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cert_pki"
   ],

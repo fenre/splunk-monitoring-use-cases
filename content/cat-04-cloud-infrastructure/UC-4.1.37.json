@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SNS Delivery Failures and Bounce/Complaint' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sns_delivery_failures_and_bounce_complaint` (UC-4.1.37), SOC dashboard panel \"Operations — SNS Delivery Failures and Bounce/Complaint\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `TopicName` satisfies `Sum` > 0 for UC-4.1.37 ('SNS Delivery Failures and Bounce/Complaint'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `TopicName` stays below `Sum` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.37."
+    "positiveScenario": "UC-4.1.37 positive (SNS, Delivery, Failures, and, Bounce): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `sum` grouped by `TopicName` satisfies `Sum` > 0 for 'SNS Delivery Failures and Bounce/Complaint'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.37 negative (and Bounce/Complaint): ingest benign `aws` / `aws:cloudwatch` events where `TopicName` stays below `Sum` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'SNS Delivery Failures and Bounce/Complaint'."
   },
   "dataSources": "CloudWatch SNS metrics (NumberOfNotificationsFailed, NumberOfMessagesFailed) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SNS\" metric_name=\"NumberOfNotificationsFailed\"\n| where Sum > 0\n| timechart span=5m sum(Sum) by TopicName",
-  "description": "SNS delivery failures mean subscribers are not receiving notifications. Bounce/complaint (for email) affects sender reputation and deliverability.",
-  "value": "Early 'SNS Delivery Failures and Bounce/Complaint' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects and Bounce/Complaint activity in UC-4.1.37 ('SNS Delivery Failures and Bounce/Complaint') from `index=aws` sourcetype `aws:cloudwatch`. Rolls up `sum` by `TopicName` across `5m` and pages when `Sum` > 0. Covers SNS, Delivery, Failures, and, Bounce. Operations operators treat UC-4.1.37 as the canonical signal.",
+  "value": "Operators running UC-4.1.37 on `aws:cloudwatch` feeds shorten triage for and Bounce/Complaint tied to 'SNS Delivery Failures and Bounce/Complaint', lowering operational risk and delayed incident response.",
   "implementation": "Collect SNS metrics. Alert when NumberOfNotificationsFailed > 0. For email subscriptions, enable bounce/complaint feedback and ingest via SNS or EventBridge. Track delivery success rate.",
   "visualization": "Line chart (failures by topic), Table (topic, failure count), Single value (failed notifications).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'SNS Delivery Failures and Bounce/Complaint' shifts `sum` over `span=5m` while `TopicName` remains in-scope for UC-4.1.37. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `Sum` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TopicName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `TopicName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TopicName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.37)** — Planned work for 'SNS Delivery Failures and Bounce/Complaint' shifts `sum` over `span=5m` while `TopicName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `Sum` > 0 for UC-4.1.37. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TopicName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.37 on `TopicName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TopicName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

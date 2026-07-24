@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Metabase Scheduled Subscription Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_metabase_scheduled_subscription_failures` (UC-24.5.4), SOC dashboard panel \"Operations — Metabase Scheduled Subscription Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='metabase:app' where `pulse_name` satisfies `failures` > 0 for UC-24.5.4 ('Metabase Scheduled Subscription Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `metabase:app` events where `pulse_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.4."
+    "positiveScenario": "UC-24.5.4 positive (Metabase, Scheduled, Subscription, Failures): ingest synthetic events into `index=bi` sourcetype='metabase:app' where `sum` grouped by `pulse_name`, `channel` satisfies `failures` > 0 for 'Metabase Scheduled Subscription Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.4 negative (Subscription Failures): ingest benign `bi` / `metabase:app` events where `pulse_name`, `channel` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Metabase Scheduled Subscription Failures'."
   },
   "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=metabase:app event=pulse_send\n| stats count as sends, sum(eval(status=\"error\")) as failures by pulse_name, channel\n| where failures>0\n| sort - failures",
-  "description": "Monitors Metabase pulses/subscriptions and flags failed deliveries so recipients keep getting their scheduled dashboards.",
-  "value": "Monitors Metabase pulses/subscriptions and flags failed deliveries so recipients keep getting their schedul.... Timely UC-24.5.4 alerting on 'Metabase Scheduled Subscription Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-24.5.4 — Metabase, Scheduled, Subscription, Failures — using `index=bi` sourcetype `metabase:app`, grouped by `pulse_name`, `channel`. Outputs `sum` each `the scheduled window`; alert when `failures` > 0. Primary focus: Subscription Failures. Purpose-built for 'Metabase Scheduled Subscription Failures' in Operations workflows.",
+  "value": "UC-24.5.4 operationalises 'Metabase Scheduled Subscription Failures' against `metabase:app` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Metabase logs; schedule hourly; alert on repeated failures.",
   "visualization": "Table of failing pulses, timechart of delivery failures.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Metabase Scheduled Subscription Failures' shifts `sum` over `span=1h` while `pulse_name` remains in-scope for UC-24.5.4. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `metabase:app`** — Scheduled automation elevates `channel` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pulse_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `metabase:app`** — First 48h baseline for `pulse_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pulse_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.4)** — Planned work for 'Metabase Scheduled Subscription Failures' shifts `sum` over `span=1h` while `pulse_name`, `channel` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `metabase:app`** — Scheduled automation elevates `channel` without crossing `failures` > 0 for UC-24.5.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pulse_name`, `channel`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `metabase:app`** — First 48h baseline for UC-24.5.4 on `pulse_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pulse_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Dead Letter Queue Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dead_letter_queue_monitoring` (UC-8.3.5), SOC dashboard panel \"Operations — Dead Letter Queue Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `entity` satisfies `messages` > 0 for UC-8.3.5 ('Dead Letter Queue Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `rabbitmq:queue` events where `entity` stays below `messages` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.5."
+    "positiveScenario": "UC-8.3.5 positive (Dead, Letter, Queue, Monitoring): ingest synthetic events into `index=messaging` sourcetype='rabbitmq:queue' where `count` grouped by `entity` satisfies `messages` > 0 for 'Dead Letter Queue Monitoring'. Validate filter `queue_name=\"*dead*\" OR queue_name=\"*dlq*\" OR queue_name=\"*er`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.5 negative (Queue Monitoring): ingest benign `messaging` / `rabbitmq:queue` events where `entity` stays below `messages` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Dead Letter Queue Monitoring'."
   },
   "dataSources": "RabbitMQ DLQ queues, AWS SQS DLQ, Kafka DLT topics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Queue management API, custom input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"rabbitmq:queue\"\n| search queue_name=\"*dead*\" OR queue_name=\"*dlq*\" OR queue_name=\"*error*\"\n| where messages > 0\n| table _time, vhost, queue_name, messages, message_stats.publish_details.rate",
-  "description": "Messages in DLQ represent processing failures that need investigation. They may indicate bugs, schema changes, or downstream failures.",
-  "value": "Early 'Dead Letter Queue Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Dead Letter Queue Monitoring' patterns (UC-8.3.5) sourced from `index=messaging` sourcetype `rabbitmq:queue`. Threshold bundle: `messages` > 0; aggregation grain: `entity`; metrics: `count`. Enrichment path: filter `queue_name=\"*dead*\" OR queue_name=\"*dlq*\" OR queue_name=\"*er`.",
+  "value": "UC-8.3.5 gives Operations teams earlier visibility into Queue Monitoring through `rabbitmq:queue` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Monitor DLQ/DLT queues specifically. Alert when any DLQ has messages (should normally be 0). Track DLQ ingestion rate to detect ongoing issues. Sample DLQ messages for root cause analysis.",
   "visualization": "Single value (total DLQ messages), Table (DLQs with counts), Line chart (DLQ growth over time).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'Dead Letter Queue Monitoring' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.3.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:queue`** — Scheduled automation elevates `src` without crossing `messages` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.3.5)** — Planned work for 'Dead Letter Queue Monitoring' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `queue_name=\"*dead*\" OR queue_name=\"*dlq*\" OR queue_name=\"*er`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `rabbitmq:queue`** — Scheduled automation elevates `src` without crossing `messages` > 0 for UC-8.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rabbitmq:queue`** — First 48h baseline for UC-8.3.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "rabbitmq"

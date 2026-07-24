@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Web Server Thread Pool Exhaustion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_web_server_thread_pool_exhaustion` (UC-8.1.16), SOC dashboard panel \"Operations — Web Server Thread Pool Exhaustion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:stub_status' where `host` satisfies `util_pct` > 85 for UC-8.1.16 ('Web Server Thread Pool Exhaustion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `nginx:stub_status` events where `host` stays below `util_pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.16."
+    "positiveScenario": "UC-8.1.16 positive (Web, Server, Thread, Pool, Exhaustion): ingest synthetic events into `index=web` sourcetype='nginx:stub_status' where `util` grouped by `host`, `sourcetype` satisfies `util_pct` > 85, or `queue_current` > 50 for 'Web Server Thread Pool Exhaustion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.16 negative (Pool Exhaustion): ingest benign `web` / `nginx:stub_status` events where `host`, `sourcetype` stays below `util_pct` > 85, or `queue_current` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Web Server Thread Pool Exhaustion'."
   },
   "dataSources": "`nginx:stub_status`, `Perfmon:W3SVC_W3WP`, `apache:server_status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-nginx` stub_status, `Splunk_TA_windows` perfmon, Apache mod_status — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web (sourcetype=\"nginx:stub_status\" OR sourcetype=\"apache:server_status\" OR sourcetype=\"Perfmon:W3SVC_W3WP\")\n| eval util_pct=coalesce(worker_util_pct, pct_busy, thread_pool_queue_length/max_threads*100)\n| where util_pct > 85 OR queue_current > 50\n| timechart span=5m max(util_pct) as util by host, sourcetype",
-  "description": "IIS `QueueFull`, NGINX worker saturation, or Apache `BusyWorkers` at limit causes queueing. Unified thresholding across stacks.",
-  "value": "Early 'Web Server Thread Pool Exhaustion' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Pool Exhaustion activity in UC-8.1.16 ('Web Server Thread Pool Exhaustion') from `index=web` sourcetype `nginx:stub_status`. Rolls up `util` by `host`, `sourcetype` across `5m` and pages when `util_pct` > 85, or `queue_current` > 50. Covers Web, Server, Thread, Pool, Exhaustion. Operations operators treat UC-8.1.16 as the canonical signal.",
+  "value": "Operators running UC-8.1.16 on `nginx:stub_status` feeds shorten triage for Pool Exhaustion tied to 'Web Server Thread Pool Exhaustion', lowering operational risk and delayed incident response.",
   "implementation": "Normalize field names at ingest. Alert when util >85% for 10m or IIS request queue length sustained high. Correlate with CPU and backend latency.",
   "visualization": "Gauge (util %), Line chart (util and queue), Table (hosts over threshold).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Web Server Thread Pool Exhaustion' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.1.16. Cross-check CMDB CHG.\n\n2. **Batch `max` on `nginx:stub_status`** — Scheduled automation elevates `sourcetype` without crossing `util_pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:stub_status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.16)** — Planned work for 'Web Server Thread Pool Exhaustion' shifts `util` over `span=5m` while `host`, `sourcetype` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `nginx:stub_status`** — Scheduled automation elevates `sourcetype` without crossing `util_pct` > 85 for UC-8.1.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:stub_status`** — First 48h baseline for UC-8.1.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx",

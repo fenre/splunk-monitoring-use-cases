@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cloud Network Traffic Volume Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloud_network_traffic_volume_trending` (UC-4.6.5), SOC dashboard panel \"Operations — Cloud Network Traffic Volume Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cloud` sourcetype='aws:cloudwatch:vpcflow' where `entity` satisfies detection threshold for UC-4.6.5 ('Cloud Network Traffic Volume Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cloud` / `aws:cloudwatch:vpcflow` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.6.5."
+    "positiveScenario": "UC-4.6.5 positive (Cloud, Network, Traffic, Volume, Trending): ingest synthetic events into `index=cloud` sourcetype='aws:cloudwatch:vpcflow' where `total_bytes` grouped by `entity` satisfies detection threshold for 'Cloud Network Traffic Volume Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.6.5 negative (Volume Trending): ingest benign `cloud` / `aws:cloudwatch:vpcflow` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Cloud Network Traffic Volume Trending'."
   },
   "dataSources": "`index=cloud sourcetype=aws:cloudwatch:vpcflow` OR `sourcetype=azure:nsg:flow` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Add-on for AWS (VPC Flow Logs), Azure NSG flow logs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=cloud sourcetype=\"aws:cloudwatch:vpcflow\"\n| eval bytes=tonumber(bytes)\n| timechart span=1w sum(bytes) as total_bytes\n| eval total_gb=round(total_bytes/1073741824, 2)\n| trendline sma4(total_gb) as traffic_trend",
-  "description": "Weekly VPC flow log volume indicates shifting traffic patterns, DDoS aftermath, or misconfigured mirroring. Complements per-flow analysis with a coarse health signal and correlates with network-related cost changes.",
-  "value": "Early 'Cloud Network Traffic Volume Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Cloud Network Traffic Volume Trending' patterns (UC-4.6.5) sourced from `index=cloud` sourcetype `aws:cloudwatch:vpcflow`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `total_bytes`. Watch terms: Cloud, Network, Traffic, Volume, Trending.",
+  "value": "UC-4.6.5 gives Operations teams earlier visibility into Volume Trending through `aws:cloudwatch:vpcflow` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Parse VPC Flow or NSG flow fields so bytes is numeric. Filter internal-only noise if needed via RFC1918 CIDR lists. Use weekly buckets for medium-term trending; index volume growth also correlates with ingest cost. For Azure, map to the appropriate custom sourcetype for raw flows. Alert on sudden jumps exceeding 2x the 4-week moving average.",
   "visualization": "Column chart (weekly total GB), line overlay (4-week SMA), dual axis with flow record count.",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud`** — Planned work for 'Cloud Network Traffic Volume Trending' shifts `sum` over `span=1w` while `host` remains in-scope for UC-4.6.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch:vpcflow`** — Scheduled automation elevates `bytes` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:vpcflow`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.6.5)** — Planned work for 'Cloud Network Traffic Volume Trending' shifts `total_bytes` over `span=1w` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch:vpcflow`** — Scheduled automation elevates `bytes` without crossing configured threshold for UC-4.6.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:vpcflow`** — First 48h baseline for UC-4.6.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"

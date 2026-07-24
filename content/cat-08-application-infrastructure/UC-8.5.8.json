@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Hit Ratio and Eviction Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_hit_ratio_and_eviction_rate` (UC-8.5.8), SOC dashboard panel \"Operations — Memcached Hit Ratio and Eviction Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `host` satisfies `hit_pct` < 85 for UC-8.5.8 ('Memcached Hit Ratio and Eviction Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `memcached:stats` events where `host` stays below `hit_pct` < 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.8."
+    "positiveScenario": "UC-8.5.8 positive (Memcached, Hit, Ratio, and, Eviction): ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `hit_pct` grouped by `host` satisfies `hit_pct` < 85, or `eviction_rate` > 5 for 'Memcached Hit Ratio and Eviction Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.8 negative (Eviction Rate): ingest benign `cache` / `memcached:stats` events where `host` stays below `hit_pct` < 85, or `eviction_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Memcached Hit Ratio and Eviction Rate'."
   },
   "dataSources": "memcached stats command (get_hits, get_misses, evictions) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (memcached stats) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"memcached:stats\"\n| eval hit_ratio=round(get_hits/(get_hits+get_misses)*100,2)\n| timechart span=5m avg(hit_ratio) as hit_pct, per_second(evictions) as eviction_rate by host\n| where hit_pct < 85 OR eviction_rate > 5",
-  "description": "Cache hit ratio and eviction rate measure cache effectiveness and capacity pressure. Declining hit ratio or rising evictions indicate undersized cache or changing access patterns.",
-  "value": "Early 'Memcached Hit Ratio and Eviction Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-8.5.8 — Memcached, Hit, Ratio, and, Eviction — using `index=cache` sourcetype `memcached:stats`, grouped by `host`. Outputs `hit_pct` each `5m`; alert when `hit_pct` < 85, or `eviction_rate` > 5. Primary focus: Eviction Rate. Purpose-built for 'Memcached Hit Ratio and Eviction Rate' in Operations workflows.",
+  "value": "For 'Memcached Hit Ratio and Eviction Rate', UC-8.5.8 converts `hit_pct` on `memcached:stats` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Run `echo stats | nc localhost 11211` (or memcached stats protocol) via scripted input every minute. Parse get_hits, get_misses, evictions, bytes, bytes_read, bytes_written. Forward to Splunk via HEC. Calculate hit ratio; alert when below 85%. Track eviction rate; alert when evictions per second exceed 5. Correlate with memory usage (limit_maxbytes).",
   "visualization": "Gauge (hit ratio %), Line chart (hit ratio and eviction rate over time), Single value (current eviction rate), Table (instances with low hit ratio).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Memcached Hit Ratio and Eviction Rate' shifts `avg` over `span=5m` while `host` remains in-scope for UC-8.5.8. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `memcached:stats`** — Scheduled automation elevates `hit_ratio` without crossing `hit_pct` < 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.5.8)** — Planned work for 'Memcached Hit Ratio and Eviction Rate' shifts `hit_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `memcached:stats`** — Scheduled automation elevates `hit_ratio` without crossing `hit_pct` < 85 for UC-8.5.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.5.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

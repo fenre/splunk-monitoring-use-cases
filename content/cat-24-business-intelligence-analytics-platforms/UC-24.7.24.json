@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Prefect Flow Run Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_prefect_flow_run_failures` (UC-24.7.24), SOC dashboard panel \"Operations — Prefect Flow Run Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='prefect:api' where `flow_name` satisfies detection threshold for UC-24.7.24 ('Prefect Flow Run Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `prefect:api` events where `flow_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.24."
+    "positiveScenario": "UC-24.7.24 positive (Prefect, Flow, Run, Failures): ingest synthetic events into `index=bi` sourcetype='prefect:api' where `count` grouped by `flow_name`, `state_type` satisfies detection threshold for 'Prefect Flow Run Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.24 negative (Run Failures): ingest benign `bi` / `prefect:api` events where `flow_name`, `state_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Prefect Flow Run Failures'."
   },
   "dataSources": "Prefect logs (`prefect:worker`, `prefect:agent`), REST API flow-run and work-pool queries (`prefect:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=prefect:api endpoint=\"flow_runs\" state_type=\"FAILED\" OR state_type=\"CRASHED\"\n| stats count as failures by flow_name, state_type\n| sort - failures",
-  "description": "Counts Prefect flow runs ending in FAILED or CRASHED states per flow, separating logical failures from infrastructure crashes.",
-  "value": "Counts Prefect flow runs ending in FAILED or CRASHED states per flow, separating logical failures from infr.... Timely UC-24.7.24 alerting on 'Prefect Flow Run Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-24.7.24 for Prefect, Flow, Run, Failures over `index=bi` sourcetype `prefect:api` with thresholds configured threshold. Groups `count` by `flow_name`, `state_type` each `the scheduled window`. Centered on Run Failures indicators. Supports repeatable operations triage for 'Prefect Flow Run Failures'.",
+  "value": "For 'Prefect Flow Run Failures', UC-24.7.24 converts `activity` on `prefect:api` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll the Prefect flow-runs API into HEC; schedule every 10 minutes and alert on failures/crashes for production flows.",
   "visualization": "Table of flow by state and count, timechart.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Prefect Flow Run Failures' shifts `count` over `span=1h` while `flow_name` remains in-scope for UC-24.7.24. Cross-check CMDB CHG.\n\n2. **Batch `count` on `prefect:api`** — Scheduled automation elevates `state_type` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:api`** — First 48h baseline for `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.24)** — Planned work for 'Prefect Flow Run Failures' shifts `count` over `span=1h` while `flow_name`, `state_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `prefect:api`** — Scheduled automation elevates `state_type` without crossing configured threshold for UC-24.7.24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `flow_name`, `state_type`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:api`** — First 48h baseline for UC-24.7.24 on `flow_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `flow_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

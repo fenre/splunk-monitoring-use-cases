@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Nextdoor Post Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_nextdoor_post_sync_gap_watch` (UC-25.112.6), SOC dashboard panel \"Personal — Nextdoor Post Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nextdoor:post' where `category` satisfies `hours_since` > 48 for UC-25.112.6 ('Nextdoor Post Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nextdoor:post` events where `category` stays below `hours_since` > 48, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.112.6."
+    "positiveScenario": "UC-25.112.6 positive (Nextdoor, Post, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='nextdoor:post' where `last_seen` grouped by `category` satisfies `hours_since` > 48 for 'Nextdoor Post Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.112.6 negative (Gap Watch): ingest benign `personal` / `nextdoor:post` events where `category` stays below `hours_since` > 48, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Nextdoor Post Sync Gap Watch'."
   },
   "dataSources": "Nextdoor posts (`nextdoor:post`), Ring Neighbors alerts (`ring:neighbor`), neighborhood watch logs (`neighborhood:watch`), and local alerts (`local:alert`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Nextdoor post exports, Ring Neighbors alerts, neighborhood watch logs, and local emergency alert feeds ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nextdoor:post\n| stats max(_time) as last_seen by category\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>48\n| sort - hours_since",
-  "description": "Detects when Nextdoor post data has stopped arriving for a given category. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Nextdoor post data has stopped arriving for a given category. Timely UC-25.112.6 alerting on 'Nextdoor Post Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces 'Nextdoor Post Sync Gap Watch' (UC-25.112.6) using `index=personal` sourcetype `nextdoor:post` by aggregating `last_seen` grouped by `category` over `the scheduled window` and alerting when `hours_since` > 48. Keywords: Nextdoor, Post, Sync, Gap, Watch. Focuses on Gap Watch behaviour so personal teams can triage UC-25.112.6 without ad-hoc log review.",
+  "value": "UC-25.112.6 accelerates insight into Gap Watch ('Nextdoor Post Sync Gap Watch') by tracking `last_seen` on `nextdoor:post` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Track the latest event time per category and alert when the feed is older than 48 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Nextdoor Post Sync Gap Watch' stops polling `nextdoor:post`; stale `category` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nextdoor:post`. Dedup with `stats latest(*) by category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 48. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.112.6)** — Connector for 'Nextdoor Post Sync Gap Watch' stops polling `nextdoor:post`; stale `last_seen` on `category` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.112.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nextdoor:post`. Dedup with `stats latest(*) by category`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 48 for 'Nextdoor Post Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

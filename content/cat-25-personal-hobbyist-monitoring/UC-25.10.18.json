@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weekly AQI Exposure Hours' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weekly_aqi_exposure_hours` (UC-25.10.18), SOC dashboard panel \"Personal — Weekly AQI Exposure Hours\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='purpleair:aqi' where `_time` satisfies `aqi` >= 100 for UC-25.10.18 ('Weekly AQI Exposure Hours'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `purpleair:aqi` events where `_time` stays below `aqi` >= 100, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.10.18."
+    "positiveScenario": "UC-25.10.18 positive (Weekly, AQI, Exposure, Hours): ingest synthetic events into `index=personal` sourcetype='purpleair:aqi' where `poor_samples` grouped by `_time` satisfies `aqi` >= 100, or `poor_hours` > 6 for 'Weekly AQI Exposure Hours'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.10.18 negative (Exposure Hours): ingest benign `personal` / `purpleair:aqi` events where `_time` stays below `aqi` >= 100, or `poor_hours` > 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'Weekly AQI Exposure Hours'."
   },
   "dataSources": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture and greenhouse sensors (`plant:sensor`), aquarium controllers (`aquarium:sensor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal weather stations (Ecowitt/Ambient/Davis/WeatherFlow), air-quality sensors (PurpleAir/AirGradient), and aquarium/greenhouse/soil sensors via HEC and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=purpleair:aqi\n| eval poor_air=if(aqi>=100,1,0)\n| bin _time span=1w\n| stats sum(poor_air) as poor_samples by _time\n| eval poor_hours=round(poor_samples/12,1)\n| where poor_hours>6\n| sort - poor_hours",
-  "description": "Adds up how many hours each week your local air quality sat in the unhealthy range, useful for planning runs, ventilation, or filters.",
-  "value": "Adds up how many hours each week your local air quality sat in the unhealthy range, useful for planning run.... Timely UC-25.10.18 alerting on 'Weekly AQI Exposure Hours' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces 'Weekly AQI Exposure Hours' (UC-25.10.18) using `index=personal` sourcetype `purpleair:aqi` by aggregating `poor_samples` grouped by `_time` over `1w` and alerting when `aqi` >= 100, or `poor_hours` > 6. Keywords: Weekly, AQI, Exposure, Hours. Focuses on Exposure Hours behaviour so personal teams can triage UC-25.10.18 without ad-hoc log review.",
+  "value": "UC-25.10.18 accelerates insight into Exposure Hours ('Weekly AQI Exposure Hours') by tracking `poor_samples` on `purpleair:aqi` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Forward AQI readings at a five-minute cadence; review weekly exposure totals and compare them against symptoms or outdoor plans.",
   "visualization": "Weekly bar chart of estimated unhealthy-air exposure hours.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weekly AQI Exposure Hours' stops polling `purpleair:aqi`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `purpleair:aqi`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `aqi` >= 100. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.10.18)** — Connector for 'Weekly AQI Exposure Hours' stops polling `purpleair:aqi`; stale `poor_samples` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `poor_samples` over `1w` is expected for UC-25.10.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `purpleair:aqi`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `aqi` >= 100 for 'Weekly AQI Exposure Hours'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

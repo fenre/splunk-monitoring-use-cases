@@ -58,14 +58,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `actor.displayName` satisfies `fail_rate` > 20 for UC-9.3.1 ('MFA Challenge Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events where `actor.displayName` stays below `fail_rate` > 20, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.1."
+    "positiveScenario": "UC-9.3.1 positive (MFA, Challenge, Failure, Rate): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `count` grouped by `actor.displayName` satisfies `fail_rate` > 20 for 'MFA Challenge Failure Rate'. Validate eventType `user.authentication.auth_via_mfa`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.1 negative (Failure Rate): ingest benign `okta` / `OktaIM2:log` events where `actor.displayName` stays below `fail_rate` > 20, or exclude the test entity via `iam_exception_register.csv`. Variant 2 confirms zero alert rows for 'MFA Challenge Failure Rate'."
   },
   "dataSources": "Okta system log, Duo authentication log Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta`, `Cisco Security Cloud` app (Splunkbase, replaces Duo Splunk Connector) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" eventType=\"user.authentication.auth_via_mfa\"\n| stats count(eval(outcome.result=\"FAILURE\")) as failures, count(eval(outcome.result=\"SUCCESS\")) as successes by actor.displayName\n| eval fail_rate=round(failures/(failures+successes)*100,1)\n| where fail_rate > 20",
-  "description": "High MFA failure rates indicate user friction, potential phishing, or MFA fatigue attacks. Monitoring supports both security and user experience.",
-  "value": "Early 'MFA Challenge Failure Rate' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Monitors UC-9.3.1 for MFA, Challenge, Failure, Rate over `index=okta` sourcetype `OktaIM2:log` with thresholds `fail_rate` > 20. Groups `count` by `actor.displayName` each `the scheduled window`. Differentiated by eventType `user.authentication.auth_via_mfa`. Supports repeatable iam triage for 'MFA Challenge Failure Rate'.",
+  "value": "For 'MFA Challenge Failure Rate', UC-9.3.1 converts `activity` on `OktaIM2:log` feeds into actionable rows and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Ingest IdP logs via API. Track MFA success/failure rates per user and per factor type. Alert on high failure rates (>20% per user). Detect MFA fatigue patterns (rapid repeated pushes). Report on factor type distribution.",
   "visualization": "Bar chart (failure rate by user), Pie chart (factor type distribution), Line chart (MFA success rate trend).",
   "cimModels": [
@@ -95,7 +95,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'MFA Challenge Failure Rate' shifts `count` over `span=1h` while `actor.displayName` remains in-scope for UC-9.3.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `fail_rate` without crossing `fail_rate` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.displayName`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for `actor.displayName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.displayName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.3.1)** — Planned work for 'MFA Challenge Failure Rate' shifts `count` over `span=1h` while `actor.displayName` remains in-scope. eventType=user.authentication.auth_via_mfa Applies eventType `user.authentication.auth_via_mfa`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `OktaIM2:log`** — Scheduled automation elevates `fail_rate` without crossing `fail_rate` > 20 for UC-9.3.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.displayName`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.3.1 on `actor.displayName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.displayName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1621"
   ],

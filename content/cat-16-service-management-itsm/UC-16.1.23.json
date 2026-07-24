@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Service Request Fulfillment Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_service_request_fulfillment_rate` (UC-16.1.23), SOC dashboard panel \"Operations — Service Request Fulfillment Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:sc_request' where `cat_item` satisfies `total` >= 5 for UC-16.1.23 ('Service Request Fulfillment Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:sc_request` events where `cat_item` stays below `total` >= 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.23."
+    "positiveScenario": "UC-16.1.23 positive (Service, Request, Fulfillment, Rate): ingest synthetic events into `index=itsm` sourcetype='snow:sc_request' where `fulfilled` grouped by `cat_item` satisfies `total` >= 5 for 'Service Request Fulfillment Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.23 negative (Fulfillment Rate): ingest benign `itsm` / `snow:sc_request` events where `cat_item` stays below `total` >= 5, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Service Request Fulfillment Rate'."
   },
   "dataSources": "`sourcetype=snow:sc_request` or `snow:request` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:sc_request\" earliest=-30d\n| eval fulfilled=if(lower(state) IN (\"closed\",\"complete\",\"fulfilled\") AND lower(close_code)!=\"cancel\",1,0)\n| stats count as total, sum(fulfilled) as fulfilled by cat_item\n| eval fulfill_rate=round(100*fulfilled/total,1)\n| where total>=5\n| sort fulfill_rate\n| head 20",
-  "description": "Percentage of catalog requests fulfilled successfully within the reporting period — distinct from average fulfillment time (UC-16.1.10).",
-  "value": "Early 'Service Request Fulfillment Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-16.1.23 — Service, Request, Fulfillment, Rate — using `index=itsm` sourcetype `snow:sc_request`, grouped by `cat_item`. Outputs `fulfilled` each `the scheduled window`; alert when `total` >= 5. Primary focus: Fulfillment Rate. Purpose-built for 'Service Request Fulfillment Rate' in Operations workflows.",
+  "value": "UC-16.1.23 gives Operations teams earlier visibility into Fulfillment Rate through `snow:sc_request` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Map request `state` and `close_code` for cancelled vs fulfilled. Exclude duplicates. Report overall rate and bottom 20 catalog items by fulfill rate for remediation.",
   "visualization": "Bar chart (fulfill rate by catalog item), Single value (overall fulfill %), Table (bottom performers).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Service Request Fulfillment Rate' shifts `sum` over `span=1h` while `cat_item` remains in-scope for UC-16.1.23. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:sc_request`** — Scheduled automation elevates `fulfilled` without crossing `total` >= 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cat_item`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:sc_request`** — First 48h baseline for `cat_item` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cat_item`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.23)** — Planned work for 'Service Request Fulfillment Rate' shifts `fulfilled` over `span=1h` while `cat_item` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:sc_request`** — Scheduled automation elevates `fulfilled` without crossing `total` >= 5 for UC-16.1.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cat_item`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:sc_request`** — First 48h baseline for UC-16.1.23 on `cat_item` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cat_item`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

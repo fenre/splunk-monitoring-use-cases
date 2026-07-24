@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Upstream Backend Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_upstream_backend_health` (UC-8.1.6), SOC dashboard panel \"Operations — Upstream Backend Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='nginx:error' where `upstream_addr` satisfies detection threshold for UC-8.1.6 ('Upstream Backend Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `nginx:error` events where `upstream_addr` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.6."
+    "positiveScenario": "UC-8.1.6 positive (Upstream, Backend, Health): ingest synthetic events into `index=web` sourcetype='nginx:error' where `count` grouped by `upstream_addr`, `server_name` satisfies detection threshold for 'Upstream Backend Health'. Validate filter `\"upstream\" (\"connect() failed\" OR \"no live upstreams\" OR \"ti`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.6 negative (Backend Health): ingest benign `web` / `nginx:error` events where `upstream_addr`, `server_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Upstream Backend Health'."
   },
   "dataSources": "NGINX error logs (upstream errors), HAProxy stats socket, F5 pool member logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-nginx` (error logs), HAProxy stats — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"nginx:error\"\n| search \"upstream\" (\"connect() failed\" OR \"no live upstreams\" OR \"timed out\")\n| stats count by upstream_addr, server_name\n| sort -count",
-  "description": "Backend server failures behind reverse proxies cause partial service degradation. Detection enables rapid failover response.",
-  "value": "Early 'Upstream Backend Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects risk tied to Upstream, Backend, Health through UC-8.1.6 on `index=web` sourcetype `nginx:error`. Summarises `count` grouped by `upstream_addr`, `server_name` across `the scheduled window` before applying configured threshold. Operators tune 'Upstream Backend Health' using UC-8.1.6 runbook steps.",
+  "value": "Tracking `activity` via UC-8.1.6 on `nginx:error` feeds improves response to 'Upstream Backend Health' and reduces operational risk and delayed incident response.",
   "implementation": "Forward NGINX error logs. Parse upstream failure messages. For HAProxy, enable stats socket and poll via scripted input. Alert on backend server failures. Track backend health state over time.",
   "visualization": "Status grid (backend × health), Table (failed backends), Timeline (backend failure events).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Upstream Backend Health' shifts `count` over `span=1h` while `upstream_addr` remains in-scope for UC-8.1.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nginx:error`** — Scheduled automation elevates `server_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_addr`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:error`** — First 48h baseline for `upstream_addr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_addr`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.6)** — Planned work for 'Upstream Backend Health' shifts `count` over `span=1h` while `upstream_addr`, `server_name` remains in-scope. Applies filter `\"upstream\" (\"connect() failed\" OR \"no live upstreams\" OR \"ti`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `nginx:error`** — Scheduled automation elevates `server_name` without crossing configured threshold for UC-8.1.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `upstream_addr`, `server_name`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nginx:error`** — First 48h baseline for UC-8.1.6 on `upstream_addr` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `upstream_addr`, `exception_reason`, `valid_until`.",
   "equipment": [
     "haproxy",
     "nginx"

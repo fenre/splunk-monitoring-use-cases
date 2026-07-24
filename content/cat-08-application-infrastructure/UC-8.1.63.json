@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Hit Ratio Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_hit_ratio_trending` (UC-8.1.63), SOC dashboard panel \"Operations — Memcached Hit Ratio Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `host` satisfies `hit_ratio` < 70 for UC-8.1.63 ('Memcached Hit Ratio Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `memcached:stats` events where `host` stays below `hit_ratio` < 70, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.63."
+    "positiveScenario": "UC-8.1.63 positive (Memcached, Hit, Ratio, Trending): ingest synthetic events into `index=infrastructure` sourcetype='memcached:stats' where `hits`, `misses` grouped by `host`, `_time` satisfies `hit_ratio` < 70 for 'Memcached Hit Ratio Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.63 negative (Ratio Trending): ingest benign `infrastructure` / `memcached:stats` events where `host`, `_time` stays below `hit_ratio` < 70, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Memcached Hit Ratio Trending'."
   },
   "dataSources": "`stats` counters `get_hits`, `get_misses` ingested as `memcached:stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "collectd memcached plugin, Telegraf `inputs.memcached`, or scripted `nc` `stats` to HEC — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"memcached:stats\"\n| eval hits=tonumber(get_hits)\n| eval misses=tonumber(get_misses)\n| bin _time span=5m\n| stats sum(hits) as hits sum(misses) as misses by host, _time\n| eval hit_ratio=round(hits/(hits+misses+0.001)*100,2)\n| where hit_ratio < 70",
-  "description": "Falling cache hit ratio means more requests fall through to the backing database, raising latency and cost. Tracking ratio over fixed windows isolates application or TTL regressions before DB CPU spikes.",
-  "value": "Falling cache hit ratio means more requests fall through to the backing database, raising latency and cost. Timely UC-8.1.63 alerting on 'Memcached Hit Ratio Trending' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-8.1.63 — Memcached, Hit, Ratio, Trending — using `index=infrastructure` sourcetype `memcached:stats`, grouped by `host`, `_time`. Outputs `hits`, `misses` each `5m`; alert when `hit_ratio` < 70. Primary focus: Ratio Trending. Purpose-built for 'Memcached Hit Ratio Trending' in Operations workflows.",
+  "value": "Alerting on Memcached, Hit, Ratio, Trending through UC-8.1.63 reduces operational risk and delayed incident response by surfacing `hits`, `misses` early.",
   "implementation": "Poll `stats` every 10–30s; extract `get_hits`, `get_misses`, `curr_connections`. Use incremental counters and `delta` in Splunk if you ingest cumulative totals. Baseline per application; some caches legitimately run 50% hit rates—tune thresholds accordingly.",
   "visualization": "Line chart (hit_ratio), Dual axis (hits, misses).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'Memcached Hit Ratio Trending' shifts `sum` over `span=5m` while `host` remains in-scope for UC-8.1.63. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `memcached:stats`** — Scheduled automation elevates `_time` without crossing `hit_ratio` < 70. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.63)** — Planned work for 'Memcached Hit Ratio Trending' shifts `hits`, `misses` over `span=5m` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `memcached:stats`** — Scheduled automation elevates `_time` without crossing `hit_ratio` < 70 for UC-8.1.63. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.1.63 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

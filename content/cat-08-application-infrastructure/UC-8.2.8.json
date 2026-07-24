@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for '.NET CLR Performance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_net_clr_performance` (UC-8.2.8), SOC dashboard panel \"Operations — .NET CLR Performance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CLR_Memory' where `instance` satisfies `gc_pct` > 10 for UC-8.2.8 ('.NET CLR Performance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:CLR_Memory` events where `instance` stays below `gc_pct` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.8."
+    "positiveScenario": "UC-8.2.8 positive (.NET, CLR, Performance): ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CLR_Memory' where `gc_pct`, `gen2_gc` grouped by `instance` satisfies `gc_pct` > 10 for '.NET CLR Performance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.8 negative (CLR Performance): ingest benign `perfmon` / `Perfmon:CLR_Memory` events where `instance` stays below `gc_pct` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for '.NET CLR Performance'."
   },
   "dataSources": "Windows Performance Counters (.NET CLR Memory, Exceptions, Threading) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` (Perfmon), custom .NET metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:CLR_Memory\"\n| timechart span=5m avg(Pct_Time_in_GC) as gc_pct, avg(Gen_2_Collections) as gen2_gc by instance\n| where gc_pct > 10",
-  "description": "CLR performance issues (high GC, exceptions, thread starvation) directly impact .NET application performance. Monitoring guides runtime tuning.",
-  "value": "Early '.NET CLR Performance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-8.2.8 — .NET, CLR, Performance — using `index=perfmon` sourcetype `Perfmon:CLR_Memory`, grouped by `instance`. Outputs `gc_pct`, `gen2_gc` each `5m`; alert when `gc_pct` > 10. Primary focus: CLR Performance. Purpose-built for '.NET CLR Performance' in Operations workflows.",
+  "value": "For '.NET CLR Performance', UC-8.2.8 converts `gc_pct`, `gen2_gc` on `Perfmon:CLR_Memory` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Configure Perfmon inputs for .NET CLR counters in `inputs.conf`. Monitor % Time in GC, Gen 2 collections, exception throw rate, and thread contention rate. Alert when GC time exceeds 10% or exception rate spikes.",
   "visualization": "Line chart (GC % over time), Multi-metric chart (CLR counters), Table (instances with high GC).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `perfmon`** — Planned work for '.NET CLR Performance' shifts `avg` over `span=5m` while `instance` remains in-scope for UC-8.2.8. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `Perfmon:CLR_Memory`** — Scheduled automation elevates `src` without crossing `gc_pct` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:CLR_Memory`** — First 48h baseline for `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `perfmon` (UC-8.2.8)** — Planned work for '.NET CLR Performance' shifts `gc_pct`, `gen2_gc` over `span=5m` while `instance` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `Perfmon:CLR_Memory`** — Scheduled automation elevates `src` without crossing `gc_pct` > 10 for UC-8.2.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:CLR_Memory`** — First 48h baseline for UC-8.2.8 on `instance` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

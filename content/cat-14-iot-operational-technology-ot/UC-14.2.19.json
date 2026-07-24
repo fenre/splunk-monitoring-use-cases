@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OT Asset External Communication Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ot_asset_external_communication_detection` (UC-14.2.19), SOC dashboard panel \"Operations — OT Asset External Communication Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='flow:ics' where `src` satisfies detection threshold for UC-14.2.19 ('OT Asset External Communication Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `flow:ics` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.19."
+    "positiveScenario": "UC-14.2.19 positive (Asset, External, Communication, Detection): ingest synthetic events into `index=ot` sourcetype='flow:ics' where `values` grouped by `src`, `dest`, `app` satisfies detection threshold for 'OT Asset External Communication Detection'. Validate lookup `ot_asset_inventory`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.19 negative (Communication Detection): ingest benign `ot` / `flow:ics` events where `src`, `dest`, `app` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'OT Asset External Communication Detection'."
   },
   "dataSources": "`sourcetype=\"flow:ics\"`, `sourcetype=\"pan:traffic\"` with OT zone tags Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Firewall, OT NetFlow, passive tap (Zeek OT) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"flow:ics\" src_zone=\"OT_L3\"\n| lookup ot_asset_inventory ip as src OUTPUT asset_class\n| lookup vendor_update_nets network as dest OUTPUT network as vendor_net\n| where NOT cidrmatch(\"10.0.0.0/8\",dest) AND isnull(vendor_net)\n| stats count, values(dest_port) as ports by src, dest, app\n| sort -count",
-  "description": "PLCs, HMIs, or sensors initiating outbound sessions to the internet or untrusted zones indicate misconfiguration, malware, or pivot from IT — a top IEC 62443 / NERC CIP concern.",
-  "value": "Early 'OT Asset External Communication Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-14.2.19 — Asset, External, Communication, Detection — using `index=ot` sourcetype `flow:ics`, grouped by `src`, `dest`, `app`. Outputs `values` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `ot_asset_inventory`. Purpose-built for 'OT Asset External Communication Detection' in Operations workflows.",
+  "value": "UC-14.2.19 operationalises 'OT Asset External Communication Detection' against `flow:ics` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Maintain allowlisted update CDNs and remote-support jump hosts; default-deny egress from L3 devices. Alert on first-seen external `dest`.",
   "visualization": "Map (flows), Table (assets), Sankey (zone → egress).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'OT Asset External Communication Detection' shifts `values` over `span=1h` while `src` remains in-scope for UC-14.2.19. Cross-check CMDB CHG.\n\n2. **Batch `values` on `flow:ics`** — Scheduled automation elevates `dest` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `flow:ics`** — First 48h baseline for `src` is unstable; join `ot_asset_inventory` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.19)** — Planned work for 'OT Asset External Communication Detection' shifts `values` over `span=1h` while `src`, `dest`, `app` remains in-scope. Applies lookup `ot_asset_inventory`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `flow:ics`** — Scheduled automation elevates `dest` without crossing configured threshold for UC-14.2.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`, `app`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `flow:ics`** — First 48h baseline for UC-14.2.19 on `src` is unstable; join `ot_asset_inventory` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netflow"
   ],

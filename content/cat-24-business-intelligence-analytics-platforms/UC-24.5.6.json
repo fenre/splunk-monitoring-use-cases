@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Embedded Analytics SDK Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_embedded_analytics_sdk_errors` (UC-24.5.6), SOC dashboard panel \"Operations — Embedded Analytics SDK Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='bi:embed:client' where `host_app` satisfies `errors` > 0 for UC-24.5.6 ('Embedded Analytics SDK Errors'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `bi:embed:client` events where `host_app` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.6."
+    "positiveScenario": "UC-24.5.6 positive (Embedded, Analytics, SDK, Errors): ingest synthetic events into `index=bi` sourcetype='bi:embed:client' where `count` grouped by `host_app`, `error_code` satisfies `errors` > 0 for 'Embedded Analytics SDK Errors'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.6 negative (SDK Errors): ingest benign `bi` / `bi:embed:client` events where `host_app`, `error_code` stays below `errors` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Embedded Analytics SDK Errors'."
   },
   "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=bi:embed:client (event=embed_error OR event=token_refresh_failed)\n| stats count as errors by host_app, error_code\n| where errors>0\n| sort - errors",
-  "description": "Captures client-side errors from embedded analytics (Superset/Metabase/Sigma embeds) so broken tokens or failed loads inside customer-facing apps are caught.",
-  "value": "Captures client-side errors from embedded analytics (Superset/Metabase/Sigma embeds) so broken tokens or fa.... Timely UC-24.5.6 alerting on 'Embedded Analytics SDK Errors' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-24.5.6 for Embedded, Analytics, SDK, Errors over `index=bi` sourcetype `bi:embed:client` with thresholds `errors` > 0. Groups `count` by `host_app`, `error_code` each `the scheduled window`. Centered on SDK Errors indicators. Supports repeatable operations triage for 'Embedded Analytics SDK Errors'.",
+  "value": "For 'Embedded Analytics SDK Errors', UC-24.5.6 converts `activity` on `bi:embed:client` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Send embed SDK error events to HEC from the host app; schedule every 15 minutes; alert on new error codes.",
   "visualization": "Table by host app/error code, timechart of embed errors.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Embedded Analytics SDK Errors' shifts `count` over `span=1h` while `host_app` remains in-scope for UC-24.5.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `bi:embed:client`** — Scheduled automation elevates `error_code` without crossing `errors` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_app`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bi:embed:client`** — First 48h baseline for `host_app` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_app`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.6)** — Planned work for 'Embedded Analytics SDK Errors' shifts `count` over `span=1h` while `host_app`, `error_code` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `bi:embed:client`** — Scheduled automation elevates `error_code` without crossing `errors` > 0 for UC-24.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host_app`, `error_code`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `bi:embed:client`** — First 48h baseline for UC-24.5.6 on `host_app` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host_app`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect"

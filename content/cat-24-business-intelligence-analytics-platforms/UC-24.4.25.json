@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'QlikView Error-Rate Trend Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_qlikview_error_rate_trend_anomaly` (UC-24.4.25), SOC dashboard panel \"Operations — QlikView Error-Rate Trend Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='qlikview:distribution' where `_time` satisfies detection threshold for UC-24.4.25 ('QlikView Error-Rate Trend Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `qlikview:distribution` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.4.25."
+    "positiveScenario": "UC-24.4.25 positive (QlikView, Error, Rate, Trend, Anomaly): ingest synthetic events into `index=bi` sourcetype='qlikview:distribution' where `avg_rate`, `sd_rate` grouped by `_time` satisfies detection threshold for 'QlikView Error-Rate Trend Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.4.25 negative (Trend Anomaly): ingest benign `bi` / `qlikview:distribution` events where `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'QlikView Error-Rate Trend Anomaly'."
   },
   "dataSources": "QlikView distribution logs (`qlikview:distribution`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "QlikView Publisher/Distribution Service and Directory Service Connector logs via UF. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=qlikview:distribution\n| bin _time span=1h\n| stats count as events, sum(eval(result=\"Failed\")) as errors by _time\n| eval error_rate=round(100*errors/events,2)\n| eventstats avg(error_rate) as avg_rate, stdev(error_rate) as sd_rate\n| where error_rate>avg_rate+3*sd_rate\n| sort - _time",
-  "description": "Baselines the hourly error rate for QlikView and flags hours where it spikes more than three standard deviations above normal, catching emerging instability before it becomes an outage.",
-  "value": "Baselines the hourly error rate for QlikView and flags hours where it spikes more than three standard devia.... Timely UC-24.4.25 alerting on 'QlikView Error-Rate Trend Anomaly' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-24.4.25 — QlikView, Error, Rate, Trend, Anomaly — using `index=bi` sourcetype `qlikview:distribution`, grouped by `_time`. Outputs `avg_rate`, `sd_rate` each `1h`; alert when configured threshold. Primary focus: Trend Anomaly. Purpose-built for 'QlikView Error-Rate Trend Anomaly' in Operations workflows.",
+  "value": "UC-24.4.25 gives Operations teams earlier visibility into Trend Anomaly through `qlikview:distribution` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest QlikView logs into index=bi; schedule every 15 minutes over a trailing window and alert on 3-sigma error-rate anomalies.",
   "visualization": "Timechart of QlikView error rate with anomaly band.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'QlikView Error-Rate Trend Anomaly' shifts `sum` over `span=1h` while `_time` remains in-scope for UC-24.4.25. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `qlikview:distribution`** — Scheduled automation elevates `error_rate` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlikview:distribution`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.4.25)** — Planned work for 'QlikView Error-Rate Trend Anomaly' shifts `avg_rate`, `sd_rate` over `span=1h` while `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `qlikview:distribution`** — Scheduled automation elevates `error_rate` without crossing configured threshold for UC-24.4.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `qlikview:distribution`** — First 48h baseline for UC-24.4.25 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

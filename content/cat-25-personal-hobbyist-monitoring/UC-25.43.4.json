@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Engine-Hours and Service Interval' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_engine_hours_and_service_interval` (UC-25.43.4), SOC dashboard panel \"Personal — Engine-Hours and Service Interval\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='nmea:reading' where `engine` satisfies `since` > 100 for UC-25.43.4 ('Engine-Hours and Service Interval'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `nmea:reading` events where `engine` stays below `since` > 100, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.43.4."
+    "positiveScenario": "UC-25.43.4 positive (Engine, Hours, and, Service, Interval): ingest synthetic events into `index=personal` sourcetype='nmea:reading' where `hours` grouped by `engine` satisfies `since` > 100 for 'Engine-Hours and Service Interval'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.43.4 negative (Service Interval): ingest benign `personal` / `nmea:reading` events where `engine` stays below `since` > 100, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 9 confirms zero alert rows for 'Engine-Hours and Service Interval'."
   },
   "dataSources": "NMEA/SignalK data (`nmea:reading`), bilge pump (`bilge:event`), mooring/anchor watch (`mooring:status`), marine weather (`marineweather:forecast`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Marine electronics — NMEA 2000 / SignalK boat networks, bilge, battery and shore-power sensors, anchor-watch GPS, and marine weather feeds — streamed to Splunk HEC via SignalK and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=nmea:reading measurement=engine\n| stats max(engine_hours) as hours, latest(hours_at_service) as serviced by engine\n| eval since=hours-serviced, due=if(since>100,1,0)",
-  "description": "Tracks engine hours since the last service and reminds you when an oil change or impeller check is due. Searches `index=personal` with sourcetype `nmea:reading` for UC-25.43.4, aggregating `max` by `engine` over `the scheduled window`. Alerts when grouped results cross `since` > 100 in the saved search. Gives Personal operators a repeatable signal for 'Engine-Hours and Service Interval' without manual log review.",
-  "value": "Tracks engine hours since the last service and reminds you when an oil change or impeller check is due. Timely UC-25.43.4 alerting on 'Engine-Hours and Service Interval' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.43.4 — Engine, Hours, and, Service, Interval — using `index=personal` sourcetype `nmea:reading`, grouped by `engine`. Outputs `hours` each `the scheduled window`; alert when `since` > 100. Primary focus: Service Interval. Purpose-built for 'Engine-Hours and Service Interval' in Personal workflows.",
+  "value": "Operators running UC-25.43.4 on `nmea:reading` feeds shorten triage for Service Interval tied to 'Engine-Hours and Service Interval', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest engine-hour telemetry into `index=personal`; alert when hours since service pass the interval.",
   "visualization": "Single-value tile of engine hours since service.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Engine-Hours and Service Interval' stops polling `nmea:reading`; stale `engine` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nmea:reading`. Dedup with `stats latest(*) by engine`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `since` > 100. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.43.4)** — Connector for 'Engine-Hours and Service Interval' stops polling `nmea:reading`; stale `hours` on `engine` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `hours` over `1w` is expected for UC-25.43.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `nmea:reading`. Dedup with `stats latest(*) by engine`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `since` > 100 for 'Engine-Hours and Service Interval'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Gift Card Fraud Patterns' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_gift_card_fraud_patterns` (UC-10.12.32), SOC dashboard panel \"Security Infra — Gift Card Fraud Patterns\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='giftcard:event' where `customer_hash` satisfies `flow` > 5000 for UC-10.12.32 ('Gift Card Fraud Patterns'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `giftcard:event` events where `customer_hash` stays below `flow` > 5000, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.32."
+    "positiveScenario": "UC-10.12.32 positive (Gift, Card, Fraud, Patterns): ingest synthetic events into `index=retail` sourcetype='giftcard:event' where `flow`, `cards` grouped by `customer_hash`, `_time` satisfies `flow` > 5000, or `cards` > 10 for 'Gift Card Fraud Patterns'. Validate filter `event IN (\"ACTIVATE\",\"REDEEM\",\"TRANSFER\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.32 negative (Fraud Patterns): ingest benign `retail` / `giftcard:event` events where `customer_hash`, `_time` stays below `flow` > 5000, or `cards` > 10, or exclude the test entity via `soc_exception_register.csv`. Variant 8 confirms zero alert rows for 'Gift Card Fraud Patterns'."
   },
   "dataSources": "`sourcetype=\"giftcard:event\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Gift card processor — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"giftcard:event\"\n| search event IN (\"ACTIVATE\",\"REDEEM\",\"TRANSFER\")\n| stats sum(amount) as flow, dc(card_id) as cards by customer_hash, _time\n| bin _time span=1h\n| where flow>5000 AND cards>10\n| sort -flow",
-  "description": "Detects bulk activation, balance draining, and reseller abuse patterns. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'Gift Card Fraud Patterns' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-10.12.32 — Gift, Card, Fraud, Patterns — using `index=retail` sourcetype `giftcard:event`, grouped by `customer_hash`, `_time`. Outputs `flow`, `cards` each `1h`; alert when `flow` > 5000, or `cards` > 10. Filter chain includes filter `event IN (\"ACTIVATE\",\"REDEEM\",\"TRANSFER\")`. Purpose-built for 'Gift Card Fraud Patterns' in Security Infra workflows.",
+  "value": "UC-10.12.32 accelerates insight into Fraud Patterns ('Gift Card Fraud Patterns') by tracking `flow`, `cards` on `giftcard:event` feeds, reducing missed threat campaigns, control regressions, and SOC SLA breaches before spreadsheet checks hide regressions.",
   "implementation": "Velocity limits per device; block serial activations from single payment instrument across stores.",
   "visualization": "Table (suspicious bursts), Timeline (events), Bar chart (flow by hour).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'Gift Card Fraud Patterns' shifts `sum` over `span=1h` while `customer_hash` remains in-scope for UC-10.12.32. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `giftcard:event`** — Scheduled automation elevates `_time` without crossing `flow` > 5000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `customer_hash`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `giftcard:event`** — First 48h baseline for `customer_hash` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `customer_hash`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `retail` (UC-10.12.32)** — Planned work for 'Gift Card Fraud Patterns' shifts `flow`, `cards` over `span=1h` while `customer_hash`, `_time` remains in-scope. Applies filter `event IN (\"ACTIVATE\",\"REDEEM\",\"TRANSFER\")`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `giftcard:event`** — Scheduled automation elevates `_time` without crossing `flow` > 5000 for UC-10.12.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `customer_hash`, `_time`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `giftcard:event`** — First 48h baseline for UC-10.12.32 on `customer_hash` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `customer_hash`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

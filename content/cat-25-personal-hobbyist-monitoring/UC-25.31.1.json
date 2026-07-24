@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mood Trend and Low-Streak Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mood_trend_and_low_streak_alert` (UC-25.31.1), SOC dashboard panel \"Personal — Mood Trend and Low-Streak Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mood:entry' where `entity` satisfies `mood` < 3 for UC-25.31.1 ('Mood Trend and Low-Streak Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mood:entry` events where `entity` stays below `mood` < 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.31.1."
+    "positiveScenario": "UC-25.31.1 positive (Mood, Trend, and, Low, Streak): ingest synthetic events into `index=personal` sourcetype='mood:entry' where `mood` grouped by `entity` satisfies `mood` < 3, `mood` >= 3, or `low_streak` >= 5 for 'Mood Trend and Low-Streak Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.31.1 negative (Streak Alert): ingest benign `personal` / `mood:entry` events where `entity` stays below `mood` < 3, `mood` >= 3, or `low_streak` >= 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 11 confirms zero alert rows for 'Mood Trend and Low-Streak Alert'."
   },
   "dataSources": "Mood entries (`mood:entry`), meditation sessions (`meditation:session`), journal entries (`journal:entry`), gratitude logs (`gratitude:log`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Mood, mindfulness and journaling apps — Daylio / How We Feel mood exports, Headspace / Insight Timer meditation logs, journaling and gratitude entries — sent to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=mood:entry\n| timechart span=1d avg(mood_score) as mood\n| streamstats current=t sum(eval(if(mood<3,1,0))) as low_streak reset_after=\"(mood>=3)\"\n| eval concern=if(low_streak>=5,1,0)",
-  "description": "Trends your daily mood and gently flags a run of consecutive low days worth paying attention to. Searches `index=personal` with sourcetype `mood:entry` for UC-25.31.1, aggregating `avg` by `entity` over `1d`. Alerts when grouped results cross `mood` < 3 in the saved search. Gives Personal operators a repeatable signal for 'Mood Trend and Low-Streak Alert' without manual log review.",
-  "value": "Trends your daily mood and gently flags a run of consecutive low days worth paying attention to. Timely UC-25.31.1 alerting on 'Mood Trend and Low-Streak Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.31.1 — Mood, Trend, and, Low, Streak — using `index=personal` sourcetype `mood:entry`, grouped by `entity`. Outputs `mood` each `1d`; alert when `mood` < 3, `mood` >= 3, or `low_streak` >= 5. Primary focus: Streak Alert. Purpose-built for 'Mood Trend and Low-Streak Alert' in Personal workflows.",
+  "value": "UC-25.31.1 helps teams contain Mood, Trend, and, Low, Streak scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest mood ratings into `index=personal`; alert on an extended run of low days.",
   "visualization": "Line chart of daily mood with low-streak highlighting.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mood Trend and Low-Streak Alert' stops polling `mood:entry`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `mood` < 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.31.1)** — Connector for 'Mood Trend and Low-Streak Alert' stops polling `mood:entry`; stale `mood` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `mood` over `1d` is expected for UC-25.31.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mood:entry`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `mood` < 3 for 'Mood Trend and Low-Streak Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'PostgreSQL WAL Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_postgresql_wal_growth` (UC-7.1.22), SOC dashboard panel \"Operations — PostgreSQL WAL Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:postgresql_wal' where `host` satisfies `wal_size_gb` > 10 for UC-7.1.22 ('PostgreSQL WAL Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:postgresql_wal` events where `host` stays below `wal_size_gb` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.22."
+    "positiveScenario": "UC-7.1.22 positive (PostgreSQL, WAL, Growth): ingest synthetic events into `index=database` sourcetype='dbconnect:postgresql_wal' where `count` grouped by `host` satisfies `wal_size_gb` > 10 for 'PostgreSQL WAL Growth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.22 negative (WAL Growth): ingest benign `database` / `dbconnect:postgresql_wal` events where `host` stays below `wal_size_gb` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'PostgreSQL WAL Growth'."
   },
   "dataSources": "PostgreSQL `pg_stat_replication`, `pg_wal_lsn_diff()`, `pg_ls_waldir()` or filesystem WAL directory size Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk DB Connect or custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:postgresql_wal\"\n| eval wal_size_gb=round(wal_size_bytes/1073741824, 2)\n| timechart span=1h latest(wal_size_gb) as wal_size_gb by host\n| where wal_size_gb > 10",
-  "description": "WAL accumulation indicating replication issues or archival failures. Uncontrolled WAL growth exhausts disk space and can halt the database.",
-  "value": "Early 'PostgreSQL WAL Growth' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-7.1.22 — PostgreSQL, WAL, Growth — using `index=database` sourcetype `dbconnect:postgresql_wal`, grouped by `host`. Outputs `count` each `1h`; alert when `wal_size_gb` > 10. Primary focus: WAL Growth. Purpose-built for 'PostgreSQL WAL Growth' in Operations workflows.",
+  "value": "UC-7.1.22 operationalises 'PostgreSQL WAL Growth' against `dbconnect:postgresql_wal` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Use DB Connect or a scripted input to poll WAL metrics every 15–30 minutes. Query `pg_current_wal_lsn()` and compare with `pg_walfile_name()` to derive WAL size; alternatively, measure WAL directory on disk. Track replication slot lag via `pg_stat_replication` (replication_lag). Alert when WAL size exceeds threshold (e.g., >10 GB) or when replication lag indicates archival/streaming is falling behind. Correlate with `archive_command` failures and disk space.",
   "visualization": "Line chart (WAL size over time), Single value (current WAL size GB), Table (host, WAL size, replication lag).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'PostgreSQL WAL Growth' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.1.22. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:postgresql_wal`** — Scheduled automation elevates `wal_size_gb` without crossing `wal_size_gb` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:postgresql_wal`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.22)** — Planned work for 'PostgreSQL WAL Growth' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:postgresql_wal`** — Scheduled automation elevates `wal_size_gb` without crossing `wal_size_gb` > 10 for UC-7.1.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:postgresql_wal`** — First 48h baseline for UC-7.1.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "postgresql"

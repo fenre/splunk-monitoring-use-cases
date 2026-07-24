@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'GPO Modification Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_gpo_modification_detection` (UC-9.1.7), SOC dashboard panel \"IAM — GPO Modification Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 where `entity` satisfies detection threshold for UC-9.1.7 ('GPO Modification Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.7."
+    "positiveScenario": "UC-9.1.7 positive (GPO, Modification, Detection): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 where `count` grouped by `entity` satisfies detection threshold for 'GPO Modification Detection'. Validate filter `ObjectClass=\"groupPolicyContainer\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.7 negative (Modification Detection): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 0 confirms zero alert rows for 'GPO Modification Detection'."
   },
   "dataSources": "Security Event Log (5136 — directory service object modified) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n| search ObjectClass=\"groupPolicyContainer\"\n| table _time, SubjectUserName, ObjectDN, AttributeLDAPDisplayName, AttributeValue",
-  "description": "GPO changes affect all domain-joined machines. Unauthorized modifications can disable security controls across the organization.",
-  "value": "Early 'GPO Modification Detection' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on 'GPO Modification Detection' (UC-9.1.7) using `index=wineventlog` sourcetype `WinEventLog:Security` via filter `ObjectClass=\"groupPolicyContainer\"` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: GPO, Modification, Detection. Focuses on Modification Detection behaviour so iam teams can triage UC-9.1.7 without ad-hoc log review.",
+  "value": "UC-9.1.7 accelerates insight into Modification Detection ('GPO Modification Detection') by tracking `activity` on `WinEventLog:Security` feeds, reducing account takeover risk, help-desk load, and audit findings before spreadsheet checks hide regressions.",
   "implementation": "Enable \"Audit Directory Service Changes\" via GPO. Forward DC Security logs. Alert on any GPO modification. Correlate with change management tickets. Track which GPOs are modified most frequently.",
   "visualization": "Table (GPO changes with details), Timeline (modification events), Bar chart (changes by admin).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'GPO Modification Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.7. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=5136)** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.1.7)** — Planned work for 'GPO Modification Detection' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `ObjectClass=\"groupPolicyContainer\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=5136)** — Scheduled automation elevates `src` without crossing configured threshold for UC-9.1.7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-9.1.7 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1484.001"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'CloudFront Error Rates by Distribution' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cloudfront_error_rates_by_distribution` (UC-4.1.69), SOC dashboard panel \"Operations — CloudFront Error Rates by Distribution\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `DistributionId` satisfies `err_rate` > 1 for UC-4.1.69 ('CloudFront Error Rates by Distribution'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `DistributionId` stays below `err_rate` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.69."
+    "positiveScenario": "UC-4.1.69 positive (CloudFront, Error, Rates, Distribution): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `count` grouped by `DistributionId`, `metric_name`, `_time` satisfies `err_rate` > 1 for 'CloudFront Error Rates by Distribution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.69 negative (by Distribution): ingest benign `aws` / `aws:cloudwatch` events where `DistributionId`, `metric_name`, `_time` stays below `err_rate` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'CloudFront Error Rates by Distribution'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (AWS/CloudFront — 4xxErrorRate, 5xxErrorRate), real-time logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/CloudFront\" (metric_name=\"4xxErrorRate\" OR metric_name=\"5xxErrorRate\")\n| bin _time span=5m\n| stats latest(Average) as err_rate by DistributionId, metric_name, _time\n| where err_rate > 1\n| sort - err_rate",
-  "description": "Origin or edge errors vary by distribution; breaking out 4xx/5xx by `DistributionId` isolates bad releases and misconfigured behaviors.",
-  "value": "Early 'CloudFront Error Rates by Distribution' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-4.1.69 — CloudFront, Error, Rates, Distribution — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `DistributionId`, `metric_name`, `_time`. Outputs `count` each `5m`; alert when `err_rate` > 1. Primary focus: by Distribution. Purpose-built for 'CloudFront Error Rates by Distribution' in Operations workflows.",
+  "value": "For 'CloudFront Error Rates by Distribution', UC-4.1.69 converts `activity` on `aws:cloudwatch` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest metrics per distribution ID. Correlate spikes with deployments and origin health. Use real-time logs for URI-level detail. Alert when 5xx error rate exceeds SLO for 10 minutes.",
   "visualization": "Line chart (error rate by distribution), Table (distribution, metric), Map (viewer country if from logs).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'CloudFront Error Rates by Distribution' shifts `count` over `span=5m` while `DistributionId` remains in-scope for UC-4.1.69. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `metric_name` without crossing `err_rate` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DistributionId`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `DistributionId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DistributionId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.69)** — Planned work for 'CloudFront Error Rates by Distribution' shifts `count` over `span=5m` while `DistributionId`, `metric_name`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `metric_name` without crossing `err_rate` > 1 for UC-4.1.69. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `DistributionId`, `metric_name`, `_time`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.69 on `DistributionId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `DistributionId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow DAG Parse Time Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_dag_parse_time_regression` (UC-24.7.15), SOC dashboard panel \"Operations — Airflow DAG Parse Time Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:statsd' where `dag_file` satisfies `avg_s` > 30 for UC-24.7.15 ('Airflow DAG Parse Time Regression'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airflow:statsd` events where `dag_file` stays below `avg_s` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.15."
+    "positiveScenario": "UC-24.7.15 positive (Airflow, DAG, Parse, Time, Regression): ingest synthetic events into `index=bi` sourcetype='airflow:statsd' where `avg_ms`, `max_ms` grouped by `dag_file` satisfies `avg_s` > 30 for 'Airflow DAG Parse Time Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.15 negative (Time Regression): ingest benign `bi` / `airflow:statsd` events where `dag_file` stays below `avg_s` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Airflow DAG Parse Time Regression'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:statsd metric_name=\"dag_processing.last_duration.*\"\n| rex field=metric_name \"dag_processing\\.last_duration\\.(?<dag_file>.+)\"\n| stats avg(value) as avg_ms, max(value) as max_ms by dag_file\n| eval avg_s=round(avg_ms/1000,2)\n| where avg_s>30\n| sort - avg_s",
-  "description": "Measures how long the DagFileProcessor takes to parse each DAG file and flags files whose parse time is slow enough to delay scheduling across the whole environment.",
-  "value": "Measures how long the DagFileProcessor takes to parse each DAG file and flags files whose parse time is slo.... Timely UC-24.7.15 alerting on 'Airflow DAG Parse Time Regression' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-24.7.15 for Airflow, DAG, Parse, Time, Regression over `index=bi` sourcetype `airflow:statsd` with thresholds `avg_s` > 30. Groups `avg_ms`, `max_ms` by `dag_file` each `the scheduled window`. Centered on Time Regression indicators. Supports repeatable operations triage for 'Airflow DAG Parse Time Regression'.",
+  "value": "For 'Airflow DAG Parse Time Regression', UC-24.7.15 converts `avg_ms`, `max_ms` on `airflow:statsd` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Emit dag_processing StatsD gauges to HEC; schedule daily and review the slowest files with pipeline owners.",
   "visualization": "Table of DAG file by parse time, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airflow DAG Parse Time Regression' shifts `avg` over `span=1h` while `dag_file` remains in-scope for UC-24.7.15. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airflow:statsd`** — Scheduled automation elevates `avg_s` without crossing `avg_s` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_file`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:statsd`** — First 48h baseline for `dag_file` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_file`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.15)** — Planned work for 'Airflow DAG Parse Time Regression' shifts `avg_ms`, `max_ms` over `span=1h` while `dag_file` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airflow:statsd`** — Scheduled automation elevates `avg_s` without crossing `avg_s` > 30 for UC-24.7.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dag_file`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:statsd`** — First 48h baseline for UC-24.7.15 on `dag_file` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dag_file`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"

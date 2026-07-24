@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Golden Ticket Indicators' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_golden_ticket_indicators` (UC-9.1.16), SOC dashboard panel \"IAM — Golden Ticket Indicators\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4768 where `entity` satisfies `ticket_life_h` > 10 for UC-9.1.16 ('Golden Ticket Indicators'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below `ticket_life_h` > 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.16."
+    "positiveScenario": "UC-9.1.16 positive (Golden, Ticket, Indicators): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4768 where `count` grouped by `entity` satisfies `ticket_life_h` > 10 for 'Golden Ticket Indicators'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.16 negative (Ticket Indicators): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below `ticket_life_h` > 10, or exclude the test entity via `iam_exception_register.csv`. Variant 6 confirms zero alert rows for 'Golden Ticket Indicators'."
   },
   "dataSources": "Security Event Log (4768 — Kerberos authentication ticket requested), 4624 (logon type 10 with Kerberos) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4768\n| eval ticket_life_h=(Ticket_Lifetime/3600)\n| where ticket_life_h > 10 OR Ticket_Encryption_Type IN (\"0xffffffff\",\"0x12\")\n| table _time, Account_Name, Ticket_Encryption_Type, ticket_life_h, IpAddress",
-  "description": "Forged TGTs often produce anomalous ticket lifetimes, encryption types, or DC sourcing. Heuristic alerts support hunt teams when krbtgt may be compromised.",
-  "value": "Early 'Golden Ticket Indicators' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Surfaces Ticket Indicators anomalies for UC-9.1.16 with window `the scheduled window` on `index=wineventlog` sourcetype `WinEventLog:Security`. Combines `count` by `entity` and compares against `ticket_life_h` > 10. Mapped to keywords Golden, Ticket, Indicators for dashboard routing.",
+  "value": "Alerting on Golden, Ticket, Indicators through UC-9.1.16 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Baseline normal TGT lifetimes and encryption types per domain. Alert on unusual lifetimes, unknown ETYPE, or TGT requests not originating from expected workstations. Correlate with 4624 type 10 and lateral movement analytics.",
   "visualization": "Table (suspicious TGT events), Timeline, Single value (anomalies per day).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'Golden Ticket Indicators' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4768)** — Scheduled automation elevates `ticket_life_h` without crossing `ticket_life_h` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.1.16)** — Planned work for 'Golden Ticket Indicators' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4768)** — Scheduled automation elevates `ticket_life_h` without crossing `ticket_life_h` > 10 for UC-9.1.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-9.1.16 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1558.001"
   ],

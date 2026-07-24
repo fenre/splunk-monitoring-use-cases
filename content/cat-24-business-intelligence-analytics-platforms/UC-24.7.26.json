@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Prefect Worker Heartbeat Loss' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_prefect_worker_heartbeat_loss` (UC-24.7.26), SOC dashboard panel \"Operations — Prefect Worker Heartbeat Loss\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='prefect:worker' where `worker_id` satisfies `mins_since` > 10 for UC-24.7.26 ('Prefect Worker Heartbeat Loss'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `prefect:worker` events where `worker_id` stays below `mins_since` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.26."
+    "positiveScenario": "UC-24.7.26 positive (Prefect, Worker, Heartbeat, Loss): ingest synthetic events into `index=bi` sourcetype='prefect:worker' where `count` grouped by `worker_id`, `work_pool_name` satisfies `mins_since` > 10 for 'Prefect Worker Heartbeat Loss'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.26 negative (Heartbeat Loss): ingest benign `bi` / `prefect:worker` events where `worker_id`, `work_pool_name` stays below `mins_since` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Prefect Worker Heartbeat Loss'."
   },
   "dataSources": "Prefect logs (`prefect:worker`, `prefect:agent`), REST API flow-run and work-pool queries (`prefect:api`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Prefect worker/agent logs via Universal Forwarder; Prefect REST API (`/api/flow_runs`, `/api/work_pools`) via HEC scripted inputs; Prefect server database via Splunk DB Connect where self-hosted. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=prefect:worker \"heartbeat\" OR \"polling work pool\"\n| stats latest(_time) as last_seen by worker_id, work_pool_name\n| eval mins_since=round((now()-last_seen)/60,1)\n| where mins_since>10\n| sort - mins_since",
-  "description": "Tracks the last heartbeat/poll from each Prefect worker and flags workers that have gone silent, indicating a crashed or disconnected agent.",
-  "value": "Tracks the last heartbeat/poll from each Prefect worker and flags workers that have gone silent, indicating.... Timely UC-24.7.26 alerting on 'Prefect Worker Heartbeat Loss' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors when Heartbeat Loss criteria fire for 'Prefect Worker Heartbeat Loss' (UC-24.7.26) in `index=bi` sourcetype `prefect:worker`. Pipeline aggregates `count` by `worker_id`, `work_pool_name` over `the scheduled window`. Alert logic enforces `mins_since` > 10. Title terms: Prefect, Worker, Heartbeat, Loss. Eliminates manual hunting for UC-24.7.26 conditions.",
+  "value": "UC-24.7.26 helps teams contain Prefect, Worker, Heartbeat, Loss scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest worker logs; schedule every 5 minutes and alert when a worker for a critical pool is silent beyond its poll interval.",
   "visualization": "Table of worker by minutes-since-heartbeat, status panel.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Prefect Worker Heartbeat Loss' shifts `count` over `span=1h` while `worker_id` remains in-scope for UC-24.7.26. Cross-check CMDB CHG.\n\n2. **Batch `count` on `prefect:worker`** — Scheduled automation elevates `work_pool_name` without crossing `mins_since` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `worker_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:worker`** — First 48h baseline for `worker_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `worker_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.26)** — Planned work for 'Prefect Worker Heartbeat Loss' shifts `count` over `span=1h` while `worker_id`, `work_pool_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `prefect:worker`** — Scheduled automation elevates `work_pool_name` without crossing `mins_since` > 10 for UC-24.7.26. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `worker_id`, `work_pool_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `prefect:worker`** — First 48h baseline for UC-24.7.26 on `worker_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `worker_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect"
   ],

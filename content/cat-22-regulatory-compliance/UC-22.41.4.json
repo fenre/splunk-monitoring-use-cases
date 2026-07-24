@@ -52,14 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=tls` sourcetype='f5:tls' where `host` satisfies `legacy_pct` > 0.5 for UC-22.41.4 ('TLS downgrade / legacy-cipher handshake spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `tls` / `f5:tls` events where `host` stays below `legacy_pct` > 0.5, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.41.4."
+    "positiveScenario": "UC-22.41.4 positive (TLS, downgrade, legacy, cipher, handshake): ingest synthetic events into `index=tls` sourcetype='f5:tls' where `legacy_hs` grouped by `host` satisfies `legacy_pct` > 0.5, or `total_hs` > 100 for 'TLS downgrade / legacy-cipher handshake spike'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.41.4 negative (handshake spike): ingest benign `tls` / `f5:tls` events where `host` stays below `legacy_pct` > 0.5, or `total_hs` > 100, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'TLS downgrade / legacy-cipher handshake spike'."
   },
   "dataSources": "F5/NGINX/HAProxy TLS handshake logs, cloud-provider LB telemetry, TLS scanner longitudinal results.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=tls sourcetype=f5:tls OR sourcetype=nginx:tls OR sourcetype=haproxy:tls earliest=-1h\n| eval legacy=if(match(protocol,\"TLSv1\\.(0|1)\") OR match(cipher,\"3DES|RC4|NULL|DES|EXPORT\"),1,0)\n| stats sum(legacy) as legacy_hs count as total_hs by host\n| eval legacy_pct=round(legacy_hs/total_hs*100,2)\n| where legacy_pct>0.5 AND total_hs>100\n| table host legacy_hs total_hs legacy_pct",
-  "description": "Monitors observed TLS handshake metadata for any endpoint and alerts when legacy-cipher or legacy-protocol negotiations exceed a small threshold. Downgrade is a common attacker technique against partially-upgraded infrastructure.",
-  "value": "Monitors observed TLS handshake metadata for any endpoint and alerts when legacy-cipher or legacy-protocol.... Timely UC-22.41.4 alerting on 'TLS downgrade / legacy-cipher handshake spike' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.41.4 — TLS, downgrade, legacy, cipher, handshake — using `index=tls` sourcetype `f5:tls`, grouped by `host`. Outputs `legacy_hs` each `the scheduled window`; alert when `legacy_pct` > 0.5, or `total_hs` > 100. Primary focus: handshake spike. Purpose-built for 'TLS downgrade / legacy-cipher handshake spike' in Compliance workflows.",
+  "value": "UC-22.41.4 operationalises 'TLS downgrade / legacy-cipher handshake spike' against `f5:tls` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Ensure LBs emit handshake telemetry; (2) schedule hourly; (3) route hits to security ops; (4) block via config-as-code rollback. Indexes required: `index=tls`; Sourcetypes: `sourcetype=f5:tls`, `sourcetype=haproxy:tls`, `sourcetype=nginx:tls`.",
   "visualization": "Line chart of legacy-handshake percentage per endpoint, table of offending endpoints, single-value '% handshakes on strong TLS (24h)'.",
   "cimModels": [

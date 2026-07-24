@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Ceph placement group stuck inactive unclean undersized or stale states' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ceph_placement_group_stuck_inactive_unclean_unde` (UC-6.2.21), SOC dashboard panel \"Operations — Ceph placement group stuck inactive unclean undersized or stale states\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='ceph:pg' where `pool_name` satisfies detection threshold for UC-6.2.21 ('Ceph placement group stuck inactive unclean undersized or stale states'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `ceph:pg` events where `pool_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.21."
+    "positiveScenario": "UC-6.2.21 positive (Ceph, placement, group, stuck, inactive): ingest synthetic events into `index=storage` sourcetype='ceph:pg' where `bad_pgs` grouped by `pool_name`, `cluster_name` satisfies -30m for 'Ceph placement group stuck inactive unclean undersized or stale states'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.21 negative (stale states): ingest benign `storage` / `ceph:pg` events where `pool_name`, `cluster_name` stays below -30m, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Ceph placement group stuck inactive unclean undersized or stale states'."
   },
   "dataSources": "`ceph pg dump` JSON indexed as `ceph:pg` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input; heavy forwarder — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"ceph:pg\" earliest=-30m\n| eval st=coalesce(pg_state, state)\n| where match(st, \"(?i)inactive|unclean|undersized|stale\")\n| stats dc(pg_id) as bad_pgs values(st) as states by pool_name, cluster_name\n| sort - bad_pgs",
-  "description": "Stuck PG states mean data is not fully available or not meeting min_size. Left unchecked, they threaten read/write availability and prolong recovery after node loss.",
-  "value": "Stuck PG states mean data is not fully available or not meeting min_size. Timely UC-6.2.21 alerting on 'Ceph placement group stuck inactive unclean undersized or stale states' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-6.2.21 — Ceph, placement, group, stuck, inactive — using `index=storage` sourcetype `ceph:pg`, grouped by `pool_name`, `cluster_name`. Outputs `bad_pgs` each `the scheduled window`; alert when -30m. Primary focus: stale states. Purpose-built for 'Ceph placement group stuck inactive unclean undersized or stale states' in Operations workflows.",
+  "value": "UC-6.2.21 gives Operations teams earlier visibility into stale states through `ceph:pg` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Prefer JSON `pg dump` over parsing text; include `pgid`, `state`, `pool_name`. Throttle alerts until `bad_pgs` > threshold for 10 minutes to avoid flap during small blips.",
   "visualization": "Single value (bad PG count), table (pool, states).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Ceph placement group stuck inactive unclean undersized or stale states' shifts `dc` over `span=1h` while `pool_name` remains in-scope for UC-6.2.21. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ceph:pg`** — Scheduled automation elevates `cluster_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:pg`** — First 48h baseline for `pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.2.21)** — Planned work for 'Ceph placement group stuck inactive unclean undersized or stale states' shifts `bad_pgs` over `span=1h` while `pool_name`, `cluster_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ceph:pg`** — Scheduled automation elevates `cluster_name` without crossing configured threshold for UC-6.2.21. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pool_name`, `cluster_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ceph:pg`** — First 48h baseline for UC-6.2.21 on `pool_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pool_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "ceph"
   ],

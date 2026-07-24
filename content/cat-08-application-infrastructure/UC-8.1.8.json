@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Connection Pool Saturation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_connection_pool_saturation` (UC-8.1.8), SOC dashboard panel \"Operations — Connection Pool Saturation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='apache:server_status' where `host` satisfies `worker_pct` > 80 for UC-8.1.8 ('Connection Pool Saturation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `apache:server_status` events where `host` stays below `worker_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.8."
+    "positiveScenario": "UC-8.1.8 positive (Connection, Pool, Saturation): ingest synthetic events into `index=web` sourcetype='apache:server_status' where `worker_pct` grouped by `host` satisfies `worker_pct` > 80 for 'Connection Pool Saturation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.8 negative (Pool Saturation): ingest benign `web` / `apache:server_status` events where `host` stays below `worker_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Connection Pool Saturation'."
   },
   "dataSources": "Apache mod_status, NGINX stub_status, IIS performance counters Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted input (Apache `server-status`, NGINX `stub_status`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=web sourcetype=\"apache:server_status\"\n| eval pct_busy=round(BusyWorkers/(BusyWorkers+IdleWorkers)*100,1)\n| timechart span=5m avg(pct_busy) as worker_pct by host\n| where worker_pct > 80",
-  "description": "Saturated worker threads/processes cause request queuing and timeouts. Monitoring enables proactive scaling. Searches `index=web` with sourcetype `apache:server_status` for UC-8.1.8, aggregating `avg` by `host` over `5m`. Alerts when grouped results cross `worker_pct` > 80 in the saved search. Gives Operations operators a repeatable signal for 'Connection Pool Saturation' without manual log review.",
-  "value": "Early 'Connection Pool Saturation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-8.1.8 — Connection, Pool, Saturation — using `index=web` sourcetype `apache:server_status`, grouped by `host`. Outputs `worker_pct` each `5m`; alert when `worker_pct` > 80. Primary focus: Pool Saturation. Purpose-built for 'Connection Pool Saturation' in Operations workflows.",
+  "value": "UC-8.1.8 operationalises 'Connection Pool Saturation' against `apache:server_status` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable Apache `mod_status` or NGINX `stub_status` module. Poll via scripted input every minute. Alert when busy workers exceed 80% of total. Correlate with request rate to distinguish capacity limits from slow backends.",
   "visualization": "Gauge (% workers busy), Line chart (worker utilization over time), Table (hosts at capacity).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `web`** — Planned work for 'Connection Pool Saturation' shifts `avg` over `span=5m` while `host` remains in-scope for UC-8.1.8. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `apache:server_status`** — Scheduled automation elevates `pct_busy` without crossing `worker_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `apache:server_status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `web` (UC-8.1.8)** — Planned work for 'Connection Pool Saturation' shifts `worker_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `apache:server_status`** — Scheduled automation elevates `pct_busy` without crossing `worker_pct` > 80 for UC-8.1.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `web` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `apache:server_status`** — First 48h baseline for UC-8.1.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "nginx"

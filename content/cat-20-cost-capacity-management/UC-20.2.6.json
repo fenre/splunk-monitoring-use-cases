@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Database Growth Projection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_database_growth_projection` (UC-20.2.6), SOC dashboard panel \"Operations — Database Growth Projection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='db:capacity' where `db_name` satisfies detection threshold for UC-20.2.6 ('Database Growth Projection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `db:capacity` events where `db_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.6."
+    "positiveScenario": "UC-20.2.6 positive (Database, Growth, Projection): ingest synthetic events into `index=database` sourcetype='db:capacity' where `count` grouped by `db_name` satisfies detection threshold for 'Database Growth Projection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.6 negative (Growth Projection): ingest benign `database` / `db:capacity` events where `db_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Database Growth Projection'."
   },
   "dataSources": "Database size metrics, tablespace utilization Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Database monitoring TAs, `Splunk DB Connect` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"db:capacity\"\n| timechart span=1d latest(db_size_gb) as current_size by db_name\n| predict current_size as predicted_size algorithm=LLP5 future_timespan=90\n| eval growth_rate_gb_per_day=round(('predicted_size+30d'-current_size)/30, 2)\n| where 'predicted_size+90d' > max_size*0.85",
-  "description": "Databases that run out of space cause application outages. Forecasting database growth enables proactive storage expansion, archive planning, and helps DBAs plan maintenance windows for data lifecycle operations.",
-  "value": "Early 'Database Growth Projection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-20.2.6 — Database, Growth, Projection — using `index=database` sourcetype `db:capacity`, grouped by `db_name`. Outputs `count` each `1d`; alert when configured threshold. Primary focus: Growth Projection. Purpose-built for 'Database Growth Projection' in Operations workflows.",
+  "value": "Tracking `activity` via UC-20.2.6 on `db:capacity` feeds improves response to 'Database Growth Projection' and reduces operational risk and delayed incident response.",
   "implementation": "Collect database size metrics daily from all platforms. Track per-database and per-tablespace growth. Use Splunk predict for 90-day growth forecasting. Alert when projected size exceeds 85% of allocated space within 90 days. Plan archival or expansion based on projections.",
   "visualization": "Timechart (database size with forecast), Table (databases approaching limits), Gauge (current utilization), Bar chart (growth rate by database).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Database Growth Projection' shifts `count` over `span=1d` while `db_name` remains in-scope for UC-20.2.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `db:capacity`** — Scheduled automation elevates `growth_rate_gb_per_day` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `db_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `db:capacity`** — First 48h baseline for `db_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `db_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-20.2.6)** — Planned work for 'Database Growth Projection' shifts `count` over `span=1d` while `db_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `db:capacity`** — Scheduled automation elevates `growth_rate_gb_per_day` without crossing configured threshold for UC-20.2.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `db_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `db:capacity`** — First 48h baseline for UC-20.2.6 on `db_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `db_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "oracle"

@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=trading` sourcetype='ems:fill' where `bo_id` satisfies `buy_qty` > 0 for UC-22.5.20 ('MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `trading` / `ems:fill` events where `bo_id` stays below `buy_qty` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.5.20."
+    "positiveScenario": "UC-22.5.20 positive (MiFID, Market, Abuse, Cross, Venue): ingest synthetic events into `index=trading` sourcetype='ems:fill' where `sum` grouped by `bo_id`, `symbol`, `t`, `venue` satisfies `buy_qty` > 0, or `sell_qty` > 0 for 'MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.5.20 negative (Beneficial Owner): ingest benign `trading` / `ems:fill` events where `bo_id`, `symbol`, `t`, `venue` stays below `buy_qty` > 0, or `sell_qty` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 8 confirms zero alert rows for 'MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner'."
   },
   "dataSources": "`index=trading` `sourcetype=\"ems:fill\"` (fill_id, bo_id, symbol, side, qty, price, fill_ts, venue)",
   "app": "Consolidated CAT-like internal store via HEC (Splunkbase)",
   "spl": "index=trading sourcetype=\"ems:fill\" earliest=-1d\n| eval t=strptime(fill_ts,\"%Y-%m-%dT%H:%M:%SZ\")\n| bin t span=5s\n| stats sum(eval(if(side=\"B\",qty,0))) as buy_qty, sum(eval(if(side=\"S\",qty,0))) as sell_qty by bo_id, symbol, t, venue\n| eval imbalance=abs(buy_qty-sell_qty)\n| where buy_qty>0 AND sell_qty>0 AND imbalance< (buy_qty+sell_qty)*0.05\n| sort - buy_qty",
-  "description": "Wash trades may split across accounts and venues. Linking executions by `beneficial_owner_id` and near-equal opposing volumes within short windows supports cross-venue surveillance beyond single-broker silos.",
-  "value": "Wash trades may split across accounts and venues. Timely UC-22.5.20 alerting on 'MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.5.20 — MiFID, Market, Abuse, Cross, Venue — using `index=trading` sourcetype `ems:fill`, grouped by `bo_id`, `symbol`, `t`, `venue`. Outputs `sum` each `5s`; alert when `buy_qty` > 0, or `sell_qty` > 0. Primary focus: Beneficial Owner. Purpose-built for 'MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner' in Compliance workflows.",
+  "value": "UC-22.5.20 accelerates insight into Beneficial Owner ('MiFID II Market Abuse — Cross-Venue Wash Trade Risk Linking by Beneficial Owner') by tracking `activity` on `ems:fill` feeds, reducing audit findings, regulatory gaps, and attestation delays before spreadsheet checks hide regressions.",
   "implementation": "(1) Tune time bin and imbalance; (2) enrich `bo_id` from KYC; (3) exclude bona fide internalizers per policy; (4) STOR escalation path; (5) coordinate with surveillance vendor rules. Indexes required: `index=trading`; Sourcetypes: `sourcetype=ems:fill`.",
   "visualization": "Table (clusters), Sankey optional, Single value (bo_id count).",
   "cimModels": [],

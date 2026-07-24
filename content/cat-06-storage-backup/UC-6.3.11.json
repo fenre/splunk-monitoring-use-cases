@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Veeam Backup Job Status Summary' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_veeam_backup_job_status_summary` (UC-6.3.11), SOC dashboard panel \"Operations — Veeam Backup Job Status Summary\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:job_session' where `job_name` satisfies `duration` > 28800 for UC-6.3.11 ('Veeam Backup Job Status Summary'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:job_session` events where `job_name` stays below `duration` > 28800, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.11."
+    "positiveScenario": "UC-6.3.11 positive (Veeam, Backup, Job, Status, Summary): ingest synthetic events into `index=backup` sourcetype='veeam:job_session' where `count` grouped by `job_name` satisfies `duration` > 28800 for 'Veeam Backup Job Status Summary'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.11 negative (Status Summary): ingest benign `backup` / `veeam:job_session` events where `job_name` stays below `duration` > 28800, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Veeam Backup Job Status Summary'."
   },
   "dataSources": "`veeam:job` or `veeam:job_session` with `job_name`, `status`, `end_time` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Veeam App for Splunk, Enterprise Manager API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"veeam:job_session\"\n| stats latest(_time) as last_end, latest(status) as status, latest(duration_sec) as duration by job_name\n| where status IN (\"Failed\",\"Warning\") OR duration > 28800\n| table job_name last_end status duration",
-  "description": "Roll-up of last job result per workload (Success/Warning/Failed/Running) for executive and NOC dashboards. Complements session-level detail with a single row per protected entity.",
-  "value": "Early 'Veeam Backup Job Status Summary' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-6.3.11 — Veeam, Backup, Job, Status, Summary — using `index=backup` sourcetype `veeam:job_session`, grouped by `job_name`. Outputs `count` each `the scheduled window`; alert when `duration` > 28800. Primary focus: Status Summary. Purpose-built for 'Veeam Backup Job Status Summary' in Operations workflows.",
+  "value": "UC-6.3.11 operationalises 'Veeam Backup Job Status Summary' against `veeam:job_session` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Schedule hourly. Map Warning to ticket for review. Escalate Failed immediately. Track Running jobs exceeding expected window as Warning.",
   "visualization": "Status grid (job × last status), Single value (failed count), Table (jobs needing attention).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Veeam Backup Job Status Summary' shifts `count` over `span=1h` while `job_name` remains in-scope for UC-6.3.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job_session`** — Scheduled automation elevates `src` without crossing `duration` > 28800. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job_session`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.11)** — Planned work for 'Veeam Backup Job Status Summary' shifts `count` over `span=1h` while `job_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:job_session`** — Scheduled automation elevates `src` without crossing `duration` > 28800 for UC-6.3.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:job_session`** — First 48h baseline for UC-6.3.11 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "veeam"
   ],

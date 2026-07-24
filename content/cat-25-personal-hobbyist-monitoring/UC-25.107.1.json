@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Market Ask Below Purchase Cost' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_market_ask_below_purchase_cost` (UC-25.107.1), SOC dashboard panel \"Personal — Market Ask Below Purchase Cost\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='chrono24:listing' where `reference_number]` satisfies `loss_usd` > 0 for UC-25.107.1 ('Market Ask Below Purchase Cost'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `chrono24:listing` events where `reference_number]` stays below `loss_usd` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.107.1."
+    "positiveScenario": "UC-25.107.1 positive (Market, Ask, Below, Purchase, Cost): ingest synthetic events into `index=personal` sourcetype='chrono24:listing' where `count` grouped by `reference_number]` satisfies `loss_usd` > 0 for 'Market Ask Below Purchase Cost'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.107.1 negative (Purchase Cost): ingest benign `personal` / `chrono24:listing` events where `reference_number]` stays below `loss_usd` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Market Ask Below Purchase Cost'."
   },
   "dataSources": "Chrono24 listings (`chrono24:listing`), WatchBox service records (`watchbox:service`), wrist-time logs (`watch:wristtime`), and watch service history (`watch:service`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Chrono24 listing snapshots, WatchBox service records, wrist-time wear logs, and in-house service history exports ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=chrono24:listing reference_number=* ask_price_usd=*\n| join type=inner reference_number [search index=personal sourcetype=watch:wristtime | stats latest(purchase_price_usd) as cost by reference_number]\n| eval loss_usd=round(cost-ask_price_usd,2)\n| where loss_usd>0\n| sort - loss_usd\n| table reference_number brand cost ask_price_usd loss_usd",
-  "description": "Finds watches whose current Chrono24 ask is below recorded purchase cost. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Finds watches whose current Chrono24 ask is below recorded purchase cost. Timely UC-25.107.1 alerting on 'Market Ask Below Purchase Cost' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.107.1 for Market, Ask, Below, Purchase, Cost over `index=personal` sourcetype `chrono24:listing` with thresholds `loss_usd` > 0. Groups `count` by `reference_number]` each `the scheduled window`. Centered on Purchase Cost indicators. Supports repeatable personal triage for 'Market Ask Below Purchase Cost'.",
+  "value": "For 'Market Ask Below Purchase Cost', UC-25.107.1 converts `activity` on `chrono24:listing` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Maintain `purchase_price_usd` per reference and compare nightly against Chrono24 `ask_price_usd`.",
   "visualization": "Table of references with market loss amount.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Market Ask Below Purchase Cost' stops polling `chrono24:listing`; stale `reference_number]` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by reference_number]`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `loss_usd` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.107.1)** — Connector for 'Market Ask Below Purchase Cost' stops polling `chrono24:listing`; stale `count` on `reference_number]` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.107.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `chrono24:listing`. Dedup with `stats latest(*) by reference_number]`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `loss_usd` > 0 for 'Market Ask Below Purchase Cost'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

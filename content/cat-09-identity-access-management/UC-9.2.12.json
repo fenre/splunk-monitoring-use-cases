@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'LDAP Referral Chaining Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_ldap_referral_chaining_monitoring` (UC-9.2.12), SOC dashboard panel \"IAM — LDAP Referral Chaining Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='openldap:access' where `src` satisfies `count` > 20 for UC-9.2.12 ('LDAP Referral Chaining Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `openldap:access` events where `src` stays below `count` > 20, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.12."
+    "positiveScenario": "UC-9.2.12 positive (LDAP, Referral, Chaining, Monitoring): ingest synthetic events into `index=ldap` sourcetype='openldap:access' where `values` grouped by `src`, `base` satisfies `count` > 20 for 'LDAP Referral Chaining Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.2.12 negative (Chaining Monitoring): ingest benign `ldap` / `openldap:access` events where `src`, `base` stays below `count` > 20, or exclude the test entity via `iam_exception_register.csv`. Variant 7 confirms zero alert rows for 'LDAP Referral Chaining Monitoring'."
   },
   "dataSources": "LDAP access log lines containing `REFERRAL` or `v3 referral` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "OpenLDAP / 389 DS access logs, AD debug (optional) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ldap sourcetype=\"openldap:access\" (message=\"REFERRAL\" OR like(_raw,\"%referral%\"))\n| stats count, values(dn) as refs by src, base\n| where count > 20\n| sort -count",
-  "description": "Excessive or looping referrals degrade auth and may indicate misconfigured base DNs or cross-domain abuse. Searches `index=ldap` with sourcetype `openldap:access` for UC-9.2.12, aggregating `values` by `src` over `the scheduled window`. Alerts when grouped results cross `count` > 20 in the saved search. Gives IAM operators a repeatable signal for 'LDAP Referral Chaining Monitoring' without manual log review.",
-  "value": "Early 'LDAP Referral Chaining Monitoring' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Detects UC-9.2.12 — LDAP, Referral, Chaining, Monitoring — using `index=ldap` sourcetype `openldap:access`, grouped by `src`, `base`. Outputs `values` each `the scheduled window`; alert when `count` > 20. Primary focus: Chaining Monitoring. Purpose-built for 'LDAP Referral Chaining Monitoring' in IAM workflows.",
+  "value": "UC-9.2.12 operationalises 'LDAP Referral Chaining Monitoring' against `openldap:access` feeds so operators reduce account takeover risk, help-desk load, and audit findings without manual correlation.",
   "implementation": "Parse referral responses in access logs. Baseline per app. Alert on referral storms or new referral targets. Correlate with GSSAPI/SASL cross-realm issues in hybrid setups.",
   "visualization": "Table (referral chains), Line chart (referral volume), Bar chart (by base DN).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'LDAP Referral Chaining Monitoring' shifts `values` over `span=1h` while `src` remains in-scope for UC-9.2.12. Cross-check CMDB CHG.\n\n2. **Batch `values` on `openldap:access`** — Scheduled automation elevates `base` without crossing `count` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:access`** — First 48h baseline for `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap` (UC-9.2.12)** — Planned work for 'LDAP Referral Chaining Monitoring' shifts `values` over `span=1h` while `src`, `base` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `openldap:access`** — Scheduled automation elevates `base` without crossing `count` > 20 for UC-9.2.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `base`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:access`** — First 48h baseline for UC-9.2.12 on `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078"
   ],

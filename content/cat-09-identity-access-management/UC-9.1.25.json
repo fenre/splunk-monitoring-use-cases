@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'AD Forest Trust Changes' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_ad_forest_trust_changes` (UC-9.1.25), SOC dashboard panel \"IAM — AD Forest Trust Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `entity` satisfies detection threshold for UC-9.1.25 ('AD Forest Trust Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.1.25."
+    "positiveScenario": "UC-9.1.25 positive (Forest, Trust, Changes): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `count` grouped by `entity` satisfies detection threshold for 'AD Forest Trust Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.1.25 negative (Trust Changes): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 2 confirms zero alert rows for 'AD Forest Trust Changes'."
   },
   "dataSources": "Security Event Log (4706 — trust modified, 4713 — trust deleted, 4716 — trusted domain information modified) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4706,4713,4716)\n| table _time, SubjectUserName, TargetDomainName, TrustType, TrustDirection, SidFiltering\n| sort -_time",
-  "description": "Trust direction and selective authentication changes alter cross-forest attack surface; distinct from one-off session events.",
-  "value": "Early 'AD Forest Trust Changes' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.1.25 for Forest, Trust, Changes over `index=wineventlog` sourcetype `WinEventLog:Security` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on Trust Changes indicators. Supports repeatable iam triage for 'AD Forest Trust Changes'.",
+  "value": "For 'AD Forest Trust Changes', UC-9.1.25 converts `activity` on `WinEventLog:Security` feeds into actionable rows and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Forward all DC Security logs. Require CAB approval for trust changes. Alert on selective auth disablement or inbound trust creation.",
   "visualization": "Table (trust changes), Timeline, Single value (changes per year).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'AD Forest Trust Changes' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.1.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-9.1.25)** — Planned work for 'AD Forest Trust Changes' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security`** — Scheduled automation elevates `src` without crossing configured threshold for UC-9.1.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-9.1.25 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1484.002"
   ],

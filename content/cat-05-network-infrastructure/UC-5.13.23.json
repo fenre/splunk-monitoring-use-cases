@@ -12,8 +12,8 @@
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue` from the `issue` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.21. Filters to `priority IN (\"P1\",\"P2\")` and `status != \"RESOLVED\"` to surface only active critical/high-impact issues.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" (priority=\"P1\" OR priority=\"P2\") status!=\"RESOLVED\"\n| stats dc(issueId) as open_issues values(name) as issue_names values(deviceName) as affected_devices by priority, category\n| sort priority",
-  "description": "Fires an alert when any P1 (critical) or P2 (high) Assurance issue is active and unresolved, providing the issue names, affected devices, and categories so the NOC can begin triage immediately — within the 15-minute poll cycle that Catalyst Center's AI/ML engine detected the problem.",
-  "value": "Fires an alert when any P1 (critical) or P2 (high) Assurance issue is active and unresolved, providing the.... Timely UC-5.13.23 alerting on 'P1/P2 Critical Issue Alerting' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces Issue Alerting anomalies for UC-5.13.23 with window `the scheduled window` on `index=catalyst` sourcetype `cisco:dnac:issue`. Combines `open_issues` by `priority`, `category` and compares against configured threshold. Mapped to keywords Critical, Issue, Alerting for dashboard routing.",
+  "value": "Alerting on Critical, Issue, Alerting through UC-5.13.23 reduces operational risk and delayed incident response by surfacing `open_issues` early.",
   "implementation": "Same `issue` input as UC-5.13.21. Schedule as alert: cron `*/5 * * * *` (every 5 minutes for fastest P1 response), time range `-15m to now`, trigger on any results. Throttle by `priority` for 4 hours. Route P1 to high-urgency PagerDuty, P2 to low-urgency.",
   "visualization": "(1) Alert payload table: priority, category, issue_names, affected_devices, open_issues count. (2) Single value: P1 count (red ≥ 1) + P2 count (orange ≥ 1). (3) Timeline: `| timechart span=1h dc(issueId) by priority` over 7 days showing P1/P2 frequency. (4) Drilldown links to UC-5.13.21 (full backlog) and UC-5.13.26 (by device/site).",
   "references": [
@@ -34,7 +34,7 @@
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Alert/Setupalertactions"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'P1/P2 Critical Issue Alerting' shifts `dc` over `span=1h` while `priority` remains in-scope for UC-5.13.23. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:issue`** — Scheduled automation elevates `category` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `priority`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for `priority` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `priority`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.23)** — Planned work for 'P1/P2 Critical Issue Alerting' shifts `open_issues` over `span=1h` while `priority`, `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:issue`** — Scheduled automation elevates `category` without crossing configured threshold for UC-5.13.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `priority`, `category`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for UC-5.13.23 on `priority` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `priority`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "pagerduty"
@@ -56,7 +56,7 @@
   ],
   "wave": "crawl",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `priority` satisfies detection threshold for UC-5.13.23 ('P1/P2 Critical Issue Alerting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:issue` events where `priority` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.23."
+    "positiveScenario": "UC-5.13.23 positive (Critical, Issue, Alerting): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `open_issues` grouped by `priority`, `category` satisfies detection threshold for 'P1/P2 Critical Issue Alerting'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.23 negative (Issue Alerting): ingest benign `catalyst` / `cisco:dnac:issue` events where `priority`, `category` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'P1/P2 Critical Issue Alerting'."
   }
 }

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'DC Fast-Charge Share vs Target' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dc_fast_charge_share_vs_target` (UC-25.3.16), SOC dashboard panel \"Personal — DC Fast-Charge Share vs Target\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `vin` satisfies `total_sessions` >= 4 for UC-25.3.16 ('DC Fast-Charge Share vs Target'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `evcharger:session` events where `vin` stays below `total_sessions` >= 4, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.16."
+    "positiveScenario": "UC-25.3.16 positive (Fast, Charge, Share, Target): ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `sum` grouped by `vin`, `_time` satisfies `total_sessions` >= 4, or `fast_share` > 40 for 'DC Fast-Charge Share vs Target'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.16 negative (vs Target): ingest benign `personal` / `evcharger:session` events where `vin`, `_time` stays below `total_sessions` >= 4, or `fast_share` > 40, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'DC Fast-Charge Share vs Target'."
   },
   "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=evcharger:session\n| bin _time span=1mon\n| stats sum(eval(charge_type=\"dc_fast\")) as dc_fast, count as total_sessions by vin _time\n| eval fast_share=round(100*dc_fast/total_sessions,1)\n| where total_sessions>=4 AND fast_share>40\n| sort - fast_share",
-  "description": "Calculates how much of your charging month is coming from expensive fast chargers instead of cheaper home or destination charging.",
-  "value": "Calculates how much of your charging month is coming from expensive fast chargers instead of cheaper home o.... Timely UC-25.3.16 alerting on 'DC Fast-Charge Share vs Target' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies 'DC Fast-Charge Share vs Target' patterns (UC-25.3.16) sourced from `index=personal` sourcetype `evcharger:session`. Threshold bundle: `total_sessions` >= 4, or `fast_share` > 40; aggregation grain: `vin`, `_time`; metrics: `sum`. Watch terms: Fast, Charge, Share, Target.",
+  "value": "UC-25.3.16 gives Personal teams earlier visibility into vs Target through `evcharger:session` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture charger session type and count; review monthly and compare fast-charge share against your own cost or battery-care target.",
   "visualization": "Monthly chart of DC fast-charge share.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'DC Fast-Charge Share vs Target' stops polling `evcharger:session`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_sessions` >= 4. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.16)** — Connector for 'DC Fast-Charge Share vs Target' stops polling `evcharger:session`; stale `sum` on `vin`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected for UC-25.3.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_sessions` >= 4 for 'DC Fast-Charge Share vs Target'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SMB Protocol Activity in OT Networks' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_smb_protocol_activity_in_ot_networks` (UC-14.9.18), SOC dashboard panel \"Operations — SMB Protocol Activity in OT Networks\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nozomi` sourcetype='nozomi:session' where `src_ip` satisfies detection threshold for UC-14.9.18 ('SMB Protocol Activity in OT Networks'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nozomi` / `nozomi:session` events where `src_ip` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.9.18."
+    "positiveScenario": "UC-14.9.18 positive (SMB, Protocol, Activity, Networks): ingest synthetic events into `index=nozomi` sourcetype='nozomi:session' where `targets` grouped by `src_ip`, `zone` satisfies detection threshold for 'SMB Protocol Activity in OT Networks'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.9.18 negative (OT Networks): ingest benign `nozomi` / `nozomi:session` events where `src_ip`, `zone` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'SMB Protocol Activity in OT Networks'."
   },
   "dataSources": "`sourcetype=cisco:cybervision:syslog` · Nozomi: `sourcetype=nozomi:session` (protocol=\"smb\")",
   "app": "`Cisco Cyber Vision Splunk Add-On` (Splunkbase 5748) · `Nozomi Networks Universal Add-on` (Splunkbase 6905)",
   "spl": "index=nozomi sourcetype=\"nozomi:session\" protocols=\"smb\"\n| stats count as smb_events, dc(dst_ip) as targets by src_ip, zone\n| sort -smb_events\n| table src_ip, smb_events, targets, zone",
-  "description": "SMB (Server Message Block) traffic in OT networks is frequently associated with ransomware propagation (WannaCry, NotPetya) and lateral movement. OT security platforms detect SMB protocol events. Any SMB activity in pure control network segments is suspicious and may indicate an active threat.",
-  "value": "Early 'SMB Protocol Activity in OT Networks' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'SMB Protocol Activity in OT Networks' patterns (UC-14.9.18) sourced from `index=nozomi` sourcetype `nozomi:session`. Threshold bundle: configured threshold; aggregation grain: `src_ip`, `zone`; metrics: `targets`. Watch terms: SMB, Protocol, Activity, Networks.",
+  "value": "UC-14.9.18 gives Operations teams earlier visibility into OT Networks through `nozomi:session` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Both platforms detect SMB traffic via DPI. Map legitimate SMB usage (historian data transfer, Windows-based HMIs). Alert on SMB traffic to/from pure control devices (PLCs, RTUs, field devices) which should never use SMB. Correlate with IDS for known SMB exploit signatures. High priority for SOC investigation.",
   "visualization": "SMB activity timeline; source-target map; alert correlation with IDS; legitimate vs suspicious classification.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `nozomi`** — Planned work for 'SMB Protocol Activity in OT Networks' shifts `dc` over `span=1h` while `src_ip` remains in-scope for UC-14.9.18. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `nozomi:session`** — Scheduled automation elevates `zone` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:session`** — First 48h baseline for `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `nozomi` (UC-14.9.18)** — Planned work for 'SMB Protocol Activity in OT Networks' shifts `targets` over `span=1h` while `src_ip`, `zone` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `nozomi:session`** — Scheduled automation elevates `zone` without crossing configured threshold for UC-14.9.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_ip`, `zone`** — Health checks in `nozomi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `nozomi:session`** — First 48h baseline for UC-14.9.18 on `src_ip` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src_ip`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

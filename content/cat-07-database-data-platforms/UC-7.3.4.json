@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Storage Auto-Scaling Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_storage_auto_scaling_events` (UC-7.3.4), SOC dashboard panel \"Operations — Storage Auto-Scaling Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `entity` satisfies detection threshold for UC-7.3.4 ('Storage Auto-Scaling Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.4."
+    "positiveScenario": "UC-7.3.4 positive (Storage, Auto, Scaling, Events): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `entity` satisfies detection threshold for 'Storage Auto-Scaling Events'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.4 negative (Scaling Events): ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Storage Auto-Scaling Events'."
   },
   "dataSources": "CloudTrail (ModifyDBInstance), Azure Activity Log Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Cloud provider TAs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"ModifyDBInstance\"\n| spath output=allocated requestParameters.allocatedStorage\n| where isnotnull(allocated)\n| table _time, requestParameters.dBInstanceIdentifier, allocated, userIdentity.principalId",
-  "description": "Tracks storage auto-scaling events for cost awareness and identifies databases with rapid growth needing attention. Searches `index=aws` with sourcetype `aws:cloudtrail` for UC-7.3.4, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Storage Auto-Scaling Events' without manual log review.",
-  "value": "Early 'Storage Auto-Scaling Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-7.3.4 — Storage, Auto, Scaling, Events — using `index=aws` sourcetype `aws:cloudtrail`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Scaling Events. Purpose-built for 'Storage Auto-Scaling Events' in Operations workflows.",
+  "value": "For 'Storage Auto-Scaling Events', UC-7.3.4 converts `activity` on `aws:cloudtrail` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest CloudTrail events. Filter for storage modification events. Track growth frequency per database. Alert when auto-scaling occurs more than twice per week, indicating rapid growth needing review.",
   "visualization": "Timeline (scaling events), Table (databases with scaling history), Bar chart (scaling frequency by database).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Storage Auto-Scaling Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.3.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-7.3.4)** — Planned work for 'Storage Auto-Scaling Events' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.3.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-7.3.4 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"

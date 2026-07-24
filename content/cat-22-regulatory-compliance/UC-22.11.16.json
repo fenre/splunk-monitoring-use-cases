@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=app` sourcetype='batch:retention_job' where `host` satisfies `total_runs` > 0 for UC-22.11.16 ('Data Retention Job Failures for Cardholder Data Stores'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `app` / `batch:retention_job` events where `host` stays below `total_runs` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.16."
+    "positiveScenario": "UC-22.11.16 positive (Data, Retention, Job, Failures, for): ingest synthetic events into `index=app` sourcetype='batch:retention_job' where `ok_runs` grouped by `host`, `job_name` satisfies `total_runs` > 0, or `ok_rate` < 100 for 'Data Retention Job Failures for Cardholder Data Stores'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.16 negative (Data Stores): ingest benign `app` / `batch:retention_job` events where `host`, `job_name` stays below `total_runs` > 0, or `ok_rate` < 100, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'Data Retention Job Failures for Cardholder Data Stores'."
   },
   "dataSources": "`index=app` `sourcetype=\"sqlagent:job\"` or `index=linux` cron logs, `sourcetype=\"batch:retention_job\"`",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833) (Splunkbase)",
   "spl": "index=app sourcetype=\"batch:retention_job\" earliest=-7d\n| where match(job_name,\"(?i)pci|pan|retention|purge|truncate\")\n| eval success=if(match(status,\"(?i)success|completed\"),1,0)\n| stats latest(_time) as last_run, sum(success) as ok_runs, count as total_runs by host, job_name\n| eval ok_rate=if(total_runs>0, round(100*ok_runs/total_runs,2), null())\n| where ok_rate<100 OR total_runs=0\n| sort job_name",
-  "description": "Tracks scheduled purge and truncation jobs for databases that held PAN so retention limits are enforced operationally, not only on paper.",
-  "value": "Tracks scheduled purge and truncation jobs for databases that held PAN so retention limits are enforced ope.... Timely UC-22.11.16 alerting on 'Data Retention Job Failures for Cardholder Data Stores' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.11.16 — Data, Retention, Job, Failures, for — using `index=app` sourcetype `batch:retention_job`, grouped by `host`, `job_name`. Outputs `ok_runs` each `the scheduled window`; alert when `total_runs` > 0, or `ok_rate` < 100. Primary focus: Data Stores. Purpose-built for 'Data Retention Job Failures for Cardholder Data Stores' in Compliance workflows.",
+  "value": "Tracking `ok_runs` via UC-22.11.16 on `batch:retention_job` feeds improves response to 'Data Retention Job Failures for Cardholder Data Stores' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Instrument retention scripts to emit JSON lines with `job_name` and `status`. (2) Align job list with data retention standard table. (3) Page on two consecutive failures. (4) Attach weekly success rate to compliance dashboard. Indexes required: `index=app`, `index=linux`; Sourcetypes: `sourcetype=batch:retention_job`, `sourcetype=sqlagent:job`.",
   "visualization": "Single value (aggregate ok_rate), table (failing jobs), column chart (runs per day).",
   "cimModels": [

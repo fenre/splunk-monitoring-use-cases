@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'dbt Model Timing Regression' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dbt_model_timing_regression` (UC-24.7.29), SOC dashboard panel \"Operations — dbt Model Timing Regression\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='dbt:run_results' where `node` satisfies `p95_s` > 60 for UC-24.7.29 ('dbt Model Timing Regression'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `dbt:run_results` events where `node` stays below `p95_s` > 60, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.29."
+    "positiveScenario": "UC-24.7.29 positive (dbt, Model, Timing, Regression): ingest synthetic events into `index=bi` sourcetype='dbt:run_results' where `avg_s` grouped by `node` satisfies `p95_s` > 60 for 'dbt Model Timing Regression'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.29 negative (Timing Regression): ingest benign `bi` / `dbt:run_results` events where `node` stays below `p95_s` > 60, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'dbt Model Timing Regression'."
   },
   "dataSources": "dbt Cloud Admin API runs (`dbtcloud:run`), Discovery API, and dbt artifacts (`dbt:run_results`, `dbt:manifest`). Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "dbt Cloud Admin API (`/api/v2/accounts/{id}/runs`) and Metadata (Discovery) API via HEC scripted inputs; dbt run artifacts (`run_results.json`, `manifest.json`) forwarded as `dbt:run_results`. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=dbt:run_results\n| spath path=results{} output=results\n| mvexpand results\n| eval node=spath(results,\"unique_id\"), exec=spath(results,\"execution_time\")\n| stats avg(exec) as avg_s, p95(exec) as p95_s by node\n| where p95_s>60\n| sort - p95_s",
-  "description": "Parses per-model execution_time from dbt run_results artifacts and flags models whose 95th-percentile build time is slow, pointing at queries needing optimisation or incremental strategies.",
-  "value": "Parses per-model execution_time from dbt run_results artifacts and flags models whose 95th-percentile build.... Timely UC-24.7.29 alerting on 'dbt Model Timing Regression' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces Timing Regression anomalies for UC-24.7.29 with window `the scheduled window` on `index=bi` sourcetype `dbt:run_results`. Combines `avg_s` by `node` and compares against `p95_s` > 60. Mapped to keywords dbt, Model, Timing, Regression for dashboard routing.",
+  "value": "Alerting on dbt, Model, Timing, Regression through UC-24.7.29 reduces operational risk and delayed incident response by surfacing `avg_s` early.",
   "implementation": "Forward run_results.json after each run; schedule daily over a trailing week and review the slowest models.",
   "visualization": "Table of model by p95 execution time, trend line.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'dbt Model Timing Regression' shifts `avg` over `span=1h` while `node` remains in-scope for UC-24.7.29. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbt:run_results`** — Scheduled automation elevates `node` without crossing `p95_s` > 60. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for `node` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.29)** — Planned work for 'dbt Model Timing Regression' shifts `avg_s` over `span=1h` while `node` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `dbt:run_results`** — Scheduled automation elevates `node` without crossing `p95_s` > 60 for UC-24.7.29. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `node`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbt:run_results`** — First 48h baseline for UC-24.7.29 on `node` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `node`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

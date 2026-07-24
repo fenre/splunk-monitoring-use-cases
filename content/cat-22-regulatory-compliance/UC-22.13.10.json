@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hr` sourcetype='WinEventLog:Security' EventCode=4624 where `user` satisfies detection threshold for UC-22.13.10 ('Personnel Risk Assessment Due-Date Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hr` / `WinEventLog:Security` events where `user` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.10."
+    "positiveScenario": "UC-22.13.10 positive (Personnel, Risk, Assessment, Due, Date): ingest synthetic events into `index=hr` sourcetype='WinEventLog:Security' EventCode=4624 where `systems` grouped by `user`, `]` satisfies -730d for 'Personnel Risk Assessment Due-Date Monitoring'. Validate lookup `bes_privileged_users.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.10 negative (Date Monitoring): ingest benign `hr` / `WinEventLog:Security` events where `user`, `]` stays below -730d, or exclude the test entity via `compliance_exception_register.csv`. Variant 3 confirms zero alert rows for 'Personnel Risk Assessment Due-Date Monitoring'."
   },
   "dataSources": "`index=hr` `sourcetype=hr:pra`, `index=wineventlog` privileged logons — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=hr sourcetype=hr:pra earliest=-730d\n| eval next_epoch=strptime(next_due,\"%Y-%m-%d\")\n| rename employee_id as user\n| join type=left user [\n    search index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-30d\n    | lookup bes_privileged_users.csv Account_Name AS user OUTPUT employee_id\n    | stats dc(ComputerName) as systems by user\n  ]\n| where next_epoch < now() OR isnull(next_due)\n| table user, assessment_date, next_due, systems",
-  "description": "We highlight access holders whose personnel risk assessment is overdue while they still touch BES systems, reducing stale risk decisions.",
-  "value": "We highlight access holders whose personnel risk assessment is overdue while they still touch BES systems,.... Timely UC-22.13.10 alerting on 'Personnel Risk Assessment Due-Date Monitoring' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces when Date Monitoring criteria fire for 'Personnel Risk Assessment Due-Date Monitoring' (UC-22.13.10) in `index=hr` sourcetype `WinEventLog:Security`. Pipeline aggregates `systems` by `user`, `]` over `the scheduled window`. Alert logic enforces -730d. SPL signature: lookup `bes_privileged_users.csv`. Eliminates manual hunting for UC-22.13.10 conditions.",
+  "value": "UC-22.13.10 helps teams contain Personnel, Risk, Assessment, Due, Date scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Ingest PRA due dates from HR or GRC. (2) Correlate with active privileged users only. (3) Auto-ticket overdue users with recent BES logons. (4) Quarterly leadership rollup. Indexes required: `index=hr`, `index=wineventlog`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=hr:pra`, `sourcetype=hr:pra``; Lookups: `bes_privileged_users`, `bes_privileged_users.csv`.",
   "visualization": "Table (overdue), Timeline (assessment dates), Single value (overdue count). Key fields: `assessment_date`, `next_due`, `next_epoch`, `systems`, `user`.",
   "cimModels": [

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Internal-External Mail Ratio' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_internal_external_mail_ratio` (UC-10.13.32), SOC dashboard panel \"Security Infra — Internal-External Mail Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `entity` satisfies detection threshold for UC-10.13.32 ('Internal-External Mail Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.32."
+    "positiveScenario": "UC-10.13.32 positive (Internal, External, Mail, Ratio): ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `ext_count` grouped by `entity` satisfies detection threshold for 'Internal-External Mail Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.13.32 negative (Mail Ratio): ingest benign `security` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 6 confirms zero alert rows for 'Internal-External Mail Ratio'."
   },
   "dataSources": "`recipient`, `src_user` with domain classification Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Email CIM — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=email\n| eval ext=if(match(recipient,\"@ourdomain\\.com$\"),0,1)\n| timechart span=1h sum(ext) as ext_count, count as tot\n| eval ext_ratio=ext_count/tot",
-  "description": "Sudden flip to mostly external recipients may indicate data exfil via email or open relay abuse. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.32, aggregating `sum` by `entity` over `1h`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Internal-External Mail Ratio' without manual log review.",
-  "value": "Early 'Internal-External Mail Ratio' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Mail Ratio anomalies for UC-10.13.32 with window `1h` on `index=security` sourcetype `configured sourcetype`. Combines `ext_count` by `entity` and compares against configured threshold. Mapped to keywords Internal, External, Mail, Ratio for dashboard routing.",
+  "value": "Alerting on Internal, External, Mail, Ratio through UC-10.13.32 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `ext_count` early.",
   "implementation": "Baseline per department; alert when `ext_ratio` >2× normal.",
   "visualization": "Area chart (external ratio), Line chart.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Internal-External Mail Ratio' shifts `sum` over `span=1h` while `host` remains in-scope for UC-10.13.32. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `ext` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `security` (UC-10.13.32)** — Planned work for 'Internal-External Mail Ratio' shifts `ext_count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `ext` without crossing configured threshold for UC-10.13.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.13.32 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

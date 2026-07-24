@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Mesh Backhaul Quality Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_mesh_backhaul_quality_warning` (UC-25.9.17), SOC dashboard panel \"Personal — Mesh Backhaul Quality Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `ap_name` satisfies `avg_signal` < -70 for UC-25.9.17 ('Mesh Backhaul Quality Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `ap_name` stays below `avg_signal` < -70, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.17."
+    "positiveScenario": "UC-25.9.17 positive (Mesh, Backhaul, Quality, Warning): ingest synthetic events into `index=personal` sourcetype='unifi:event' where `avg_signal`, `worst_signal` grouped by `ap_name` satisfies `avg_signal` < -70, or `worst_signal` < -80 for 'Mesh Backhaul Quality Warning'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.17 negative (Quality Warning): ingest benign `personal` / `unifi:event` events where `ap_name` stays below `avg_signal` < -70, or `worst_signal` < -80, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Mesh Backhaul Quality Warning'."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event\n| stats avg(backhaul_signal_dbm) as avg_signal, min(backhaul_signal_dbm) as worst_signal by ap_name\n| where avg_signal<-70 OR worst_signal<-80\n| sort avg_signal",
-  "description": "Monitors the health of mesh or wireless uplinks so you know when an AP is still online but leaning on a weak backhaul link.",
-  "value": "Monitors the health of mesh or wireless uplinks so you know when an AP is still online but leaning on a wea.... Timely UC-25.9.17 alerting on 'Mesh Backhaul Quality Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces Quality Warning anomalies for UC-25.9.17 with window `the scheduled window` on `index=personal` sourcetype `unifi:event`. Combines `avg_signal`, `worst_signal` by `ap_name` and compares against `avg_signal` < -70, or `worst_signal` < -80. Mapped to keywords Mesh, Backhaul, Quality, Warning for dashboard routing.",
+  "value": "Alerting on Mesh, Backhaul, Quality, Warning through UC-25.9.17 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_signal`, `worst_signal` early.",
   "implementation": "Forward backhaul signal telemetry from the controller; alert when an AP's uplink quality drops below your comfort threshold.",
   "visualization": "Table of APs by average and worst backhaul signal.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Mesh Backhaul Quality Warning' stops polling `unifi:event`; stale `ap_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by ap_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_signal` < -70. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.17)** — Connector for 'Mesh Backhaul Quality Warning' stops polling `unifi:event`; stale `avg_signal`, `worst_signal` on `ap_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_signal`, `worst_signal` over `1w` is expected for UC-25.9.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by ap_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_signal` < -70 for 'Mesh Backhaul Quality Warning'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

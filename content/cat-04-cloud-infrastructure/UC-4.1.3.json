@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Security Group Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_security_group_changes` (UC-4.1.3), SOC dashboard panel \"Operations — Security Group Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `entity` satisfies detection threshold for UC-4.1.3 ('Security Group Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.3."
+    "positiveScenario": "UC-4.1.3 positive (Security, Group, Changes): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `entity` satisfies detection threshold for 'Security Group Changes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.3 negative (Group Changes): ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Security Group Changes'."
   },
   "dataSources": "`sourcetype=aws:cloudtrail` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"AuthorizeSecurityGroupIngress\" OR eventName=\"AuthorizeSecurityGroupEgress\" OR eventName=\"RevokeSecurityGroup*\"\n| spath output=rules path=requestParameters.ipPermissions.items{}\n| table _time userIdentity.arn eventName requestParameters.groupId rules sourceIPAddress\n| sort -_time",
-  "description": "Security group changes can expose services to the internet. Unauthorized modifications are a primary attack vector and compliance violation.",
-  "value": "Early 'Security Group Changes' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-4.1.3 — Security, Group, Changes — using `index=aws` sourcetype `aws:cloudtrail`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Group Changes. Purpose-built for 'Security Group Changes' in Operations workflows.",
+  "value": "UC-4.1.3 operationalises 'Security Group Changes' against `aws:cloudtrail` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Alert on any security group modification. Extra-critical alert when `0.0.0.0/0` is added as a source (exposes to internet). Correlate with change tickets.",
   "visualization": "Table (who, what, when), Timeline, Single value (changes last 24h).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Security Group Changes' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.1.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.3)** — Planned work for 'Security Group Changes' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.1.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.1.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1562.007",
     "T1578"

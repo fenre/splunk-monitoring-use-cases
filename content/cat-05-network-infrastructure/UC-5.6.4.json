@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'DNS Tunneling Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_dns_tunneling_detection` (UC-5.6.4), SOC dashboard panel \"Operations — DNS Tunneling Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dns` sourcetype='target_sourcetype' where `src` satisfies `avg_len` > 50 for UC-5.6.4 ('DNS Tunneling Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dns` / `target_sourcetype` events where `src` stays below `avg_len` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.6.4."
+    "positiveScenario": "UC-5.6.4 positive (DNS, Tunneling, Detection): ingest synthetic events into `index=dns` sourcetype='target_sourcetype' where `avg_len`, `unique_queries` grouped by `src`, `domain` satisfies `avg_len` > 50, or `queries` > 1000 for 'DNS Tunneling Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.6.4 negative (Tunneling Detection): ingest benign `dns` / `target_sourcetype` events where `src`, `domain` stays below `avg_len` > 50, or `queries` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'DNS Tunneling Detection'."
   },
   "dataSources": "DNS query logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DNS TAs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=dns\n| eval query_len=len(query)\n| stats avg(query_len) as avg_len, count as queries, dc(query) as unique_queries by src, domain\n| where avg_len > 50 OR queries > 1000\n| sort -avg_len",
-  "description": "DNS tunneling uses DNS queries to exfiltrate data or establish C2 channels, bypassing traditional security controls. Searches `index=dns` with sourcetype `configured sourcetype` for UC-5.6.4, aggregating `avg` by `src` over `the scheduled window`. Alerts when grouped results cross `avg_len` > 50 in the saved search. Gives Operations operators a repeatable signal for 'DNS Tunneling Detection' without manual log review.",
-  "value": "DNS tunneling uses DNS queries to exfiltrate data or establish C2 channels, bypassing traditional security.... Timely UC-5.6.4 alerting on 'DNS Tunneling Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-5.6.4 — DNS, Tunneling, Detection — using `index=dns` sourcetype `configured sourcetype`, grouped by `src`, `domain`. Outputs `avg_len`, `unique_queries` each `the scheduled window`; alert when `avg_len` > 50, or `queries` > 1000. Primary focus: Tunneling Detection. Purpose-built for 'DNS Tunneling Detection' in Operations workflows.",
+  "value": "UC-5.6.4 helps teams contain DNS, Tunneling, Detection scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Monitor for anomalously long DNS queries (>50 chars), high query volumes to single domains, and TXT record queries. Baseline normal DNS patterns.",
   "visualization": "Table (client, domain, query length, volume), Scatter plot, Bar chart.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `dns`** — Planned work for 'DNS Tunneling Detection' shifts `avg` over `span=1h` while `src` remains in-scope for UC-5.6.4. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `domain` without crossing `avg_len` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `dns` (UC-5.6.4)** — Planned work for 'DNS Tunneling Detection' shifts `avg_len`, `unique_queries` over `span=1h` while `src`, `domain` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `domain` without crossing `avg_len` > 50 for UC-5.6.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `domain`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-5.6.4 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

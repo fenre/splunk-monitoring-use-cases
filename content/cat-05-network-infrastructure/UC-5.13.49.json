@@ -36,8 +36,8 @@
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:audit:logs` from the `audit_logs` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.45. Filters by `date_hour` and `date_wday` for activity outside defined business hours.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+. Requires SUPER-ADMIN-ROLE.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:audit:logs\" isSystemEvent=false auditRequestType IN (\"PUT\",\"POST\",\"DELETE\")\n| where (date_hour < 7 OR date_hour > 19) OR match(date_wday, \"saturday|sunday\")\n| table _time, auditUserName, auditRequestType, auditDescription\n| sort -_time",
-  "description": "Detects state-changing administrative activity on the Catalyst Center platform during non-business hours (nights, weekends, holidays), flagging potentially unauthorised changes that occurred during periods of reduced operational oversight — the strongest indicator of either emergency work (should have a ticket) or compromised access (should trigger investigation).",
-  "value": "Detects state-changing administrative activity on the Catalyst Center platform during non-business hours (n.... Timely UC-5.13.49 alerting on 'After-Hours Administrative Activity' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-5.13.49 — After, Hours, Administrative, Activity — using `index=catalyst` sourcetype `cisco:dnac:audit:logs`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `date_hour` < 7, or `date_hour` > 19. Primary focus: Administrative Activity. Purpose-built for 'After-Hours Administrative Activity' in Operations workflows.",
+  "value": "UC-5.13.49 helps teams contain After, Hours, Administrative, Activity scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Same `audit_logs` input as UC-5.13.45. Filter by time-of-day and day-of-week for after-hours activity. Maintain a `business_hours` definition (default: Mon–Fri 07:00–19:00). Schedule daily at 7 AM to review overnight activity.",
   "visualization": "(1) Table: _time, auditUserName, auditRequestType, auditDescription — filtered to after-hours changes only. (2) Heatmap: activity count by hour-of-day × day-of-week to show patterns. (3) Single value: after-hours changes in last 24h (yellow ≥ 1, red ≥ 5). (4) Correlation: join with ITSM emergency change records to classify each event as approved or unapproved.",
   "references": [
@@ -58,7 +58,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=AC-2"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'After-Hours Administrative Activity' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.13.49. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:audit:logs`** — Scheduled automation elevates `src` without crossing `date_hour` < 7. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:audit:logs`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.49)** — Planned work for 'After-Hours Administrative Activity' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:dnac:audit:logs`** — Scheduled automation elevates `src` without crossing `date_hour` < 7 for UC-5.13.49. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:audit:logs`** — First 48h baseline for UC-5.13.49 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -79,7 +79,7 @@
   ],
   "wave": "walk",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:audit:logs' where `entity` satisfies `date_hour` < 7 for UC-5.13.49 ('After-Hours Administrative Activity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:audit:logs` events where `entity` stays below `date_hour` < 7, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.49."
+    "positiveScenario": "UC-5.13.49 positive (After, Hours, Administrative, Activity): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:audit:logs' where `count` grouped by `entity` satisfies `date_hour` < 7, or `date_hour` > 19 for 'After-Hours Administrative Activity'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.49 negative (Administrative Activity): ingest benign `catalyst` / `cisco:dnac:audit:logs` events where `entity` stays below `date_hour` < 7, or `date_hour` > 19, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'After-Hours Administrative Activity'."
   }
 }

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Squid HTTP Access Denied by ACL' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_squid_http_access_denied_by_acl` (UC-5.14.28), SOC dashboard panel \"Operations — Squid HTTP Access Denied by ACL\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='squid:access' where `acl` satisfies detection threshold for UC-5.14.28 ('Squid HTTP Access Denied by ACL'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `squid:access` events where `acl` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.14.28."
+    "positiveScenario": "UC-5.14.28 positive (Squid, HTTP, Access, Denied, ACL): ingest synthetic events into `index=proxy` sourcetype='squid:access' where `count` grouped by `acl`, `dst_domain`, `src_ip` satisfies detection threshold for 'Squid HTTP Access Denied by ACL'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.14.28 negative (by ACL): ingest benign `proxy` / `squid:access` events where `acl`, `dst_domain`, `src_ip` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Squid HTTP Access Denied by ACL'."
   },
   "dataSources": "`index=proxy` `sourcetype=squid:access` with ACL name field if configured Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Universal Forwarder, Splunk Connect for Syslog, or HTTP Event Collector; `props.conf`/`transforms.conf` for listed sourcetypes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:access\"\n| where match(code, \"TCP_DENIED|ERR_ACCESS_DENIED|NONE_ABORTED\")\n| stats count by acl, dst_domain, src_ip\n| sort - count\n| head 40",
-  "description": "Policy tuning needs ranked deny reasons not anecdotes. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Policy tuning needs ranked deny reasons not anecdotes. Timely UC-5.14.28 alerting on 'Squid HTTP Access Denied by ACL' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on by ACL activity in UC-5.14.28 ('Squid HTTP Access Denied by ACL') from `index=proxy` sourcetype `squid:access`. Rolls up `count` by `acl`, `dst_domain`, `src_ip` across `the scheduled window` and pages when configured threshold. Covers Squid, HTTP, Access, Denied, ACL. Operations operators treat UC-5.14.28 as the canonical signal.",
+  "value": "Operators running UC-5.14.28 on `squid:access` feeds shorten triage for by ACL tied to 'Squid HTTP Access Denied by ACL', lowering operational risk and delayed incident response.",
   "implementation": "Add ACL tag to `access_log format` (Squid 4+); sanitize sensitive domains in dashboards.",
   "visualization": "Time series for rates and latency, top/dedup for hotspots, single-value alerts on health thresholds.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Squid HTTP Access Denied by ACL' shifts `count` over `span=1h` while `acl` remains in-scope for UC-5.14.28. Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:access`** — Scheduled automation elevates `dst_domain` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `acl`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:access`** — First 48h baseline for `acl` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `acl`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-5.14.28)** — Planned work for 'Squid HTTP Access Denied by ACL' shifts `count` over `span=1h` while `acl`, `dst_domain`, `src_ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `squid:access`** — Scheduled automation elevates `dst_domain` without crossing configured threshold for UC-5.14.28. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `acl`, `dst_domain`, `src_ip`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:access`** — First 48h baseline for UC-5.14.28 on `acl` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `acl`, `exception_reason`, `valid_until`.",
   "equipment": [
     "squid",
     "syslog"

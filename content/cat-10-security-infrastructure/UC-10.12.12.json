@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'Order Execution Anomaly Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_order_execution_anomaly_detection` (UC-10.12.12), SOC dashboard panel \"Security Infra — Order Execution Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=trading` sourcetype='oms:order' where `entity` satisfies `submits` > 10 for UC-10.12.12 ('Order Execution Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `trading` / `oms:order` events where `entity` stays below `submits` > 10, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.12."
+    "positiveScenario": "UC-10.12.12 positive (Order, Execution, Anomaly, Detection): ingest synthetic events into `index=trading` sourcetype='oms:order' where `count` grouped by `entity` satisfies `submits` > 10, or `submits` > 0.8 for 'Order Execution Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.12 negative (Anomaly Detection): ingest benign `trading` / `oms:order` events where `entity` stays below `submits` > 10, or `submits` > 0.8, or exclude the test entity via `soc_exception_register.csv`. Variant 14 confirms zero alert rows for 'Order Execution Anomaly Detection'."
   },
   "dataSources": "`sourcetype=\"oms:order\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "OMS logs, exchange drop copies — Universal Forwarder (Splunkbase 617)",
   "spl": "index=trading sourcetype=\"oms:order\"\n| transaction client_order_id maxspan=2s\n| eval cancels=mvcount(if(action=\"cancel\",1,null()))\n| eval submits=mvcount(if(action=\"new\",1,null()))\n| where submits>10 AND cancels/submits>0.8\n| table _time, symbol, client_order_id, submits, cancels",
-  "description": "Flags unusual order patterns (layering, spoofing precursors) for market abuse surveillance. Searches `index=trading` with sourcetype `oms:order` for UC-10.12.12, aggregating `count` by `entity` over `2s`. Alerts when grouped results cross `submits` > 10 in the saved search. Gives Security Infra operators a repeatable signal for 'Order Execution Anomaly Detection' without manual log review.",
-  "value": "Early 'Order Execution Anomaly Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-10.12.12 — Order, Execution, Anomaly, Detection — using `index=trading` sourcetype `oms:order`, grouped by `entity`. Outputs `count` each `2s`; alert when `submits` > 10, or `submits` > 0.8. Primary focus: Anomaly Detection. Purpose-built for 'Order Execution Anomaly Detection' in Security Infra workflows.",
+  "value": "Alerting on Order, Execution, Anomaly, Detection through UC-10.12.12 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `activity` early.",
   "implementation": "Tune for legitimate market making; integrate with surveillance team playbooks and MAR/SEC retention.",
   "visualization": "Table (suspicious clusters), Timeline (order lifecycle), Bar chart (cancel ratio by desk).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `trading`** — Planned work for 'Order Execution Anomaly Detection' shifts `count` over `span=2s` while `host` remains in-scope for UC-10.12.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `oms:order`** — Scheduled automation elevates `cancels` without crossing `submits` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `trading` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `oms:order`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `trading` (UC-10.12.12)** — Planned work for 'Order Execution Anomaly Detection' shifts `count` over `span=2s` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `oms:order`** — Scheduled automation elevates `cancels` without crossing `submits` > 10 for UC-10.12.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `trading` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `oms:order`** — First 48h baseline for UC-10.12.12 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange"
   ],

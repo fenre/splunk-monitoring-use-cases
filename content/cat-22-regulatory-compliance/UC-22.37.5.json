@@ -58,14 +58,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=web` sourcetype='access_combined' where `session_id` satisfies detection threshold for UC-22.37.5 ('IAB TCF consent string mutation without user interaction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `web` / `access_combined` events where `session_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.37.5."
+    "positiveScenario": "UC-22.37.5 positive (IAB, TCF, consent, string, mutation): ingest synthetic events into `index=web` sourcetype='access_combined' where `count` grouped by `session_id` satisfies -1h for 'IAB TCF consent string mutation without user interaction'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.37.5 negative (user interaction): ingest benign `web` / `access_combined` events where `session_id` stays below -1h, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'IAB TCF consent string mutation without user interaction'."
   },
   "dataSources": "Web access logs capturing Set-Cookie: euconsent-v2, CMP interaction events (onetrust:cmp), client-side analytics.",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=web sourcetype=access_combined earliest=-1h euconsent_v2=*\n| sort 0 session_id _time\n| streamstats current=f last(euconsent_v2) as prior_consent by session_id\n| where isnotnull(prior_consent) AND euconsent_v2!=prior_consent\n| join type=outer session_id _time [search index=cmp sourcetype=onetrust:cmp action=interaction earliest=-1h | fields session_id _time | rename _time as interaction_time]\n| where isnull(interaction_time) OR abs(_time-interaction_time)>60\n| table _time session_id prior_consent euconsent_v2",
-  "description": "Compares the TCF 2.2 consent string across consecutive page impressions in the same session and flags changes that occurred without a corresponding CMP interaction within 60 seconds. This is a known pattern of rogue ad-tech overriding user choice.",
-  "value": "Compares the TCF 2. Timely UC-22.37.5 alerting on 'IAB TCF consent string mutation without user interaction' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.37.5 — IAB, TCF, consent, string, mutation — using `index=web` sourcetype `access_combined`, grouped by `session_id`. Outputs `count` each `the scheduled window`; alert when -1h. Primary focus: user interaction. Purpose-built for 'IAB TCF consent string mutation without user interaction' in Compliance workflows.",
+  "value": "UC-22.37.5 operationalises 'IAB TCF consent string mutation without user interaction' against `access_combined` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Preserve Set-Cookie headers in access logs; (2) ingest CMP interaction events; (3) run hourly; (4) on hit, freeze the vendor via ad-tech allow-list and open a DPO ticket. Indexes required: `index=cmp`, `index=web`; Sourcetypes: `sourcetype=access_combined`, `sourcetype=onetrust:cmp`.",
   "visualization": "Table of mutating sessions by vendor, bar chart of mutations per ad-tech partner, single-value 'sessions with genuine consent (24h)'. Key fields: `euconsent_v2`, `interaction_time`, `prior_consent`, `session_id`.",
   "cimModels": [],

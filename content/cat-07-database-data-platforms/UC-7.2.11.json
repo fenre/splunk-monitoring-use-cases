@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'MongoDB Oplog Window' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mongodb_oplog_window` (UC-7.2.11), SOC dashboard panel \"Operations — MongoDB Oplog Window\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='mongodb:replication_info' where `host` satisfies `window_hours` < 24 for UC-7.2.11 ('MongoDB Oplog Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `mongodb:replication_info` events where `host` stays below `window_hours` < 24, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.11."
+    "positiveScenario": "UC-7.2.11 positive (MongoDB, Oplog, Window): ingest synthetic events into `index=database` sourcetype='mongodb:replication_info' where `count` grouped by `host` satisfies `window_hours` < 24, or `oplog_window_hours` < 12 for 'MongoDB Oplog Window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.11 negative (Oplog Window): ingest benign `database` / `mongodb:replication_info` events where `host` stays below `window_hours` < 24, or `oplog_window_hours` < 12, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'MongoDB Oplog Window'."
   },
   "dataSources": "`rs.printReplicationInfo()`, `db.getReplicationInfo()` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (mongosh) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"mongodb:replication_info\"\n| eval window_hours=round(timeDiff/3600, 1)\n| where window_hours < 24\n| timechart span=1h latest(window_hours) as oplog_window_hours by host\n| where oplog_window_hours < 12",
-  "description": "Oplog window shrinking indicates replication at risk of falling behind. Exhausted oplog causes replica set members to resync from scratch (full resync), causing extended downtime.",
-  "value": "Early 'MongoDB Oplog Window' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'MongoDB Oplog Window' patterns (UC-7.2.11) sourced from `index=database` sourcetype `mongodb:replication_info`. Threshold bundle: `window_hours` < 24, or `oplog_window_hours` < 12; aggregation grain: `host`; metrics: `count`. Watch terms: MongoDB, Oplog, Window.",
+  "value": "UC-7.2.11 gives Operations teams earlier visibility into Oplog Window through `mongodb:replication_info` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Run scripted input polling `rs.printReplicationInfo()` or `db.getReplicationInfo()` every 15–30 minutes via mongosh. Parse `timeDiff` (oplog window in seconds). Alert when window drops below 24 hours (warning) or 12 hours (critical). Correlate with write throughput and replication lag. Recommend oplog size increase when window consistently shrinks.",
   "visualization": "Line chart (oplog window hours over time), Single value (current window hours), Table (hosts with shrinking oplog).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'MongoDB Oplog Window' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.2.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:replication_info`** — Scheduled automation elevates `window_hours` without crossing `window_hours` < 24. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:replication_info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.11)** — Planned work for 'MongoDB Oplog Window' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mongodb:replication_info`** — Scheduled automation elevates `window_hours` without crossing `window_hours` < 24 for UC-7.2.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mongodb:replication_info`** — First 48h baseline for UC-7.2.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mongodb"
   ],

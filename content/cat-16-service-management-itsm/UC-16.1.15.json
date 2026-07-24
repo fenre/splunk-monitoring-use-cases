@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Incident Reassignment Frequency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_incident_reassignment_frequency` (UC-16.1.15), SOC dashboard panel \"Operations — Incident Reassignment Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' where `entity` satisfies detection threshold for UC-16.1.15 ('Incident Reassignment Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.15."
+    "positiveScenario": "UC-16.1.15 positive (Incident, Reassignment, Frequency): ingest synthetic events into `index=itsm` sourcetype='snow:incident:audit' where `count` grouped by `entity` satisfies -30d for 'Incident Reassignment Frequency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.15 negative (Reassignment Frequency): ingest benign `itsm` / `snow:incident:audit` events where `entity` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Incident Reassignment Frequency'."
   },
   "dataSources": "Incident audit / history (`sourcetype=snow:incident:audit` or `sys_audit` mapped) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident:audit\" field_name=\"assignment_group\"\n| timechart span=1d count as reassign_events\n| appendcols [ search index=itsm sourcetype=\"snow:incident:audit\" field_name=\"assignment_group\" earliest=-30d@d\n  | stats count as events_30d ]\n| eval daily_avg=round(events_30d/30,1)\n| where reassign_events > daily_avg*1.5",
-  "description": "Trending reassignment frequency (per period and per group) exposes routing quality, skills gaps, and noisy categories — complementing per-ticket reassignment counts.",
-  "value": "Early 'Incident Reassignment Frequency' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-16.1.15 — Incident, Reassignment, Frequency — using `index=itsm` sourcetype `snow:incident:audit`, grouped by `entity`. Outputs `count` each `1d`; alert when -30d. Primary focus: Reassignment Frequency. Purpose-built for 'Incident Reassignment Frequency' in Operations workflows.",
+  "value": "For 'Incident Reassignment Frequency', UC-16.1.15 converts `activity` on `snow:incident:audit` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest audit rows where `assignment_group` changes; each row is one reassignment event. Timechart daily volume; compare to 30-day average to detect spikes. Break down by `category` and `assignment_group` with `stats count by _time, category` in a separate panel.",
   "visualization": "Line chart (reassignment events per day), Bar chart (events by category), Single value (30-day total).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Incident Reassignment Frequency' shifts `count` over `span=1d` while `host` remains in-scope for UC-16.1.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident:audit`** — Scheduled automation elevates `daily_avg` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.15)** — Planned work for 'Incident Reassignment Frequency' shifts `count` over `span=1d` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident:audit`** — Scheduled automation elevates `daily_avg` without crossing configured threshold for UC-16.1.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident:audit`** — First 48h baseline for UC-16.1.15 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

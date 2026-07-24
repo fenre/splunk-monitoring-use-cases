@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Pipeline Queue Time' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_pipeline_queue_time` (UC-12.2.6), SOC dashboard panel \"Operations — Pipeline Queue Time\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='jenkins:queue' where `entity` satisfies `avg_wait` > 300 for UC-12.2.6 ('Pipeline Queue Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `jenkins:queue` events where `entity` stays below `avg_wait` > 300, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.6."
+    "positiveScenario": "UC-12.2.6 positive (Pipeline, Queue, Time): ingest synthetic events into `index=cicd` sourcetype='jenkins:queue' where `avg_wait`, `max_queue` grouped by `entity` satisfies `avg_wait` > 300 for 'Pipeline Queue Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.6 negative (Queue Time): ingest benign `cicd` / `jenkins:queue` events where `entity` stays below `avg_wait` > 300, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Pipeline Queue Time'."
   },
   "dataSources": "CI/CD queue metrics (time in queue, pending jobs) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk App for Jenkins, CI/CD system metrics — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"jenkins:queue\"\n| timechart span=15m avg(wait_time_sec) as avg_wait, max(queue_length) as max_queue\n| where avg_wait > 300",
-  "description": "Long queue times indicate insufficient CI/CD runner capacity, slowing developer feedback loops and delivery velocity. Searches `index=cicd` with sourcetype `jenkins:queue` for UC-12.2.6, aggregating `avg` by `entity` over `15m`. Alerts when grouped results cross `avg_wait` > 300 in the saved search. Gives Operations operators a repeatable signal for 'Pipeline Queue Time' without manual log review.",
-  "value": "Early 'Pipeline Queue Time' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on when Queue Time criteria fire for 'Pipeline Queue Time' (UC-12.2.6) in `index=cicd` sourcetype `jenkins:queue`. Pipeline aggregates `avg_wait`, `max_queue` by `entity` over `15m`. Alert logic enforces `avg_wait` > 300. Title terms: Pipeline, Queue, Time. Eliminates manual hunting for UC-12.2.6 conditions.",
+  "value": "UC-12.2.6 helps teams contain Pipeline, Queue, Time scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Track job queue wait times and queue lengths. Alert when average wait exceeds 5 minutes. Monitor runner/agent utilization. Report on peak hours to guide scaling decisions.",
   "visualization": "Line chart (queue time trend), Bar chart (queue time by pipeline), Single value (current queue length).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Pipeline Queue Time' shifts `avg` over `span=15m` while `host` remains in-scope for UC-12.2.6. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jenkins:queue`** — Scheduled automation elevates `src` without crossing `avg_wait` > 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jenkins:queue`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.6)** — Planned work for 'Pipeline Queue Time' shifts `avg_wait`, `max_queue` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `jenkins:queue`** — Scheduled automation elevates `src` without crossing `avg_wait` > 300 for UC-12.2.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jenkins:queue`** — First 48h baseline for UC-12.2.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "jenkins"
   ],

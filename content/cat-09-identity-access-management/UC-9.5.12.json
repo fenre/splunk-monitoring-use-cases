@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Okta API Rate Limit Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_okta_api_rate_limit_monitoring` (UC-9.5.12), SOC dashboard panel \"IAM — Okta API Rate Limit Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='okta:api' where `client_id` satisfies `count` > 0 for UC-9.5.12 ('Okta API Rate Limit Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `okta:api` events where `client_id` stays below `count` > 0, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.5.12."
+    "positiveScenario": "UC-9.5.12 positive (Okta, API, Rate, Limit, Monitoring): ingest synthetic events into `index=okta` sourcetype='okta:api' where `count` grouped by `client_id`, `endpoint`, `http_status` satisfies `count` > 0 for 'Okta API Rate Limit Monitoring'. Validate filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.5.12 negative (Limit Monitoring): ingest benign `okta` / `okta:api` events where `client_id`, `endpoint`, `http_status` stays below `count` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 8 confirms zero alert rows for 'Okta API Rate Limit Monitoring'."
   },
   "dataSources": "`sourcetype=OktaIM2:log` (`system.*rate*`), API response headers ingested via scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta`, custom HEC ingestion of API responses — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta (sourcetype=\"okta:api\" OR sourcetype=\"OktaIM2:log\")\n| search http_status=429 OR like(lower(_raw),\"%rate limit%\")\n| stats count by client_id, endpoint, http_status\n| where count > 0\n| sort -count",
-  "description": "Hitting rate limits breaks automation, integrations, and provisioning; trending usage prevents surprise throttling during peak loads.",
-  "value": "Early 'Okta API Rate Limit Monitoring' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies UC-9.5.12 — Okta, API, Rate, Limit, Monitoring — using `index=okta` sourcetype `okta:api`, grouped by `client_id`, `endpoint`, `http_status`. Outputs `count` each `the scheduled window`; alert when `count` > 0. Filter chain includes filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Purpose-built for 'Okta API Rate Limit Monitoring' in IAM workflows.",
+  "value": "UC-9.5.12 accelerates insight into Limit Monitoring ('Okta API Rate Limit Monitoring') by tracking `activity` on `okta:api` feeds, reducing account takeover risk, help-desk load, and audit findings before spreadsheet checks hide regressions.",
   "implementation": "Log API calls from integrations with `X-Rate-Limit-*` headers or ingest Okta rate-limit system events. Alert on HTTP 429 or sustained high utilization. Work with app owners to add backoff and caching.",
   "visualization": "Line chart (429s over time), Table (client, endpoint), Gauge (rate limit remaining %).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'Okta API Rate Limit Monitoring' shifts `count` over `span=1h` while `client_id` remains in-scope for UC-9.5.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `okta:api`** — Scheduled automation elevates `endpoint` without crossing `count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_id`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `okta:api`** — First 48h baseline for `client_id` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `client_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.5.12)** — Planned work for 'Okta API Rate Limit Monitoring' shifts `count` over `span=1h` while `client_id`, `endpoint`, `http_status` remains in-scope. Applies filter `http_status=429 OR like(lower(_raw),\"%rate limit%\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `okta:api`** — Scheduled automation elevates `endpoint` without crossing `count` > 0 for UC-9.5.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `client_id`, `endpoint`, `http_status`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `okta:api`** — First 48h baseline for UC-9.5.12 on `client_id` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `client_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "okta"
   ],

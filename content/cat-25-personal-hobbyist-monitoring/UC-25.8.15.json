@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Snapshot Sprawl by VM' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_snapshot_sprawl_by_vm` (UC-25.8.15), SOC dashboard panel \"Personal — Snapshot Sprawl by VM\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='proxmox:metric' where `vm_name` satisfies `snapshots` > 5 for UC-25.8.15 ('Snapshot Sprawl by VM'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `proxmox:metric` events where `vm_name` stays below `snapshots` > 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.15."
+    "positiveScenario": "UC-25.8.15 positive (Snapshot, Sprawl): ingest synthetic events into `index=personal` sourcetype='proxmox:metric' where `snapshot_gb` grouped by `vm_name` satisfies `snapshots` > 5, or `snapshot_gb` > 50 for 'Snapshot Sprawl by VM'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.15 negative (by VM): ingest benign `personal` / `proxmox:metric` events where `vm_name` stays below `snapshots` > 5, or `snapshot_gb` > 50, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Snapshot Sprawl by VM'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=proxmox:metric event=snapshot\n| stats count as snapshots, sum(snapshot_size_gb) as snapshot_gb by vm_name\n| where snapshots>5 OR snapshot_gb>50\n| sort - snapshot_gb",
-  "description": "Lists virtual machines hoarding too many snapshots or too much snapshot storage, the classic tax of 'temporary' rollback points that never got cleaned up.",
-  "value": "Lists virtual machines hoarding too many snapshots or too much snapshot storage, the classic tax of 'tempor.... Timely UC-25.8.15 alerting on 'Snapshot Sprawl by VM' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors when by VM criteria fire for 'Snapshot Sprawl by VM' (UC-25.8.15) in `index=personal` sourcetype `proxmox:metric`. Pipeline aggregates `snapshot_gb` by `vm_name` over `the scheduled window`. Alert logic enforces `snapshots` > 5, or `snapshot_gb` > 50. Title terms: Snapshot, Sprawl. Eliminates manual hunting for UC-25.8.15 conditions.",
+  "value": "UC-25.8.15 helps teams contain Snapshot, Sprawl scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Forward snapshot inventory data from Proxmox; review monthly and remove stale checkpoints that no longer serve a clear purpose.",
   "visualization": "Table of VMs by snapshot count and total snapshot size.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Snapshot Sprawl by VM' stops polling `proxmox:metric`; stale `vm_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by vm_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `snapshots` > 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.15)** — Connector for 'Snapshot Sprawl by VM' stops polling `proxmox:metric`; stale `snapshot_gb` on `vm_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `snapshot_gb` over `1w` is expected for UC-25.8.15, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `proxmox:metric`. Dedup with `stats latest(*) by vm_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `snapshots` > 5 for 'Snapshot Sprawl by VM'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "checkpoint",
     "docker",

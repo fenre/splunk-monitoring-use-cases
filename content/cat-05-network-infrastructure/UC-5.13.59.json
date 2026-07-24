@@ -26,8 +26,8 @@
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:swim` from the custom scripted input. Same data feed as UC-5.13.56. EoL/EoS data comes from Catalyst Center's lifecycle tracking which maps Cisco published End-of-Life announcements to the device inventory. Key fields: `eolStatus` (END_OF_LIFE, END_OF_SUPPORT, END_OF_SW_MAINTENANCE), `eolDate` (date string), `deviceFamily`, `runningVersion`, `deviceName`.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)) + custom scripted input (SWIM / lifecycle poller).",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:swim\" (eolStatus=\"END_OF_LIFE\" OR eolStatus=\"END_OF_SUPPORT\" OR eolStatus=\"END_OF_SW_MAINTENANCE\")\n| stats dc(deviceName) as affected_devices values(runningVersion) as versions by deviceFamily, eolStatus, eolDate\n| sort eolDate",
-  "description": "Identifies devices running software versions that have reached or are approaching end-of-life (EoL) or end-of-support (EoS) status — meaning Cisco no longer provides security patches, bug fixes, or TAC support — creating an unacceptable risk for production infrastructure.",
-  "value": "Identifies devices running software versions that have reached or are approaching end-of-life (EoL) or end-.... Timely UC-5.13.59 alerting on 'End-of-Life / End-of-Support Software Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-5.13.59 — End, Life, End, Support, Software — using `index=catalyst` sourcetype `cisco:dnac:swim`, grouped by `deviceFamily`, `eolStatus`, `eolDate`. Outputs `affected_devices` each `the scheduled window`; alert when configured threshold. Primary focus: Software Detection. Purpose-built for 'End-of-Life / End-of-Support Software Detection' in Operations workflows.",
+  "value": "Alerting on End, Life, End, Support, Software through UC-5.13.59 reduces operational risk and delayed incident response by surfacing `affected_devices` early.",
   "implementation": "Requires SWIM lifecycle data from the custom scripted input. Some Catalyst Center versions expose EoL/EoS status via the compliance or lifecycle API. Configure daily polling. Schedule monthly for the asset management review.",
   "visualization": "(1) Table: deviceFamily, eolStatus, eolDate, versions, affected_devices — sorted by eolDate (most urgent first). (2) Timeline: EoL dates on a time axis with device counts, showing upcoming deadlines. (3) Single value: total devices on EoL/EoS software (red ≥ 1). (4) Bar chart: affected_devices by deviceFamily.",
   "references": [
@@ -48,7 +48,7 @@
       "url": "https://csrc.nist.gov/projects/cprt/catalog#/cprt/framework/version/SP_800_53_5_1_0/home?element=SA-22"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'End-of-Life / End-of-Support Software Detection' shifts `dc` over `span=1h` while `deviceFamily` remains in-scope for UC-5.13.59. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:swim`** — Scheduled automation elevates `eolStatus` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceFamily`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:swim`** — First 48h baseline for `deviceFamily` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `deviceFamily`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.59)** — Planned work for 'End-of-Life / End-of-Support Software Detection' shifts `affected_devices` over `span=1h` while `deviceFamily`, `eolStatus`, `eolDate` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `cisco:dnac:swim`** — Scheduled automation elevates `eolStatus` without crossing configured threshold for UC-5.13.59. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `deviceFamily`, `eolStatus`, `eolDate`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:swim`** — First 48h baseline for UC-5.13.59 on `deviceFamily` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `deviceFamily`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -69,7 +69,7 @@
   ],
   "wave": "walk",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:swim' where `deviceFamily` satisfies detection threshold for UC-5.13.59 ('End-of-Life / End-of-Support Software Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:swim` events where `deviceFamily` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.59."
+    "positiveScenario": "UC-5.13.59 positive (End, Life, End, Support, Software): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:swim' where `affected_devices` grouped by `deviceFamily`, `eolStatus`, `eolDate` satisfies detection threshold for 'End-of-Life / End-of-Support Software Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.59 negative (Software Detection): ingest benign `catalyst` / `cisco:dnac:swim` events where `deviceFamily`, `eolStatus`, `eolDate` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'End-of-Life / End-of-Support Software Detection'."
   }
 }

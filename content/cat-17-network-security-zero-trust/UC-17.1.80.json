@@ -63,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `anc_policy` satisfies detection threshold for UC-17.1.80 ('ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `anc_policy` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.80."
+    "positiveScenario": "UC-17.1.80 positive (ISE, ANC, Closed, Loop, Effectiveness): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `avg_seconds` grouped by `anc_policy` satisfies -1d for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.80 negative (Stop Time): ingest benign `nac` / `cisco:ise:syslog` events where `anc_policy` stays below -1d, or exclude the test entity via `network_exception_register.csv`. Variant 2 confirms zero alert rows for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'."
   },
   "dataSources": "ISE ANC events `index=nac sourcetype=cisco:ise:syslog` MessageCode 86001 (ANC-applied) — combined with ES notable events `index=notable` and firewall/IDS data showing whether the endpoint's malicious traffic stopped after ANC. Time-window correlation: ANC apply time vs. last malicious event time per endpoint MAC. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services` + Splunk Enterprise Security. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode=86001 anc_action=quarantine\n| eval anc_time=_time, endpoint_mac=mac\n| join endpoint_mac [search index=notable severity=high earliest=-1d | rename _time as last_attack_time]\n| eval quarantine_to_attack_stop=anc_time - last_attack_time\n| stats avg(quarantine_to_attack_stop) as avg_seconds, count by anc_policy",
-  "description": "Measures whether ANC quarantine actually stops the malicious activity. Correlates ANC timestamp with the last observed malicious event — if attacks continue post-ANC, the closed loop is broken.",
-  "value": "Measures whether ANC quarantine actually stops the malicious activity. Timely UC-17.1.80 alerting on 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-17.1.80 for ISE, ANC, Closed, Loop, Effectiveness over `index=nac` sourcetype `cisco:ise:syslog` with thresholds -1d. Groups `avg_seconds` by `anc_policy` each `the scheduled window`. Centered on Stop Time indicators. Supports repeatable network triage for 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time'.",
+  "value": "For 'ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time', UC-17.1.80 converts `avg_seconds` on `cisco:ise:syslog` feeds into actionable rows and reduces unauthorized access, segmentation drift, and NAC policy failures.",
   "implementation": "Schedule every 30 min.",
   "visualization": "Quarantine-to-stop time gauge; per-endpoint timeline; failed-quarantine list.",
   "cimModels": [

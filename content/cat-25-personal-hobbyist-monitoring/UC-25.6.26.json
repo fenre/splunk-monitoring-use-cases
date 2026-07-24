@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Sense Unassigned Load Growth' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_sense_unassigned_load_growth` (UC-25.6.26), SOC dashboard panel \"Personal — Sense Unassigned Load Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='sense:device' where `home` satisfies `baseline_w` > 0 for UC-25.6.26 ('Sense Unassigned Load Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `sense:device` events where `home` stays below `baseline_w` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.26."
+    "positiveScenario": "UC-25.6.26 positive (Sense, Unassigned, Load, Growth): ingest synthetic events into `index=personal` sourcetype='sense:device' where `other_power_w`, `baseline_w` grouped by `home`, `_time` satisfies `baseline_w` > 0 for 'Sense Unassigned Load Growth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.26 negative (Load Growth): ingest benign `personal` / `sense:device` events where `home`, `_time` stays below `baseline_w` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Sense Unassigned Load Growth'."
   },
   "dataSources": "Home energy telemetry (`powerwall:aggregate`, `enphase:production`, `solaredge:power`, `sense:device`, `emporia:circuit`, `dsmr:telegram`, `utilityrate:tariff`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Powerwall, Enphase IQ, SolarEdge, Sense, Emporia Vue, DSMR / P1 smart meters, and utility tariff exports collected via vendor APIs, Home Assistant, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=sense:device device_name=\"Other\"\n| bin _time span=1w\n| stats avg(power_w) as other_power_w by home _time\n| streamstats window=4 current=f avg(other_power_w) as baseline_w by home\n| where baseline_w>0 AND other_power_w>baseline_w*1.2\n| sort - other_power_w",
-  "description": "Uses Sense device detections telemetry to monitor the share of power still hidden in unassigned loads in index=personal.",
-  "value": "Uses Sense device detections telemetry to monitor the share of power still hidden in unassigned loads in in.... Timely UC-25.6.26 alerting on 'Sense Unassigned Load Growth' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.6.26 — Sense, Unassigned, Load, Growth — using `index=personal` sourcetype `sense:device`, grouped by `home`, `_time`. Outputs `other_power_w`, `baseline_w` each `1w`; alert when `baseline_w` > 0. Primary focus: Load Growth. Purpose-built for 'Sense Unassigned Load Growth' in Personal workflows.",
+  "value": "Alerting on Sense, Unassigned, Load, Growth through UC-25.6.26 reduces missed training goals, stale hobby data, and connector failures by surfacing `other_power_w`, `baseline_w` early.",
   "implementation": "Ingest Sense device detections data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Weekly trend of Sense Other load.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Sense Unassigned Load Growth' stops polling `sense:device`; stale `home` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sense:device`. Dedup with `stats latest(*) by home`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `baseline_w` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.26)** — Connector for 'Sense Unassigned Load Growth' stops polling `sense:device`; stale `other_power_w`, `baseline_w` on `home`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `other_power_w`, `baseline_w` over `1w` is expected for UC-25.6.26, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `sense:device`. Dedup with `stats latest(*) by home`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `baseline_w` > 0 for 'Sense Unassigned Load Growth'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Backup Repository Space Runway' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_backup_repository_space_runway` (UC-25.8.17), SOC dashboard panel \"Personal — Backup Repository Space Runway\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='truenas:pool' where `pool` satisfies `daily_change_gb` < 0 for UC-25.8.17 ('Backup Repository Space Runway'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `truenas:pool` events where `pool` stays below `daily_change_gb` < 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.17."
+    "positiveScenario": "UC-25.8.17 positive (Backup, Repository, Space, Runway): ingest synthetic events into `index=personal` sourcetype='truenas:pool' where `count` grouped by `pool` satisfies `daily_change_gb` < 0, or `days_left` < 30 for 'Backup Repository Space Runway'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.17 negative (Space Runway): ingest benign `personal` / `truenas:pool` events where `pool` stays below `daily_change_gb` < 0, or `days_left` < 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Backup Repository Space Runway'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=truenas:pool\n| stats latest(free_gb) as free_gb, latest(daily_change_gb) as daily_change_gb by pool\n| eval days_left=round(free_gb/abs(daily_change_gb),1)\n| where daily_change_gb<0 AND days_left<30\n| sort days_left",
-  "description": "Estimates how many days of free space your backup target has left instead of waiting for the job to fail at the worst possible time.",
-  "value": "Estimates how many days of free space your backup target has left instead of waiting for the job to fail at.... Timely UC-25.8.17 alerting on 'Backup Repository Space Runway' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.8.17 — Backup, Repository, Space, Runway — using `index=personal` sourcetype `truenas:pool`, grouped by `pool`. Outputs `count` each `the scheduled window`; alert when `daily_change_gb` < 0, or `days_left` < 30. Primary focus: Space Runway. Purpose-built for 'Backup Repository Space Runway' in Personal workflows.",
+  "value": "For 'Backup Repository Space Runway', UC-25.8.17 converts `activity` on `truenas:pool` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward free-space and recent growth-rate metrics for the backup pool; alert when runway falls below your comfort threshold.",
   "visualization": "Forecast table of pools by free space and estimated days remaining.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Backup Repository Space Runway' stops polling `truenas:pool`; stale `pool` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `truenas:pool`. Dedup with `stats latest(*) by pool`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `daily_change_gb` < 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.17)** — Connector for 'Backup Repository Space Runway' stops polling `truenas:pool`; stale `count` on `pool` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `truenas:pool`. Dedup with `stats latest(*) by pool`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `daily_change_gb` < 0 for 'Backup Repository Space Runway'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=edr` sourcetype='crowdstrike:detection' where `_time` satisfies `daily_total` > 0 for UC-22.11.30 ('Malware Detection Volume Trend by Store and Server Tier'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `edr` / `crowdstrike:detection` events where `_time` stays below `daily_total` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.30."
+    "positiveScenario": "UC-22.11.30 positive (Malware, Detection, Volume, Trend, Store): ingest synthetic events into `index=edr` sourcetype='crowdstrike:detection' where `daily_total` grouped by `_time`, `store_region`, `pci_tier` satisfies `daily_total` > 0 for 'Malware Detection Volume Trend by Store and Server Tier'. Validate lookup `pci_site_codes.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.30 negative (Server Tier): ingest benign `edr` / `crowdstrike:detection` events where `_time`, `store_region`, `pci_tier` stays below `daily_total` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Malware Detection Volume Trend by Store and Server Tier'."
   },
   "dataSources": "`index=edr` `sourcetype=\"crowdstrike:detection\"`; ES `malware` data model if accelerated",
   "app": "Splunk Add-on for CrowdStrike FDR (5082), Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=edr sourcetype=\"crowdstrike:detection\" earliest=-30d\n| lookup pci_site_codes.csv aid OUTPUT store_region, pci_tier\n| where pci_tier IN (\"pos\",\"store_server\",\"corp_payment\")\n| bin _time span=1d\n| stats count by _time, store_region, pci_tier\n| eventstats sum(count) as daily_total by _time\n| eval share_pct=if(daily_total>0, round(100*count/daily_total,2), null())\n| sort _time, store_region",
-  "description": "Trends malware blocks and quarantines where payment systems exist so regional infection campaigns are visible before they spread into the CDE.",
-  "value": "Trends malware blocks and quarantines where payment systems exist so regional infection campaigns are visib.... Timely UC-22.11.30 alerting on 'Malware Detection Volume Trend by Store and Server Tier' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.11.30 — Malware, Detection, Volume, Trend, Store — using `index=edr` sourcetype `crowdstrike:detection`, grouped by `_time`, `store_region`, `pci_tier`. Outputs `daily_total` each `1d`; alert when `daily_total` > 0. Filter chain includes lookup `pci_site_codes.csv`. Purpose-built for 'Malware Detection Volume Trend by Store and Server Tier' in Compliance workflows.",
+  "value": "For 'Malware Detection Volume Trend by Store and Server Tier', UC-22.11.30 converts `daily_total` on `crowdstrike:detection` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Map CrowdStrike `aid` to store metadata. (2) Filter out benign test detections via `severity` threshold. (3) Compare to seasonal retail baseline. (4) Include in monthly security committee pack. Indexes required: `index=edr`; Sourcetypes: `sourcetype=crowdstrike:detection`; Lookups: `pci_site_codes`, `pci_site_codes.csv`.",
   "visualization": "Stacked area (count by pci_tier), line (`share_pct` by region), heatmap (region x day).",
   "cimModels": [

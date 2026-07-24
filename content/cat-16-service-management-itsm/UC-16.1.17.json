@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Auto-Close Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_auto_close_compliance` (UC-16.1.17), SOC dashboard panel \"Operations — Auto-Close Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `category` satisfies detection threshold for UC-16.1.17 ('Auto-Close Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `category` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.17."
+    "positiveScenario": "UC-16.1.17 positive (Auto, Close, Compliance): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `auto_closed` grouped by `category` satisfies -30d for 'Auto-Close Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.17 negative (Close Compliance): ingest benign `itsm` / `snow:incident` events where `category` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Auto-Close Compliance'."
   },
   "dataSources": "Incidents with resolution code / close notes / `closed_by` / `close_code` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" state=\"closed\" earliest=-30d\n| eval auto_closed=if(match(lower(close_notes),\"auto[- ]?close\") OR match(lower(resolution_code),\"auto\") OR lower(closed_by)=\"system\",1,0)\n| stats count as total, sum(auto_closed) as auto_closed by category\n| eval auto_close_pct=round(100*auto_closed/total,1)\n| sort -auto_close_pct",
-  "description": "Tracks incidents resolved by auto-close rules vs manual closure; excess auto-close may indicate poor engagement or policy gaming; too few may mean workflows are not firing.",
-  "value": "Early 'Auto-Close Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-16.1.17 — Auto, Close, Compliance — using `index=itsm` sourcetype `snow:incident`, grouped by `category`. Outputs `auto_closed` each `the scheduled window`; alert when -30d. Primary focus: Close Compliance. Purpose-built for 'Auto-Close Compliance' in Operations workflows.",
+  "value": "UC-16.1.17 operationalises 'Auto-Close Compliance' against `snow:incident` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Map your ServiceNow fields: auto-close may appear as `resolution_code`, workflow user, or `sys_mod_count` patterns. Adjust `auto_closed` logic to match internal policy. Report fleet auto-close % and by category; investigate outliers.",
   "visualization": "Single value (auto-close %), Bar chart (auto-close % by category), Table (top auto-closed categories).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Auto-Close Compliance' shifts `sum` over `span=1h` while `category` remains in-scope for UC-16.1.17. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `auto_closed` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.17)** — Planned work for 'Auto-Close Compliance' shifts `auto_closed` over `span=1h` while `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `snow:incident`** — Scheduled automation elevates `auto_closed` without crossing configured threshold for UC-16.1.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `category`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.17 on `category` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `category`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

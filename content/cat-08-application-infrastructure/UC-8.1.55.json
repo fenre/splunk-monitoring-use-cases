@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'ZooKeeper Transaction Log fsync Latency Proxy' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_zookeeper_transaction_log_fsync_latency_proxy` (UC-8.1.55), SOC dashboard panel \"Operations — ZooKeeper Transaction Log fsync Latency Proxy\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `host` satisfies `mx` > 500 for UC-8.1.55 ('ZooKeeper Transaction Log fsync Latency Proxy'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `infrastructure` / `zookeeper:mntr` events where `host` stays below `mx` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.55."
+    "positiveScenario": "UC-8.1.55 positive (ZooKeeper, Transaction, Log, fsync, Latency): ingest synthetic events into `index=infrastructure` sourcetype='zookeeper:mntr' where `max_latency_ms`, `avg_latency_ms` grouped by `host` satisfies `mx` > 500, or `av` > 100 for 'ZooKeeper Transaction Log fsync Latency Proxy'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.55 negative (Latency Proxy): ingest benign `infrastructure` / `zookeeper:mntr` events where `host` stays below `mx` > 500, or `av` > 100, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'ZooKeeper Transaction Log fsync Latency Proxy'."
   },
   "dataSources": "`zk_max_latency` / `zk_avg_latency` from `zookeeper:mntr` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted `mntr` to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=infrastructure sourcetype=\"zookeeper:mntr\"\n| eval mx=tonumber(zk_max_latency)\n| eval av=tonumber(zk_avg_latency)\n| where mx > 500 OR av > 100\n| timechart span=1m max(mx) as max_latency_ms avg(av) as avg_latency_ms by host",
-  "description": "High max latency on ZooKeeper often reflects slow txn log fsyncs or disk contention—precursors to missed heartbeats and session loss. Using `mntr` latency as a proxy avoids invasive profiling on production ensembles.",
-  "value": "High max latency on ZooKeeper often reflects slow txn log fsyncs or disk contention—precursors to missed he.... Timely UC-8.1.55 alerting on 'ZooKeeper Transaction Log fsync Latency Proxy' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies Latency Proxy anomalies for UC-8.1.55 with window `1m` on `index=infrastructure` sourcetype `zookeeper:mntr`. Combines `max_latency_ms`, `avg_latency_ms` by `host` and compares against `mx` > 500, or `av` > 100. Mapped to keywords ZooKeeper, Transaction, Log, fsync, Latency for dashboard routing.",
+  "value": "Alerting on ZooKeeper, Transaction, Log, fsync, Latency through UC-8.1.55 reduces operational risk and delayed incident response by surfacing `max_latency_ms`, `avg_latency_ms` early.",
   "implementation": "Baseline latencies per hardware class. Correlate with Linux `iostat` forwarded separately. When SSD wear or RAID rebuild occurs, expect spikes—use maintenance context. Tune thresholds per AZ.",
   "visualization": "Line chart (max_latency_ms), Heatmap host×time.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `infrastructure`** — Planned work for 'ZooKeeper Transaction Log fsync Latency Proxy' shifts `max` over `span=1m` while `host` remains in-scope for UC-8.1.55. Cross-check CMDB CHG.\n\n2. **Batch `max` on `zookeeper:mntr`** — Scheduled automation elevates `mx` without crossing `mx` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `infrastructure` (UC-8.1.55)** — Planned work for 'ZooKeeper Transaction Log fsync Latency Proxy' shifts `max_latency_ms`, `avg_latency_ms` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `zookeeper:mntr`** — Scheduled automation elevates `mx` without crossing `mx` > 500 for UC-8.1.55. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `infrastructure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zookeeper:mntr`** — First 48h baseline for UC-8.1.55 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "zookeeper"
   ],

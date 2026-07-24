@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'UV Overexposure Day Alert' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_uv_overexposure_day_alert` (UC-25.104.2), SOC dashboard panel \"Personal — UV Overexposure Day Alert\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uv:exposure' where `location` satisfies `uv_index` >= 8 for UC-25.104.2 ('UV Overexposure Day Alert'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `uv:exposure` events where `location` stays below `uv_index` >= 8, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.104.2."
+    "positiveScenario": "UC-25.104.2 positive (Overexposure, Day, Alert): ingest synthetic events into `index=personal` sourcetype='uv:exposure' where `peak_uv` grouped by `location` satisfies `uv_index` >= 8, or `exposure_minutes` >= 30 for 'UV Overexposure Day Alert'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.104.2 negative (Day Alert): ingest benign `personal` / `uv:exposure` events where `location` stays below `uv_index` >= 8, or `exposure_minutes` >= 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'UV Overexposure Day Alert'."
   },
   "dataSources": "Curology prescriptions (`curology:prescription`), skin diaries (`skin:diary`), dermatology appointments (`derm:appointment`), and UV exposure logs (`uv:exposure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Curology prescription shipments, daily skin diary entries, dermatology appointment exports, and UV exposure tracker logs ingested into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=uv:exposure uv_index=* exposure_minutes=*\n| eval high_uv=if(uv_index>=8 AND exposure_minutes>=30,1,0)\n| where high_uv=1\n| stats count as overexposure_days, max(uv_index) as peak_uv by location\n| sort - overexposure_days",
-  "description": "Counts days with UV index eight or above and at least thirty minutes of logged exposure by location. Searches `index=personal` with sourcetype `uv:exposure` for UC-25.104.2, aggregating `max` by `location` over `the scheduled window`. Alerts when grouped results cross `uv_index` >= 8 in the saved search. Gives Personal operators a repeatable signal for 'UV Overexposure Day Alert' without manual log review.",
-  "value": "Counts days with UV index eight or above and at least thirty minutes of logged exposure by location. Timely UC-25.104.2 alerting on 'UV Overexposure Day Alert' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on risk tied to Overexposure, Day, Alert through UC-25.104.2 on `index=personal` sourcetype `uv:exposure`. Summarises `peak_uv` grouped by `location` across `the scheduled window` before applying `uv_index` >= 8, or `exposure_minutes` >= 30. Operators tune 'UV Overexposure Day Alert' using UC-25.104.2 runbook steps.",
+  "value": "Tracking `peak_uv` via UC-25.104.2 on `uv:exposure` feeds improves response to 'UV Overexposure Day Alert' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Log `uv_index` and `exposure_minutes` from your wearable or weather app and review weekly peaks.",
   "visualization": "Table of locations with overexposure day counts.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'UV Overexposure Day Alert' stops polling `uv:exposure`; stale `location` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uv:exposure`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `uv_index` >= 8. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.104.2)** — Connector for 'UV Overexposure Day Alert' stops polling `uv:exposure`; stale `peak_uv` on `location` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `peak_uv` over `1w` is expected for UC-25.104.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uv:exposure`. Dedup with `stats latest(*) by location`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `uv_index` >= 8 for 'UV Overexposure Day Alert'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

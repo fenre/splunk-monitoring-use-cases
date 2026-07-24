@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Automated Failover Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_automated_failover_events` (UC-7.3.2), SOC dashboard panel \"Operations — Automated Failover Events\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `entity` satisfies detection threshold for UC-7.3.2 ('Automated Failover Events'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch:events` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.3.2."
+    "positiveScenario": "UC-7.3.2 positive (Automated, Failover, Events): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `count` grouped by `entity` satisfies detection threshold for 'Automated Failover Events'. Validate filter `detail.EventCategories=\"failover\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.3.2 negative (Failover Events): ingest benign `aws` / `aws:cloudwatch:events` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Automated Failover Events'."
   },
   "dataSources": "RDS events, Azure SQL activity log, Cloud SQL admin activity Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` (CloudTrail/EventBridge), Azure Activity Log — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch:events\"\n| search detail.EventCategories=\"failover\"\n| table _time, detail.SourceIdentifier, detail.Message",
-  "description": "Managed database failovers cause brief outages. Detection enables impact analysis and root cause investigation. Searches `index=aws` with sourcetype `aws:cloudwatch:events` for UC-7.3.2, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Automated Failover Events' without manual log review.",
-  "value": "Early 'Automated Failover Events' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'Automated Failover Events' patterns (UC-7.3.2) sourced from `index=aws` sourcetype `aws:cloudwatch:events`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Enrichment path: filter `detail.EventCategories=\"failover\"`.",
+  "value": "UC-7.3.2 gives Operations teams earlier visibility into Failover Events through `aws:cloudwatch:events` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest RDS event subscriptions via SNS → SQS → Splunk. Filter for failover events. Alert immediately with PagerDuty/ServiceNow integration. Correlate with application error spikes to measure impact duration.",
   "visualization": "Timeline (failover events), Table (failover details), Single value (days since last failover).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Automated Failover Events' shifts `count` over `span=1h` while `host` remains in-scope for UC-7.3.2. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-7.3.2)** — Planned work for 'Automated Failover Events' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `detail.EventCategories=\"failover\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.3.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for UC-7.3.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure",

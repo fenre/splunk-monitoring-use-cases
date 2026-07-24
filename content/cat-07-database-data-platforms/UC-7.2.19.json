@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cassandra Tombstone Accumulation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cassandra_tombstone_accumulation` (UC-7.2.19), SOC dashboard panel \"Operations — Cassandra Tombstone Accumulation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='cassandra:tablestats' where `keyspace` satisfies `droppable_tombstones` > 100000 for UC-7.2.19 ('Cassandra Tombstone Accumulation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `cassandra:tablestats` events where `keyspace` stays below `droppable_tombstones` > 100000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.19."
+    "positiveScenario": "UC-7.2.19 positive (Cassandra, Tombstone, Accumulation): ingest synthetic events into `index=database` sourcetype='cassandra:tablestats' where `count` grouped by `keyspace`, `table`, `host` satisfies `droppable_tombstones` > 100000, or `live_sstable_count` > 50 for 'Cassandra Tombstone Accumulation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.19 negative (Tombstone Accumulation): ingest benign `database` / `cassandra:tablestats` events where `keyspace`, `table`, `host` stays below `droppable_tombstones` > 100000, or `live_sstable_count` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Cassandra Tombstone Accumulation'."
   },
   "dataSources": "`Estimated droppable tombstones`, read path tombstone thresholds Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, `nodetool tablestats` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"cassandra:tablestats\"\n| where droppable_tombstones > 100000 OR live_sstable_count > 50\n| stats latest(droppable_tombstones) as tombstones by keyspace, table, host\n| sort -tombstones",
-  "description": "High tombstone counts per read and GC pressure slow queries and repairs. Monitoring `TombstoneHistogram` and read repair backlog prevents timeouts.",
-  "value": "Early 'Cassandra Tombstone Accumulation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-7.2.19 — Cassandra, Tombstone, Accumulation — using `index=database` sourcetype `cassandra:tablestats`, grouped by `keyspace`, `table`, `host`. Outputs `count` each `the scheduled window`; alert when `droppable_tombstones` > 100000, or `live_sstable_count` > 50. Primary focus: Tombstone Accumulation. Purpose-built for 'Cassandra Tombstone Accumulation' in Operations workflows.",
+  "value": "UC-7.2.19 operationalises 'Cassandra Tombstone Accumulation' against `cassandra:tablestats` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll tablestats weekly or daily per large tables. Alert on droppable tombstones above baseline. Correlate with TTL/schema design reviews.",
   "visualization": "Table (KS, table, tombstones), Bar chart (top tables), Line chart (tombstone trend).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Cassandra Tombstone Accumulation' shifts `count` over `span=1h` while `keyspace` remains in-scope for UC-7.2.19. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cassandra:tablestats`** — Scheduled automation elevates `table` without crossing `droppable_tombstones` > 100000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `keyspace`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:tablestats`** — First 48h baseline for `keyspace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `keyspace`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.19)** — Planned work for 'Cassandra Tombstone Accumulation' shifts `count` over `span=1h` while `keyspace`, `table`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cassandra:tablestats`** — Scheduled automation elevates `table` without crossing `droppable_tombstones` > 100000 for UC-7.2.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `keyspace`, `table`, `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cassandra:tablestats`** — First 48h baseline for UC-7.2.19 on `keyspace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `keyspace`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra"
   ],

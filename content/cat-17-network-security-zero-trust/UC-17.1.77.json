@@ -63,14 +63,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `_time` satisfies `headroom_pct` < 30 for UC-17.1.77 ('Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `nac` / `cisco:ise:syslog` events where `_time` stays below `headroom_pct` < 30, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.1.77."
+    "positiveScenario": "UC-17.1.77 positive (Cisco, ISE, PSN, Authentication, Per): ingest synthetic events into `index=nac` sourcetype='cisco:ise:syslog' where `count` grouped by `_time`, `host` satisfies `headroom_pct` < 30 for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'. Validate lookup `ise_psn_capacity.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.1.77 negative (Capacity Headroom): ingest benign `nac` / `cisco:ise:syslog` events where `_time`, `host` stays below `headroom_pct` < 30, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom'."
   },
   "dataSources": "ISE syslog `index=nac sourcetype=cisco:ise:syslog` *Passed-Authentications* (5200) and *Failed-Authentications* (5400) — high-volume base searches. Use `_time` bucketing to compute per-PSN TPS. Cross-reference Cisco-published PSN sizing data: SNS-3715 = 5,000 TPS, SNS-3725 = 10,000 TPS, SNS-3755 = 20,000 TPS, SNS-3795 = 50,000 TPS. Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for Cisco Identity Services`. — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (5200, 5400)\n| bin _time span=1m\n| stats count as auth_count by _time, host\n| eval tps=round(auth_count/60, 1)\n| lookup ise_psn_capacity.csv host OUTPUT psn_max_tps\n| eval headroom_pct=round(((psn_max_tps - tps) / psn_max_tps) * 100, 1)\n| where headroom_pct < 30",
-  "description": "Tracks per-PSN authentication-per-second rate against the platform's published TPS ceiling. Alerts when sustained headroom falls below 30%.",
-  "value": "Tracks per-PSN authentication-per-second rate against the platform's published TPS ceiling. Timely UC-17.1.77 alerting on 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom' reduces unauthorized access, segmentation drift, and NAC policy failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-17.1.77 — Cisco, ISE, PSN, Authentication, Per — using `index=nac` sourcetype `cisco:ise:syslog`, grouped by `_time`, `host`. Outputs `count` each `1m`; alert when `headroom_pct` < 30. Filter chain includes lookup `ise_psn_capacity.csv`. Purpose-built for 'Cisco ISE PSN Authentication-Per-Second (TPS) SLO and Capacity Headroom' in Network workflows.",
+  "value": "Alerting on Cisco, ISE, PSN, Authentication, Per through UC-17.1.77 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `activity` early.",
   "implementation": "Schedule every 5 min.",
   "visualization": "Per-PSN TPS gauge; headroom trend; capacity-utilization heatmap.",
   "cimModels": [

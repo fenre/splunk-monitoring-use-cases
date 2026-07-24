@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Slopes Ski Session Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_slopes_ski_session_sync_gap_watch` (UC-25.91.6), SOC dashboard panel \"Personal — Slopes Ski Session Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='slopes:session' where `resort_name` satisfies `hours_since` > 72 for UC-25.91.6 ('Slopes Ski Session Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `slopes:session` events where `resort_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.91.6."
+    "positiveScenario": "UC-25.91.6 positive (Slopes, Ski, Session, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='slopes:session' where `last_seen` grouped by `resort_name` satisfies `hours_since` > 72 for 'Slopes Ski Session Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.91.6 negative (Gap Watch): ingest benign `personal` / `slopes:session` events where `resort_name` stays below `hours_since` > 72, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Slopes Ski Session Sync Gap Watch'."
   },
   "dataSources": "Slopes ski sessions (`slopes:session`), Ski Tracks runs (`skitracks:run`), OnTheSnow resort reports (`onthesnow:report`), snow safety checks (`snow:safety`), and Ikon Pass lift scans (`ikon:pass`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Slopes ski sessions, Ski Tracks GPS runs, OnTheSnow resort reports, snow safety checklist logs, and Ikon Pass scan exports forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=slopes:session\n| stats max(_time) as last_seen by resort_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>72\n| sort - hours_since",
-  "description": "Detects when Slopes ski session data has stopped arriving for a given resort. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Slopes ski session data has stopped arriving for a given resort. Timely UC-25.91.6 alerting on 'Slopes Ski Session Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.91.6 for Slopes, Ski, Session, Sync, Gap over `index=personal` sourcetype `slopes:session` with thresholds `hours_since` > 72. Groups `last_seen` by `resort_name` each `the scheduled window`. Centered on Gap Watch indicators. Supports repeatable personal triage for 'Slopes Ski Session Sync Gap Watch'.",
+  "value": "For 'Slopes Ski Session Sync Gap Watch', UC-25.91.6 converts `last_seen` on `slopes:session` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per resort and alert when the feed is older than 72 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Slopes Ski Session Sync Gap Watch' stops polling `slopes:session`; stale `resort_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `slopes:session`. Dedup with `stats latest(*) by resort_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.91.6)** — Connector for 'Slopes Ski Session Sync Gap Watch' stops polling `slopes:session`; stale `last_seen` on `resort_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.91.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `slopes:session`. Dedup with `stats latest(*) by resort_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 72 for 'Slopes Ski Session Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "servicenow"
   ],

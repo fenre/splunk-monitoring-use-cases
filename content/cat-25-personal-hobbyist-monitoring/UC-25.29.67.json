@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Yucata Game Result Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_yucata_game_result_sync_gap_watch` (UC-25.29.67), SOC dashboard panel \"Personal — Yucata Game Result Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='yucata:game' where `game_name` satisfies `hours_since` > 24 for UC-25.29.67 ('Yucata Game Result Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `yucata:game` events where `game_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.29.67."
+    "positiveScenario": "UC-25.29.67 positive (Yucata, Game, Result, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='yucata:game' where `last_seen` grouped by `game_name` satisfies `hours_since` > 24 for 'Yucata Game Result Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.29.67 negative (Gap Watch): ingest benign `personal` / `yucata:game` events where `game_name` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Yucata Game Result Sync Gap Watch'."
   },
   "dataSources": "Video-game sessions (`game:session`), achievement unlocks (`achievement:unlock`), board-game plays (`boardgame:play`), chess games (`chess:game`), dice rolls (`dice:roll`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Gaming and tabletop telemetry — Steam / PSN / Xbox playtime and achievement APIs, BoardGameGeek plays export, Lichess / Chess.com game archives, and tabletop dice-roller logs — streamed to Splunk HEC via scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=yucata:game\n| stats max(_time) as last_seen by game_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when Yucata game result data has stopped arriving for a given game. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Yucata game result data has stopped arriving for a given game. Timely UC-25.29.67 alerting on 'Yucata Game Result Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces Gap Watch anomalies for UC-25.29.67 with window `the scheduled window` on `index=personal` sourcetype `yucata:game`. Combines `last_seen` by `game_name` and compares against `hours_since` > 24. Mapped to keywords Yucata, Game, Result, Sync, Gap for dashboard routing.",
+  "value": "Alerting on Yucata, Game, Result, Sync, Gap through UC-25.29.67 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Track the latest event time per game and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Yucata Game Result Sync Gap Watch' stops polling `yucata:game`; stale `game_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `yucata:game`. Dedup with `stats latest(*) by game_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.29.67)** — Connector for 'Yucata Game Result Sync Gap Watch' stops polling `yucata:game`; stale `last_seen` on `game_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.29.67, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `yucata:game`. Dedup with `stats latest(*) by game_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'Yucata Game Result Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

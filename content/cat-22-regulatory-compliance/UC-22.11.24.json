@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `dns` satisfies `days_left` < 45 for UC-22.11.24 ('Certificate Expiry Risk for Public-Facing Payment Hostnames'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vm` / `tenable:sc:vuln` events where `dns` stays below `days_left` < 45, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.24."
+    "positiveScenario": "UC-22.11.24 positive (Certificate, Expiry, Risk, for, Public): ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `soonest_expiry` grouped by `dns`, `ip` satisfies `days_left` < 45, or `days_left` > 0 for 'Certificate Expiry Risk for Public-Facing Payment Hostnames'. Validate lookup `pci_public_payment_hosts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.24 negative (Payment Hostnames): ingest benign `vm` / `tenable:sc:vuln` events where `dns`, `ip` stays below `days_left` < 45, or `days_left` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'Certificate Expiry Risk for Public-Facing Payment Hostnames'."
   },
   "dataSources": "`index=vm` `tenable:sc:vuln` plugin 51192; `qualys:host` cert fields if mapped — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Tenable (4060), Splunk Add-on for Qualys (2964) (Splunkbase)",
   "spl": "index=vm sourcetype=\"tenable:sc:vuln\" earliest=-24h\n| where pluginID=51192 OR match(plugin_name,\"(?i)certificate.*expir\")\n| lookup pci_public_payment_hosts.csv dns_name AS dns OUTPUT in_business_scope\n| where in_business_scope=\"true\"\n| eval days_left=round((notAfter_epoch-now())/86400,1)\n| where days_left<45 AND days_left>0\n| stats min(days_left) as soonest_expiry by dns, ip\n| sort soonest_expiry",
-  "description": "Counts days-to-expiry for certificates protecting CHD transmission paths so renewals happen before outages or downgrade attacks during renewal gaps.",
-  "value": "Counts days-to-expiry for certificates protecting CHD transmission paths so renewals happen before outages.... Timely UC-22.11.24 alerting on 'Certificate Expiry Risk for Public-Facing Payment Hostnames' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.11.24 — Certificate, Expiry, Risk, for, Public — using `index=vm` sourcetype `tenable:sc:vuln`, grouped by `dns`, `ip`. Outputs `soonest_expiry` each `the scheduled window`; alert when `days_left` < 45, or `days_left` > 0. Filter chain includes lookup `pci_public_payment_hosts.csv`. Purpose-built for 'Certificate Expiry Risk for Public-Facing Payment Hostnames' in Compliance workflows.",
+  "value": "Tracking `soonest_expiry` via UC-22.11.24 on `tenable:sc:vuln` feeds improves response to 'Certificate Expiry Risk for Public-Facing Payment Hostnames' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Map Tenable `dns` to customer-facing FQDNs. (2) Ingest `notAfter_epoch` via TA field alias. (3) Page at 30/14/7 days thresholds. (4) Document emergency renewal procedure linkage. Indexes required: `index=vm`; Sourcetypes: `sourcetype=tenable:sc:vuln`; Lookups: `pci_public_payment_hosts`, `pci_public_payment_hosts.csv`.",
   "visualization": "Table (dns, soonest_expiry), column chart (certs per expiry week), single value (min days_left).",
   "cimModels": [

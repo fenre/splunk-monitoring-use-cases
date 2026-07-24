@@ -40,14 +40,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=erp` sourcetype='sap:vendor_master' where `vendor_id` satisfies detection threshold for UC-22.48.5 ('Vendor-master SoD — same identity creates vendor AND approves payment'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `erp` / `sap:vendor_master` events where `vendor_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.48.5."
+    "positiveScenario": "UC-22.48.5 positive (Vendor, master, SoD, same, identity): ingest synthetic events into `index=erp` sourcetype='sap:vendor_master' where `created_at` grouped by `vendor_id`, `vendor_id]` satisfies -30d for 'Vendor-master SoD — same identity creates vendor AND approves payment'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.48.5 negative (approves payment): ingest benign `erp` / `sap:vendor_master` events where `vendor_id`, `vendor_id]` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Vendor-master SoD — same identity creates vendor AND approves payment'."
   },
   "dataSources": "ERP vendor-master events, AP payment approval events. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=erp sourcetype=sap:vendor_master OR sourcetype=oracle:vendor_master action=create earliest=-30d\n| stats min(_time) as created_at values(created_by) as creators by vendor_id\n| join vendor_id [search index=erp sourcetype=*:ap_payment action=approve earliest=-30d | stats values(approved_by) as approvers by vendor_id]\n| eval overlap=mvfilter(match(creators,approvers))\n| where mvcount(overlap)>0\n| table vendor_id created_at creators approvers overlap",
-  "description": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a single identity.",
-  "value": "Classic fraud-vector control: the ability to create a vendor and approve its payment cannot reside with a s.... Timely UC-22.48.5 alerting on 'Vendor-master SoD — same identity creates vendor AND approves payment' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies approves payment anomalies for UC-22.48.5 with window `the scheduled window` on `index=erp` sourcetype `sap:vendor_master`. Combines `created_at` by `vendor_id`, `vendor_id]` and compares against -30d. Mapped to keywords Vendor, master, SoD, same, identity for dashboard routing.",
+  "value": "Alerting on Vendor, master, SoD, same, identity through UC-22.48.5 reduces audit findings, regulatory gaps, and attestation delays by surfacing `created_at` early.",
   "implementation": "(1) Ensure ERP emits both events; (2) run hourly; (3) auto-freeze suspicious vendor payments via AP workflow. Indexes required: `index=erp`; Sourcetypes: `sourcetype=*:ap_payment`, `sourcetype=oracle:vendor_master`, `sourcetype=sap:vendor_master`.",
   "visualization": "Table of same-person violations, single-value 'vendors with SoD-compliant lifecycle'. Key fields: `approvers`, `created_at`, `creators`, `overlap`, `vendor_id`, `vendor_id]`.",
   "cimModels": [

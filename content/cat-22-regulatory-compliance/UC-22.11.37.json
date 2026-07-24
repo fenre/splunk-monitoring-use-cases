@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ci` sourcetype='jenkins:build' where `entity` satisfies detection threshold for UC-22.11.37 ('Change Control Completeness for Production Payment Releases'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ci` / `jenkins:build` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.37."
+    "positiveScenario": "UC-22.11.37 positive (Change, Control, Completeness, for, Production): ingest synthetic events into `index=ci` sourcetype='jenkins:build' where `count` grouped by `entity` satisfies -7d for 'Change Control Completeness for Production Payment Releases'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.37 negative (Payment Releases): ingest benign `ci` / `jenkins:build` events where `entity` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Change Control Completeness for Production Payment Releases'."
   },
   "dataSources": "`index=ci` `sourcetype=\"jenkins:build\"` or `sourcetype=\"azuredevops:release\"`; `index=itsm` `snow:change_request`",
   "app": "Splunk Add-on for AWS (1876), Splunk Add-on for ServiceNow (1928) if available (Splunkbase)",
   "spl": "index=ci sourcetype=\"jenkins:build\" earliest=-7d\n| where match(job,\"(?i)payment|checkout|token\")\n| where result=\"SUCCESS\" AND like(build_url,\"%prod%\")\n| eval chg_hint=replace(build_parameters,\".*?(CHG\\\\d{7}).*\",\"\\\\1\")\n| join type=left max=1 chg_hint [\n    search index=itsm sourcetype=\"snow:change_request\" earliest=-14d\n    | rename number as chg_hint\n    | fields chg_hint, state\n  ]\n| where isnull(state) OR NOT match(state,\"(?i)closed|implemented\")\n| table _time, job, build_url, chg_hint, state",
-  "description": "Joins deployment pipeline events to approved change tickets so every production change affecting payment software follows formal change control as PCI expects for secure systems.",
-  "value": "Joins deployment pipeline events to approved change tickets so every production change affecting payment so.... Timely UC-22.11.37 alerting on 'Change Control Completeness for Production Payment Releases' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.11.37 — Change, Control, Completeness, for, Production — using `index=ci` sourcetype `jenkins:build`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Payment Releases. Purpose-built for 'Change Control Completeness for Production Payment Releases' in Compliance workflows.",
+  "value": "For 'Change Control Completeness for Production Payment Releases', UC-22.11.37 converts `activity` on `jenkins:build` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Require pipeline to inject `CHG` token parameter. (2) Add Git branch allow-list. (3) Alert on null `state`. (4) Retain build logs 13 months. Indexes required: `index=ci`, `index=itsm`; Sourcetypes: `sourcetype=azuredevops:release`, `sourcetype=jenkins:build`, `sourcetype=snow:change_request`.",
   "visualization": "Table (unlinked deploys), column chart (violations by week), single value (count). Key fields: `build_url`, `chg_hint`, `job`, `state`.",
   "cimModels": [

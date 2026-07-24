@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Kafka Broker Fatal Shutdown Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_kafka_broker_fatal_shutdown_detection` (UC-8.2.35), SOC dashboard panel \"Operations — Kafka Broker Fatal Shutdown Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `host` satisfies `count` >= 1 for UC-8.2.35 ('Kafka Broker Fatal Shutdown Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:serverLog` events where `host` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.35."
+    "positiveScenario": "UC-8.2.35 positive (Kafka, Broker, Fatal, Shutdown, Detection): ingest synthetic events into `index=kafka` sourcetype='kafka:serverLog' where `count` grouped by `host`, `log_level` satisfies `count` >= 1 for 'Kafka Broker Fatal Shutdown Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.35 negative (Shutdown Detection): ingest benign `kafka` / `kafka:serverLog` events where `host`, `log_level` stays below `count` >= 1, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Kafka Broker Fatal Shutdown Detection'."
   },
   "dataSources": "Kafka broker log files ingested as `sourcetype=kafka:serverLog` Indexes: kafka. Sourcetypes: kafka:serverLog. Key fields: host, log_level. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Splunk Add-on for Kafka (`Splunk_TA_kafka`, Splunkbase 2935) file monitoring",
   "spl": "index=kafka sourcetype=\"kafka:serverLog\"\n| rex \"^\\[[^\\]]+\\]\\s+(?<log_level>\\w+)\"\n| where log_level IN (\"FATAL\",\"ERROR\") AND (match(_raw, \"(?i)shutting\\s+down\") OR match(_raw, \"(?i)fatal\") OR match(_raw, \"(?i)stopped\"))\n| stats count by host, log_level\n| where count >= 1",
-  "description": "FATAL/ERROR lines that include shutdown semantics indicate the broker process is exiting or an unrecoverable subsystem failed, which immediately impacts partition availability.",
-  "value": "FATAL/ERROR lines that include shutdown semantics indicate the broker process is exiting or an unrecoverabl.... Timely UC-8.2.35 alerting on 'Kafka Broker Fatal Shutdown Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on Shutdown Detection anomalies for UC-8.2.35 with window `the scheduled window` on `index=kafka` sourcetype `kafka:serverLog`. Combines `count` by `host`, `log_level` and compares against `count` >= 1. Mapped to keywords Kafka, Broker, Fatal, Shutdown, Detection for dashboard routing.",
+  "value": "Alerting on Kafka, Broker, Fatal, Shutdown, Detection through UC-8.2.35 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Enable `kafka:serverLog` collection from `$KAFKA_HOME/logs` on every broker. Tune the `match` filters to your log vocabulary; add host-based suppressions for planned maintenance windows.",
   "visualization": "Timeline (fatal/error shutdown events), Table (host, sample _time), Single value (brokers with events in window).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Kafka Broker Fatal Shutdown Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.2.35. Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `log_level` without crossing `count` >= 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.2.35)** — Planned work for 'Kafka Broker Fatal Shutdown Detection' shifts `count` over `span=1h` while `host`, `log_level` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `kafka:serverLog`** — Scheduled automation elevates `log_level` without crossing `count` >= 1 for UC-8.2.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `log_level`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:serverLog`** — First 48h baseline for UC-8.2.35 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

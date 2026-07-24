@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Home Mat Usage vs Studio Sessions' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_home_mat_usage_vs_studio_sessions` (UC-25.92.1), SOC dashboard panel \"Personal — Home Mat Usage vs Studio Sessions\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='mat:usage' where `_time` satisfies detection threshold for UC-25.92.1 ('Home Mat Usage vs Studio Sessions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `mat:usage` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.92.1."
+    "positiveScenario": "UC-25.92.1 positive (Home, Mat, Usage, Studio, Sessions): ingest synthetic events into `index=personal` sourcetype='mat:usage' where `home_minutes`, `studio_minutes` grouped by `_time` satisfies detection threshold for 'Home Mat Usage vs Studio Sessions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.92.1 negative (Studio Sessions): ingest benign `personal` / `mat:usage` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Home Mat Usage vs Studio Sessions'."
   },
   "dataSources": "Down Dog sessions (`downdog:session`), Peloton yoga classes (`peloton:yoga`), Glo classes (`glo:class`), Pilates sessions (`pilates:session`), and mat usage logs (`mat:usage`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Down Dog session logs, Peloton yoga classes, Glo streaming sessions, Pilates reformer notes, and home mat usage counters sent to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "(index=personal sourcetype=mat:usage minutes_used=*) OR (index=personal sourcetype=pilates:session)\n| bin _time span=1w\n| eval home_min=if(sourcetype=\"mat:usage\",minutes_used,0), studio_min=if(sourcetype=\"pilates:session\",session_minutes,0)\n| stats sum(home_min) as home_minutes, sum(studio_min) as studio_minutes by _time\n| eval home_pct=round(100*home_minutes/(home_minutes+studio_minutes),1)\n| sort - _time",
-  "description": "Compares weekly home mat minutes against in-studio Pilates session minutes. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Compares weekly home mat minutes against in-studio Pilates session minutes. Timely UC-25.92.1 alerting on 'Home Mat Usage vs Studio Sessions' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.92.1 — Home, Mat, Usage, Studio, Sessions — using `index=personal` sourcetype `mat:usage`, grouped by `_time`. Outputs `home_minutes`, `studio_minutes` each `1w`; alert when configured threshold. Primary focus: Studio Sessions. Purpose-built for 'Home Mat Usage vs Studio Sessions' in Personal workflows.",
+  "value": "UC-25.92.1 operationalises 'Home Mat Usage vs Studio Sessions' against `mat:usage` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Log smart-mat or manual mat usage to `mat:usage` and align weekly totals with studio session exports.",
   "visualization": "Stacked bar chart of home versus studio minutes by week.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Home Mat Usage vs Studio Sessions' stops polling `mat:usage`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mat:usage`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.92.1)** — Connector for 'Home Mat Usage vs Studio Sessions' stops polling `mat:usage`; stale `home_minutes`, `studio_minutes` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `home_minutes`, `studio_minutes` over `1w` is expected for UC-25.92.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `mat:usage`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Home Mat Usage vs Studio Sessions'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "asterisk"
   ],

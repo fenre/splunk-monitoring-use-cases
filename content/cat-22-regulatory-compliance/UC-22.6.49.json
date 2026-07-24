@@ -55,14 +55,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=compliance` sourcetype='isms:objective_result' where `kpi_id]` satisfies detection threshold for UC-22.6.49 ('ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `compliance` / `isms:objective_result` events where `kpi_id]` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.49."
+    "positiveScenario": "UC-22.6.49 positive (ISO, IEC, 27001:2022, Clause, 9.1): ingest synthetic events into `index=compliance` sourcetype='isms:objective_result' where `count` grouped by `kpi_id]` satisfies -7d for 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.6.49 negative (telemetry uptime): ingest benign `compliance` / `isms:objective_result` events where `kpi_id]` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime'."
   },
   "dataSources": "`index=_internal` sourcetype=splunkd (scheduler logs); `index=compliance` sourcetype=isms:objective_result; KPI freshness lookup `iso_27001_kpi_freshness.csv`. (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Splunk Enterprise Security",
   "spl": "| inputlookup iso_27001_kpi_freshness.csv\n| join type=outer kpi_id\n  [search index=compliance sourcetype=isms:objective_result earliest=-7d\n   | stats latest(_time) AS last_seen BY kpi_id]\n| eval age_min=round((now()-last_seen)/60,0)\n| eval is_stale=if(age_min>sla_minutes OR isnull(last_seen),1,0)\n| table kpi_id last_seen age_min sla_minutes is_stale",
-  "description": "For every ISMS KPI the committee has agreed to measure under Clause 9.1, check the pipeline is alive within the KPI's freshness SLA. Stale pipelines are a silent failure mode of monitoring programmes.",
-  "value": "For every ISMS KPI the committee has agreed to measure under Clause 9. Timely UC-22.6.49 alerting on 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.6.49 — ISO, IEC, 27001:2022, Clause, 9.1 — using `index=compliance` sourcetype `isms:objective_result`, grouped by `kpi_id]`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: telemetry uptime. Purpose-built for 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime' in Compliance workflows.",
+  "value": "For 'ISO/IEC 27001:2022 Clause 9.1 — Monitoring programme coverage: KPI telemetry uptime', UC-22.6.49 converts `activity` on `isms:objective_result` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Push each KPI into index=compliance; (2) maintain iso_27001_kpi_freshness.csv per KPI with its SLA; (3) schedule UC every 15m; (4) is_stale=1 pages the data-engineering owner of the KPI; (5) weekly ISMS report attaches the latest state. Sourcetypes: `sourcetype=isms:objective_result`, `sourcetype=isms:objective_result;`, `sourcetype=splunkd`.",
   "visualization": "Heatmap of KPI staleness, table of stale KPIs, single value 'stale KPIs right now'. Key fields: `age_min`, `is_stale`, `kpi_id`, `kpi_id]`, `last_seen`, `sla_minutes`.",
   "cimModels": [

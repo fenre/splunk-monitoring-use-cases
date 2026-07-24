@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'MDS FLOGI Database Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mds_flogi_database_monitoring` (UC-6.1.30), SOC dashboard panel \"Operations — MDS FLOGI Database Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:mds' where `switch` satisfies detection threshold for UC-6.1.30 ('MDS FLOGI Database Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:mds` events where `switch` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.30."
+    "positiveScenario": "UC-6.1.30 positive (MDS, FLOGI, Database, Monitoring): ingest synthetic events into `index=network` sourcetype='cisco:mds' where `count` grouped by `switch`, `port`, `pwwn`, `nwwn` satisfies detection threshold for 'MDS FLOGI Database Monitoring'. Validate lookup `mds_known_hosts`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.30 negative (Database Monitoring): ingest benign `network` / `cisco:mds` events where `switch`, `port`, `pwwn`, `nwwn` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'MDS FLOGI Database Monitoring'."
   },
   "dataSources": "MDS syslog (FLOGI/FDISC events), NX-API (`show flogi database`) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "`cisco:mds` syslog, scripted input (NX-API) — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"cisco:mds\" \"FLOGI\" OR \"FDISC\"\n| stats count as login_count by switch, port, pwwn, nwwn\n| lookup mds_known_hosts pwwn OUTPUT host_name, authorized\n| where isnull(authorized) OR authorized!=\"yes\"\n| table switch, port, pwwn, nwwn, host_name, authorized, login_count",
-  "description": "The FLOGI (Fabric Login) database records every device that has logged into the SAN fabric. Monitoring FLOGI events detects rogue devices, unexpected host logins, and fabric login storms that indicate HBA or driver issues.",
-  "value": "Early 'MDS FLOGI Database Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects Database Monitoring activity in UC-6.1.30 ('MDS FLOGI Database Monitoring') from `index=network` sourcetype `cisco:mds`. Rolls up `count` by `switch`, `port`, `pwwn`, `nwwn` across `the scheduled window` and pages when configured threshold. Uses lookup `mds_known_hosts`. Operations operators treat UC-6.1.30 as the canonical signal.",
+  "value": "Operators running UC-6.1.30 on `cisco:mds` feeds shorten triage for Database Monitoring tied to 'MDS FLOGI Database Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Forward MDS syslog and periodically poll FLOGI database via NX-API. Maintain a lookup of known/authorized WWNs. Alert on unknown WWN logins. Track FLOGI count trends to detect login storms.",
   "visualization": "Table (FLOGI entries with authorization status), Bar chart (logins per switch), Timeline (login events).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'MDS FLOGI Database Monitoring' shifts `count` over `span=1h` while `switch` remains in-scope for UC-6.1.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:mds`** — Scheduled automation elevates `port` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:mds`** — First 48h baseline for `switch` is unstable; join `mds_known_hosts` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-6.1.30)** — Planned work for 'MDS FLOGI Database Monitoring' shifts `count` over `span=1h` while `switch`, `port`, `pwwn`, `nwwn` remains in-scope. Applies lookup `mds_known_hosts`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cisco:mds`** — Scheduled automation elevates `port` without crossing configured threshold for UC-6.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `switch`, `port`, `pwwn`, `nwwn`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:mds`** — First 48h baseline for UC-6.1.30 on `switch` is unstable; join `mds_known_hosts` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `switch`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "syslog"

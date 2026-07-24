@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Snapshot Schedule Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snapshot_schedule_compliance` (UC-6.1.25), SOC dashboard panel \"Operations — Snapshot Schedule Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='storage:snapshot' where `volume_name` satisfies detection threshold for UC-6.1.25 ('Snapshot Schedule Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `storage:snapshot` events where `volume_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.25."
+    "positiveScenario": "UC-6.1.25 positive (Snapshot, Schedule, Compliance): ingest synthetic events into `index=storage` sourcetype='storage:snapshot' where `count` grouped by `volume_name`, `policy_name` satisfies detection threshold for 'Snapshot Schedule Compliance'. Validate lookup `snapshot_policy_expected`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.25 negative (Schedule Compliance): ingest benign `storage` / `storage:snapshot` events where `volume_name`, `policy_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Snapshot Schedule Compliance'."
   },
   "dataSources": "Snapshot list with create time, policy name Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Vendor TA, API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"storage:snapshot\"\n| stats latest(snapshot_time) as last_snap by volume_name, policy_name\n| eval hours_since=round((now()-snapshot_time)/3600,1)\n| lookup snapshot_policy_expected policy_name OUTPUT expected_hours_max\n| where hours_since > expected_hours_max",
-  "description": "Missed snapshot schedules break backup and rollback expectations. Verifying snapshot recency per policy supports operational and audit requirements.",
-  "value": "Early 'Snapshot Schedule Compliance' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-6.1.25 — Snapshot, Schedule, Compliance — using `index=storage` sourcetype `storage:snapshot`, grouped by `volume_name`, `policy_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `snapshot_policy_expected`. Purpose-built for 'Snapshot Schedule Compliance' in Operations workflows.",
+  "value": "For 'Snapshot Schedule Compliance', UC-6.1.25 converts `activity` on `storage:snapshot` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Maintain lookup of expected max age per policy. Compare latest snapshot timestamp to policy. Alert on volumes with no snapshot within SLA window.",
   "visualization": "Table (non-compliant volumes), Single value (policy violations count), Timeline (snapshot completions).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Snapshot Schedule Compliance' shifts `count` over `span=1h` while `volume_name` remains in-scope for UC-6.1.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `storage:snapshot`** — Scheduled automation elevates `policy_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `storage:snapshot`** — First 48h baseline for `volume_name` is unstable; join `snapshot_policy_expected` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.25)** — Planned work for 'Snapshot Schedule Compliance' shifts `count` over `span=1h` while `volume_name`, `policy_name` remains in-scope. Applies lookup `snapshot_policy_expected`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `storage:snapshot`** — Scheduled automation elevates `policy_name` without crossing configured threshold for UC-6.1.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_name`, `policy_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `storage:snapshot`** — First 48h baseline for UC-6.1.25 on `volume_name` is unstable; join `snapshot_policy_expected` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

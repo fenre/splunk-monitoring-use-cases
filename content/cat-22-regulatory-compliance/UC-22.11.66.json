@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=app` sourcetype='payment:api:json' where `correlation_id` satisfies `skew_sec` > 5 for UC-22.11.66 ('Critical System Clock Skew Between Database and Application Tier'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `app` / `payment:api:json` events where `correlation_id` stays below `skew_sec` > 5, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.66."
+    "positiveScenario": "UC-22.11.66 positive (Critical, System, Clock, Skew, Between): ingest synthetic events into `index=app` sourcetype='payment:api:json' where `count` grouped by `correlation_id` satisfies `skew_sec` > 5, or `p95_skew` > 5 for 'Critical System Clock Skew Between Database and Application Tier'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.66 negative (Application Tier): ingest benign `app` / `payment:api:json` events where `correlation_id` stays below `skew_sec` > 5, or `p95_skew` > 5, or exclude the test entity via `compliance_exception_register.csv`. Variant 3 confirms zero alert rows for 'Critical System Clock Skew Between Database and Application Tier'."
   },
   "dataSources": "`index=app` `sourcetype=\"payment:api:json\"`; `index=db` `oracle:audit` with same `correlation_id` if injected",
   "app": "Custom application JSON logs with `correlation_id` (Splunkbase)",
   "spl": "(index=app sourcetype=\"payment:api:json\" earliest=-1h) OR (index=db sourcetype=\"oracle:audit\" earliest=-1h)\n| where isnotnull(correlation_id)\n| eval src=if(index=\"app\",\"app\",\"db\")\n| stats earliest(eval(if(src=\"app\",_time,null()))) as t_app, earliest(eval(if(src=\"db\",_time,null()))) as t_db by correlation_id\n| eval skew_sec=abs(t_app-t_db)\n| where skew_sec>5 AND isnotnull(t_app) AND isnotnull(t_db)\n| stats perc95(skew_sec) as p95_skew, count by correlation_id\n| where p95_skew>5\n| sort - p95_skew\n| head 100",
-  "description": "Compares `_time` deltas between paired application and database events sharing a `correlation_id` so forensic timelines for CHD access stay coherent across tiers.",
-  "value": "Compares `_time` deltas between paired application and database events sharing a `correlation_id` so forens.... Timely UC-22.11.66 alerting on 'Critical System Clock Skew Between Database and Application Tier' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors when Application Tier criteria fire for 'Critical System Clock Skew Between Database and Application Tier' (UC-22.11.66) in `index=app` sourcetype `payment:api:json`. Pipeline aggregates `count` by `correlation_id` over `the scheduled window`. Alert logic enforces `skew_sec` > 5, or `p95_skew` > 5. Title terms: Critical, System, Clock, Skew, Between. Eliminates manual hunting for UC-22.11.66 conditions.",
+  "value": "UC-22.11.66 helps teams contain Critical, System, Clock, Skew, Between scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Require apps to propagate `correlation_id` into DB audit. (2) Tune threshold per transaction latency SLA. (3) Pair with NTP health UC. (4) Weekly ops review. Indexes required: `index=app`, `index=db`; Sourcetypes: `sourcetype=oracle:audit`, `sourcetype=payment:api:json`.",
   "visualization": "Histogram (skew_sec), table (worst correlation_id), single value (count high skew).",
   "cimModels": [

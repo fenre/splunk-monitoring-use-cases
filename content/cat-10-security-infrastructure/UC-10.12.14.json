@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'FIX Protocol Session Health' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_fix_protocol_session_health` (UC-10.12.14), SOC dashboard panel \"Security Infra — FIX Protocol Session Health\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=trading` sourcetype='fix:session' where `SenderCompID` satisfies `seq_gap` > 0 for UC-10.12.14 ('FIX Protocol Session Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `trading` / `fix:session` events where `SenderCompID` stays below `seq_gap` > 0, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.14."
+    "positiveScenario": "UC-10.12.14 positive (FIX, Protocol, Session, Health): ingest synthetic events into `index=trading` sourcetype='fix:session' where `count` grouped by `SenderCompID`, `TargetCompID` satisfies `seq_gap` > 0 for 'FIX Protocol Session Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.14 negative (Session Health): ingest benign `trading` / `fix:session` events where `SenderCompID`, `TargetCompID` stays below `seq_gap` > 0, or exclude the test entity via `soc_exception_register.csv`. Variant 1 confirms zero alert rows for 'FIX Protocol Session Health'."
   },
   "dataSources": "`sourcetype=\"fix:session\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "QuickFIX / vendor bridge logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=trading sourcetype=\"fix:session\"\n| stats latest(MsgSeqNum) as last_in, latest(ExpectedSeqNum) as expected by SenderCompID, TargetCompID\n| eval seq_gap=abs(last_in-expected)\n| where seq_gap>0 OR LogonStatus!=\"LOGGED_ON\"\n| table SenderCompID, TargetCompID, LogonStatus, seq_gap",
-  "description": "FIX session drops or sequence gaps stop trading and breach venue SLAs. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'FIX Protocol Session Health' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects Session Health activity in UC-10.12.14 ('FIX Protocol Session Health') from `index=trading` sourcetype `fix:session`. Rolls up `count` by `SenderCompID`, `TargetCompID` across `the scheduled window` and pages when `seq_gap` > 0. Covers FIX, Protocol, Session, Health. Security Infra operators treat UC-10.12.14 as the canonical signal.",
+  "value": "Operators running UC-10.12.14 on `fix:session` feeds shorten triage for Session Health tied to 'FIX Protocol Session Health', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Alert on Logout, ResendRequest storms, or heartbeat miss (MsgType=0). Track test vs. prod sessions separately.",
   "visualization": "Status grid (sessions), Line chart (heartbeat RTT), Table (sequence gaps).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `trading`** — Planned work for 'FIX Protocol Session Health' shifts `count` over `span=1h` while `SenderCompID` remains in-scope for UC-10.12.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `fix:session`** — Scheduled automation elevates `TargetCompID` without crossing `seq_gap` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `SenderCompID`** — Health checks in `trading` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fix:session`** — First 48h baseline for `SenderCompID` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `SenderCompID`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `trading` (UC-10.12.14)** — Planned work for 'FIX Protocol Session Health' shifts `count` over `span=1h` while `SenderCompID`, `TargetCompID` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `fix:session`** — Scheduled automation elevates `TargetCompID` without crossing `seq_gap` > 0 for UC-10.12.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `SenderCompID`, `TargetCompID`** — Health checks in `trading` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fix:session`** — First 48h baseline for UC-10.12.14 on `SenderCompID` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `SenderCompID`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

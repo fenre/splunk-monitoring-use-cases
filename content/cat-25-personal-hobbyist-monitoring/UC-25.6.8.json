@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Weather-Normalised Solar Yield' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_weather_normalised_solar_yield` (UC-25.6.8), SOC dashboard panel \"Personal — Weather-Normalised Solar Yield\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `_time` satisfies detection threshold for UC-25.6.8 ('Weather-Normalised Solar Yield'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `solaredge:power` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.6.8."
+    "positiveScenario": "UC-25.6.8 positive (Weather, Normalised, Solar, Yield): ingest synthetic events into `index=personal` sourcetype='solaredge:power' where `produced`, `irradiance`, `normalised_yield` grouped by `_time` satisfies detection threshold for 'Weather-Normalised Solar Yield'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.6.8 negative (Solar Yield): ingest benign `personal` / `solaredge:power` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 1 confirms zero alert rows for 'Weather-Normalised Solar Yield'."
   },
   "dataSources": "SolarEdge/Enphase production (`solaredge:power`, `enphase:production`), Powerwall (`powerwall:aggregate`), smart-meter P1/DSMR (`dsmr:telegram`), Emporia Vue (`emporia:circuit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Solar inverters (SolarEdge/Enphase/Fronius/Growatt), Tesla Powerwall, and smart meters (P1/DSMR, Emporia Vue, Sense) via vendor APIs and MQTT to HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=solaredge:power\n| bin _time span=1d\n| stats sum(production_wh) as produced, avg(irradiance_wm2) as irradiance by _time\n| eval yield_per_sun=round(produced/irradiance,1)\n| timechart span=1w avg(yield_per_sun) as normalised_yield",
-  "description": "Divides your solar production by the available sunshine to produce a weather-normalised yield, revealing gradual efficiency loss that raw output hides.",
-  "value": "Divides your solar production by the available sunshine to produce a weather-normalised yield, revealing gr.... Timely UC-25.6.8 alerting on 'Weather-Normalised Solar Yield' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors Solar Yield activity in UC-25.6.8 ('Weather-Normalised Solar Yield') from `index=personal` sourcetype `solaredge:power`. Rolls up `produced`, `irradiance`, `normalised_yield` by `_time` across `1d` and pages when configured threshold. Covers Weather, Normalised, Solar, Yield. Personal operators treat UC-25.6.8 as the canonical signal.",
+  "value": "Operators running UC-25.6.8 on `solaredge:power` feeds shorten triage for Solar Yield tied to 'Weather-Normalised Solar Yield', lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest production and an irradiance estimate; schedule weekly and watch the normalised yield trend.",
   "visualization": "Line chart of weather-normalised weekly yield.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Weather-Normalised Solar Yield' stops polling `solaredge:power`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.6.8)** — Connector for 'Weather-Normalised Solar Yield' stops polling `solaredge:power`; stale `produced`, `irradiance`, `normalised_yield` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `produced`, `irradiance`, `normalised_yield` over `1d` is expected for UC-25.6.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `solaredge:power`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew goal threshold for 'Weather-Normalised Solar Yield'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

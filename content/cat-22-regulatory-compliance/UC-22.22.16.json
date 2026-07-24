@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=openbanking` sourcetype='ob:api:access' where `aspsp_id` satisfies `http_status` >= 400 for UC-22.22.16 ('Data Minimization Checks for TPP Response Payload Sizes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `openbanking` / `ob:api:access` events where `aspsp_id` stays below `http_status` >= 400, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.22.16."
+    "positiveScenario": "UC-22.22.16 positive (Data, Minimization, Checks, for, TPP): ingest synthetic events into `index=openbanking` sourcetype='ob:api:access' where `sm`, `tpp` grouped by `aspsp_id`, `api_tag`, `is_prod` satisfies `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50 for 'Data Minimization Checks for TPP Response Payload Sizes'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.22.16 negative (Payload Sizes): ingest benign `openbanking` / `ob:api:access` events where `aspsp_id`, `api_tag`, `is_prod` stays below `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Data Minimization Checks for TPP Response Payload Sizes'."
   },
   "dataSources": "`index=openbanking` — tpp_id, consent_id, consent_scope, accessed_scope, http_status, environment, bytes_out",
   "app": "Splunk Enterprise Security (263), Splunk Add-on for AWS (1876) (Splunkbase)",
   "spl": "index=openbanking sourcetype=\"ob:api:access\" earliest=-24h\n| eval api_tag=\"min\"\n| eval is_prod=if(match(environment,\"(?i)prod\"),1,0)\n| eval scope_mismatch=if(isnotnull(consent_scope) AND isnotnull(accessed_scope) AND consent_scope!=accessed_scope,1,0)\n| stats count as calls, sum(eval(http_status>=400)) as err, sum(scope_mismatch) as sm, dc(tpp_id) as tpp by aspsp_id, api_tag, is_prod\n| eval uc_id=\"22.22.16\"\n| eval err_rate=round(100*err/calls,2)\n| where err_rate>2 OR sm>0 OR (api_tag=\"env\" AND is_prod=0 AND tpp>50)\n| sort - err_rate",
-  "description": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PSD2 open banking operational resilience.",
-  "value": "Monitors third-party provider access patterns, consent alignment, and API security controls required for PS.... Timely UC-22.22.16 alerting on 'Data Minimization Checks for TPP Response Payload Sizes' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors Payload Sizes anomalies for UC-22.22.16 with window `the scheduled window` on `index=openbanking` sourcetype `ob:api:access`. Combines `sm`, `tpp` by `aspsp_id`, `api_tag`, `is_prod` and compares against `http_status` >= 400, `err_rate` > 2, `sm` > 0, or `tpp` > 50. Mapped to keywords Data, Minimization, Checks, for, TPP for dashboard routing.",
+  "value": "Alerting on Data, Minimization, Checks, for, TPP through UC-22.22.16 reduces audit findings, regulatory gaps, and attestation delays by surfacing `sm`, `tpp` early.",
   "implementation": "(1) Normalize field extractions and CIM tags; (2) schedule hourly or near-real-time; (3) route alerts to SOC/compliance queues; (4) export evidence packs for supervisory review. Indexes required: `index=openbanking`; Sourcetypes: `sourcetype=ob:api:access`.",
   "visualization": "Time chart (err_rate), Bar chart (calls by tpp_id), Table (scope_mismatch samples)",
   "cimModels": [],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Service State Changes' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_service_state_changes` (UC-10.13.45), SOC dashboard panel \"Security Infra — Service State Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `host` satisfies detection threshold for UC-10.13.45 ('Service State Changes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.45."
+    "positiveScenario": "UC-10.13.45 positive (Service, State, Changes): ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `count` grouped by `host`, `service_name`, `user` satisfies detection threshold for 'Service State Changes'. Validate filter `action=stopped OR action=disabled`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.13.45 negative (State Changes): ingest benign `security` / `target_sourcetype` events where `host`, `service_name`, `user` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 6 confirms zero alert rows for 'Service State Changes'."
   },
   "dataSources": "`service_name`, `action` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Windows service control, EDR → Endpoint — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=endpoint service_name=\"*defender*\" OR service_name=\"*edr*\"\n| search action=stopped OR action=disabled\n| stats count by host, service_name, user",
-  "description": "Stopping security services (AV, EDR) or critical agents — `Endpoint.Services` state changes. Searches `index=security` with sourcetype `configured sourcetype` for UC-10.13.45, aggregating `count` by `host` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Service State Changes' without manual log review.",
-  "value": "Early 'Service State Changes' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects State Changes anomalies for UC-10.13.45 with window `the scheduled window` on `index=security` sourcetype `configured sourcetype`. Combines `count` by `host`, `service_name`, `user` and compares against configured threshold. Mapped to keywords Service, State, Changes for dashboard routing.",
+  "value": "Alerting on Service, State, Changes through UC-10.13.45 reduces missed threat campaigns, control regressions, and SOC SLA breaches by surfacing `activity` early.",
   "implementation": "Correlate with approved maintenance windows.",
   "visualization": "Timeline (stops), Table.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Service State Changes' shifts `count` over `span=1h` while `host` remains in-scope for UC-10.13.45. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `service_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `security` (UC-10.13.45)** — Planned work for 'Service State Changes' shifts `count` over `span=1h` while `host`, `service_name`, `user` remains in-scope. Applies filter `action=stopped OR action=disabled`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `configured_sourcetype`** — Scheduled automation elevates `service_name` without crossing configured threshold for UC-10.13.45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `service_name`, `user`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.13.45 on `host` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

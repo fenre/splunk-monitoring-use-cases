@@ -57,14 +57,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `userIdentity.arn` satisfies `count` > 5 for UC-4.1.1 ('Unauthorized API Calls'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `userIdentity.arn` stays below `count` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.1."
+    "positiveScenario": "UC-4.1.1 positive (Unauthorized, API, Calls): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `userIdentity.arn`, `eventName`, `sourceIPAddress`, `errorCode` satisfies `count` > 5 for 'Unauthorized API Calls'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.1 negative (API Calls): ingest benign `aws` / `aws:cloudtrail` events where `userIdentity.arn`, `eventName`, `sourceIPAddress`, `errorCode` stays below `count` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Unauthorized API Calls'."
   },
   "dataSources": "`sourcetype=aws:cloudtrail`, CloudTrail logs Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" errorCode=\"AccessDenied\" OR errorCode=\"UnauthorizedAccess\" OR errorCode=\"Client.UnauthorizedAccess\"\n| stats count by userIdentity.arn, eventName, sourceIPAddress, errorCode\n| where count > 5\n| sort -count",
-  "description": "AccessDenied errors reveal reconnaissance activity, compromised credentials with insufficient permissions, or misconfigurations. Early indicator of attack or drift.",
-  "value": "Early 'Unauthorized API Calls' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces 'Unauthorized API Calls' patterns (UC-4.1.1) sourced from `index=aws` sourcetype `aws:cloudtrail`. Threshold bundle: `count` > 5; aggregation grain: `userIdentity.arn`, `eventName`, `sourceIPAddress`, `errorCode`; metrics: `count`. Watch terms: Unauthorized, API, Calls.",
+  "value": "UC-4.1.1 gives Operations teams earlier visibility into API Calls through `aws:cloudtrail` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Configure CloudTrail to send logs to an S3 bucket. Set up the Splunk_TA_aws with an SQS-based S3 input for CloudTrail. Alert when a single principal gets >5 access denied errors in 10 minutes.",
   "visualization": "Table (principal, API call, source IP, count), Bar chart by principal, Map (source IP GeoIP).",
   "cimModels": [
@@ -94,7 +94,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Unauthorized API Calls' shifts `count` over `span=1h` while `userIdentity.arn` remains in-scope for UC-4.1.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `eventName` without crossing `count` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `userIdentity.arn`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `userIdentity.arn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `userIdentity.arn`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.1)** — Planned work for 'Unauthorized API Calls' shifts `count` over `span=1h` while `userIdentity.arn`, `eventName`, `sourceIPAddress`, `errorCode` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `eventName` without crossing `count` > 5 for UC-4.1.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `userIdentity.arn`, `eventName`, `sourceIPAddress`, `errorCode`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.1.1 on `userIdentity.arn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `userIdentity.arn`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004",
     "T1526"

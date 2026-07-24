@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='ad:user' where `account` satisfies `days_since` > 90 for UC-22.15.13 ('Stale or Shared OT Service Accounts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `ad:user` events where `account` stays below `days_since` > 90, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.15.13."
+    "positiveScenario": "UC-22.15.13 positive (Stale, Shared, Service, Accounts): ingest synthetic events into `index=windows` sourcetype='ad:user' where `count` grouped by `account` satisfies `days_since` > 90 for 'Stale or Shared OT Service Accounts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.15.13 negative (Service Accounts): ingest benign `windows` / `ad:user` events where `account` stays below `days_since` > 90, or exclude the test entity via `compliance_exception_register.csv`. Variant 4 confirms zero alert rows for 'Stale or Shared OT Service Accounts'."
   },
   "dataSources": "`WinEventLog:Security` password changes 4723/4724; AD snapshot via scripted input",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=windows EventCode IN (\"4723\",\"4724\") earliest=-180d\n| eval account=Target_User_Name\n| where match(account,\"(?i)scada|plc|hmi|svc_ot|batch\")\n| stats latest(_time) as last_pw_change by account\n| eval days_since=round((now()-last_pw_change)/86400,0)\n| where days_since>90 OR isnull(last_pw_change)\n| join type=left account [ search index=ad_snapshot sourcetype=\"ad:user\" | fields account, memberOf | eval grp_count=mvcount(memberOf) ]\n| table account, days_since, grp_count",
-  "description": "Surfaces OT accounts with weak rotation, excessive group breadth, or shared naming patterns inconsistent with IACS account management practice.",
-  "value": "Surfaces OT accounts with weak rotation, excessive group breadth, or shared naming patterns inconsistent wi.... Timely UC-22.15.13 alerting on 'Stale or Shared OT Service Accounts' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on risk tied to Stale, Shared, Service, Accounts through UC-22.15.13 on `index=windows` sourcetype `ad:user`. Summarises `count` grouped by `account` across `the scheduled window` before applying `days_since` > 90. Operators tune 'Stale or Shared OT Service Accounts' using UC-22.15.13 runbook steps.",
+  "value": "Tracking `activity` via UC-22.15.13 on `ad:user` feeds improves response to 'Stale or Shared OT Service Accounts' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Ingest periodic LDAP snapshots to CSV; (2) define password rotation SLAs by tier; (3) eliminate shared accounts; (4) track exceptions with expiry dates. Indexes required: `index=ad_snapshot`, `index=windows`; Sourcetypes: `sourcetype=ad:user`.",
   "visualization": "Table, Bar (aging buckets), Single value (stale count). Key fields: `account`, `days_since`, `grp_count`, `last_pw_change`.",
   "cimModels": [],

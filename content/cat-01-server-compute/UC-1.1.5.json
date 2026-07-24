@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'System Load Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_system_load_anomalies` (UC-1.1.5), SOC dashboard panel \"Linux — System Load Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='vmstat' where `host` satisfies `load_ratio` > 1.5 for UC-1.1.5 ('System Load Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `vmstat` events where `host` stays below `load_ratio` > 1.5, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.5."
+    "positiveScenario": "UC-1.1.5 positive (System, Load, Anomalies): ingest synthetic events into `index=os` sourcetype='vmstat' where `count` grouped by `host` satisfies `load_ratio` > 1.5 for 'System Load Anomalies'. Validate lookup `server_inventory`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.5 negative (Load Anomalies): ingest benign `os` / `vmstat` events where `host` stays below `load_ratio` > 1.5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'System Load Anomalies'."
   },
   "dataSources": "`sourcetype=vmstat` (includes `loadAvg1mi`) or custom `uptime` scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=vmstat host=*\n| stats latest(loadAvg1mi) as load1 by host\n| lookup server_inventory host OUTPUT cpu_count\n| eval load_ratio = round(load1 / cpu_count, 2)\n| where load_ratio > 1.5\n| sort -load_ratio\n| table host load1 cpu_count load_ratio",
-  "description": "Load average exceeding CPU core count indicates process queuing. Useful as an early warning for runaway processes or unexpected workloads.",
-  "value": "Early 'System Load Anomalies' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'System Load Anomalies' patterns (UC-1.1.5) sourced from `index=os` sourcetype `vmstat`. Threshold bundle: `load_ratio` > 1.5; aggregation grain: `host`; metrics: `count`. Enrichment path: lookup `server_inventory`.",
+  "value": "UC-1.1.5 gives Linux teams earlier visibility into Load Anomalies through `vmstat` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "The `vmstat` sourcetype provides `loadAvg1mi` (1-minute load average). For CPU core count, use either the `hardware` sourcetype (`CPU_COUNT` field) or a server inventory lookup. Alternatively, create a custom `uptime` scripted input parsing all three load averages. Alert when load ratio exceeds 1.5 for 15+ minutes.",
   "visualization": "Line chart (load1/5/15 over time), Table of high-load hosts with core count context.",
   "cimModels": [

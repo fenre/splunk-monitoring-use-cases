@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Ticket Aging by Priority' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ticket_aging_by_priority` (UC-16.1.16), SOC dashboard panel \"Operations — Ticket Aging by Priority\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `pri` satisfies `age_days` <= 1 for UC-16.1.16 ('Ticket Aging by Priority'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `pri` stays below `age_days` <= 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.16."
+    "positiveScenario": "UC-16.1.16 positive (Ticket, Aging, Priority): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `count` grouped by `pri`, `bucket` satisfies `age_days` <= 1, `age_days` <= 7, or `age_days` <= 30 for 'Ticket Aging by Priority'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.16 negative (by Priority): ingest benign `itsm` / `snow:incident` events where `pri`, `bucket` stays below `age_days` <= 1, `age_days` <= 7, or `age_days` <= 30, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Ticket Aging by Priority'."
   },
   "dataSources": "Open incidents (`sourcetype=snow:incident`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" state IN (\"new\",\"in_progress\",\"on_hold\")\n| eval age_days=round((now()-opened_at)/86400,1)\n| eval bucket=case(age_days<=1,\"0-1d\", age_days<=7,\"2-7d\", age_days<=30,\"8-30d\", true(),\"30d+\")\n| eval pri=case(priority=1,\"P1\", priority=2,\"P2\", priority=3,\"P3\", priority=4,\"P4\", true(),\"Other\")\n| stats count by pri, bucket\n| sort pri, bucket",
-  "description": "Distribution of open ticket age by priority highlights backlog imbalance (e.g., many old P3s) and supports capacity and escalation decisions.",
-  "value": "Early 'Ticket Aging by Priority' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-16.1.16 — Ticket, Aging, Priority — using `index=itsm` sourcetype `snow:incident`, grouped by `pri`, `bucket`. Outputs `count` each `the scheduled window`; alert when `age_days` <= 1, `age_days` <= 7, or `age_days` <= 30. Primary focus: by Priority. Purpose-built for 'Ticket Aging by Priority' in Operations workflows.",
+  "value": "Alerting on Ticket, Aging, Priority through UC-16.1.16 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Normalize priority labels. Bucket age for open tickets only. Report stacked bar or pivot table (priority × age bucket). Alert when count in `30d+` for P1/P2 exceeds policy.",
   "visualization": "Stacked bar (age buckets by priority), Heatmap (priority × bucket), Table (raw counts).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Ticket Aging by Priority' shifts `count` over `span=1h` while `pri` remains in-scope for UC-16.1.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `bucket` without crossing `age_days` <= 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pri`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `pri` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pri`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.16)** — Planned work for 'Ticket Aging by Priority' shifts `count` over `span=1h` while `pri`, `bucket` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `bucket` without crossing `age_days` <= 1 for UC-16.1.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `pri`, `bucket`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.16 on `pri` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `pri`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

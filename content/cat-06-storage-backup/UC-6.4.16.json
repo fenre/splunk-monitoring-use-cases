@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Ransomware File Extension Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ransomware_file_extension_detection` (UC-6.4.16), SOC dashboard panel \"Operations — Ransomware File Extension Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4663 where `Account_Name` satisfies `files` > 20 for UC-6.4.16 ('Ransomware File Extension Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `files` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.16."
+    "positiveScenario": "UC-6.4.16 positive (Ransomware, File, Extension, Detection): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4663 where `files` grouped by `Account_Name`, `host` satisfies `files` > 20 for 'Ransomware File Extension Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.16 negative (Extension Detection): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `host` stays below `files` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Ransomware File Extension Detection'."
   },
   "dataSources": "File create/rename events 4663 with ObjectName ending in suspicious extensions Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows`, EDR feeds — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4663\n| rex field=ObjectName \"(?i)\\.(locked|encrypted|crypt|ryuk|lockbit)(\\\"|$)\"\n| stats dc(ObjectName) as files count by Account_Name, host\n| where files > 20",
-  "description": "Detects mass renames or creates with known ransomware extensions (e.g., `.locked`, `.encrypted`) faster than generic mass-modify heuristics in some campaigns.",
-  "value": "Early 'Ransomware File Extension Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-6.4.16 — Ransomware, File, Extension, Detection — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `Account_Name`, `host`. Outputs `files` each `the scheduled window`; alert when `files` > 20. Primary focus: Extension Detection. Purpose-built for 'Ransomware File Extension Detection' in Operations workflows.",
+  "value": "Alerting on Ransomware, File, Extension, Detection through UC-6.4.16 reduces operational risk and delayed incident response by surfacing `files` early.",
   "implementation": "Maintain lookup of ransomware extensions from threat intel. Combine with mass-delete and entropy signals. Integrate SOAR for host isolation.",
   "visualization": "Table (user, host, files affected), Timeline (detection), Single value (distinct suspicious files).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'Ransomware File Extension Detection' shifts `dc` over `span=1h` while `Account_Name` remains in-scope for UC-6.4.16. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `WinEventLog:Security` (EventCode=4663)** — Scheduled automation elevates `host` without crossing `files` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-6.4.16)** — Planned work for 'Ransomware File Extension Detection' shifts `files` over `span=1h` while `Account_Name`, `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `WinEventLog:Security` (EventCode=4663)** — Scheduled automation elevates `host` without crossing `files` > 20 for UC-6.4.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`, `host`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-6.4.16 on `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

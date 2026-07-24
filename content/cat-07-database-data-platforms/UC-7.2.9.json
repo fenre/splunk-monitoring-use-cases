@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Memory Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memory_utilization` (UC-7.2.9), SOC dashboard panel \"Operations — Memory Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='redis:info' where `host` satisfies `memory_pct` > 85 for UC-7.2.9 ('Memory Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `redis:info` events where `host` stays below `memory_pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.9."
+    "positiveScenario": "UC-7.2.9 positive (Memory, Utilization): ingest synthetic events into `index=database` sourcetype='redis:info' where `memory_pct`, `evictions` grouped by `host` satisfies `memory_pct` > 85 for 'Memory Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.9 negative (Memory Utilization): ingest benign `database` / `redis:info` events where `host` stays below `memory_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Memory Utilization'."
   },
   "dataSources": "Redis `INFO memory`, MongoDB WiredTiger cache stats, Cassandra JMX heap metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input, JMX — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"redis:info\"\n| eval mem_pct=round(used_memory/maxmemory*100,1)\n| timechart span=5m max(mem_pct) as memory_pct, sum(evicted_keys) as evictions by host\n| where memory_pct > 85",
-  "description": "NoSQL databases are memory-intensive. Evictions indicate undersized cache, causing disk reads and performance degradation.",
-  "value": "Early 'Memory Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces when Memory Utilization criteria fire for 'Memory Utilization' (UC-7.2.9) in `index=database` sourcetype `redis:info`. Pipeline aggregates `memory_pct`, `evictions` by `host` over `5m`. Alert logic enforces `memory_pct` > 85. Title terms: Memory, Utilization. Eliminates manual hunting for UC-7.2.9 conditions.",
+  "value": "UC-7.2.9 helps teams contain Memory, Utilization scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll memory metrics every 5 minutes. Track used vs max memory, eviction rate, and cache hit ratio. Alert when memory exceeds 85% or eviction rate spikes. Recommend sizing adjustments based on trends.",
   "visualization": "Gauge (memory % per node), Line chart (memory + evictions), Table (nodes with high utilization).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Memory Utilization' shifts `max` over `span=5m` while `host` remains in-scope for UC-7.2.9. Cross-check CMDB CHG.\n\n2. **Batch `max` on `redis:info`** — Scheduled automation elevates `mem_pct` without crossing `memory_pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.9)** — Planned work for 'Memory Utilization' shifts `memory_pct`, `evictions` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `redis:info`** — Scheduled automation elevates `mem_pct` without crossing `memory_pct` > 85 for UC-7.2.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.2.9 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cassandra",
     "mongodb",

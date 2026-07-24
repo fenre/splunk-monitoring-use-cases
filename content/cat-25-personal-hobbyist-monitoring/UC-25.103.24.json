@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Swim Meet Result Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_swim_meet_result_sync_gap_watch` (UC-25.103.24), SOC dashboard panel \"Personal — Swim Meet Result Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='swim:meet' where `event_name` satisfies `hours_since` > 168 for UC-25.103.24 ('Swim Meet Result Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `swim:meet` events where `event_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.103.24."
+    "positiveScenario": "UC-25.103.24 positive (Swim, Meet, Result, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='swim:meet' where `last_seen` grouped by `event_name` satisfies `hours_since` > 168 for 'Swim Meet Result Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.103.24 negative (Gap Watch): ingest benign `personal` / `swim:meet` events where `event_name` stays below `hours_since` > 168, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Swim Meet Result Sync Gap Watch'."
   },
   "dataSources": "Swim.com workouts (`swimcom:workout`), MySwimPro sessions (`myswimpro:session`), pool lap logs (`pool:lap`), and swim meet results (`swim:meet`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Swim.com workout exports, MySwimPro session logs, pool lap counters, swim meet results, and interval pace trackers forwarded to Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=swim:meet\n| stats max(_time) as last_seen by event_name\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>168\n| sort - hours_since",
-  "description": "Detects when swim meet result data has stopped arriving for a given event. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when swim meet result data has stopped arriving for a given event. Timely UC-25.103.24 alerting on 'Swim Meet Result Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.103.24 for Swim, Meet, Result, Sync, Gap over `index=personal` sourcetype `swim:meet` with thresholds `hours_since` > 168. Groups `last_seen` by `event_name` each `the scheduled window`. Centered on Gap Watch indicators. Supports repeatable personal triage for 'Swim Meet Result Sync Gap Watch'.",
+  "value": "For 'Swim Meet Result Sync Gap Watch', UC-25.103.24 converts `last_seen` on `swim:meet` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Track the latest event time per event and alert when the feed is older than 168 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Swim Meet Result Sync Gap Watch' stops polling `swim:meet`; stale `event_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `swim:meet`. Dedup with `stats latest(*) by event_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.103.24)** — Connector for 'Swim Meet Result Sync Gap Watch' stops polling `swim:meet`; stale `last_seen` on `event_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.103.24, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `swim:meet`. Dedup with `stats latest(*) by event_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 168 for 'Swim Meet Result Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

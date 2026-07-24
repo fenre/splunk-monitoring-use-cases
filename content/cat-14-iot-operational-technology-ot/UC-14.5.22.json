@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'HiveMQ License Utilization Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hivemq_license_utilization_trending` (UC-14.5.22), SOC dashboard panel \"Operations — HiveMQ License Utilization Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='hivemq:metrics' where `host` satisfies `utilization_pct` > 85 for UC-14.5.22 ('HiveMQ License Utilization Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `hivemq:metrics` events where `host` stays below `utilization_pct` > 85, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.5.22."
+    "positiveScenario": "UC-14.5.22 positive (HiveMQ, License, Utilization, Trending): ingest synthetic events into `index=ot` sourcetype='hivemq:metrics' where `connections` grouped by `host`, `_time` satisfies `utilization_pct` > 85 for 'HiveMQ License Utilization Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.5.22 negative (Utilization Trending): ingest benign `ot` / `hivemq:metrics` events where `host`, `_time` stays below `utilization_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'HiveMQ License Utilization Trending'."
   },
   "dataSources": "`index=ot` `sourcetype=\"hivemq:metrics\"` connection count gauges Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "HiveMQ Splunk Extension (metrics), HiveMQ license reporting — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"hivemq:metrics\"\n| eval m=lower(coalesce(metric_name, metric, name))\n| eval v=coalesce(value, metric_value, _value)\n| where match(m, \"connection\") AND match(m,\"current|active|open|established\")\n| bin _time span=5m\n| stats max(v) as connections by host, _time\n| eval license_limit=10000\n| eval utilization_pct=round(100*connections/license_limit,2)\n| where utilization_pct>85",
-  "description": "Connection growth toward license limits causes hard rejections during peaks; trending utilization supports procurement decisions before production brownouts.",
-  "value": "Early 'HiveMQ License Utilization Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-14.5.22 for HiveMQ, License, Utilization, Trending over `index=ot` sourcetype `hivemq:metrics` with thresholds `utilization_pct` > 85. Groups `connections` by `host`, `_time` each `5m`. Centered on Utilization Trending indicators. Supports repeatable operations triage for 'HiveMQ License Utilization Trending'.",
+  "value": "For 'HiveMQ License Utilization Trending', UC-14.5.22 converts `connections` on `hivemq:metrics` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Replace the static `license_limit` with a lookup or environment-specific value. Alert at 85%/95% thresholds with different severities.",
   "visualization": "Line chart (connections vs limit), Area chart (utilization %), Gauge (current utilization), Table (hosts approaching limit).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'HiveMQ License Utilization Trending' shifts `max` over `span=5m` while `host` remains in-scope for UC-14.5.22. Cross-check CMDB CHG.\n\n2. **Batch `max` on `hivemq:metrics`** — Scheduled automation elevates `_time` without crossing `utilization_pct` > 85. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hivemq:metrics`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.5.22)** — Planned work for 'HiveMQ License Utilization Trending' shifts `connections` over `span=5m` while `host`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `hivemq:metrics`** — Scheduled automation elevates `_time` without crossing `utilization_pct` > 85 for UC-14.5.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `hivemq:metrics`** — First 48h baseline for UC-14.5.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "mqtt"
   ],

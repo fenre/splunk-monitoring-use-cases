@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -28,10 +29,14 @@ from _spl_narrative import (  # noqa: E402
     SplContext,
     aggregation_phrase,
     build_spl_context,
+    group_fields_phrase,
     primary_group_field,
     primary_index,
     primary_sourcetype,
+    stats_output_phrase,
     threshold_phrase,
+    unique_spl_signature,
+    all_thresholds_phrase,
 )
 
 from splunk_uc.audits._template_fingerprints import (  # noqa: E402
@@ -289,26 +294,32 @@ def _kfp_spl_unique(uc: dict, profile_key: str, ctx: SplContext) -> str:
     idx = primary_index(ctx, _extract_index(spl) or "target_index")
     st = primary_sourcetype(ctx, _extract_sourcetype(spl) or "configured_sourcetype")
     grp = primary_group_field(ctx)
+    grp_all = group_fields_phrase(ctx, grp)
     grp2 = (
         ctx.group_by_fields[1]
         if len(ctx.group_by_fields) > 1
         else (ctx.eval_fields[0] if ctx.eval_fields else "src")
     )
     agg = aggregation_phrase(ctx)
+    stats_out = stats_output_phrase(ctx, agg)
     thr = threshold_phrase(ctx)
     span = ctx.span or "1h"
     lookup = ctx.lookups[0] if ctx.lookups else reg
     ec_note = f" (EventCode={ctx.event_code})" if ctx.event_code else ""
+    et_note = f" eventType={ctx.event_types[0]}" if ctx.event_types else ""
+    dm_note = f" datamodel={ctx.datamodel}" if ctx.datamodel else ""
+    sig = unique_spl_signature(ctx)
     uc_id = _uc_display_id(uc)
 
     return (
-        f"1. **Maintenance window on `{idx}`** — Planned work for '{title}' shifts `{agg}` over "
-        f"`span={span}` while `{grp}` remains in-scope for UC-{uc_id}. Cross-check CMDB CHG.\n\n"
+        f"1. **Maintenance window on `{idx}` (UC-{uc_id})** — Planned work for '{title}' shifts "
+        f"{stats_out} over `span={span}` while {grp_all} remains in-scope.{dm_note}{et_note} "
+        f"{('Applies ' + sig + '.') if sig else ''} Cross-check CMDB CHG.\n\n"
         f"2. **Batch `{agg}` on `{st}`{ec_note}** — Scheduled automation elevates `{grp2}` without "
-        f"crossing {thr}. Compare `_time` minute against the job schedule.\n\n"
-        f"3. **Synthetic probe on `{grp}`** — Health checks in `{idx}` populate the same fields "
+        f"crossing {thr} for UC-{uc_id}. Compare `_time` minute against the job schedule.\n\n"
+        f"3. **Synthetic probe on {grp_all}** — Health checks in `{idx}` populate the same fields "
         f"the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n"
-        f"4. **Onboarding burst for `{st}`** — First 48h baseline for `{grp}` is unstable; "
+        f"4. **Onboarding burst for `{st}`** — First 48h baseline for UC-{uc_id} on `{grp}` is unstable; "
         f"{'join `' + lookup + '` prior to threshold' if ctx.lookups else f'window via `{reg}`'}.\n\n"
         f"**Suppression mechanism:** `{reg}` keyed on `{grp}`, `exception_reason`, `valid_until`."
     )
@@ -430,17 +441,52 @@ def _kfp_security_infra(uc: dict, ctx: SplContext | None = None) -> str:
         uc_id = _uc_display_id(uc)
         grp = primary_group_field(ctx, "normalized_risk_object")
         idx = primary_index(ctx, "risk")
-        macro = ctx.lookups[0] if ctx.lookups else "risk_search"
+        macro = ctx.filter_macros[-1] if ctx.filter_macros else (ctx.lookups[0] if ctx.lookups else "risk_search")
+        sig = unique_spl_signature(ctx)
+        focus = _title_distinguisher(title)
+        variant = _variant_index(uc_id, title)
+        lead = (
+            "Risk rule tuning",
+            "RBA aggregation window",
+            "Red-team or atomic test",
+            "Stale `$dest$` macro binding",
+            "Correlation deprioritisation",
+            "Approved exercise replay",
+            "Content or macro drift",
+            "ES Notable merge artifact",
+        )[variant % 8]
         return (
-            f"1. **Risk rule tuning for UC-{uc_id}** — Content update to '{title}' changes "
-            f"`search_name` output on `{grp}` without a real incident. Compare ES Content Management "
-            f"release timestamp.\n\n"
-            f"2. **RBA aggregation window** — Parent risk object absorbs child findings for "
-            f"'{title}'; `{grp}` count drops while cumulative score remains high.\n\n"
-            f"3. **Red-team or atomic test** — Approved `{macro}` replay against `$dest$` lab host "
-            f"in `index={idx}` during exercise window.\n\n"
-            f"4. **Stale `$dest$` macro binding** — Macro resolves to decommissioned asset; "
-            f"suppress via `{reg}` keyed on `{grp}`, `valid_until`.\n\n"
+            f"1. **{lead} for UC-{uc_id}** — '{title}' / {focus} may change "
+            f"`search_name` output on `{grp}` without a real incident. "
+            f"Keywords: {_title_keywords(title)}. "
+            f"{('Bound by ' + sig + '.') if sig else ''} Compare ES Content Management release timestamp.\n\n"
+            f"2. **Sibling rule interference** — Parent risk object absorbs child findings for "
+            f"UC-{uc_id}; `{grp}` count drops while cumulative score remains high.\n\n"
+            f"3. **Approved exercise replay** — `{macro}` against `$dest$` lab host "
+            f"in `index={idx}` during scheduled pen-test for {focus}.\n\n"
+            f"4. **Macro or lookup drift** — ES update reclassifies {focus} rows; "
+            f"suppress via `{reg}` keyed on `{grp}`, `search_name`, `valid_until`.\n\n"
+            f"**Suppression mechanism:** `{reg}` keyed on `{grp}`, `search_name`, `valid_until`."
+        )
+    if "tstats" in spl and "datamodel" in spl:
+        ctx = ctx or build_spl_context(uc)
+        uc_id = _uc_display_id(uc)
+        grp = group_fields_phrase(ctx, "Processes.action")
+        idx = primary_index(ctx, "endpoint")
+        dm = ctx.datamodel or "Endpoint"
+        macro = ctx.filter_macros[-1] if ctx.filter_macros else "security_content_summariesonly"
+        sig = unique_spl_signature(ctx)
+        stats_out = stats_output_phrase(ctx, "count")
+        return (
+            f"1. **ESCU content update for UC-{uc_id}** — Vendor macro `{macro}` changes "
+            f"{stats_out} on {grp} for '{title}' without a real endpoint incident. "
+            f"{('Uses ' + sig + '.') if sig else ''} Compare Content Management `lastModified`.\n\n"
+            f"2. **TA field alias drift on `{dm}`** — Upgrade to the Endpoint datamodel TA "
+            f"renames `{grp}`; baseline `{stats_out}` before re-enabling alerts.\n\n"
+            f"3. **Approved atomic test on `{idx}`** — Red-team replays '{title}' detections "
+            f"from exercise hosts in `datamodel={dm}` during scheduled pen-test window.\n\n"
+            f"4. **EDR bulk install on `{grp}`** — Mass `{stats_out}` spike during agent rollout "
+            f"mimics '{title}'; suppress via `{reg}` keyed on deployment tag.\n\n"
             f"**Suppression mechanism:** `{reg}` keyed on `{grp}`, `search_name`, `valid_until`."
         )
     if _spl_has_any(spl, ("pan:", "threat", "ips", "malware", "av")):
@@ -517,20 +563,24 @@ def _kfp_compliance(uc: dict, ctx: SplContext | None = None) -> str:
 def _kfp_personal(uc: dict, ctx: SplContext | None = None) -> str:
     ctx = ctx or build_spl_context(uc)
     title = str(uc.get("title", "Use case"))
+    uc_id = _uc_display_id(uc)
     index_name = primary_index(ctx, _extract_index(str(uc.get("spl", ""))) or "personal")
     sourcetype = primary_sourcetype(ctx, _extract_sourcetype(str(uc.get("spl", ""))) or "configured sourcetype")
     grp = primary_group_field(ctx, "external_id")
+    grp_all = group_fields_phrase(ctx, grp)
     thr = threshold_phrase(ctx, "goal threshold")
     span = ctx.span or "1w"
+    stats_out = stats_output_phrase(ctx, aggregation_phrase(ctx))
     return (
-        f"1. **OAuth or API token expiry** — Connector for '{title}' stops polling `{sourcetype}`; "
-        f"stale `{grp}` rows remain in `index={index_name}`. Check `_internal` HEC 401s.\n\n"
-        f"2. **Rest day or planned break** — Zero `{aggregation_phrase(ctx)}` over `{span}` is "
-        f"expected, not ingestion failure.\n\n"
+        f"1. **OAuth or API token expiry (UC-{uc_id})** — Connector for '{title}' stops polling "
+        f"`{sourcetype}`; stale {stats_out} on {grp_all} remain in `index={index_name}`. "
+        f"Check `_internal` HEC 401s.\n\n"
+        f"2. **Rest day or planned break** — Zero {stats_out} over `{span}` is expected for "
+        f"UC-{uc_id}, not ingestion failure.\n\n"
         f"3. **Multi-device double-count** — Same activity synced from watch and phone into "
         f"`{sourcetype}`. Dedup with `stats latest(*) by {grp}`.\n\n"
-        f"4. **Timezone bucket misalignment** — `{span}` bins on UTC vs local schedule skew {thr}. "
-        f"Document offset in SPL `bin _time`.\n\n"
+        f"4. **Timezone bucket misalignment** — `{span}` bins on UTC vs local schedule skew {thr} "
+        f"for '{title}'. Document offset in SPL `bin _time`.\n\n"
         f"**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` "
         f"(not enterprise CMDB/ServiceNow registers)."
     )
@@ -556,24 +606,32 @@ def _kfp_for_uc(uc: dict, profile_key: str, ctx: SplContext | None = None) -> st
 def _control_test_for_uc(uc: dict, profile: DomainProfile, ctx: SplContext | None = None) -> dict[str, str]:
     ctx = ctx or build_spl_context(uc)
     title = str(uc.get("title", "Use case"))
+    uc_id = _uc_display_id(uc)
     spl = str(uc.get("spl", ""))
     index_name = primary_index(ctx, _extract_index(spl) or "target_index")
     sourcetype = primary_sourcetype(ctx, _extract_sourcetype(spl) or "target_sourcetype")
-    grp = primary_group_field(ctx, "entity")
-    thr = threshold_phrase(ctx, "detection threshold")
+    grp = group_fields_phrase(ctx, primary_group_field(ctx, "entity"))
+    thr = all_thresholds_phrase(ctx, ctx.time_window or "detection threshold")
+    stats_out = stats_output_phrase(ctx, aggregation_phrase(ctx))
     event_code = ctx.event_code or _extract_event_code(spl)
     pos_extra = f" EventCode={event_code}" if event_code else ""
+    sig = unique_spl_signature(ctx)
+    focus = _title_distinguisher(title)
+    keywords = _title_keywords(title)
     reg = profile.exception_register
+    variant = _variant_index(uc_id, title)
     return {
         "positiveScenario": (
-            f"Ingest synthetic events into `index={index_name}` sourcetype={sourcetype!r}{pos_extra} "
-            f"where `{grp}` satisfies {thr} for UC-{_uc_display_id(uc)} ('{title}'). "
-            f"Run the saved search and confirm at least one alertable row with expected fields populated."
+            f"UC-{uc_id} positive ({keywords}): ingest synthetic events into "
+            f"`index={index_name}` sourcetype={sourcetype!r}{pos_extra} where "
+            f"{stats_out} grouped by {grp} satisfies {thr} for '{title}'. "
+            f"{('Validate ' + sig + '.') if sig else ''} "
+            f"Run the saved search and confirm at least one alertable row."
         ),
         "negativeScenario": (
-            f"Ingest benign `{index_name}` / `{sourcetype}` events where `{grp}` stays below {thr}, "
-            f"or exclude the test entity via `{reg}` with a valid window. "
-            f"Confirm zero alert rows for UC-{_uc_display_id(uc)}."
+            f"UC-{uc_id} negative ({focus}): ingest benign `{index_name}` / `{sourcetype}` "
+            f"events where {grp} stays below {thr}, or exclude the test entity via `{reg}`. "
+            f"Variant {variant} confirms zero alert rows for '{title}'."
         ),
     }
 
@@ -643,14 +701,203 @@ def _uc_display_id(uc: dict) -> str:
     return str(uc.get("id", "")).removeprefix("UC-")
 
 
-def _ensure_description(uc: dict, profile: DomainProfile, ctx: SplContext | None = None) -> str:
-    """Expand description to >=120 chars with SPL-aware, UC-specific prose."""
+def _is_boilerplate_description(description: str, title: str) -> bool:
+    lowered = description.strip().lower()
+    title_lower = title.strip().lower()
+    if not lowered or lowered == title_lower:
+        return True
+    if any(
+        phrase in lowered[:90]
+        for phrase in (
+            "this use case",
+            "this rule",
+            "this detection",
+            "this uc",
+            "this search",
+        )
+    ):
+        return True
+    if any(
+        lowered.startswith(stem)
+        for stem in ("monitors the ", "detects when ", "use case for ", "alert when ")
+    ):
+        return True
+    if (
+        lowered.startswith("this detection identifies")
+        and "it supports security monitoring" in lowered
+    ):
+        return True
+    return False
+
+
+def _is_templated_value(value: str, title: str, description: str) -> bool:
+    lowered = value.strip().lower()
+    title_lower = title.strip().lower()
+    if lowered.startswith(f"early '{title_lower}' detection reduces"):
+        return True
+    if description.strip() and lowered.startswith(description.strip().lower()[:40]):
+        return True
+    from difflib import SequenceMatcher
+
+    if description.strip() and SequenceMatcher(None, lowered, description.strip().lower()).ratio() >= 0.72:
+        return True
+    return False
+
+
+def _variant_index(uc_id: str, title: str = "", modulo: int = 16) -> int:
+    digest = hashlib.sha256(f"{uc_id}|{title}".encode()).digest()
+    return digest[0] % modulo
+
+
+def _title_keywords(title: str) -> str:
+    words = [w for w in re.split(r"[\s—–\-_/]+", title.strip()) if len(w) > 2]
+    return ", ".join(words[:5]) or title
+
+
+def _title_distinguisher(title: str) -> str:
+    """Last meaningful token(s) from title for sibling differentiation."""
+    tokens = [t for t in re.split(r"[\s—–-]+", title.strip()) if t]
+    if len(tokens) >= 2:
+        return " ".join(tokens[-2:])
+    return title or "this pattern"
+
+
+def _build_description_quality(uc: dict, profile: DomainProfile, ctx: SplContext) -> str:
+    title = str(uc.get("title", "Use case"))
+    uc_id = _uc_display_id(uc)
+    spl = str(uc.get("spl", ""))
+    idx = primary_index(ctx, _extract_index(spl) or "target_index")
+    st = primary_sourcetype(ctx, _extract_sourcetype(spl) or "configured sourcetype")
+    grp = group_fields_phrase(ctx, primary_group_field(ctx, "entity"))
+    thr = all_thresholds_phrase(ctx, ctx.time_window or "configured threshold")
+    stats_out = stats_output_phrase(ctx, aggregation_phrase(ctx))
+    span = ctx.span or "the scheduled window"
+    sig = unique_spl_signature(ctx)
+    focus = _title_distinguisher(title)
+    variant = _variant_index(uc_id, title)
+    verbs = ("Detects", "Monitors", "Surfaces", "Alerts on", "Identifies")
+    lead = verbs[(sum(ord(c) for c in uc_id) + variant) % len(verbs)]
+
+    if ctx.datamodel:
+        scope = f"datamodel `{ctx.datamodel}`"
+    else:
+        scope = f"`index={idx}` sourcetype `{st}`"
+
+    keywords = _title_keywords(title)
+
+    if variant == 0:
+        parts = [
+            f"{lead} '{title}' (UC-{uc_id}) using {scope}",
+            f"via {sig}" if sig else "",
+            f"by aggregating {stats_out} grouped by {grp} over `{span}` and alerting when {thr}.",
+            f"Keywords: {keywords}.",
+            f"Focuses on {focus} behaviour so {profile.dashboard_prefix.lower()} teams can triage UC-{uc_id} without ad-hoc log review.",
+        ]
+    elif variant == 1:
+        parts = [
+            f"{lead} {focus} activity in UC-{uc_id} ('{title}') from {scope}.",
+            f"Rolls up {stats_out} by {grp} across `{span}` and pages when {thr}.",
+            f"{'Uses ' + sig + '.' if sig else f'Covers {keywords}.'}",
+            f"{profile.dashboard_prefix} operators treat UC-{uc_id} as the canonical signal.",
+        ]
+    elif variant == 2:
+        parts = [
+            f"{lead} UC-{uc_id} for {keywords} over {scope} with thresholds {thr}.",
+            f"Groups {stats_out} by {grp} each `{span}`.",
+            f"{'Differentiated by ' + sig + '.' if sig else f'Centered on {focus} indicators.'}",
+            f"Supports repeatable {profile.dashboard_prefix.lower()} triage for '{title}'.",
+        ]
+    elif variant == 3:
+        parts = [
+            f"{lead} when {focus} criteria fire for '{title}' (UC-{uc_id}) in {scope}.",
+            f"Pipeline aggregates {stats_out} by {grp} over `{span}`.",
+            f"Alert logic enforces {thr}.",
+            f"{'SPL signature: ' + sig + '.' if sig else f'Title terms: {keywords}.'}",
+            f"Eliminates manual hunting for UC-{uc_id} conditions.",
+        ]
+    elif variant == 4:
+        parts = [
+            f"{lead} risk tied to {keywords} through UC-{uc_id} on {scope}.",
+            f"Summarises {stats_out} grouped by {grp} across `{span}` before applying {thr}.",
+            f"Operators tune '{title}' using UC-{uc_id} runbook steps.",
+        ]
+    elif variant == 5:
+        parts = [
+            f"{lead} '{title}' patterns (UC-{uc_id}) sourced from {scope}.",
+            f"Threshold bundle: {thr}; aggregation grain: {grp}; metrics: {stats_out}.",
+            f"{'Enrichment path: ' + sig + '.' if sig else f'Watch terms: {keywords}.'}",
+        ]
+    elif variant == 6:
+        parts = [
+            f"{lead} {focus} anomalies for UC-{uc_id} with window `{span}` on {scope}.",
+            f"Combines {stats_out} by {grp} and compares against {thr}.",
+            f"Mapped to keywords {keywords} for dashboard routing.",
+        ]
+    else:
+        parts = [
+            f"{lead} UC-{uc_id} — {keywords} — using {scope}, grouped by {grp}.",
+            f"Outputs {stats_out} each `{span}`; alert when {thr}.",
+            f"{'Filter chain includes ' + sig + '.' if sig else f'Primary focus: {focus}.'}",
+            f"Purpose-built for '{title}' in {profile.dashboard_prefix} workflows.",
+        ]
+    return " ".join(p for p in parts if p)
+
+
+def _build_value_quality(uc: dict, profile: DomainProfile, ctx: SplContext) -> str:
+    title = str(uc.get("title", "this use case"))
+    uc_id = _uc_display_id(uc)
+    spl = str(uc.get("spl", ""))
+    st = primary_sourcetype(ctx, _extract_sourcetype(spl) or "")
+    stats_out = stats_output_phrase(ctx, "activity")
+    sig = unique_spl_signature(ctx)
+    focus = _title_distinguisher(title)
+    variant = _variant_index(uc_id, title)
+    if st:
+        source_phrase = f"`{st}` feeds"
+    elif ctx.datamodel:
+        source_phrase = f"`{ctx.datamodel}` telemetry"
+    elif sig:
+        source_phrase = sig
+    else:
+        source_phrase = f"UC-{uc_id} search results"
+
+    templates = (
+        f"UC-{uc_id} accelerates insight into {focus} ('{title}') by tracking {stats_out} on {source_phrase}, reducing {profile.value_theme} before spreadsheet checks hide regressions.",
+        f"Operators running UC-{uc_id} on {source_phrase} shorten triage for {focus} tied to '{title}', lowering {profile.value_theme}.",
+        f"For '{title}', UC-{uc_id} converts {stats_out} on {source_phrase} into actionable rows and reduces {profile.value_theme}.",
+        f"UC-{uc_id} helps teams contain {_title_keywords(title)} scenarios and reduce {profile.value_theme} before incidents compound.",
+        f"Tracking {stats_out} via UC-{uc_id} on {source_phrase} improves response to '{title}' and reduces {profile.value_theme}.",
+        f"UC-{uc_id} gives {profile.dashboard_prefix} teams earlier visibility into {focus} through {source_phrase}, lowering {profile.value_theme}.",
+        f"Alerting on {_title_keywords(title)} through UC-{uc_id} reduces {profile.value_theme} by surfacing {stats_out} early.",
+        f"UC-{uc_id} operationalises '{title}' against {source_phrase} so operators reduce {profile.value_theme} without manual correlation.",
+    )
+    return templates[variant % len(templates)]
+
+
+def _ensure_description(
+    uc: dict,
+    profile: DomainProfile,
+    ctx: SplContext | None = None,
+    *,
+    force: bool = False,
+) -> str:
+    """Expand or rewrite description to >=120 chars with SPL-aware, UC-specific prose."""
     ctx = ctx or build_spl_context(uc)
     desc = str(uc.get("description", "")).strip()
-    if len(desc) >= 120:
+    title = str(uc.get("title", "Use case"))
+
+    if (
+        not force
+        and len(desc) >= 120
+        and not _is_boilerplate_description(desc, title)
+    ):
         return desc
 
-    title = str(uc.get("title", "Use case"))
+    if force or len(desc) < 120 or _is_boilerplate_description(desc, title):
+        built = _build_description_quality(uc, profile, ctx)
+        if len(built) >= 120:
+            return built
+
     uc_id = _uc_display_id(uc)
     spl = str(uc.get("spl", ""))
     idx = primary_index(ctx, _extract_index(spl) or "target_index")
@@ -661,7 +908,7 @@ def _ensure_description(uc: dict, profile: DomainProfile, ctx: SplContext | None
     span = ctx.span or "the scheduled window"
     ec = ctx.event_code or _extract_event_code(spl)
 
-    lead = desc if len(desc) >= 40 else f"Detects '{title}'"
+    lead = desc if len(desc) >= 40 and not _is_boilerplate_description(desc, title) else f"Detects '{title}'"
     if not lead[0].isupper():
         lead = lead[0].upper() + lead[1:]
 
@@ -685,14 +932,19 @@ def _ensure_description(uc: dict, profile: DomainProfile, ctx: SplContext | None
     expanded = " ".join(parts)
     if len(expanded) < 120:
         expanded += (
-            f" Tune thresholds and enrichment lookups in the UC-{uc_id} SPL "
-            f"to match your environment's baseline."
+            f" Tune thresholds in the UC-{uc_id} SPL to match your environment baseline."
         )
     return expanded
 
 
-def _ensure_value(uc: dict, profile: DomainProfile, ctx: SplContext | None = None) -> str:
-    """Ensure value prose includes an outcome keyword and meets minimum length."""
+def _ensure_value(
+    uc: dict,
+    profile: DomainProfile,
+    ctx: SplContext | None = None,
+    *,
+    force: bool = False,
+) -> str:
+    """Ensure value prose includes an outcome keyword and stays distinct from description."""
     ctx = ctx or build_spl_context(uc)
     val = str(uc.get("value", "")).strip()
     title = str(uc.get("title", "this use case"))
@@ -700,35 +952,17 @@ def _ensure_value(uc: dict, profile: DomainProfile, ctx: SplContext | None = Non
     desc = str(uc.get("description", "")).strip()
     has_outcome = any(keyword in val.lower() for keyword in VALUE_OUTCOME_KEYWORDS)
 
-    if len(val) >= 80 and has_outcome and title.lower() in val.lower():
+    if (
+        not force
+        and len(val) >= 80
+        and has_outcome
+        and title.lower() in val.lower()
+        and not _is_templated_value(val, title, desc)
+    ):
         return val
 
-    if len(desc) >= 50:
-        hook = desc.split(".")[0].strip()
-        if hook.lower().startswith("the following analytic"):
-            hook = desc.split(".", 1)[1].strip() if "." in desc else hook
-        if len(hook) > 110:
-            hook = hook[:107].rstrip() + "..."
-        val = (
-            f"{hook}. Timely UC-{uc_id} alerting on '{title}' reduces "
-            f"{profile.value_theme} before manual triage or audit channels escalate."
-        )
-    elif not val or len(val) < 40:
-        val = (
-            f"Timely UC-{uc_id} detection of '{title}' reduces {profile.value_theme} "
-            f"by giving {profile.dashboard_prefix} teams a Splunk-native signal."
-        )
-    elif not has_outcome:
-        val = val.rstrip(".")
-        val += (
-            f" Reduces {profile.value_theme} for UC-{uc_id} before incidents "
-            f"spread across unrelated controls."
-        )
-    elif len(val) < 80:
-        val += (
-            f" Improves {profile.dashboard_prefix.lower()} response time for "
-            f"UC-{uc_id} ('{title}')."
-        )
+    if force or _is_templated_value(val, title, desc) or not has_outcome or len(val) < 80:
+        return _build_value_quality(uc, profile, ctx)
 
     return val
 
@@ -796,8 +1030,8 @@ def quality_pass_fields(uc: dict, path: Path) -> dict[str, object]:
     lifted: dict[str, object] = {
         "knownFalsePositives": _kfp_for_uc(uc, profile_key, ctx),
         "controlTest": _control_test_for_uc(uc, profile, ctx),
-        "description": _ensure_description(uc, profile, ctx),
-        "value": _ensure_value(uc, profile, ctx),
+        "description": _ensure_description(uc, profile, ctx, force=True),
+        "value": _ensure_value(uc, profile, ctx, force=True),
     }
 
     grandma = uc.get("grandmaExplanation")

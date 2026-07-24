@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Delivery Spend and Frequency' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_delivery_spend_and_frequency` (UC-25.36.6), SOC dashboard panel \"Personal — Delivery Spend and Frequency\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='delivery:parcel' where `_time` satisfies detection threshold for UC-25.36.6 ('Delivery Spend and Frequency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `delivery:parcel` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.36.6."
+    "positiveScenario": "UC-25.36.6 positive (Delivery, Spend, and, Frequency): ingest synthetic events into `index=personal` sourcetype='delivery:parcel' where `spend`, `parcels` grouped by `_time`, `retailer` satisfies detection threshold for 'Delivery Spend and Frequency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.36.6 negative (and Frequency): ingest benign `personal` / `delivery:parcel` events where `_time`, `retailer` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Delivery Spend and Frequency'."
   },
   "dataSources": "Consumable levels (`supply:level`), parcels (`delivery:parcel`), bin collections (`bincollection:event`), gift-card balances (`giftcard:balance`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Household logistics feeds — smart-scale consumable trackers, parcel/delivery tracking APIs, council bin-collection calendars, and gift-card balance logs — sent to Splunk HEC via scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=delivery:parcel status=delivered\n| bin _time span=1mon\n| stats count as parcels, sum(order_value) as spend by _time retailer\n| stats sum(parcels) as parcels, sum(spend) as spend by _time\n| sort - _time",
-  "description": "Counts how many parcels you receive and what you spend online each month, a check on the one-click habit. Searches `index=personal` with sourcetype `delivery:parcel` for UC-25.36.6, aggregating `sum` by `_time` over `1m`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Delivery Spend and Frequency' without manual log review.",
-  "value": "Counts how many parcels you receive and what you spend online each month, a check on the one-click habit. Timely UC-25.36.6 alerting on 'Delivery Spend and Frequency' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects and Frequency anomalies for UC-25.36.6 with window `1m` on `index=personal` sourcetype `delivery:parcel`. Combines `spend`, `parcels` by `_time`, `retailer` and compares against configured threshold. Mapped to keywords Delivery, Spend, and, Frequency for dashboard routing.",
+  "value": "Alerting on Delivery, Spend, and, Frequency through UC-25.36.6 reduces missed training goals, stale hobby data, and connector failures by surfacing `spend`, `parcels` early.",
   "implementation": "Ingest delivered-parcel data into `index=personal`; schedule monthly and total parcels and spend.",
   "visualization": "Column chart of monthly parcels with online-spend overlay.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Delivery Spend and Frequency' stops polling `delivery:parcel`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `delivery:parcel`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.36.6)** — Connector for 'Delivery Spend and Frequency' stops polling `delivery:parcel`; stale `spend`, `parcels` on `_time`, `retailer` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `spend`, `parcels` over `1m` is expected for UC-25.36.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `delivery:parcel`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew goal threshold for 'Delivery Spend and Frequency'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'File Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_file_access_audit` (UC-6.4.1), SOC dashboard panel \"Operations — File Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4663 where `Account_Name` satisfies detection threshold for UC-6.4.1 ('File Access Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.1."
+    "positiveScenario": "UC-6.4.1 positive (File, Access, Audit): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4663 where `count` grouped by `Account_Name`, `ObjectName`, `AccessMask` satisfies detection threshold for 'File Access Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.1 negative (Access Audit): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `ObjectName`, `AccessMask` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'File Access Audit'."
   },
   "dataSources": "Windows Security Event Log (Event ID 4663 — object access), NFS access logs Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` (Security Event Log) — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4663\n| stats count by Account_Name, ObjectName, AccessMask\n| sort -count\n| head 50",
-  "description": "Provides full audit trail of file access for compliance (SOX, HIPAA, PCI-DSS). Enables investigation of data breaches and unauthorized access.",
-  "value": "Early 'File Access Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-6.4.1 — File, Access, Audit — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `Account_Name`, `ObjectName`, `AccessMask`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Access Audit. Purpose-built for 'File Access Audit' in Operations workflows.",
+  "value": "Tracking `activity` via UC-6.4.1 on `WinEventLog:Security` feeds improves response to 'File Access Audit' and reduces operational risk and delayed incident response.",
   "implementation": "Enable \"Audit Object Access\" via GPO on file servers. Configure SACLs on sensitive folders. Forward Security logs via Universal Forwarder. Filter high-volume events to focus on sensitive paths.",
   "visualization": "Table (user, file, access type, count), Bar chart (top accessed files), Timeline (access events for specific files).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'File Access Audit' shifts `count` over `span=1h` while `Account_Name` remains in-scope for UC-6.4.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4663)** — Scheduled automation elevates `ObjectName` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-6.4.1)** — Planned work for 'File Access Audit' shifts `count` over `span=1h` while `Account_Name`, `ObjectName`, `AccessMask` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `WinEventLog:Security` (EventCode=4663)** — Scheduled automation elevates `ObjectName` without crossing configured threshold for UC-6.4.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`, `ObjectName`, `AccessMask`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-6.4.1 on `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

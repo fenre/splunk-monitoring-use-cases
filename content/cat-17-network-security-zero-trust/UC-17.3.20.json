@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Browser Isolation Usage' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `network_browser_isolation_usage` (UC-17.3.20), SOC dashboard panel \"Network — Browser Isolation Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=zt` sourcetype='rbi:session' where `entity` satisfies detection threshold for UC-17.3.20 ('Browser Isolation Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `zt` / `rbi:session` events where `entity` stays below detection threshold, or exclude the test entity via `network_exception_register.csv` with a valid window. Confirm zero alert rows for UC-17.3.20."
+    "positiveScenario": "UC-17.3.20 positive (Browser, Isolation, Usage): ingest synthetic events into `index=zt` sourcetype='rbi:session' where `isolated_sessions` grouped by `entity` satisfies -30d for 'Browser Isolation Usage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-17.3.20 negative (Isolation Usage): ingest benign `zt` / `rbi:session` events where `entity` stays below -30d, or exclude the test entity via `network_exception_register.csv`. Variant 14 confirms zero alert rows for 'Browser Isolation Usage'."
   },
   "dataSources": "`sourcetype=rbi:session` Indexes: zt. Sourcetypes: rbi:session. Key fields: isolated. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Menlo Security syslog, `Splunk_TA_zscaler` (RBI), Island Enterprise Browser syslog, Broadcom Symantec WSS Add-on (Splunkbase 3856), Forcepoint ONE syslog",
   "spl": "index=zt sourcetype=\"rbi:session\" earliest=-30d\n| eval isolated=if(match(lower(session_type),\"(?i)isolated|rbi\"),1,0)\n| timechart span=1d sum(isolated) as isolated_sessions, count as total_sessions\n| eval isolation_rate=round(100*isolated_sessions/total_sessions,1)",
-  "description": "Measures adoption of remote browser isolation (RBI) sessions vs direct access — for licensing and risky-site coverage. Searches `index=zt` with sourcetype `rbi:session` for UC-17.3.20, aggregating `sum` by `entity` over `1d`. Alerts when grouped results cross configured threshold in the saved search. Gives Network operators a repeatable signal for 'Browser Isolation Usage' without manual log review.",
-  "value": "Security teams track browser isolation usage patterns — why sessions are isolated, how many users are protected, and what data transfer attempts occur within isolated sessions — to measure the effectiveness of clientless threat prevention and identify data exfiltration attempts.",
+  "description": "Identifies UC-17.3.20 — Browser, Isolation, Usage — using `index=zt` sourcetype `rbi:session`, grouped by `entity`. Outputs `isolated_sessions` each `1d`; alert when -30d. Primary focus: Isolation Usage. Purpose-built for 'Browser Isolation Usage' in Network workflows.",
+  "value": "Alerting on Browser, Isolation, Usage through UC-17.3.20 reduces unauthorized access, segmentation drift, and NAC policy failures by surfacing `isolated_sessions` early.",
   "implementation": "Map vendor-specific session types. Alert when isolation_rate drops vs baseline for high-risk categories.",
   "visualization": "Line chart (isolation rate), Bar chart (sessions by app), Single value (% isolated).",
   "cimModels": [
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `zt`** — Planned work for 'Browser Isolation Usage' shifts `sum` over `span=1d` while `host` remains in-scope for UC-17.3.20. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `rbi:session`** — Scheduled automation elevates `isolated` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rbi:session`** — First 48h baseline for `host` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `zt` (UC-17.3.20)** — Planned work for 'Browser Isolation Usage' shifts `isolated_sessions` over `span=1d` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `rbi:session`** — Scheduled automation elevates `isolated` without crossing configured threshold for UC-17.3.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `zt` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `rbi:session`** — First 48h baseline for UC-17.3.20 on `host` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1133"
   ],

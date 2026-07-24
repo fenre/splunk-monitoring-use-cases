@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Late-Night Screen-Time Watchdog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_late_night_screen_time_watchdog` (UC-25.7.8), SOC dashboard panel \"Personal — Late-Night Screen-Time Watchdog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tautulli:play' where `_time` satisfies `hour` >= 0 for UC-25.7.8 ('Late-Night Screen-Time Watchdog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tautulli:play` events where `_time` stays below `hour` >= 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.8."
+    "positiveScenario": "UC-25.7.8 positive (Late, Night, Screen, Time, Watchdog): ingest synthetic events into `index=personal` sourcetype='tautulli:play' where `secs` grouped by `_time` satisfies `hour` >= 0, or `hour` < 5 for 'Late-Night Screen-Time Watchdog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.8 negative (Time Watchdog): ingest benign `personal` / `tautulli:play` events where `_time` stays below `hour` >= 0, or `hour` < 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Late-Night Screen-Time Watchdog'."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and the *arr stack (Sonarr/Radarr) APIs and webhooks via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tautulli:play\n| eval hour=strftime(_time,\"%H\")\n| where hour>=0 AND hour<5\n| bin _time span=1w\n| stats sum(duration_s) as secs by _time\n| eval late_hours=round(secs/3600,1)",
-  "description": "Sums how much you stream in the small hours each week, gently surfacing the late-night binges that wreck the next day. Searches `index=personal` with sourcetype `tautulli:play` for UC-25.7.8, aggregating `sum` by `_time` over `1w`. Alerts when grouped results cross `hour` >= 0 in the saved search. Gives Personal operators a repeatable signal for 'Late-Night Screen-Time Watchdog' without manual log review.",
-  "value": "Sums how much you stream in the small hours each week, gently surfacing the late-night binges that wreck th.... Timely UC-25.7.8 alerting on 'Late-Night Screen-Time Watchdog' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.7.8 — Late, Night, Screen, Time, Watchdog — using `index=personal` sourcetype `tautulli:play`, grouped by `_time`. Outputs `secs` each `1w`; alert when `hour` >= 0, or `hour` < 5. Primary focus: Time Watchdog. Purpose-built for 'Late-Night Screen-Time Watchdog' in Personal workflows.",
+  "value": "Alerting on Late, Night, Screen, Time, Watchdog through UC-25.7.8 reduces missed training goals, stale hobby data, and connector failures by surfacing `secs` early.",
   "implementation": "Forward playback events; schedule weekly and review late-night streaming as a sleep-hygiene signal.",
   "visualization": "Column chart of weekly late-night streaming hours.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Late-Night Screen-Time Watchdog' stops polling `tautulli:play`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tautulli:play`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.8)** — Connector for 'Late-Night Screen-Time Watchdog' stops polling `tautulli:play`; stale `secs` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `secs` over `1w` is expected for UC-25.7.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tautulli:play`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 0 for 'Late-Night Screen-Time Watchdog'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

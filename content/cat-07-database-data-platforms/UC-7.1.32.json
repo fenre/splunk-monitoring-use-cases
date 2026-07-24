@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Database Backup Chain Validation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_database_backup_chain_validation` (UC-7.1.32), SOC dashboard panel \"Operations — Database Backup Chain Validation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:backup_chain' where `database_name` satisfies detection threshold for UC-7.1.32 ('Database Backup Chain Validation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:backup_chain` events where `database_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.32."
+    "positiveScenario": "UC-7.1.32 positive (Database, Backup, Chain, Validation): ingest synthetic events into `index=database` sourcetype='dbconnect:backup_chain' where `count` grouped by `database_name` satisfies detection threshold for 'Database Backup Chain Validation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.32 negative (Chain Validation): ingest benign `database` / `dbconnect:backup_chain` events where `database_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Database Backup Chain Validation'."
   },
   "dataSources": "`msdb.dbo.backupset` (first_lsn, last_lsn, type), RMAN backup pieces Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, backup vendor logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:backup_chain\"\n| sort database_name, backup_finish_date\n| streamstats window=2 last(last_lsn) as prev_last by database_name\n| where isnotnull(prev_last) AND first_lsn!=prev_last AND type!=1\n| table database_name backup_finish_date type first_lsn prev_last",
-  "description": "Verifies full→diff→log chain continuity (SQL Server LSN chain, Oracle archivelog sequence) to detect missing backups before restore drills fail.",
-  "value": "Early 'Database Backup Chain Validation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-7.1.32 — Database, Backup, Chain, Validation — using `index=database` sourcetype `dbconnect:backup_chain`, grouped by `database_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Chain Validation. Purpose-built for 'Database Backup Chain Validation' in Operations workflows.",
+  "value": "UC-7.1.32 operationalises 'Database Backup Chain Validation' against `dbconnect:backup_chain` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Custom SQL to flag LSN gaps. For Oracle, check archivelog sequence continuity. Alert on any break in chain for production databases.",
   "visualization": "Table (broken chains), Timeline (backup types), Single value (databases with gaps).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Database Backup Chain Validation' shifts `count` over `span=1h` while `database_name` remains in-scope for UC-7.1.32. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:backup_chain`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:backup_chain`** — First 48h baseline for `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.32)** — Planned work for 'Database Backup Chain Validation' shifts `count` over `span=1h` while `database_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:backup_chain`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:backup_chain`** — First 48h baseline for UC-7.1.32 on `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql",

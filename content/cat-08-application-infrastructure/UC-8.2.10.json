@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Class Loading Issues' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_class_loading_issues` (UC-8.2.10), SOC dashboard panel \"Operations — Class Loading Issues\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=application` sourcetype='log4j' where `host` satisfies detection threshold for UC-8.2.10 ('Class Loading Issues'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `application` / `log4j` events where `host` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.10."
+    "positiveScenario": "UC-8.2.10 positive (Class, Loading, Issues): ingest synthetic events into `index=application` sourcetype='log4j' where `count` grouped by `host`, `exception_class`, `missing_class` satisfies detection threshold for 'Class Loading Issues'. Validate filter `\"ClassNotFoundException\" OR \"NoClassDefFoundError\" OR \"Class`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.10 negative (Loading Issues): ingest benign `application` / `log4j` events where `host`, `exception_class`, `missing_class` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Class Loading Issues'."
   },
   "dataSources": "Application error logs (Java stack traces) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Application log parsing — Universal Forwarder (Splunkbase 617)",
   "spl": "index=application sourcetype=\"log4j\" log_level=ERROR\n| search \"ClassNotFoundException\" OR \"NoClassDefFoundError\" OR \"ClassCastException\"\n| rex \"(?<exception_class>ClassNotFoundException|NoClassDefFoundError|ClassCastException):\\s+(?<missing_class>\\S+)\"\n| stats count by host, exception_class, missing_class",
-  "description": "ClassNotFoundException and NoClassDefFoundError indicate deployment or dependency issues that may cause intermittent failures.",
-  "value": "Early 'Class Loading Issues' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies risk tied to Class, Loading, Issues through UC-8.2.10 on `index=application` sourcetype `log4j`. Summarises `count` grouped by `host`, `exception_class`, `missing_class` across `the scheduled window` before applying configured threshold. Operators tune 'Class Loading Issues' using UC-8.2.10 runbook steps.",
+  "value": "Tracking `activity` via UC-8.2.10 on `log4j` feeds improves response to 'Class Loading Issues' and reduces operational risk and delayed incident response.",
   "implementation": "Parse Java stack traces from application logs. Extract exception type and missing class name. Alert on new class loading errors (not seen before). Track frequency to distinguish transient from persistent issues.",
   "visualization": "Table (class loading errors with details), Bar chart (errors by type), Timeline (error occurrences).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `application`** — Planned work for 'Class Loading Issues' shifts `count` over `span=1h` while `host` remains in-scope for UC-8.2.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `log4j`** — Scheduled automation elevates `exception_class` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `log4j`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `application` (UC-8.2.10)** — Planned work for 'Class Loading Issues' shifts `count` over `span=1h` while `host`, `exception_class`, `missing_class` remains in-scope. Applies filter `\"ClassNotFoundException\" OR \"NoClassDefFoundError\" OR \"Class`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `log4j`** — Scheduled automation elevates `exception_class` without crossing configured threshold for UC-8.2.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `exception_class`, `missing_class`** — Health checks in `application` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `log4j`** — First 48h baseline for UC-8.2.10 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

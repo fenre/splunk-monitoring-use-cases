@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Storage Pool Capacity Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_storage_pool_capacity_monitoring` (UC-2.3.10), SOC dashboard panel \"Linux — Storage Pool Capacity Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='kvm_storage_pools' where `entity` satisfies `used_pct` > 80 for UC-2.3.10 ('Storage Pool Capacity Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `virtualization` / `kvm_storage_pools` events where `entity` stays below `used_pct` > 80, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.3.10."
+    "positiveScenario": "UC-2.3.10 positive (Storage, Pool, Capacity, Monitoring): ingest synthetic events into `index=virtualization` sourcetype='kvm_storage_pools' where `count` grouped by `entity` satisfies `used_pct` > 80 for 'Storage Pool Capacity Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.3.10 negative (Capacity Monitoring): ingest benign `virtualization` / `kvm_storage_pools` events where `entity` stays below `used_pct` > 80, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Storage Pool Capacity Monitoring'."
   },
   "dataSources": "`virsh pool-info`, storage pool metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=virtualization sourcetype=kvm_storage_pools\n| eval used_pct=round(used_gb/capacity_gb*100, 1)\n| where used_pct > 80\n| sort -used_pct\n| table host, pool_name, pool_type, capacity_gb, used_gb, used_pct",
-  "description": "Libvirt storage pools (LVM, directory, NFS, Ceph, ZFS) provide disk backing for VMs. A full storage pool prevents new VM creation, snapshot operations, and can cause running VMs to pause when using thin provisioning. Monitoring pool capacity prevents VM outages.",
-  "value": "Early 'Storage Pool Capacity Monitoring' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Capacity Monitoring activity in UC-2.3.10 ('Storage Pool Capacity Monitoring') from `index=virtualization` sourcetype `kvm_storage_pools`. Rolls up `count` by `entity` across `the scheduled window` and pages when `used_pct` > 80. Covers Storage, Pool, Capacity, Monitoring. Linux operators treat UC-2.3.10 as the canonical signal.",
+  "value": "Operators running UC-2.3.10 on `kvm_storage_pools` feeds shorten triage for Capacity Monitoring tied to 'Storage Pool Capacity Monitoring', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input: `for pool in $(virsh pool-list --name); do virsh pool-info $pool; done`. Parse capacity, allocation, and available fields. Run every 5 minutes. Alert at 80% (warning) and 90% (critical). Include pool type in output — LVM pools cannot auto-extend, while directory pools grow with the filesystem.",
   "visualization": "Gauge (per pool), Table (pool status), Line chart (capacity trend with prediction).",
   "cimModels": [

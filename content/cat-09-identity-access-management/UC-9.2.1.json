@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Bind Failure Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_bind_failure_monitoring` (UC-9.2.1), SOC dashboard panel \"IAM — Bind Failure Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='syslog' where `src` satisfies `count` > 10 for UC-9.2.1 ('Bind Failure Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `syslog` events where `src` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.1."
+    "positiveScenario": "UC-9.2.1 positive (Bind, Failure, Monitoring): ingest synthetic events into `index=ldap` sourcetype='syslog' where `count` grouped by `src`, `bind_dn` satisfies `count` > 10 for 'Bind Failure Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.2.1 negative (Failure Monitoring): ingest benign `ldap` / `syslog` events where `src`, `bind_dn` stays below `count` > 10, or exclude the test entity via `iam_exception_register.csv`. Variant 6 confirms zero alert rows for 'Bind Failure Monitoring'."
   },
   "dataSources": "OpenLDAP syslog, 389 Directory access log Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
   "app": "Syslog, LDAP server logs — Splunk Add-on for Unix and Linux (Splunkbase 833)",
   "spl": "index=ldap sourcetype=\"syslog\" \"BIND\" \"err=49\"\n| stats count by src, bind_dn\n| where count > 10\n| sort -count",
-  "description": "LDAP bind failures indicate authentication issues, misconfigured applications, or brute-force attempts against directory services.",
-  "value": "Early 'Bind Failure Monitoring' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies Failure Monitoring anomalies for UC-9.2.1 with window `the scheduled window` on `index=ldap` sourcetype `syslog`. Combines `count` by `src`, `bind_dn` and compares against `count` > 10. Mapped to keywords Bind, Failure, Monitoring for dashboard routing.",
+  "value": "Alerting on Bind, Failure, Monitoring through UC-9.2.1 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Forward LDAP server syslog to Splunk. Parse bind operations and result codes (err=49 = invalid credentials). Alert on >10 failures per source per 15 minutes. Correlate with application health monitoring.",
   "visualization": "Table (bind failures by source/DN), Line chart (failure rate), Bar chart (top failing sources).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'Bind Failure Monitoring' shifts `count` over `span=1h` while `src` remains in-scope for UC-9.2.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `bind_dn` without crossing `count` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap` (UC-9.2.1)** — Planned work for 'Bind Failure Monitoring' shifts `count` over `span=1h` while `src`, `bind_dn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `syslog`** — Scheduled automation elevates `bind_dn` without crossing `count` > 10 for UC-9.2.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `bind_dn`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `syslog`** — First 48h baseline for UC-9.2.1 on `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1110",
     "T1110.001"

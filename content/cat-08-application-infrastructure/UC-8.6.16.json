@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NTP Stratum Drift' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ntp_stratum_drift` (UC-8.6.16), SOC dashboard panel \"Operations — NTP Stratum Drift\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='ntp:peer' where `host` satisfies `stratum` > 4 for UC-8.6.16 ('NTP Stratum Drift'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `ntp:peer` events where `host` stays below `stratum` > 4, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.6.16."
+    "positiveScenario": "UC-8.6.16 positive (NTP, Stratum, Drift): ingest synthetic events into `index=os` sourcetype='ntp:peer' where `stratum` grouped by `host` satisfies `stratum` > 4 for 'NTP Stratum Drift'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.6.16 negative (Stratum Drift): ingest benign `os` / `ntp:peer` events where `host` stays below `stratum` > 4, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'NTP Stratum Drift'."
   },
   "dataSources": "`ntp:peer` `stratum`, `offset_ms`, `jitter_ms` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix`, `ntpq`/`chronyc` scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=\"ntp:peer\"\n| where stratum > 4 OR abs(offset_ms) > 100\n| timechart span=5m max(stratum) as stratum, max(abs(offset_ms)) as abs_offset by host",
-  "description": "Stratum jumps or large offset indicate bad upstream clock or local drift — affects Kerberos, TLS, and distributed logs. Searches `index=os` with sourcetype `ntp:peer` for UC-8.6.16, aggregating `max` by `host` over `5m`. Alerts when grouped results cross `stratum` > 4 in the saved search. Gives Operations operators a repeatable signal for 'NTP Stratum Drift' without manual log review.",
-  "value": "Early 'NTP Stratum Drift' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-8.6.16 for NTP, Stratum, Drift over `index=os` sourcetype `ntp:peer` with thresholds `stratum` > 4. Groups `stratum` by `host` each `5m`. Centered on Stratum Drift indicators. Supports repeatable operations triage for 'NTP Stratum Drift'.",
+  "value": "For 'NTP Stratum Drift', UC-8.6.16 converts `stratum` on `ntp:peer` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll `chronyc tracking` or `ntpq -pn` every 5m. Alert when stratum >4 or |offset| >100ms sustained. Correlate with VM time sync settings.",
   "visualization": "Line chart (offset and stratum), Table (hosts with bad clock), Single value (max |offset|).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `os`** — Planned work for 'NTP Stratum Drift' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.6.16. Cross-check CMDB CHG.\n\n2. **Batch `max` on `ntp:peer`** — Scheduled automation elevates `src` without crossing `stratum` > 4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ntp:peer`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `os` (UC-8.6.16)** — Planned work for 'NTP Stratum Drift' shifts `stratum` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `ntp:peer`** — Scheduled automation elevates `src` without crossing `stratum` > 4 for UC-8.6.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `os` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ntp:peer`** — First 48h baseline for UC-8.6.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "linux"
   ],

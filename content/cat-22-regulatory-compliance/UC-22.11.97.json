@@ -68,14 +68,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' where `entity` satisfies detection threshold for UC-22.11.97 ('PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.97."
+    "positiveScenario": "UC-22.11.97 positive (PCI, DSS, 8.4, MFA, coverage:): ingest synthetic events into `index=windows` sourcetype='WinEventLog:Security' where `count` grouped by `entity` satisfies -10m for 'PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA'. Validate lookup `cde_hosts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.97 negative (without MFA): ingest benign `windows` / `WinEventLog:Security` events where `entity` stays below -10m, or exclude the test entity via `compliance_exception_register.csv`. Variant 9 confirms zero alert rows for 'PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA'."
   },
   "dataSources": "`index=windows` EventCode 4624/4672; `index=linux` auditd; bastion/PAM `index=pam` sourcetype=cyberark:pam; CDE-dest lookup `cde_hosts.csv`.",
   "app": "Splunk Add-on for CyberArk (Splunkbase)",
   "spl": "search (index=windows sourcetype=WinEventLog:Security EventCode IN (4624,4672)) OR (index=pam sourcetype=cyberark:pam event_type=session_start) earliest=-10m\n| rename target_host AS dest\n| lookup cde_hosts.csv hostname=dest OUTPUT in_cde\n| lookup privileged_accounts.csv user AS admin OUTPUT is_privileged\n| where in_cde=\"yes\" AND is_privileged=\"yes\"\n| eval mfa_used=if(match(_raw,\"(?i)mfa|2fa|push|webauthn|smartcard\"),1,0)\n| where mfa_used=0\n| table admin dest session_type mfa_used",
-  "description": "Administrative access to the CDE must use MFA. PCI-DSS 8.4 (formerly 8.3) explicitly requires MFA for administrative access. This UC detects misses.",
-  "value": "Administrative access to the CDE must use MFA. Timely UC-22.11.97 alerting on 'PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.11.97 — PCI, DSS, 8.4, MFA, coverage: — using `index=windows` sourcetype `WinEventLog:Security`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -10m. Filter chain includes lookup `cde_hosts.csv`. Purpose-built for 'PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA' in Compliance workflows.",
+  "value": "Operators running UC-22.11.97 on `WinEventLog:Security` feeds shorten triage for without MFA tied to 'PCI-DSS 8.4 — MFA coverage: administrative access to CDE without MFA', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Integrate PAM/bastion; (2) maintain cde_hosts.csv + privileged_accounts.csv; (3) schedule UC every 10m; (4) hit revokes session; (5) monthly CISO review. Indexes required: `index=linux`, `index=pam`, `index=windows`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=cyberark:pam`, `sourcetype=cyberark:pam;`.",
   "visualization": "Heatmap of admins × destinations, table of non-MFA sessions, single value 'non-MFA admin in CDE'.",
   "cimModels": [

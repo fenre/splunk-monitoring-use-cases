@@ -40,14 +40,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `user` satisfies detection threshold for UC-22.10.22 ('Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `o365:management:activity` events where `user` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.22."
+    "positiveScenario": "UC-22.10.22 positive (Remote, ePHI, Access, MFA, Gap): ingest synthetic events into `index=o365` sourcetype='o365:management:activity' where `count` grouped by `user`, `ClientIP`, `ApplicationId` satisfies -24h for 'Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail'. Validate lookup `hipaa_ephi_users.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.22 negative (Clinical Mail): ingest benign `o365` / `o365:management:activity` events where `user`, `ClientIP`, `ApplicationId` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail'."
   },
   "dataSources": "`index=o365` `sourcetype=ms:o365:reporting` or `Audit.Exchange` / `AzureActiveDirectory` JSON, `index=vpn` GlobalProtect logs",
   "app": "Splunk Add-on for Microsoft Office 365 (4055), Splunk Common Information Model Add-on (1621) (Splunkbase)",
   "spl": "index=o365 sourcetype=\"o365:management:activity\" Workload=\"AzureActiveDirectory\" Operation=\"UserLoggedIn\" earliest=-24h\n| eval mfa=if(match(ExtendedProperties,\"MFA\\s*completed|multi-factor\"),1,0)\n| lookup hipaa_ephi_users.csv user OUTPUT in_ephi_group\n| where in_ephi_group=\"true\" AND mfa=0\n| stats count by user, ClientIP, ApplicationId\n| sort - count",
-  "description": "Surfaces successful VPN or Exchange Online logons without MFA claim for users in ePHI-privileged groups so remote access meets organizational authentication policy.",
-  "value": "Surfaces successful VPN or Exchange Online logons without MFA claim for users in ePHI-privileged groups so.... Timely UC-22.10.22 alerting on 'Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.10.22 — Remote, ePHI, Access, MFA, Gap — using `index=o365` sourcetype `o365:management:activity`, grouped by `user`, `ClientIP`, `ApplicationId`. Outputs `count` each `the scheduled window`; alert when -24h. Filter chain includes lookup `hipaa_ephi_users.csv`. Purpose-built for 'Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail' in Compliance workflows.",
+  "value": "For 'Remote ePHI Access — MFA Gap for VPN + O365 Clinical Mail', UC-22.10.22 converts `activity` on `o365:management:activity` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Confirm `ExtendedProperties` field names for your tenant; (2) include Conditional Access exclusions report; (3) feed to IAM for forced enrollment. Indexes required: `index=o365`, `index=vpn`; Sourcetypes: `sourcetype=o365:management:activity`, `sourcetype=ms:o365:reporting``; Lookups: `hipaa_ephi_users`, `hipaa_ephi_users.csv`.",
   "visualization": "Table (user, IP, count), Map (ClientIP), Single value (non-MFA logons).",
   "cimModels": [

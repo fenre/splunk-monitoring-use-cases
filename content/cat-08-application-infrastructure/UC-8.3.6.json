@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Message Throughput Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_message_throughput_trending` (UC-8.3.6), SOC dashboard panel \"Operations — Message Throughput Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:broker' where `entity` satisfies detection threshold for UC-8.3.6 ('Message Throughput Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:broker` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.6."
+    "positiveScenario": "UC-8.3.6 positive (Message, Throughput, Trending): ingest synthetic events into `index=kafka` sourcetype='kafka:broker' where `msgs_in`, `bytes_in` grouped by `entity` satisfies detection threshold for 'Message Throughput Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.6 negative (Throughput Trending): ingest benign `kafka` / `kafka:broker` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Message Throughput Trending'."
   },
   "dataSources": "Kafka broker metrics (MessagesInPerSec), RabbitMQ message rates Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "JMX, broker management APIs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=kafka sourcetype=\"kafka:broker\"\n| timechart span=5m sum(MessagesInPerSec) as msgs_in, sum(BytesInPerSec) as bytes_in",
-  "description": "Throughput trending identifies capacity limits and validates scaling decisions. Unexpected drops indicate producer or broker issues.",
-  "value": "Early 'Message Throughput Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Throughput Trending anomalies for UC-8.3.6 with window `5m` on `index=kafka` sourcetype `kafka:broker`. Combines `msgs_in`, `bytes_in` by `entity` and compares against configured threshold. Mapped to keywords Message, Throughput, Trending for dashboard routing.",
+  "value": "Alerting on Message, Throughput, Trending through UC-8.3.6 reduces operational risk and delayed incident response by surfacing `msgs_in`, `bytes_in` early.",
   "implementation": "Poll broker throughput metrics via JMX. Track messages and bytes in/out per broker and per topic. Baseline normal patterns. Alert on sudden throughput drops (possible producer failure).",
   "visualization": "Line chart (throughput over time), Stacked area (throughput by topic), Dual-axis (messages + bytes).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Message Throughput Trending' shifts `sum` over `span=5m` while `host` remains in-scope for UC-8.3.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafka:broker`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:broker`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.6)** — Planned work for 'Message Throughput Trending' shifts `msgs_in`, `bytes_in` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `kafka:broker`** — Scheduled automation elevates `src` without crossing configured threshold for UC-8.3.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:broker`** — First 48h baseline for UC-8.3.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka",
     "rabbitmq"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Cost Anomaly Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_cost_anomaly_detection` (UC-4.1.14), SOC dashboard panel \"Operations — Cost Anomaly Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:billing' where `ProductName` satisfies detection threshold for UC-4.1.14 ('Cost Anomaly Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:billing` events where `ProductName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.14."
+    "positiveScenario": "UC-4.1.14 positive (Cost, Anomaly, Detection): ingest synthetic events into `index=aws` sourcetype='aws:billing' where `daily_cost`, `avg_cost`, `stdev_cost` grouped by `ProductName` satisfies detection threshold for 'Cost Anomaly Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.14 negative (Anomaly Detection): ingest benign `aws` / `aws:billing` events where `ProductName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Cost Anomaly Detection'."
   },
   "dataSources": "`sourcetype=aws:billing` or CUR data Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:billing\"\n| timechart span=1d sum(BlendedCost) as daily_cost by ProductName\n| eventstats avg(daily_cost) as avg_cost, stdev(daily_cost) as stdev_cost by ProductName\n| eval threshold = avg_cost + (2 * stdev_cost)\n| where daily_cost > threshold",
-  "description": "Unexpected spend spikes indicate runaway resources, cryptomining attacks, or misconfigured services. Catching anomalies early saves money.",
-  "value": "Early 'Cost Anomaly Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-4.1.14 — Cost, Anomaly, Detection — using `index=aws` sourcetype `aws:billing`, grouped by `ProductName`. Outputs `daily_cost`, `avg_cost`, `stdev_cost` each `1d`; alert when configured threshold. Primary focus: Anomaly Detection. Purpose-built for 'Cost Anomaly Detection' in Operations workflows.",
+  "value": "UC-4.1.14 operationalises 'Cost Anomaly Detection' against `aws:billing` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable CUR reports to S3. Ingest via Splunk_TA_aws (billing input). Calculate daily baselines per service. Alert when daily spend exceeds 2 standard deviations from the 30-day average.",
   "visualization": "Line chart (daily spend with threshold), Table (anomalous services), Stacked area (spend by service).",
   "dataModelAcceleration": "Not applicable: this cost or advisory feed is not a CIM data model. Use the search in Step 2 on the billing or support API data you ingest.",
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Cost Anomaly Detection' shifts `sum` over `span=1d` while `ProductName` remains in-scope for UC-4.1.14. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing`** — Scheduled automation elevates `threshold` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ProductName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing`** — First 48h baseline for `ProductName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ProductName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.14)** — Planned work for 'Cost Anomaly Detection' shifts `daily_cost`, `avg_cost`, `stdev_cost` over `span=1d` while `ProductName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing`** — Scheduled automation elevates `threshold` without crossing configured threshold for UC-4.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ProductName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing`** — First 48h baseline for UC-4.1.14 on `ProductName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ProductName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

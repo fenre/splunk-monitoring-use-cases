@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wine Ready-to-Drink Window' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wine_ready_to_drink_window` (UC-25.15.30), SOC dashboard panel \"Personal — Wine Ready-to-Drink Window\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pantry:item' where `fridge_zone` satisfies `days_to_best_window` <= 30 for UC-25.15.30 ('Wine Ready-to-Drink Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pantry:item` events where `fridge_zone` stays below `days_to_best_window` <= 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.15.30."
+    "positiveScenario": "UC-25.15.30 positive (Wine, Ready, Drink, Window): ingest synthetic events into `index=personal` sourcetype='pantry:item' where `count` grouped by `fridge_zone` satisfies `days_to_best_window` <= 30, `days_to_best_window` >= 0, or `ready_bottles` > 0 for 'Wine Ready-to-Drink Window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.15.30 negative (Drink Window): ingest benign `personal` / `pantry:item` events where `fridge_zone` stays below `days_to_best_window` <= 30, `days_to_best_window` >= 0, or `ready_bottles` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Wine Ready-to-Drink Window'."
   },
   "dataSources": "Kitchen telemetry (`meater:cook`, `anova:session`, `instantpot:cook`, `kitchen:appliance`, `bbq:probe`, `pantry:item`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Meater probes, Anova Precision Cooker sessions, Instant Pot logs, wine-fridge sensors, ESPHome kitchen sensors, and pantry inventory feeds via MQTT and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pantry:item item_type=wine\n| stats count(eval(days_to_best_window<=30 AND days_to_best_window>=0)) as ready_bottles by fridge_zone\n| where ready_bottles>0\n| sort - ready_bottles",
-  "description": "Uses Wine inventory exports telemetry to monitor how many bottles are entering their preferred drinking window in index=personal.",
-  "value": "Uses Wine inventory exports telemetry to monitor how many bottles are entering their preferred drinking win.... Timely UC-25.15.30 alerting on 'Wine Ready-to-Drink Window' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects risk tied to Wine, Ready, Drink, Window through UC-25.15.30 on `index=personal` sourcetype `pantry:item`. Summarises `count` grouped by `fridge_zone` across `the scheduled window` before applying `days_to_best_window` <= 30, `days_to_best_window` >= 0, or `ready_bottles` > 0. Operators tune 'Wine Ready-to-Drink Window' using UC-25.15.30 runbook steps.",
+  "value": "Tracking `activity` via UC-25.15.30 on `pantry:item` feeds improves response to 'Wine Ready-to-Drink Window' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Wine inventory exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Fridge-zone table of ready-to-drink bottles.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wine Ready-to-Drink Window' stops polling `pantry:item`; stale `fridge_zone` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pantry:item`. Dedup with `stats latest(*) by fridge_zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_best_window` <= 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.15.30)** — Connector for 'Wine Ready-to-Drink Window' stops polling `pantry:item`; stale `count` on `fridge_zone` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.15.30, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pantry:item`. Dedup with `stats latest(*) by fridge_zone`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `days_to_best_window` <= 30 for 'Wine Ready-to-Drink Window'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -28,14 +28,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='emergency:exception' where `session_id` satisfies detection threshold for UC-22.48.2 ('SoD violations via break-glass usage — emergency role abuse'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `emergency:exception` events where `session_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.48.2."
+    "positiveScenario": "UC-22.48.2 positive (SoD, violations, via, break, glass): ingest synthetic events into `index=pam` sourcetype='emergency:exception' where `values` grouped by `session_id`, `account` satisfies -24h for 'SoD violations via break-glass usage — emergency role abuse'. Validate lookup `sod_matrix.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.48.2 negative (role abuse): ingest benign `pam` / `emergency:exception` events where `session_id`, `account` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'SoD violations via break-glass usage — emergency role abuse'."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=pam breakglass=true earliest=-24h\n| stats values(action_category) as actions by session_id account\n| mvexpand actions\n| lookup sod_matrix.csv action_a=actions OUTPUT toxic_against\n| mvexpand toxic_against\n| join session_id toxic_against [search index=pam breakglass=true earliest=-24h | eval hit=action_category]\n| join session_id [search index=grc sourcetype=emergency:exception | fields session_id exception_id]\n| where isnull(exception_id)\n| table session_id account actions toxic_against",
-  "description": "Detects break-glass sessions that executed actions which would normally violate segregation of duties. Unless there is an emergency-exception ticket, the session breaches SoD even if the break-glass approval is otherwise valid.",
-  "value": "Detects break-glass sessions that executed actions which would normally violate segregation of duties. Timely UC-22.48.2 alerting on 'SoD violations via break-glass usage — emergency role abuse' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.48.2 — SoD, violations, via, break, glass — using `index=pam` sourcetype `emergency:exception`, grouped by `session_id`, `account`. Outputs `values` each `the scheduled window`; alert when -24h. Filter chain includes lookup `sod_matrix.csv`. Purpose-built for 'SoD violations via break-glass usage — emergency role abuse' in Compliance workflows.",
+  "value": "UC-22.48.2 helps teams contain SoD, violations, via, break, glass scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Tag PAM session actions into SoD categories; (2) maintain sod_matrix.csv; (3) require emergency exceptions to log to GRC; (4) run hourly. Indexes required: `index=grc`, `index=pam`; Sourcetypes: `sourcetype=emergency:exception`.",
   "visualization": "Table of sessions with SoD crossings, single-value 'SoD-compliant emergency sessions'. Key fields: `account`, `actions`, `hit`, `session_id`, `toxic_against`.",
   "cimModels": [

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Credential Rotation Compliance' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_credential_rotation_compliance` (UC-9.4.4), SOC dashboard panel \"IAM — Credential Rotation Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:account_inventory' where `entity` satisfies detection threshold for UC-9.4.4 ('Credential Rotation Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `cyberark:account_inventory` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.4.4."
+    "positiveScenario": "UC-9.4.4 positive (Credential, Rotation, Compliance): ingest synthetic events into `index=pam` sourcetype='cyberark:account_inventory' where `count` grouped by `entity` satisfies detection threshold for 'Credential Rotation Compliance'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.4.4 negative (Rotation Compliance): ingest benign `pam` / `cyberark:account_inventory` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 15 confirms zero alert rows for 'Credential Rotation Compliance'."
   },
   "dataSources": "PAM vault credential metadata (last rotation date, policy) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "PAM TA, scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"cyberark:account_inventory\"\n| eval days_since_rotation=round((now()-last_rotation_epoch)/86400)\n| eval overdue=if(days_since_rotation > rotation_policy_days, \"Yes\", \"No\")\n| where overdue=\"Yes\"\n| table account, target, days_since_rotation, rotation_policy_days\n| sort -days_since_rotation",
-  "description": "Overdue password rotations increase exposure window if credentials are compromised. Compliance tracking ensures policy adherence.",
-  "value": "Early 'Credential Rotation Compliance' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.4.4 — Credential, Rotation, Compliance — using `index=pam` sourcetype `cyberark:account_inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Rotation Compliance. Purpose-built for 'Credential Rotation Compliance' in IAM workflows.",
+  "value": "UC-9.4.4 operationalises 'Credential Rotation Compliance' against `cyberark:account_inventory` feeds so operators reduce account takeover risk, help-desk load, and audit findings without manual correlation.",
   "implementation": "Export credential inventory from PAM periodically. Calculate days since last rotation vs policy requirement. Alert on overdue rotations. Track compliance percentage over time. Report to management monthly.",
   "visualization": "Table (overdue credentials), Single value (compliance %), Gauge (% compliant), Bar chart (overdue by platform).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'Credential Rotation Compliance' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.4.4. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:account_inventory`** — Scheduled automation elevates `days_since_rotation` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:account_inventory`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.4.4)** — Planned work for 'Credential Rotation Compliance' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:account_inventory`** — Scheduled automation elevates `days_since_rotation` without crossing configured threshold for UC-9.4.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:account_inventory`** — First 48h baseline for UC-9.4.4 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1098"

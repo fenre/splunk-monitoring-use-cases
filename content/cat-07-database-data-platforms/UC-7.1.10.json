@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'TempDB Contention (SQL Server)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_tempdb_contention_sql_server` (UC-7.1.10), SOC dashboard panel \"Operations — TempDB Contention (SQL Server)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:wait_stats' where `wait_type` satisfies detection threshold for UC-7.1.10 ('TempDB Contention (SQL Server)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:wait_stats` events where `wait_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.10."
+    "positiveScenario": "UC-7.1.10 positive (TempDB, Contention, (SQL, Server)): ingest synthetic events into `index=database` sourcetype='dbconnect:wait_stats' where `total_wait` grouped by `wait_type` satisfies detection threshold for 'TempDB Contention (SQL Server)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.10 negative ((SQL Server)): ingest benign `database` / `dbconnect:wait_stats` events where `wait_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'TempDB Contention (SQL Server)'."
   },
   "dataSources": "`sys.dm_os_wait_stats` (PAGELATCH waits), `sys.dm_exec_query_stats` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "DB Connect, Splunk_TA_microsoft-sqlserver — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:wait_stats\"\n| where wait_type LIKE \"PAGELATCH%\" AND resource_description LIKE \"2:%\"\n| stats sum(wait_time_ms) as total_wait by wait_type",
-  "description": "TempDB contention is a common SQL Server bottleneck. Detection enables configuration tuning (multiple data files, trace flags).",
-  "value": "Early 'TempDB Contention (SQL Server)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-7.1.10 — TempDB, Contention, (SQL, Server) — using `index=database` sourcetype `dbconnect:wait_stats`, grouped by `wait_type`. Outputs `total_wait` each `the scheduled window`; alert when configured threshold. Primary focus: (SQL Server). Purpose-built for 'TempDB Contention (SQL Server)' in Operations workflows.",
+  "value": "UC-7.1.10 gives Operations teams earlier visibility into (SQL Server) through `dbconnect:wait_stats` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Poll wait statistics via DB Connect. Filter for PAGELATCH waits on TempDB (database_id 2). Alert when TempDB waits exceed baseline. Recommend adding TempDB data files equal to number of CPU cores (up to 8).",
   "visualization": "Bar chart (wait types), Line chart (TempDB wait trend), Single value (current TempDB wait ms).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'TempDB Contention (SQL Server)' shifts `sum` over `span=1h` while `wait_type` remains in-scope for UC-7.1.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbconnect:wait_stats`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `wait_type`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:wait_stats`** — First 48h baseline for `wait_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `wait_type`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.10)** — Planned work for 'TempDB Contention (SQL Server)' shifts `total_wait` over `span=1h` while `wait_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `dbconnect:wait_stats`** — Scheduled automation elevates `src` without crossing configured threshold for UC-7.1.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `wait_type`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:wait_stats`** — First 48h baseline for UC-7.1.10 on `wait_type` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `wait_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "mssql"

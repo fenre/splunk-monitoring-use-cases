@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Focus Block Protection Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_focus_block_protection_rate` (UC-25.13.16), SOC dashboard panel \"Personal — Focus Block Protection Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='calendar:event' where `_time` satisfies `focus_blocks` > 0 for UC-25.13.16 ('Focus Block Protection Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `calendar:event` events where `_time` stays below `focus_blocks` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.13.16."
+    "positiveScenario": "UC-25.13.16 positive (Focus, Block, Protection, Rate): ingest synthetic events into `index=personal` sourcetype='calendar:event' where `sum` grouped by `_time` satisfies `focus_blocks` > 0, or `kept_pct` < 70 for 'Focus Block Protection Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.13.16 negative (Protection Rate): ingest benign `personal` / `calendar:event` events where `_time` stays below `focus_blocks` > 0, or `kept_pct` < 70, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Focus Block Protection Rate'."
   },
   "dataSources": "RescueTime activity (`rescuetime:activity`), screen-time exports (`screentime:usage`), GitHub events (`github:personal`), habit-tracker logs (`habit:entry`), calendar exports (`calendar:event`), email metadata (`email:metadata`), password-audit reports (`passwordmanager:audit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Screen-time / RescueTime exports, GitHub personal activity, habit/journal trackers, password-audit exports, and calendar/email feeds via HEC scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=calendar:event category=focus\n| bin _time span=1w\n| stats count as focus_blocks, sum(eval(status=\"cancelled\")) as cancelled by _time\n| eval kept_pct=round(100*(focus_blocks-cancelled)/focus_blocks,1)\n| where focus_blocks>0 AND kept_pct<70\n| sort kept_pct",
-  "description": "Measures how many planned focus blocks actually survived the week instead of being cancelled or surrendered to meetings.",
-  "value": "Measures how many planned focus blocks actually survived the week instead of being cancelled or surrendered.... Timely UC-25.13.16 alerting on 'Focus Block Protection Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.13.16 — Focus, Block, Protection, Rate — using `index=personal` sourcetype `calendar:event`, grouped by `_time`. Outputs `sum` each `1w`; alert when `focus_blocks` > 0, or `kept_pct` < 70. Primary focus: Protection Rate. Purpose-built for 'Focus Block Protection Rate' in Personal workflows.",
+  "value": "UC-25.13.16 gives Personal teams earlier visibility into Protection Rate through `calendar:event` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Tag protected calendar time clearly; review weekly keep rate and identify which days or stakeholders eat it most often.",
   "visualization": "Weekly table of scheduled focus blocks and kept percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Focus Block Protection Rate' stops polling `calendar:event`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `focus_blocks` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.13.16)** — Connector for 'Focus Block Protection Rate' stops polling `calendar:event`; stale `sum` on `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.13.16, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `calendar:event`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `focus_blocks` > 0 for 'Focus Block Protection Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "github",
     "security_essentials"

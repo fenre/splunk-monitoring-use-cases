@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Continuous-Flow Water Leak Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_continuous_flow_water_leak_detection` (UC-25.19.1), SOC dashboard panel \"Personal — Continuous-Flow Water Leak Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='watermeter:flow' where `entity` satisfies `flow` > 0 for UC-25.19.1 ('Continuous-Flow Water Leak Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `watermeter:flow` events where `entity` stays below `flow` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.19.1."
+    "positiveScenario": "UC-25.19.1 positive (Continuous, Flow, Water, Leak, Detection): ingest synthetic events into `index=personal` sourcetype='watermeter:flow' where `flow` grouped by `entity` satisfies `flow` > 0, or `consecutive` >= 8 for 'Continuous-Flow Water Leak Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.19.1 negative (Leak Detection): ingest benign `personal` / `watermeter:flow` events where `entity` stays below `flow` > 0, or `consecutive` >= 8, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 4 confirms zero alert rows for 'Continuous-Flow Water Leak Detection'."
   },
   "dataSources": "Whole-home water flow (`watermeter:flow`), sump pump (`sumppump:event`), well pump (`wellpump:event`), pool/spa chemistry (`pool:chemistry`), water softener (`watersoftener:status`), irrigation zones (`irrigation:zone`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Smart water meters (Flume / Flo / HomeWizard), sump- and well-pump sensors, pool/spa controllers, water-softener and irrigation controllers via vendor APIs, MQTT, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=watermeter:flow\n| timechart span=15m max(flow_lpm) as flow\n| streamstats current=t count(eval(flow>0)) as consecutive reset_after=\"(flow=0)\"\n| eval leak_suspected=if(consecutive>=8,1,0)",
-  "description": "Detects water flowing continuously for hours with no pause, the tell-tale signature of a running toilet or a burst pipe.",
-  "value": "Detects water flowing continuously for hours with no pause, the tell-tale signature of a running toilet or.... Timely UC-25.19.1 alerting on 'Continuous-Flow Water Leak Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies risk tied to Continuous, Flow, Water, Leak, Detection through UC-25.19.1 on `index=personal` sourcetype `watermeter:flow`. Summarises `flow` grouped by `entity` across `15m` before applying `flow` > 0, or `consecutive` >= 8. Operators tune 'Continuous-Flow Water Leak Detection' using UC-25.19.1 runbook steps.",
+  "value": "Tracking `flow` via UC-25.19.1 on `watermeter:flow` feeds improves response to 'Continuous-Flow Water Leak Detection' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Feed a smart water meter into `index=personal`; alert when flow never returns to zero over a sustained window.",
   "visualization": "Time chart of water flow with continuous-flow periods highlighted.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Continuous-Flow Water Leak Detection' stops polling `watermeter:flow`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `15m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watermeter:flow`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `15m` bins on UTC vs local schedule skew `flow` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.19.1)** — Connector for 'Continuous-Flow Water Leak Detection' stops polling `watermeter:flow`; stale `flow` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `flow` over `15m` is expected for UC-25.19.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `watermeter:flow`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `15m` bins on UTC vs local schedule skew `flow` > 0 for 'Continuous-Flow Water Leak Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

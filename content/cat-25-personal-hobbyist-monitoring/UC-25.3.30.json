@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Charge Session Dwell Time After Full' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_charge_session_dwell_time_after_full` (UC-25.3.30), SOC dashboard panel \"Personal — Charge Session Dwell Time After Full\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `site_name` satisfies `avg_dwell_min` > 30 for UC-25.3.30 ('Charge Session Dwell Time After Full'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `evcharger:session` events where `site_name` stays below `avg_dwell_min` > 30, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.30."
+    "positiveScenario": "UC-25.3.30 positive (Charge, Session, Dwell, Time, After): ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `avg_dwell_min` grouped by `site_name` satisfies `avg_dwell_min` > 30 for 'Charge Session Dwell Time After Full'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.30 negative (After Full): ingest benign `personal` / `evcharger:session` events where `site_name` stays below `avg_dwell_min` > 30, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Charge Session Dwell Time After Full'."
   },
   "dataSources": "Personal EV and vehicle telemetry (`tesla:vehicle`, `tesla:charge`, `rivian:vehicle`, `chargepoint:session`, `plugshare:checkin`, `evcharger:session`, `obd:pid`, `smartcar:vehicle`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Rivian telemetry, ChargePoint session exports, PlugShare trip logs, Smartcar, and OBD-II / home-charger data via APIs, CSV exports, MQTT, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=evcharger:session\n| stats avg(post_charge_parked_min) as avg_dwell_min by site_name\n| where avg_dwell_min>30\n| sort - avg_dwell_min",
-  "description": "Uses EV charging session exports telemetry to monitor how long the vehicle stayed parked after charge completion in index=personal.",
-  "value": "Uses EV charging session exports telemetry to monitor how long the vehicle stayed parked after charge compl.... Timely UC-25.3.30 alerting on 'Charge Session Dwell Time After Full' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.3.30 — Charge, Session, Dwell, Time, After — using `index=personal` sourcetype `evcharger:session`, grouped by `site_name`. Outputs `avg_dwell_min` each `the scheduled window`; alert when `avg_dwell_min` > 30. Primary focus: After Full. Purpose-built for 'Charge Session Dwell Time After Full' in Personal workflows.",
+  "value": "UC-25.3.30 gives Personal teams earlier visibility into After Full through `evcharger:session` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest EV charging session exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Site ranking by post-charge dwell minutes.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Charge Session Dwell Time After Full' stops polling `evcharger:session`; stale `site_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by site_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_dwell_min` > 30. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.30)** — Connector for 'Charge Session Dwell Time After Full' stops polling `evcharger:session`; stale `avg_dwell_min` on `site_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_dwell_min` over `1w` is expected for UC-25.3.30, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by site_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_dwell_min` > 30 for 'Charge Session Dwell Time After Full'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

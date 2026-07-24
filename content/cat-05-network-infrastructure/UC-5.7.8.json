@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Multicast Traffic Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_multicast_traffic_monitoring` (UC-5.7.8), SOC dashboard panel \"Operations — Multicast Traffic Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='netflow' where `dest` satisfies detection threshold for UC-5.7.8 ('Multicast Traffic Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `netflow` events where `dest` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.7.8."
+    "positiveScenario": "UC-5.7.8 positive (Multicast, Traffic, Monitoring): ingest synthetic events into `index=network` sourcetype='netflow' where `total_bytes`, `sources` grouped by `dest` satisfies detection threshold for 'Multicast Traffic Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.7.8 negative (Traffic Monitoring): ingest benign `network` / `netflow` events where `dest` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Multicast Traffic Monitoring'."
   },
   "dataSources": "`stream:netflow` / `stream:ipfix` or `splunk_stream`; optional `cisco:ios` for syslog tie-in Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk Stream, NetFlow integrator — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=\"netflow\"\n| where cidrmatch(\"224.0.0.0/4\", dest)\n| stats sum(bytes) as total_bytes, dc(src) as sources by dest\n| eval MB=round(total_bytes/1048576,1) | sort -total_bytes\n| head 20",
-  "description": "Uncontrolled multicast traffic floods switches and consumes bandwidth. Monitoring ensures multicast storms are detected before impacting unicast traffic.",
-  "value": "Uncontrolled multicast traffic floods switches and consumes bandwidth. Timely UC-5.7.8 alerting on 'Multicast Traffic Monitoring' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-5.7.8 — Multicast, Traffic, Monitoring — using `index=network` sourcetype `netflow`, grouped by `dest`. Outputs `total_bytes`, `sources` each `the scheduled window`; alert when configured threshold. Primary focus: Traffic Monitoring. Purpose-built for 'Multicast Traffic Monitoring' in Operations workflows.",
+  "value": "UC-5.7.8 operationalises 'Multicast Traffic Monitoring' against `netflow` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Enable NetFlow on core/distribution switches. Filter for multicast destination range (224.0.0.0/4). Baseline expected multicast groups. Alert on new or high-volume groups.",
   "visualization": "Table (multicast group, volume, sources), Timechart (multicast volume), Bar chart.",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Multicast Traffic Monitoring' shifts `sum` over `span=1h` while `dest` remains in-scope for UC-5.7.8. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `MB` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for `dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.7.8)** — Planned work for 'Multicast Traffic Monitoring' shifts `total_bytes`, `sources` over `span=1h` while `dest` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `netflow`** — Scheduled automation elevates `MB` without crossing configured threshold for UC-5.7.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netflow`** — First 48h baseline for UC-5.7.8 on `dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "netflow",

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Release Gate and Approval Lag' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_release_gate_and_approval_lag` (UC-12.4.8), SOC dashboard panel \"Operations — Release Gate and Approval Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='release:gate' where `stage_name` satisfies `avg_wait` > 3600 for UC-12.4.8 ('Release Gate and Approval Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `release:gate` events where `stage_name` stays below `avg_wait` > 3600, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.4.8."
+    "positiveScenario": "UC-12.4.8 positive (Release, Gate, and, Approval, Lag): ingest synthetic events into `index=cicd` sourcetype='release:gate' where `avg_wait`, `max_wait` grouped by `stage_name`, `environment` satisfies `avg_wait` > 3600 for 'Release Gate and Approval Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.4.8 negative (Approval Lag): ingest benign `cicd` / `release:gate` events where `stage_name`, `environment` stays below `avg_wait` > 3600, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Release Gate and Approval Lag'."
   },
   "dataSources": "Gate and approval timestamps from release pipelines Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Release management / pipeline TAs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"release:gate\"\n| eval wait_sec=approved_time - submitted_time\n| stats avg(wait_sec) as avg_wait, max(wait_sec) as max_wait by stage_name, environment\n| where avg_wait > 3600",
-  "description": "Long approval or gate wait times delay releases. Monitoring gate duration and approval latency supports process improvement.",
-  "value": "Early 'Release Gate and Approval Lag' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces when Approval Lag criteria fire for 'Release Gate and Approval Lag' (UC-12.4.8) in `index=cicd` sourcetype `release:gate`. Pipeline aggregates `avg_wait`, `max_wait` by `stage_name`, `environment` over `the scheduled window`. Alert logic enforces `avg_wait` > 3600. Title terms: Release, Gate, and, Approval, Lag. Eliminates manual hunting for UC-12.4.8 conditions.",
+  "value": "UC-12.4.8 helps teams contain Release, Gate, and, Approval, Lag scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest gate and approval events from Azure DevOps, Spinnaker, or similar. Compute wait time per stage. Alert when average wait exceeds threshold. Report on approval latency by stage and approver.",
   "visualization": "Bar chart (wait time by stage), Table (slow gates), Line chart (approval latency trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Release Gate and Approval Lag' shifts `avg` over `span=1h` while `stage_name` remains in-scope for UC-12.4.8. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `release:gate`** — Scheduled automation elevates `environment` without crossing `avg_wait` > 3600. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stage_name`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `release:gate`** — First 48h baseline for `stage_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stage_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.4.8)** — Planned work for 'Release Gate and Approval Lag' shifts `avg_wait`, `max_wait` over `span=1h` while `stage_name`, `environment` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `release:gate`** — Scheduled automation elevates `environment` without crossing `avg_wait` > 3600 for UC-12.4.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `stage_name`, `environment`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `release:gate`** — First 48h baseline for UC-12.4.8 on `stage_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `stage_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure"
   ],

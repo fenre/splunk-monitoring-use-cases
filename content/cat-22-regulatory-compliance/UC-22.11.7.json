@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `src` satisfies detection threshold for UC-22.11.7 ('Outbound Service Allow-List Violations from CDE Servers'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netfw` / `pan:traffic` events where `src` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.7."
+    "positiveScenario": "UC-22.11.7 positive (Outbound, Service, Allow, List, Violations): ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `count` grouped by `src`, `dest`, `dest_port`, `app` satisfies -7d for 'Outbound Service Allow-List Violations from CDE Servers'. Validate lookup `pci_cde_server_subnets.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.7 negative (CDE Servers): ingest benign `netfw` / `pan:traffic` events where `src`, `dest`, `dest_port`, `app` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Outbound Service Allow-List Violations from CDE Servers'."
   },
   "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"`; `lookup pci_cde_server_subnets.csv`, `lookup pci_approved_egress.csv`",
   "app": "Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=netfw sourcetype=\"pan:traffic\" action=allowed earliest=-7d\n| lookup pci_cde_server_subnets.csv subnet AS src OUTPUT cde_server\n| where cde_server=\"true\"\n| eval svc=lower(dest_port.\"#\".app)\n| lookup pci_approved_egress.csv svc OUTPUT approved\n| where isnull(approved) OR approved=\"false\"\n| stats count by src, dest, dest_port, app, dest_zone\n| sort - count",
-  "description": "Compares observed egress from in-scope servers against the documented approved service list, proving that outbound traffic from the CDE is limited to what the standard permits.",
-  "value": "Compares observed egress from in-scope servers against the documented approved service list, proving that o.... Timely UC-22.11.7 alerting on 'Outbound Service Allow-List Violations from CDE Servers' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.11.7 — Outbound, Service, Allow, List, Violations — using `index=netfw` sourcetype `pan:traffic`, grouped by `src`, `dest`, `dest_port`, `app`. Outputs `count` each `the scheduled window`; alert when -7d. Filter chain includes lookup `pci_cde_server_subnets.csv`. Purpose-built for 'Outbound Service Allow-List Violations from CDE Servers' in Compliance workflows.",
+  "value": "For 'Outbound Service Allow-List Violations from CDE Servers', UC-22.11.7 converts `activity` on `pan:traffic` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Build the egress lookup from the PCI network standard appendix. (2) Refresh when new SaaS dependencies are onboarded. (3) Weekly ops review of the stats output. (4) Store signed CSV with each policy version. Indexes required: `index=netfw`; Sourcetypes: `sourcetype=pan:traffic`.",
   "visualization": "Treemap (by app), bar (dest_port), table (detail).",
   "cimModels": [

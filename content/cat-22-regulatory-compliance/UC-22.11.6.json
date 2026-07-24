@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `wlan_ssid` satisfies detection threshold for UC-22.11.6 ('Wireless Client Pools Reaching CDE Hosts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netfw` / `pan:traffic` events where `wlan_ssid` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.6."
+    "positiveScenario": "UC-22.11.6 positive (Wireless, Client, Pools, Reaching, CDE): ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `count` grouped by `wlan_ssid`, `src`, `dest`, `app` satisfies -24h for 'Wireless Client Pools Reaching CDE Hosts'. Validate lookup `pci_wlan_dhcp_scopes.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.6 negative (CDE Hosts): ingest benign `netfw` / `pan:traffic` events where `wlan_ssid`, `src`, `dest`, `app` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 13 confirms zero alert rows for 'Wireless Client Pools Reaching CDE Hosts'."
   },
   "dataSources": "`index=netfw` `sourcetype=\"pan:traffic\"`; optional `index=stream` for decrypted metadata tagging",
   "app": "Splunk Add-on for Palo Alto Networks (2757), Splunk Stream (1809) (Splunkbase)",
   "spl": "index=netfw sourcetype=\"pan:traffic\" action=allowed earliest=-24h\n| lookup pci_wlan_dhcp_scopes.csv subnet AS src OUTPUT wlan_ssid\n| lookup pci_cde_subnets.csv subnet AS dest OUTPUT in_cde\n| where isnotnull(wlan_ssid) AND in_cde=\"true\"\n| stats earliest(_time) as first_seen, latest(_time) as last_seen, count by wlan_ssid, src, dest, app\n| eval session_span_sec=last_seen-first_seen\n| sort - count",
-  "description": "Shows successful flows from wireless DHCP scopes to CDE destinations, supporting evidence that wireless is segmented from cardholder environments or that compensating detective controls exist.",
-  "value": "Shows successful flows from wireless DHCP scopes to CDE destinations, supporting evidence that wireless is.... Timely UC-22.11.6 alerting on 'Wireless Client Pools Reaching CDE Hosts' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.11.6 — Wireless, Client, Pools, Reaching, CDE — using `index=netfw` sourcetype `pan:traffic`, grouped by `wlan_ssid`, `src`, `dest`, `app`. Outputs `count` each `the scheduled window`; alert when -24h. Filter chain includes lookup `pci_wlan_dhcp_scopes.csv`. Purpose-built for 'Wireless Client Pools Reaching CDE Hosts' in Compliance workflows.",
+  "value": "UC-22.11.6 gives Compliance teams earlier visibility into CDE Hosts through `pan:traffic` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Export DHCP superscopes per SSID from IPAM. (2) Exclude corporate VPN concentrator egress if pooled with WLAN. (3) Pair with 802.1X authentication logs when available. (4) Report zero-result runs as quarterly attestation attachment. Indexes required: `index=netfw`, `index=stream`; Sourcetypes: `sourcetype=pan:traffic`; Lookups: `pci_cde_subnets`, `pci_cde_subnets.csv`, `pci_wlan_dhcp_scopes`, `pci_wlan_dhcp_scopes.csv`.",
   "visualization": "Table (sessions), pie (by wlan_ssid), timeline (first_seen/last_seen).",
   "cimModels": [

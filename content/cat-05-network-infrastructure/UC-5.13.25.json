@@ -11,8 +11,8 @@
   "dataSources": "`index=catalyst sourcetype=cisco:dnac:issue` from the `issue` modular input in `TA_cisco_catalyst` (Splunkbase 7538). Same data feed as UC-5.13.21. This UC counts poll persistence per `issueId` — issues that remain ACTIVE across many consecutive polls are the persistent 'repeat offenders' that indicate unresolved systemic problems requiring Problem Management, not just incident response.",
   "app": "`TA_cisco_catalyst` ([Splunkbase 7538](https://splunkbase.splunk.com/app/7538)), Cisco Supported, 1.x+.",
   "spl": "index=catalyst sourcetype=\"cisco:dnac:issue\" status!=\"RESOLVED\"\n| stats count as poll_count earliest(_time) as first_seen latest(_time) as last_seen values(deviceName) as devices by issueId, name, priority, category\n| eval age_days=round((now()-first_seen)/86400,1)\n| sort -age_days\n| head 20",
-  "description": "Identifies the longest-running and most persistent unresolved Assurance issues — the chronic 'repeat offenders' that have been active for days or weeks without resolution, consuming NOC attention and degrading the network without triggering urgent alerts because they're P3/P4 or because the team has grown accustomed to ignoring them.",
-  "value": "Identifies the longest-running and most persistent unresolved Assurance issues — the chronic 'repeat offend.... Timely UC-5.13.25 alerting on 'Top Recurring Issues (Repeat Offenders)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-5.13.25 — Top, Recurring, Issues, (Repeat, Offenders) — using `index=catalyst` sourcetype `cisco:dnac:issue`, grouped by `issueId`, `name`, `priority`, `category`. Outputs `values` each `the scheduled window`; alert when configured threshold. Primary focus: (Repeat Offenders). Purpose-built for 'Top Recurring Issues (Repeat Offenders)' in Operations workflows.",
+  "value": "Tracking `activity` via UC-5.13.25 on `cisco:dnac:issue` feeds improves response to 'Top Recurring Issues (Repeat Offenders)' and reduces operational risk and delayed incident response.",
   "implementation": "Same `issue` input as UC-5.13.21. Schedule as a weekly report for the Problem Management or operations review meeting. Focus on the top 20 oldest active issues.",
   "visualization": "(1) Table: name, priority, category, age_days, poll_count, devices — sorted by age descending (oldest first). (2) Bar chart: top 10 by age_days. (3) Single value: count of issues active > 7 days (yellow ≥ 5, red ≥ 20). (4) Drilldown: click an issue → show its timeline from UC-5.13.22 filtered to that `name`.",
   "references": [
@@ -33,7 +33,7 @@
       "url": "https://www.atlassian.com/itsm/problem-management"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `catalyst`** — Planned work for 'Top Recurring Issues (Repeat Offenders)' shifts `values` over `span=1h` while `issueId` remains in-scope for UC-5.13.25. Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:dnac:issue`** — Scheduled automation elevates `name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `issueId`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for `issueId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `issueId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `catalyst` (UC-5.13.25)** — Planned work for 'Top Recurring Issues (Repeat Offenders)' shifts `values` over `span=1h` while `issueId`, `name`, `priority`, `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `cisco:dnac:issue`** — Scheduled automation elevates `name` without crossing configured threshold for UC-5.13.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `issueId`, `name`, `priority`, `category`** — Health checks in `catalyst` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:dnac:issue`** — First 48h baseline for UC-5.13.25 on `issueId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `issueId`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],
@@ -54,7 +54,7 @@
   ],
   "wave": "walk",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `issueId` satisfies detection threshold for UC-5.13.25 ('Top Recurring Issues (Repeat Offenders)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `catalyst` / `cisco:dnac:issue` events where `issueId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.13.25."
+    "positiveScenario": "UC-5.13.25 positive (Top, Recurring, Issues, (Repeat, Offenders)): ingest synthetic events into `index=catalyst` sourcetype='cisco:dnac:issue' where `values` grouped by `issueId`, `name`, `priority`, `category` satisfies detection threshold for 'Top Recurring Issues (Repeat Offenders)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.13.25 negative ((Repeat Offenders)): ingest benign `catalyst` / `cisco:dnac:issue` events where `issueId`, `name`, `priority`, `category` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Top Recurring Issues (Repeat Offenders)'."
   }
 }

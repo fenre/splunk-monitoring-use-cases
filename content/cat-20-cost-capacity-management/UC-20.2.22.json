@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Disk IOPS Saturation Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_disk_iops_saturation_trending` (UC-20.2.22), SOC dashboard panel \"Operations — Disk IOPS Saturation Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='storage:performance' where `volume_id` satisfies `iops_util` > 80 for UC-20.2.22 ('Disk IOPS Saturation Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `storage:performance` events where `volume_id` stays below `iops_util` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.2.22."
+    "positiveScenario": "UC-20.2.22 positive (Disk, IOPS, Saturation, Trending): ingest synthetic events into `index=storage` sourcetype='storage:performance' where `iops_util`, `lat` grouped by `volume_id` satisfies `iops_util` > 80, or `lat` > 10 for 'Disk IOPS Saturation Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.2.22 negative (Saturation Trending): ingest benign `storage` / `storage:performance` events where `volume_id` stays below `iops_util` > 80, or `lat` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Disk IOPS Saturation Trending'."
   },
   "dataSources": "`storage:performance`, array metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Storage TA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"storage:performance\" earliest=-7d\n| timechart span=1h avg(iops_util_pct) as iops_util avg(read_latency_ms) as lat by volume_id\n| where iops_util>80 OR lat>10",
-  "description": "Time-series of `iops_utilization_pct` or latency vs IOP limit for SAN/NVMe — storage performance bottleneck before capacity full.",
-  "value": "Early 'Disk IOPS Saturation Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-20.2.22 for Disk, IOPS, Saturation, Trending over `index=storage` sourcetype `storage:performance` with thresholds `iops_util` > 80, or `lat` > 10. Groups `iops_util`, `lat` by `volume_id` each `1h`. Centered on Saturation Trending indicators. Supports repeatable operations triage for 'Disk IOPS Saturation Trending'.",
+  "value": "For 'Disk IOPS Saturation Trending', UC-20.2.22 converts `iops_util`, `lat` on `storage:performance` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Map vendor IOPS cap. Alert on sustained >80% util or latency SLO breach. Scale pool or move workload.",
   "visualization": "Line chart (IOPS util and latency), Table (hot volumes), Single value (volumes in saturation).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'Disk IOPS Saturation Trending' shifts `avg` over `span=1h` while `volume_id` remains in-scope for UC-20.2.22. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `storage:performance`** — Scheduled automation elevates `src` without crossing `iops_util` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_id`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `storage:performance`** — First 48h baseline for `volume_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-20.2.22)** — Planned work for 'Disk IOPS Saturation Trending' shifts `iops_util`, `lat` over `span=1h` while `volume_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `storage:performance`** — Scheduled automation elevates `src` without crossing `iops_util` > 80 for UC-20.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `volume_id`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `storage:performance`** — First 48h baseline for UC-20.2.22 on `volume_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `volume_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

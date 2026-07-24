@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Paperless OCR Queue Backlog' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_paperless_ocr_queue_backlog` (UC-25.8.22), SOC dashboard panel \"Personal — Paperless OCR Queue Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='paperless:document' where `consumer` satisfies `queued_docs` > 20 for UC-25.8.22 ('Paperless OCR Queue Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `paperless:document` events where `consumer` stays below `queued_docs` > 20, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.22."
+    "positiveScenario": "UC-25.8.22 positive (Paperless, OCR, Queue, Backlog): ingest synthetic events into `index=personal` sourcetype='paperless:document' where `count` grouped by `consumer` satisfies `queued_docs` > 20, or `processing_docs` > 5 for 'Paperless OCR Queue Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.22 negative (Queue Backlog): ingest benign `personal` / `paperless:document` events where `consumer` stays below `queued_docs` > 20, or `processing_docs` > 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'Paperless OCR Queue Backlog'."
   },
   "dataSources": "Homelab services (`kubernetes:pod`, `proxmox:metric`, `vaultwarden:event`, `paperless:document`, `immich:job`, `adguard:query`, `docker:stats`, `truenas:pool`, `nut:ups`, `uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Kubernetes homelab clusters, Proxmox, Vaultwarden, Paperless-ngx, Immich, AdGuard Home, Docker, TrueNAS, and NUT metrics via APIs, logs, Telegraf, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=paperless:document\n| stats count(eval(status=\"queued\")) as queued_docs, count(eval(status=\"processing\")) as processing_docs by consumer\n| where queued_docs>20 OR processing_docs>5\n| sort - queued_docs",
-  "description": "Uses Paperless-ngx ingestion events telemetry to monitor how far OCR and import queues are backing up in index=personal.",
-  "value": "Uses Paperless-ngx ingestion events telemetry to monitor how far OCR and import queues are backing up in in.... Timely UC-25.8.22 alerting on 'Paperless OCR Queue Backlog' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies when Queue Backlog criteria fire for 'Paperless OCR Queue Backlog' (UC-25.8.22) in `index=personal` sourcetype `paperless:document`. Pipeline aggregates `count` by `consumer` over `the scheduled window`. Alert logic enforces `queued_docs` > 20, or `processing_docs` > 5. Title terms: Paperless, OCR, Queue, Backlog. Eliminates manual hunting for UC-25.8.22 conditions.",
+  "value": "UC-25.8.22 helps teams contain Paperless, OCR, Queue, Backlog scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest Paperless-ngx ingestion events data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Consumer table of queued and processing documents.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Paperless OCR Queue Backlog' stops polling `paperless:document`; stale `consumer` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `paperless:document`. Dedup with `stats latest(*) by consumer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `queued_docs` > 20. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.22)** — Connector for 'Paperless OCR Queue Backlog' stops polling `paperless:document`; stale `count` on `consumer` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.8.22, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `paperless:document`. Dedup with `stats latest(*) by consumer`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `queued_docs` > 20 for 'Paperless OCR Queue Backlog'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "hashicorp",

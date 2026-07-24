@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Docker Container Restart-Loop Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_docker_container_restart_loop_detection` (UC-25.8.2), SOC dashboard panel \"Personal — Docker Container Restart-Loop Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='docker:stats' where `container_name` satisfies `delta` > 3 for UC-25.8.2 ('Docker Container Restart-Loop Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `docker:stats` events where `container_name` stays below `delta` > 3, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.2."
+    "positiveScenario": "UC-25.8.2 positive (Docker, Container, Restart, Loop, Detection): ingest synthetic events into `index=personal` sourcetype='docker:stats' where `restarts` grouped by `container_name` satisfies `delta` > 3 for 'Docker Container Restart-Loop Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.2 negative (Loop Detection): ingest benign `personal` / `docker:stats` events where `container_name` stays below `delta` > 3, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'Docker Container Restart-Loop Detection'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=docker:stats\n| stats max(restart_count) as restarts, latest(status) as status by container_name\n| streamstats current=f last(restarts) as prev by container_name\n| eval delta=restarts-coalesce(prev,restarts)\n| where delta>3\n| sort - delta",
-  "description": "Detects containers that are crash-looping by watching their restart counter climb, catching a broken self-hosted app before you notice it is down.",
-  "value": "Detects containers that are crash-looping by watching their restart counter climb, catching a broken self-h.... Timely UC-25.8.2 alerting on 'Docker Container Restart-Loop Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.8.2 — Docker, Container, Restart, Loop, Detection — using `index=personal` sourcetype `docker:stats`, grouped by `container_name`. Outputs `restarts` each `the scheduled window`; alert when `delta` > 3. Primary focus: Loop Detection. Purpose-built for 'Docker Container Restart-Loop Detection' in Personal workflows.",
+  "value": "For 'Docker Container Restart-Loop Detection', UC-25.8.2 converts `restarts` on `docker:stats` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward Docker stats/events to HEC; schedule every few minutes and alert on rapidly rising restart counts.",
   "visualization": "Table of containers by recent restart count.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Docker Container Restart-Loop Detection' stops polling `docker:stats`; stale `container_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `docker:stats`. Dedup with `stats latest(*) by container_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `delta` > 3. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.2)** — Connector for 'Docker Container Restart-Loop Detection' stops polling `docker:stats`; stale `restarts` on `container_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `restarts` over `1w` is expected for UC-25.8.2, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `docker:stats`. Dedup with `stats latest(*) by container_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `delta` > 3 for 'Docker Container Restart-Loop Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

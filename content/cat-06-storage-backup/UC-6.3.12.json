@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Commvault Job Completion' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_commvault_job_completion` (UC-6.3.12), SOC dashboard panel \"Operations — Commvault Job Completion\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='commvault:job' where `job_name` satisfies detection threshold for UC-6.3.12 ('Commvault Job Completion'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `commvault:job` events where `job_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.12."
+    "positiveScenario": "UC-6.3.12 positive (Commvault, Job, Completion): ingest synthetic events into `index=backup` sourcetype='commvault:job' where `count` grouped by `job_name`, `subclient_name` satisfies detection threshold for 'Commvault Job Completion'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.12 negative (Job Completion): ingest benign `backup` / `commvault:job` events where `job_name`, `subclient_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Commvault Job Completion'."
   },
   "dataSources": "Commvault job history (subclient, status, error code) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Commvault Splunk App, Commvault REST/CLI export — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"commvault:job\"\n| where status!=\"Completed\" OR job_status=\"Failed\"\n| stats latest(_time) as last_run, latest(error_code) as err by job_name, subclient_name\n| table job_name subclient_name last_run err",
-  "description": "Failed or incomplete Commvault backup jobs leave subclients unprotected. Job-level success tracking is required for audit and restore confidence.",
-  "value": "Early 'Commvault Job Completion' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-6.3.12 — Commvault, Job, Completion — using `index=backup` sourcetype `commvault:job`, grouped by `job_name`, `subclient_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Job Completion. Purpose-built for 'Commvault Job Completion' in Operations workflows.",
+  "value": "UC-6.3.12 helps teams contain Commvault, Job, Completion scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Ingest completed job events from Commvault. Normalize status values. Alert on Failed; report Partial with same severity as policy dictates.",
   "visualization": "Table (failed jobs), Single value (failed jobs 24h), Bar chart (failures by error code).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Commvault Job Completion' shifts `count` over `span=1h` while `job_name` remains in-scope for UC-6.3.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `commvault:job`** — Scheduled automation elevates `subclient_name` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:job`** — First 48h baseline for `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.12)** — Planned work for 'Commvault Job Completion' shifts `count` over `span=1h` while `job_name`, `subclient_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `commvault:job`** — Scheduled automation elevates `subclient_name` without crossing configured threshold for UC-6.3.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `job_name`, `subclient_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `commvault:job`** — First 48h baseline for UC-6.3.12 on `job_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `job_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp"

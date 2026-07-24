@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Config Compliance Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_config_compliance_monitoring` (UC-4.1.15), SOC dashboard panel \"Operations — Config Compliance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:config:notification' where `resourceType` satisfies detection threshold for UC-4.1.15 ('Config Compliance Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:config:notification` events where `resourceType` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.15."
+    "positiveScenario": "UC-4.1.15 positive (Config, Compliance, Monitoring): ingest synthetic events into `index=aws` sourcetype='aws:config:notification' where `count` grouped by `resourceType`, `resourceId`, `configRuleList{}.configRuleName` satisfies detection threshold for 'Config Compliance Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.15 negative (Compliance Monitoring): ingest benign `aws` / `aws:config:notification` events where `resourceType`, `resourceId`, `configRuleList{}.configRuleName` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Config Compliance Monitoring'."
   },
   "dataSources": "`sourcetype=aws:config:notification` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:config:notification\" configRuleList{}.complianceType=\"NON_COMPLIANT\"\n| stats count by resourceType, resourceId, configRuleList{}.configRuleName\n| sort -count",
-  "description": "AWS Config rules continuously evaluate resource compliance against security best practices. Non-compliant resources are attack surface.",
-  "value": "Early 'Config Compliance Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'Config Compliance Monitoring' patterns (UC-4.1.15) sourced from `index=aws` sourcetype `aws:config:notification`. Threshold bundle: configured threshold; aggregation grain: `resourceType`, `resourceId`, `configRuleList{}.configRuleName`; metrics: `count`. Watch terms: Config, Compliance, Monitoring.",
+  "value": "UC-4.1.15 gives Operations teams earlier visibility into Compliance Monitoring through `aws:config:notification` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable AWS Config with rules (e.g., CIS Benchmark). Forward Config notifications to SNS/S3 and ingest in Splunk. Dashboard showing compliance score per rule. Alert on newly non-compliant critical resources.",
   "visualization": "Table (resource, rule, status), Pie chart (compliant %), Bar chart by rule.",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Config Compliance Monitoring' shifts `count` over `span=1h` while `resourceType` remains in-scope for UC-4.1.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:config:notification`** — Scheduled automation elevates `resourceId` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resourceType`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:config:notification`** — First 48h baseline for `resourceType` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resourceType`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.15)** — Planned work for 'Config Compliance Monitoring' shifts `count` over `span=1h` while `resourceType`, `resourceId`, `configRuleList{}.configRuleName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:config:notification`** — Scheduled automation elevates `resourceId` without crossing configured threshold for UC-4.1.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resourceType`, `resourceId`, `configRuleList{}.configRuleName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:config:notification`** — First 48h baseline for UC-4.1.15 on `resourceType` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resourceType`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1578"
   ],

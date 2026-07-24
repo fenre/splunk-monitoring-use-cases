@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Generator Run Hours and Maintenance Due' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_generator_run_hours_and_maintenance_due` (UC-15.1.25), SOC dashboard panel \"Operations — Generator Run Hours and Maintenance Due\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=physical` sourcetype='generator:status' where `generator_id` satisfies `remaining_hrs` < 100 for UC-15.1.25 ('Generator Run Hours and Maintenance Due'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `physical` / `generator:status` events where `generator_id` stays below `remaining_hrs` < 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.1.25."
+    "positiveScenario": "UC-15.1.25 positive (Generator, Run, Hours, and, Maintenance): ingest synthetic events into `index=physical` sourcetype='generator:status' where `count` grouped by `generator_id` satisfies `remaining_hrs` < 100 for 'Generator Run Hours and Maintenance Due'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.1.25 negative (Maintenance Due): ingest benign `physical` / `generator:status` events where `generator_id` stays below `remaining_hrs` < 100, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Generator Run Hours and Maintenance Due'."
   },
   "dataSources": "Run hours, last maintenance date, next due Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Generator controller, BMS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=physical sourcetype=\"generator:status\"\n| stats latest(run_hours) as run_hrs, latest(maintenance_due_hrs) as due_hrs by generator_id\n| eval remaining_hrs=due_hrs-run_hrs\n| where remaining_hrs < 100\n| table generator_id, run_hrs, due_hrs, remaining_hrs",
-  "description": "Generator maintenance based on run hours ensures reliability during outages. Tracking run hours and maintenance due dates avoids missed service.",
-  "value": "Early 'Generator Run Hours and Maintenance Due' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Generator Run Hours and Maintenance Due' patterns (UC-15.1.25) sourced from `index=physical` sourcetype `generator:status`. Threshold bundle: `remaining_hrs` < 100; aggregation grain: `generator_id`; metrics: `count`. Watch terms: Generator, Run, Hours, and, Maintenance.",
+  "value": "UC-15.1.25 gives Operations teams earlier visibility into Maintenance Due through `generator:status` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest generator run hours and maintenance schedule. Alert when remaining hours until next service is below threshold. Report on run hour trend and overdue maintenance.",
   "visualization": "Table (generators due for service), Gauge (remaining hours), Bar chart (run hours by unit).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `physical`** — Planned work for 'Generator Run Hours and Maintenance Due' shifts `count` over `span=1h` while `generator_id` remains in-scope for UC-15.1.25. Cross-check CMDB CHG.\n\n2. **Batch `count` on `generator:status`** — Scheduled automation elevates `remaining_hrs` without crossing `remaining_hrs` < 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `generator_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `generator:status`** — First 48h baseline for `generator_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `generator_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `physical` (UC-15.1.25)** — Planned work for 'Generator Run Hours and Maintenance Due' shifts `count` over `span=1h` while `generator_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `generator:status`** — Scheduled automation elevates `remaining_hrs` without crossing `remaining_hrs` < 100 for UC-15.1.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `generator_id`** — Health checks in `physical` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `generator:status`** — First 48h baseline for UC-15.1.25 on `generator_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `generator_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

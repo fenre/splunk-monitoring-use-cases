@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Fivetran Monthly Active Rows Cost Spike' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_fivetran_monthly_active_rows_cost_spike` (UC-24.8.9), SOC dashboard panel \"Operations — Fivetran Monthly Active Rows Cost Spike\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='fivetran:log' where `connector_id` satisfies detection threshold for UC-24.8.9 ('Fivetran Monthly Active Rows Cost Spike'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `fivetran:log` events where `connector_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.9."
+    "positiveScenario": "UC-24.8.9 positive (Fivetran, Monthly, Active, Rows, Cost): ingest synthetic events into `index=bi` sourcetype='fivetran:log' where `mar`, `avg_mar`, `sd_mar` grouped by `connector_id` satisfies detection threshold for 'Fivetran Monthly Active Rows Cost Spike'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.9 negative (Cost Spike): ingest benign `bi` / `fivetran:log` events where `connector_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Fivetran Monthly Active Rows Cost Spike'."
   },
   "dataSources": "Fivetran REST API connector status (`fivetran:connector`), log-service sync events (`fivetran:log`), and usage/MAR exports. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Fivetran REST API (`/v1/connectors`, `/v1/metadata`) and Fivetran Platform Connector logs via HEC scripted inputs; Fivetran log-service events (`fivetran:log`). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=fivetran:log event=\"records_modified\"\n| timechart span=1d sum(count) as mar by connector_id\n| untable _time connector_id mar\n| eventstats avg(mar) as avg_mar, stdev(mar) as sd_mar by connector_id\n| where mar>avg_mar+3*sd_mar\n| sort - mar",
-  "description": "Tracks Fivetran monthly-active-rows (MAR) per connector and flags days where a connector's row volume spikes far above its own baseline, the primary driver of Fivetran cost.",
-  "value": "Tracks Fivetran monthly-active-rows (MAR) per connector and flags days where a connector's row volume spike.... Timely UC-24.8.9 alerting on 'Fivetran Monthly Active Rows Cost Spike' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-24.8.9 — Fivetran, Monthly, Active, Rows, Cost — using `index=bi` sourcetype `fivetran:log`, grouped by `connector_id`. Outputs `mar`, `avg_mar`, `sd_mar` each `1d`; alert when configured threshold. Primary focus: Cost Spike. Purpose-built for 'Fivetran Monthly Active Rows Cost Spike' in Operations workflows.",
+  "value": "UC-24.8.9 gives Operations teams earlier visibility into Cost Spike through `fivetran:log` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest Fivetran log-service records_modified events; schedule daily and alert on 3-sigma MAR spikes for any connector.",
   "visualization": "Timechart of MAR per connector, anomaly table, cost projection.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Fivetran Monthly Active Rows Cost Spike' shifts `sum` over `span=1d` while `connector_id` remains in-scope for UC-24.8.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `fivetran:log`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:log`** — First 48h baseline for `connector_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.9)** — Planned work for 'Fivetran Monthly Active Rows Cost Spike' shifts `mar`, `avg_mar`, `sd_mar` over `span=1d` while `connector_id` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `fivetran:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.8.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector_id`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `fivetran:log`** — First 48h baseline for UC-24.8.9 on `connector_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connector_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

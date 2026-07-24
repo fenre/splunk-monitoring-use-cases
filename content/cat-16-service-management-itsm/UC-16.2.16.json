@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Stale CI Discovery Freshness' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_stale_ci_discovery_freshness` (UC-16.2.16), SOC dashboard panel \"Operations — Stale CI Discovery Freshness\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `ci_class` satisfies detection threshold for UC-16.2.16 ('Stale CI Discovery Freshness'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `ci_class` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.16."
+    "positiveScenario": "UC-16.2.16 positive (Stale, Discovery, Freshness): ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `count` grouped by `ci_class`, `support_group` satisfies -1d for 'Stale CI Discovery Freshness'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.16 negative (Discovery Freshness): ingest benign `itsm` / `snow:cmdb_ci` events where `ci_class`, `support_group` stays below -1d, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Stale CI Discovery Freshness'."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:cmdb_ci\"` (`last_discovered`, `sys_updated_on`, `operational_status`, `name`, `ci_class`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:cmdb_ci\" operational_status=\"operational\" earliest=-1d\n| eval last_seen=coalesce(last_discovered, sys_updated_on)\n| where isnotnull(last_seen) AND last_seen < relative_time(now(),\"-90d@d\")\n| eval stale_days=round((now()-last_seen)/86400,0)\n| stats count as stale_cis by ci_class, support_group\n| sort -stale_cis",
-  "description": "Operational CIs without recent discovery updates inflate false confidence during impact analysis; freshness trending supports CMDB governance and ITIL configuration management objectives.",
-  "value": "Early 'Stale CI Discovery Freshness' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Discovery Freshness activity in UC-16.2.16 ('Stale CI Discovery Freshness') from `index=itsm` sourcetype `snow:cmdb_ci`. Rolls up `count` by `ci_class`, `support_group` across `the scheduled window` and pages when -1d. Covers Stale, Discovery, Freshness. Operations operators treat UC-16.2.16 as the canonical signal.",
+  "value": "Operators running UC-16.2.16 on `snow:cmdb_ci` feeds shorten triage for Discovery Freshness tied to 'Stale CI Discovery Freshness', lowering operational risk and delayed incident response.",
   "implementation": "(1) Tune the 90-day threshold to your discovery schedule; (2) Exclude classes intentionally not discovered (e.g., logical groups) via `where ci_class!=...`; (3) Publish a weekly remediation list to CMDB owners with `stale_days` for prioritization.",
   "visualization": "Bar chart (stale count by CI class), Table (stale CIs with stale_days), Single value (total stale operational CIs).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Stale CI Discovery Freshness' shifts `count` over `span=1h` while `ci_class` remains in-scope for UC-16.2.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:cmdb_ci`** — Scheduled automation elevates `support_group` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ci_class`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for `ci_class` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ci_class`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.2.16)** — Planned work for 'Stale CI Discovery Freshness' shifts `count` over `span=1h` while `ci_class`, `support_group` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:cmdb_ci`** — Scheduled automation elevates `support_group` without crossing configured threshold for UC-16.2.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ci_class`, `support_group`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for UC-16.2.16 on `ci_class` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ci_class`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

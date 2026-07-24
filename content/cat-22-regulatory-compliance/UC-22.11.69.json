@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `src` satisfies `count` > 500 for UC-22.11.69 ('Automated Log Review — Correlation of Firewall Deny Bursts with IDS Signatures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `netfw` / `pan:traffic` events where `src` stays below `count` > 500, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.69."
+    "positiveScenario": "UC-22.11.69 positive (Automated, Log, Review, Correlation, Firewall): ingest synthetic events into `index=netfw` sourcetype='pan:traffic' where `sigs` grouped by `src`, `dest`, `]` satisfies `count` > 500, or `sigs` > 0 for 'Automated Log Review — Correlation of Firewall Deny Bursts with IDS Signatures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.69 negative (IDS Signatures): ingest benign `netfw` / `pan:traffic` events where `src`, `dest`, `]` stays below `count` > 500, or `sigs` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'Automated Log Review — Correlation of Firewall Deny Bursts with IDS Signatures'."
   },
   "dataSources": "`index=netfw` `pan:traffic`; `index=ids` `sourcetype=\"suricata:alert\"` or `pan:threat`",
   "app": "Splunk Enterprise Security (263), Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=netfw sourcetype=\"pan:traffic\" action=deny earliest=-1h\n| stats count by src, dest\n| where count>500\n| join type=left max=0 src [\n    search index=ids (sourcetype=\"suricata:alert\" OR sourcetype=\"pan:threat\") earliest=-1h\n    | rename src_ip as src\n    | stats dc(signature) as sigs by src\n  ]\n| where isnotnull(sigs) AND sigs>0\n| table src, dest, count, sigs",
-  "description": "Joins short-window firewall denies with IDS alerts touching the same `src_ip` so automated reviews surface coordinated attack patterns without waiting for manual cross-index pivoting.",
-  "value": "Joins short-window firewall denies with IDS alerts touching the same `src_ip` so automated reviews surface.... Timely UC-22.11.69 alerting on 'Automated Log Review — Correlation of Firewall Deny Bursts with IDS Signatures' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.11.69 — Automated, Log, Review, Correlation, Firewall — using `index=netfw` sourcetype `pan:traffic`, grouped by `src`, `dest`, `]`. Outputs `sigs` each `the scheduled window`; alert when `count` > 500, or `sigs` > 0. Primary focus: IDS Signatures. Purpose-built for 'Automated Log Review — Correlation of Firewall Deny Bursts with IDS Signatures' in Compliance workflows.",
+  "value": "Alerting on Automated, Log, Review, Correlation, Firewall through UC-22.11.69 reduces audit findings, regulatory gaps, and attestation delays by surfacing `sigs` early.",
   "implementation": "(1) Tune `map` limits for performance; consider `join` with subsearch capped. (2) Replace with ES notable linking if preferred. (3) Document tuning for false positive rates. (4) Daily automated report to SOC leads. Indexes required: `index=ids`, `index=netfw`; Sourcetypes: `sourcetype=pan:threat`, `sourcetype=pan:traffic`, `sourcetype=suricata:alert`.",
   "visualization": "Table (correlated src), bubble chart (count vs sigs), timeline.",
   "cimModels": [

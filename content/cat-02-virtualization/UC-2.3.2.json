@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Host Overcommit Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_host_overcommit_detection` (UC-2.3.2), SOC dashboard panel \"Linux — Host Overcommit Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=virtualization` sourcetype='kvm_capacity' where `host` satisfies `cpu_overcommit` > 3 for UC-2.3.2 ('Host Overcommit Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `virtualization` / `kvm_capacity` events where `host` stays below `cpu_overcommit` > 3, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.3.2."
+    "positiveScenario": "UC-2.3.2 positive (Host, Overcommit, Detection): ingest synthetic events into `index=virtualization` sourcetype='kvm_capacity' where `total_vcpus`, `total_vm_mem` grouped by `host` satisfies `cpu_overcommit` > 3, or `mem_overcommit` > 1.2 for 'Host Overcommit Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.3.2 negative (Overcommit Detection): ingest benign `virtualization` / `kvm_capacity` events where `host` stays below `cpu_overcommit` > 3, or `mem_overcommit` > 1.2, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Host Overcommit Detection'."
   },
   "dataSources": "Custom sourcetype (`virsh nodeinfo` + `virsh list --all`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=virtualization sourcetype=kvm_capacity\n| stats sum(vm_vcpus) as total_vcpus, sum(vm_memory_mb) as total_vm_mem, latest(host_cpus) as host_cpus, latest(host_memory_mb) as host_mem by host\n| eval cpu_overcommit = round(total_vcpus / host_cpus, 2)\n| eval mem_overcommit = round(total_vm_mem / host_mem, 2)\n| where cpu_overcommit > 3 OR mem_overcommit > 1.2",
-  "description": "Overcommitted KVM hosts cause all VMs to compete for resources. Unlike VMware, KVM doesn't have sophisticated DRS — manual balancing is needed.",
-  "value": "Early 'Host Overcommit Detection' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-2.3.2 — Host, Overcommit, Detection — using `index=virtualization` sourcetype `kvm_capacity`, grouped by `host`. Outputs `total_vcpus`, `total_vm_mem` each `the scheduled window`; alert when `cpu_overcommit` > 3, or `mem_overcommit` > 1.2. Primary focus: Overcommit Detection. Purpose-built for 'Host Overcommit Detection' in Linux workflows.",
+  "value": "UC-2.3.2 gives Linux teams earlier visibility into Overcommit Detection through `kvm_capacity` feeds, lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create scripted input combining `virsh nodeinfo` (host resources) with `virsh dominfo <vm>` for each VM. Calculate aggregate allocation vs. physical capacity. Alert when memory overcommit >1.2x or CPU >4x.",
   "visualization": "Table (host, allocated vs. physical), Gauge per host.",
   "cimModels": [

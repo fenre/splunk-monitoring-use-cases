@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'SLA Breach Prediction' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sla_breach_prediction` (UC-16.1.14), SOC dashboard panel \"Operations — SLA Breach Prediction\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:task_sla' where `entity` satisfies `pct_elapsed` >= 80 for UC-16.1.14 ('SLA Breach Prediction'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:task_sla` events where `entity` stays below `pct_elapsed` >= 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.14."
+    "positiveScenario": "UC-16.1.14 positive (SLA, Breach, Prediction): ingest synthetic events into `index=itsm` sourcetype='snow:task_sla' where `count` grouped by `entity` satisfies `pct_elapsed` >= 80, or `pct_elapsed` < 100 for 'SLA Breach Prediction'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.14 negative (Breach Prediction): ingest benign `itsm` / `snow:task_sla` events where `entity` stays below `pct_elapsed` >= 80, or `pct_elapsed` < 100, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'SLA Breach Prediction'."
   },
   "dataSources": "ServiceNow incident + SLA task / task_sla (`sourcetype=snow:task_sla` or equivalent) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:task_sla\"\n| where isnull(breach_time) OR breach_time=0\n| eval pct_elapsed=if(isnotnull(planned_end_time) AND planned_end_time>sla_start_time,\n    100*(now()-sla_start_time)/(planned_end_time-sla_start_time), null())\n| where pct_elapsed>=80 AND pct_elapsed<100 AND isnotnull(pct_elapsed)\n| table _time, parent, number, sla_type, pct_elapsed, planned_end_time\n| sort -pct_elapsed",
-  "description": "Predicting tickets likely to breach SLA before the deadline enables proactive reassignment, escalation, and automation — reducing contractual exposure and customer impact.",
-  "value": "Early 'SLA Breach Prediction' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-16.1.14 for SLA, Breach, Prediction over `index=itsm` sourcetype `snow:task_sla` with thresholds `pct_elapsed` >= 80, or `pct_elapsed` < 100. Groups `count` by `entity` each `the scheduled window`. Centered on Breach Prediction indicators. Supports repeatable operations triage for 'SLA Breach Prediction'.",
+  "value": "For 'SLA Breach Prediction', UC-16.1.14 converts `activity` on `snow:task_sla` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest SLA task rows with `sla_start_time`, `planned_end_time` (or `due_at`), breach flag, and parent incident. Compute percent of SLA window consumed. Alert when elapsed ≥80% and breach has not occurred. Optionally blend with assignment group queue depth. Tune thresholds per priority and SLA definition.",
   "visualization": "Table (at-risk tickets), Single value (at-risk count), Gauge (% SLA time consumed), Timeline (SLA burn-down).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'SLA Breach Prediction' shifts `count` over `span=1h` while `host` remains in-scope for UC-16.1.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:task_sla`** — Scheduled automation elevates `pct_elapsed` without crossing `pct_elapsed` >= 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:task_sla`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.14)** — Planned work for 'SLA Breach Prediction' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:task_sla`** — Scheduled automation elevates `pct_elapsed` without crossing `pct_elapsed` >= 80 for UC-16.1.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:task_sla`** — First 48h baseline for UC-16.1.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Firmware Version Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_firmware_version_tracking` (UC-14.2.5), SOC dashboard panel \"Operations — Firmware Version Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='ics_inventory' where `device_name` satisfies detection threshold for UC-14.2.5 ('Firmware Version Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `ics_inventory` events where `device_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.5."
+    "positiveScenario": "UC-14.2.5 positive (Firmware, Version, Tracking): ingest synthetic events into `index=ot` sourcetype='ics_inventory' where `count` grouped by `device_name`, `vendor`, `model` satisfies detection threshold for 'Firmware Version Tracking'. Validate lookup `approved_firmware.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.5 negative (Version Tracking): ingest benign `ot` / `ics_inventory` events where `device_name`, `vendor`, `model` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Firmware Version Tracking'."
   },
   "dataSources": "Asset inventory scans, OPC-UA system attributes Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Scripted inventory input, OPC-UA — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"ics_inventory\"\n| stats latest(firmware_version) as current by device_name, vendor, model\n| lookup approved_firmware.csv vendor, model OUTPUT approved_version\n| where current!=approved_version\n| table device_name, vendor, model, current, approved_version",
-  "description": "OT devices with outdated firmware are vulnerable to exploitation. Inventory tracking supports patching during maintenance windows.",
-  "value": "Early 'Firmware Version Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-14.2.5 — Firmware, Version, Tracking — using `index=ot` sourcetype `ics_inventory`, grouped by `device_name`, `vendor`, `model`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `approved_firmware.csv`. Purpose-built for 'Firmware Version Tracking' in Operations workflows.",
+  "value": "UC-14.2.5 helps teams contain Firmware, Version, Tracking scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Conduct periodic OT asset inventory scans (during maintenance windows). Ingest firmware versions. Maintain approved firmware lookup. Report on compliance. Prioritize based on CISA ICS advisories.",
   "visualization": "Table (devices with outdated firmware), Pie chart (compliance distribution), Single value (% compliant).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Firmware Version Tracking' shifts `count` over `span=1h` while `device_name` remains in-scope for UC-14.2.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics_inventory`** — Scheduled automation elevates `vendor` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_name`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics_inventory`** — First 48h baseline for `device_name` is unstable; join `approved_firmware.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.5)** — Planned work for 'Firmware Version Tracking' shifts `count` over `span=1h` while `device_name`, `vendor`, `model` remains in-scope. Applies lookup `approved_firmware.csv`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics_inventory`** — Scheduled automation elevates `vendor` without crossing configured threshold for UC-14.2.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `device_name`, `vendor`, `model`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics_inventory`** — First 48h baseline for UC-14.2.5 on `device_name` is unstable; join `approved_firmware.csv` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `device_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "opcua"
   ],

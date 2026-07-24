@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Schema Modification Audit' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_schema_modification_audit` (UC-9.2.3), SOC dashboard panel \"IAM — Schema Modification Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='openldap:audit' where `entity` satisfies detection threshold for UC-9.2.3 ('Schema Modification Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `openldap:audit` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.3."
+    "positiveScenario": "UC-9.2.3 positive (Schema, Modification, Audit): ingest synthetic events into `index=ldap` sourcetype='openldap:audit' where `count` grouped by `entity` satisfies detection threshold for 'Schema Modification Audit'. Validate filter `\"cn=schema\" (\"add:\" OR \"delete:\" OR \"replace:\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.2.3 negative (Modification Audit): ingest benign `ldap` / `openldap:audit` events where `entity` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'Schema Modification Audit'."
   },
   "dataSources": "LDAP server audit log (schema modification events) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "LDAP audit log — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ldap sourcetype=\"openldap:audit\"\n| search \"cn=schema\" (\"add:\" OR \"delete:\" OR \"replace:\")\n| table _time, modifier_dn, changetype, modification",
-  "description": "Schema changes to directory services can break applications and are rarely expected. Detection ensures change control compliance.",
-  "value": "Early 'Schema Modification Audit' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Monitors Modification Audit activity in UC-9.2.3 ('Schema Modification Audit') from `index=ldap` sourcetype `openldap:audit`. Rolls up `count` by `entity` across `the scheduled window` and pages when configured threshold. Uses filter `\"cn=schema\" (\"add:\" OR \"delete:\" OR \"replace:\")`. IAM operators treat UC-9.2.3 as the canonical signal.",
+  "value": "Operators running UC-9.2.3 on `openldap:audit` feeds shorten triage for Modification Audit tied to 'Schema Modification Audit', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Enable LDAP audit logging (overlay in OpenLDAP, audit log in 389 DS). Forward to Splunk. Alert on any schema modification. These should be extremely rare and always correlated with change tickets.",
   "visualization": "Timeline (schema changes), Table (change details), Single value (schema changes this month).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'Schema Modification Audit' shifts `count` over `span=1h` while `host` remains in-scope for UC-9.2.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `openldap:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:audit`** — First 48h baseline for `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap` (UC-9.2.3)** — Planned work for 'Schema Modification Audit' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"cn=schema\" (\"add:\" OR \"delete:\" OR \"replace:\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `openldap:audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-9.2.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:audit`** — First 48h baseline for UC-9.2.3 on `host` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1484"
   ],

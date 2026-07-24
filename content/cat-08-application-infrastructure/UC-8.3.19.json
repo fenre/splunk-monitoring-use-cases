@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'ActiveMQ Broker Store Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_activemq_broker_store_usage` (UC-8.3.19), SOC dashboard panel \"Operations — ActiveMQ Broker Store Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `broker_name` satisfies `store_pct` > 80 for UC-8.3.19 ('ActiveMQ Broker Store Usage'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `messaging` / `activemq:broker` events where `broker_name` stays below `store_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.19."
+    "positiveScenario": "UC-8.3.19 positive (ActiveMQ, Broker, Store, Usage): ingest synthetic events into `index=messaging` sourcetype='activemq:broker' where `pct` grouped by `broker_name` satisfies `store_pct` > 80 for 'ActiveMQ Broker Store Usage'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.19 negative (Store Usage): ingest benign `messaging` / `activemq:broker` events where `broker_name` stays below `store_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'ActiveMQ Broker Store Usage'."
   },
   "dataSources": "`org.apache.activemq:type=Broker` `StoreLimit`, `TempLimit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ActiveMQ JMX, `activemq` log — Universal Forwarder (Splunkbase 617)",
   "spl": "index=messaging sourcetype=\"activemq:broker\"\n| eval store_pct=round(store_used/store_limit*100,1)\n| where store_pct > 80\n| timechart span=5m max(store_pct) as pct by broker_name",
-  "description": "Persistent store percent used (KahaDB) or JDBC store growth causes broker pause and producer blocking. JMX `StoreLimit` usage.",
-  "value": "Early 'ActiveMQ Broker Store Usage' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on when Store Usage criteria fire for 'ActiveMQ Broker Store Usage' (UC-8.3.19) in `index=messaging` sourcetype `activemq:broker`. Pipeline aggregates `pct` by `broker_name` over `5m`. Alert logic enforces `store_pct` > 80. Title terms: ActiveMQ, Broker, Store, Usage. Eliminates manual hunting for UC-8.3.19 conditions.",
+  "value": "UC-8.3.19 helps teams contain ActiveMQ, Broker, Store, Usage scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Poll JMX every 5m. Alert at 80% store. Schedule garbage collection or archive old messages per policy.",
   "visualization": "Gauge (store %), Line chart (store usage), Table (brokers over threshold).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `messaging`** — Planned work for 'ActiveMQ Broker Store Usage' shifts `max` over `span=5m` while `broker_name` remains in-scope for UC-8.3.19. Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `store_pct` without crossing `store_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for `broker_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `messaging` (UC-8.3.19)** — Planned work for 'ActiveMQ Broker Store Usage' shifts `pct` over `span=5m` while `broker_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `activemq:broker`** — Scheduled automation elevates `store_pct` without crossing `store_pct` > 80 for UC-8.3.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `broker_name`** — Health checks in `messaging` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `activemq:broker`** — First 48h baseline for UC-8.3.19 on `broker_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `broker_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "activemq",
     "apache"

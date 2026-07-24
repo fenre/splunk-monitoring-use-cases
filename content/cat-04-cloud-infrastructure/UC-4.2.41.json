@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Private Link DNS Resolution' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_private_link_dns_resolution` (UC-4.2.41), SOC dashboard panel \"Operations — Private Link DNS Resolution\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='dns:query' where `fqdn` satisfies `fail_pct` > 5 for UC-4.2.41 ('Private Link DNS Resolution'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `dns:query` events where `fqdn` stays below `fail_pct` > 5, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.41."
+    "positiveScenario": "UC-4.2.41 positive (Private, Link, DNS, Resolution): ingest synthetic events into `index=network` sourcetype='dns:query' where `count` grouped by `fqdn`, `src` satisfies `fail_pct` > 5, or `total` > 20 for 'Private Link DNS Resolution'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.41 negative (DNS Resolution): ingest benign `network` / `dns:query` events where `fqdn`, `src` stays below `fail_pct` > 5, or `total` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Private Link DNS Resolution'."
   },
   "dataSources": "Azure DNS private zone query logs (if enabled), VM DNS client logs, `sourcetype=dns:query` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (DNS query logs), `Splunk_TA_microsoft-cloudservices` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"dns:query\" zone_type=\"private\"\n| stats count(eval(rcode!=\"NOERROR\")) as failures, count as total by fqdn, src\n| eval fail_pct=round(100*failures/total,2)\n| where fail_pct > 5 AND total > 20",
-  "description": "Private Endpoint FQDNs resolve via private DNS zones; NXDOMAIN or public resolution leaks traffic or breaks apps. Searches `index=network` with sourcetype `dns:query` for UC-4.2.41, aggregating `count` by `fqdn` over `the scheduled window`. Alerts when grouped results cross `fail_pct` > 5 in the saved search. Gives Operations operators a repeatable signal for 'Private Link DNS Resolution' without manual log review.",
-  "value": "Early 'Private Link DNS Resolution' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-4.2.41 — Private, Link, DNS, Resolution — using `index=network` sourcetype `dns:query`, grouped by `fqdn`, `src`. Outputs `count` each `the scheduled window`; alert when `fail_pct` > 5, or `total` > 20. Primary focus: DNS Resolution. Purpose-built for 'Private Link DNS Resolution' in Operations workflows.",
+  "value": "UC-4.2.41 accelerates insight into DNS Resolution ('Private Link DNS Resolution') by tracking `activity` on `dns:query` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Forward DNS resolver logs from VNet-linked zones or Azure Firewall DNS proxy. Alert on high NXDOMAIN for PE FQDNs. Validate zone links and auto-registration on new NICs.",
   "visualization": "Table (fqdn, fail %), Timeline (DNS errors), Map (source subnet).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Private Link DNS Resolution' shifts `count` over `span=1h` while `fqdn` remains in-scope for UC-4.2.41. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dns:query`** — Scheduled automation elevates `src` without crossing `fail_pct` > 5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `fqdn`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dns:query`** — First 48h baseline for `fqdn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `fqdn`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-4.2.41)** — Planned work for 'Private Link DNS Resolution' shifts `count` over `span=1h` while `fqdn`, `src` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dns:query`** — Scheduled automation elevates `src` without crossing `fail_pct` > 5 for UC-4.2.41. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `fqdn`, `src`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dns:query`** — First 48h baseline for UC-4.2.41 on `fqdn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `fqdn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "m365"

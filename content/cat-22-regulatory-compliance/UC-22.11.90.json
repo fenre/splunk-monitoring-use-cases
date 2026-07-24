@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=grc` sourcetype='grc:policy_review' where `policy_id` satisfies detection threshold for UC-22.11.90 ('Annual Information Security Policy Review and Approval Workflow'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `grc` / `grc:policy_review` events where `policy_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.90."
+    "positiveScenario": "UC-22.11.90 positive (Annual, Information, Security, Policy, Review): ingest synthetic events into `index=grc` sourcetype='grc:policy_review' where `od` grouped by `policy_id` satisfies -730d for 'Annual Information Security Policy Review and Approval Workflow'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.90 negative (Approval Workflow): ingest benign `grc` / `grc:policy_review` events where `policy_id` stays below -730d, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Annual Information Security Policy Review and Approval Workflow'."
   },
   "dataSources": "`index=grc` `sourcetype=\"grc:policy_review\"` — `policy_id`, `version`, `next_review_date`, `approver`, `status`",
   "app": "Splunk Add-on for ServiceNow (1928) or `sourcetype=\"grc:policy_review\"` (Splunkbase)",
   "spl": "index=grc sourcetype=\"grc:policy_review\" earliest=-730d\n| where match(policy_id,\"(?i)PCI|INFOSEC|ACCESS|NETWORK)\")\n| eval due_epoch=strptime(next_review_date,\"%Y-%m-%d\")\n| eval overdue=if(now()>due_epoch AND NOT match(status,\"(?i)approved|published\"),1,0)\n| stats latest(version) as ver, latest(status) as st, max(overdue) as od by policy_id\n| where od=1\n| table policy_id, ver, st, next_review_date\n| sort policy_id",
-  "description": "Tracks policy document versions, review due dates, and approver signatures so the security policy is reviewed at least annually and management acknowledges changes affecting the CDE.",
-  "value": "Tracks policy document versions, review due dates, and approver signatures so the security policy is review.... Timely UC-22.11.90 alerting on 'Annual Information Security Policy Review and Approval Workflow' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.11.90 — Annual, Information, Security, Policy, Review — using `index=grc` sourcetype `grc:policy_review`, grouped by `policy_id`. Outputs `od` each `the scheduled window`; alert when -730d. Primary focus: Approval Workflow. Purpose-built for 'Annual Information Security Policy Review and Approval Workflow' in Compliance workflows.",
+  "value": "For 'Annual Information Security Policy Review and Approval Workflow', UC-22.11.90 converts `od` on `grc:policy_review` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Push policy metadata whenever GRC workflow updates. (2) Link to document repository deep links. (3) Alert compliance manager 60 days before `next_review_date`. (4) Archive approved PDF hash in same event. Indexes required: `index=grc`; Sourcetypes: `sourcetype=grc:policy_review`.",
   "visualization": "Table (overdue policies), timeline (next_review_date), gauge (% policies current).",
   "cimModels": [

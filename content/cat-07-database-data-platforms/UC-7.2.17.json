@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'CouchDB Replication Conflicts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_couchdb_replication_conflicts` (UC-7.2.17), SOC dashboard panel \"Operations — CouchDB Replication Conflicts\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='couchdb:replication' where `database_name` satisfies `conflict_count` > 0 for UC-7.2.17 ('CouchDB Replication Conflicts'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `couchdb:replication` events where `database_name` stays below `conflict_count` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.17."
+    "positiveScenario": "UC-7.2.17 positive (CouchDB, Replication, Conflicts): ingest synthetic events into `index=database` sourcetype='couchdb:replication' where `conflicts` grouped by `database_name`, `source`, `target` satisfies `conflict_count` > 0 for 'CouchDB Replication Conflicts'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.17 negative (Replication Conflicts): ingest benign `database` / `couchdb:replication` events where `database_name`, `source`, `target` stays below `conflict_count` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'CouchDB Replication Conflicts'."
   },
   "dataSources": "Replication task errors, document conflict counts (custom view or `_changes` sampling) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "CouchDB `_stats`, `_active_tasks` API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"couchdb:replication\"\n| where conflict_count > 0 OR error IS NOT NULL\n| stats sum(conflict_count) as conflicts, latest(error) as err by database_name, source, target\n| sort -conflicts",
-  "description": "Growing `_conflicts` document count indicates divergent replicas and data quality issues. Early detection prevents silent wrong reads.",
-  "value": "Early 'CouchDB Replication Conflicts' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Replication Conflicts activity in UC-7.2.17 ('CouchDB Replication Conflicts') from `index=database` sourcetype `couchdb:replication`. Rolls up `conflicts` by `database_name`, `source`, `target` across `the scheduled window` and pages when `conflict_count` > 0. Covers CouchDB, Replication, Conflicts. Operations operators treat UC-7.2.17 as the canonical signal.",
+  "value": "Operators running UC-7.2.17 on `couchdb:replication` feeds shorten triage for Replication Conflicts tied to 'CouchDB Replication Conflicts', lowering operational risk and delayed incident response.",
   "implementation": "Ingest replication task status from `_active_tasks` and periodic conflict counts from a map view. Alert on replication errors or conflict_count increase week-over-week.",
   "visualization": "Table (DB, conflicts, error), Line chart (conflict trend), Single value (total conflicts).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'CouchDB Replication Conflicts' shifts `sum` over `span=1h` while `database_name` remains in-scope for UC-7.2.17. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `couchdb:replication`** — Scheduled automation elevates `source` without crossing `conflict_count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `couchdb:replication`** — First 48h baseline for `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.17)** — Planned work for 'CouchDB Replication Conflicts' shifts `conflicts` over `span=1h` while `database_name`, `source`, `target` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `couchdb:replication`** — Scheduled automation elevates `source` without crossing `conflict_count` > 0 for UC-7.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`, `source`, `target`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `couchdb:replication`** — First 48h baseline for UC-7.2.17 on `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

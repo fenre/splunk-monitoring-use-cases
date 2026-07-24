@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Sensitive File Commit Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sensitive_file_commit_detection` (UC-12.1.11), SOC dashboard panel \"Operations — Sensitive File Commit Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='github:webhook' where `entity` satisfies detection threshold for UC-12.1.11 ('Sensitive File Commit Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `github:webhook` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.1.11."
+    "positiveScenario": "UC-12.1.11 positive (Sensitive, File, Commit, Detection): ingest synthetic events into `index=devops` sourcetype='github:webhook' where `count` grouped by `entity` satisfies detection threshold for 'Sensitive File Commit Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.1.11 negative (Commit Detection): ingest benign `devops` / `github:webhook` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Sensitive File Commit Detection'."
   },
   "dataSources": "Push webhook with file path arrays, or GitHub compare API Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GitHub `push` webhook payload (commits[].modified/added) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"github:webhook\" event=\"push\"\n| mvexpand commits{}.modified limit=500\n| where match(commits{}.modified,\"(\\.env|id_rsa|kubeconfig|\\.pem|credentials\\.xml)$\")\n| table _time, repository, commits{}.author.username, commits{}.modified",
-  "description": "Paths such as `.env`, `id_rsa`, `kubeconfig`, and `*.pem` in commits indicate credential sprawl even before secret scanning fires.",
-  "value": "Early 'Sensitive File Commit Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-12.1.11 for Sensitive, File, Commit, Detection over `index=devops` sourcetype `github:webhook` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on Commit Detection indicators. Supports repeatable operations triage for 'Sensitive File Commit Detection'.",
+  "value": "For 'Sensitive File Commit Detection', UC-12.1.11 converts `activity` on `github:webhook` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Expand commit file lists in ingestion. Alert on first match; auto-open rotation ticket. Pair with secret scanning (UC-12.1.4).",
   "visualization": "Table (sensitive paths), Bar chart (repos), Timeline.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Sensitive File Commit Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.1.11. Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:webhook`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:webhook`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-12.1.11)** — Planned work for 'Sensitive File Commit Detection' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `github:webhook`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `github:webhook`** — First 48h baseline for UC-12.1.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "github"
   ],

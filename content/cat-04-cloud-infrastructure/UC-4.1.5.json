@@ -47,14 +47,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `entity` satisfies detection threshold for UC-4.1.5 ('Console Login Without MFA'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.5."
+    "positiveScenario": "UC-4.1.5 positive (Console, Login, Without, MFA): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `entity` satisfies detection threshold for 'Console Login Without MFA'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.5 negative (Without MFA): ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Console Login Without MFA'."
   },
   "dataSources": "`sourcetype=aws:cloudtrail` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"ConsoleLogin\" responseElements.ConsoleLogin=\"Success\"\n| eval mfa_used = if(additionalEventData.MFAUsed=\"Yes\", \"Yes\", \"No\")\n| where mfa_used=\"No\"\n| table _time userIdentity.arn sourceIPAddress mfa_used\n| sort -_time",
-  "description": "Console access without MFA is a security risk — compromised passwords alone can grant full account access. Most compliance frameworks require MFA.",
-  "value": "Early 'Console Login Without MFA' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Console Login Without MFA' patterns (UC-4.1.5) sourced from `index=aws` sourcetype `aws:cloudtrail`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Watch terms: Console, Login, Without, MFA.",
+  "value": "UC-4.1.5 gives Operations teams earlier visibility into Without MFA through `aws:cloudtrail` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Monitor ConsoleLogin events. Alert on successful console logins where MFA is not used. Exclude service accounts that authenticate via SSO (which has its own MFA).",
   "visualization": "Table (user, source IP, MFA status), Pie chart (MFA vs. no-MFA), Single value.",
   "cimModels": [
@@ -84,7 +84,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Console Login Without MFA' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.1.5. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `mfa_used` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.5)** — Planned work for 'Console Login Without MFA' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `mfa_used` without crossing configured threshold for UC-4.1.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.1.5 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078.004"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Consumer Lag Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_consumer_lag_monitoring` (UC-8.3.1), SOC dashboard panel \"Operations — Consumer Lag Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kafka` sourcetype='kafka:consumer_lag' where `consumer_group` satisfies `consumer_lag` > 10000 for UC-8.3.1 ('Consumer Lag Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kafka` / `kafka:consumer_lag` events where `consumer_group` stays below `consumer_lag` > 10000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.3.1."
+    "positiveScenario": "UC-8.3.1 positive (Consumer, Lag, Monitoring): ingest synthetic events into `index=kafka` sourcetype='kafka:consumer_lag' where `consumer_lag` grouped by `consumer_group`, `topic` satisfies `consumer_lag` > 10000 for 'Consumer Lag Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.3.1 negative (Lag Monitoring): ingest benign `kafka` / `kafka:consumer_lag` events where `consumer_group`, `topic` stays below `consumer_lag` > 10000, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Consumer Lag Monitoring'."
   },
   "dataSources": "Kafka consumer group offsets (JMX, Burrow, `kafka-consumer-groups.sh`) Indexes: kafka. Sourcetypes: kafka:consumer_lag. Key fields: consumer_group, consumer_lag, topic. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Splunk Connect for Kafka` (Splunkbase 3862), Burrow integration, JMX",
   "spl": "index=kafka sourcetype=\"kafka:consumer_lag\"\n| timechart span=5m max(lag) as consumer_lag by consumer_group, topic\n| where consumer_lag > 10000",
-  "description": "Growing consumer lag means messages aren't being processed fast enough, leading to data staleness and eventual message loss if retention is exceeded.",
-  "value": "Early 'Consumer Lag Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on 'Consumer Lag Monitoring' (UC-8.3.1) using `index=kafka` sourcetype `kafka:consumer_lag` by aggregating `consumer_lag` grouped by `consumer_group`, `topic` over `5m` and alerting when `consumer_lag` > 10000. Keywords: Consumer, Lag, Monitoring. Focuses on Lag Monitoring behaviour so operations teams can triage UC-8.3.1 without ad-hoc log review.",
+  "value": "UC-8.3.1 accelerates insight into Lag Monitoring ('Consumer Lag Monitoring') by tracking `consumer_lag` on `kafka:consumer_lag` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Deploy Kafka consumer lag monitoring via Burrow or JMX. Poll lag per consumer group/topic/partition every minute. Alert when lag exceeds threshold (e.g., >10K messages or >5 minutes equivalent). Track lag trend for capacity planning.",
   "visualization": "Line chart (lag per consumer group), Heatmap (topic × partition lag), Single value (max lag), Table (lagging consumers).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `kafka`** — Planned work for 'Consumer Lag Monitoring' shifts `max` over `span=5m` while `consumer_group` remains in-scope for UC-8.3.1. Cross-check CMDB CHG.\n\n2. **Batch `max` on `kafka:consumer_lag`** — Scheduled automation elevates `topic` without crossing `consumer_lag` > 10000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `consumer_group`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:consumer_lag`** — First 48h baseline for `consumer_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `consumer_group`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `kafka` (UC-8.3.1)** — Planned work for 'Consumer Lag Monitoring' shifts `consumer_lag` over `span=5m` while `consumer_group`, `topic` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `kafka:consumer_lag`** — Scheduled automation elevates `topic` without crossing `consumer_lag` > 10000 for UC-8.3.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `consumer_group`, `topic`** — Health checks in `kafka` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kafka:consumer_lag`** — First 48h baseline for UC-8.3.1 on `consumer_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `consumer_group`, `exception_reason`, `valid_until`.",
   "equipment": [
     "kafka"
   ],

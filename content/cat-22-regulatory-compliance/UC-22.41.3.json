@@ -51,14 +51,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=kms` sourcetype='aws:kms' where `key_id` satisfies detection threshold for UC-22.41.3 ('Key rotation attestation — KMS/HSM rotation SLA tracker'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `kms` / `aws:kms` events where `key_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.41.3."
+    "positiveScenario": "UC-22.41.3 positive (Key, rotation, attestation, KMS, HSM): ingest synthetic events into `index=kms` sourcetype='aws:kms' where `last_rotation` grouped by `key_id`, `tenant` satisfies detection threshold for 'Key rotation attestation — KMS/HSM rotation SLA tracker'. Validate lookup `key_policy.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.41.3 negative (SLA tracker): ingest benign `kms` / `aws:kms` events where `key_id`, `tenant` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Key rotation attestation — KMS/HSM rotation SLA tracker'."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=kms (sourcetype=aws:kms OR sourcetype=azure:keyvault OR sourcetype=gcp:kms) action=rotate\n| stats max(_time) as last_rotation by key_id tenant\n| lookup key_policy.csv key_id OUTPUT cryptoperiod_days key_type\n| where key_type!=\"archive\"\n| eval age_days=round((now()-last_rotation)/86400,0)\n| where age_days>cryptoperiod_days\n| table tenant key_id last_rotation age_days cryptoperiod_days",
-  "description": "Verifies every encryption key is rotated within its policy cryptoperiod. Overdue keys are highlighted and evidence is written to the compliance index for audit.",
-  "value": "Verifies every encryption key is rotated within its policy cryptoperiod. Timely UC-22.41.3 alerting on 'Key rotation attestation — KMS/HSM rotation SLA tracker' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects SLA tracker anomalies for UC-22.41.3 with window `the scheduled window` on `index=kms` sourcetype `aws:kms`. Combines `last_rotation` by `key_id`, `tenant` and compares against configured threshold. Mapped to keywords Key, rotation, attestation, KMS, HSM for dashboard routing.",
+  "value": "Alerting on Key, rotation, attestation, KMS, HSM through UC-22.41.3 reduces audit findings, regulatory gaps, and attestation delays by surfacing `last_rotation` early.",
   "implementation": "(1) Ingest KMS audit logs; (2) maintain key_policy.csv; (3) run daily; (4) escalate via SOAR to the crypto custodian. Indexes required: `index=kms`; Sourcetypes: `sourcetype=aws:kms`, `sourcetype=azure:keyvault`, `sourcetype=gcp:kms`.",
   "visualization": "Table of overdue keys, scatter plot age vs cryptoperiod, single-value '% of keys within cryptoperiod'. Key fields: `age_days`, `cryptoperiod_days`, `key_id`, `last_rotation`, `tenant`.",
   "cimModels": [

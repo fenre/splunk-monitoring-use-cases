@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'AWS Step Functions Execution Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_aws_step_functions_execution_failures` (UC-4.5.11), SOC dashboard panel \"Operations — AWS Step Functions Execution Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `StateMachineArn` satisfies `failed` > 0 for UC-4.5.11 ('AWS Step Functions Execution Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `StateMachineArn` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.11."
+    "positiveScenario": "UC-4.5.11 positive (AWS, Step, Functions, Execution, Failures): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `failed` grouped by `StateMachineArn` satisfies `failed` > 0 for 'AWS Step Functions Execution Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.5.11 negative (Execution Failures): ingest benign `aws` / `aws:cloudwatch` events where `StateMachineArn` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'AWS Step Functions Execution Failures'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/States`) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/States\" metric_name=\"ExecutionsFailed\"\n| timechart span=5m sum(Sum) as failed by StateMachineArn\n| where failed > 0",
-  "description": "Failed state machine runs break orchestrated business processes; tracking failed executions enables rapid rollback and pinpointing of failing states or Lambda tasks.",
-  "value": "Early 'AWS Step Functions Execution Failures' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'AWS Step Functions Execution Failures' patterns (UC-4.5.11) sourced from `index=aws` sourcetype `aws:cloudwatch`. Threshold bundle: `failed` > 0; aggregation grain: `StateMachineArn`; metrics: `failed`. Watch terms: AWS, Step, Functions, Execution, Failures.",
+  "value": "UC-4.5.11 gives Operations teams earlier visibility into Execution Failures through `aws:cloudwatch` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable CloudWatch metrics for Step Functions (`ExecutionsFailed`, `ExecutionsTimedOut`, `ExecutionsAborted`). Ingest via Splunk_TA_aws. Optionally join with execution history forwarded to S3 or CloudWatch Logs for failure context. Alert on any failed executions in production state machines or rate-based thresholds.",
   "visualization": "Line chart (failed executions by state machine), Single value (failures in last hour), Table (StateMachineArn, failed, timed out).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'AWS Step Functions Execution Failures' shifts `sum` over `span=5m` while `StateMachineArn` remains in-scope for UC-4.5.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `failed` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `StateMachineArn`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `StateMachineArn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `StateMachineArn`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.5.11)** — Planned work for 'AWS Step Functions Execution Failures' shifts `failed` over `span=5m` while `StateMachineArn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `failed` > 0 for UC-4.5.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `StateMachineArn`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.5.11 on `StateMachineArn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `StateMachineArn`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

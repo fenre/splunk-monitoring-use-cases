@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Inventory System Sync Failures' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_inventory_system_sync_failures` (UC-10.12.36), SOC dashboard panel \"Security Infra — Inventory System Sync Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='ims:sync' where `sku` satisfies detection threshold for UC-10.12.36 ('Inventory System Sync Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `ims:sync` events where `sku` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.36."
+    "positiveScenario": "UC-10.12.36 positive (Inventory, System, Sync, Failures): ingest synthetic events into `index=retail` sourcetype='ims:sync' where `count` grouped by `sku`, `channel`, `dc_id` satisfies detection threshold for 'Inventory System Sync Failures'. Validate filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.36 negative (Sync Failures): ingest benign `retail` / `ims:sync` events where `sku`, `channel`, `dc_id` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'Inventory System Sync Failures'."
   },
   "dataSources": "`sourcetype=\"ims:sync\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "WMS, e-commerce OMS — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"ims:sync\"\n| search status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")\n| stats count, latest(error_code) as err by sku, channel, dc_id\n| sort -count",
-  "description": "OMS/IMS drift causes oversell, BOPIS failures, and poor customer experience. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'Inventory System Sync Failures' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors when Sync Failures criteria fire for 'Inventory System Sync Failures' (UC-10.12.36) in `index=retail` sourcetype `ims:sync`. Pipeline aggregates `count` by `sku`, `channel`, `dc_id` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Eliminates manual hunting for UC-10.12.36 conditions.",
+  "value": "UC-10.12.36 helps teams contain Inventory, System, Sync, Failures scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "Dead-letter queue depth alerts; reconcile counts nightly; prioritize high-velocity SKUs.",
   "visualization": "Table (failed SKUs), Line chart (sync lag), Single value (unresolved errors).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'Inventory System Sync Failures' shifts `count` over `span=1h` while `sku` remains in-scope for UC-10.12.36. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ims:sync`** — Scheduled automation elevates `channel` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ims:sync`** — First 48h baseline for `sku` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `retail` (UC-10.12.36)** — Planned work for 'Inventory System Sync Failures' shifts `count` over `span=1h` while `sku`, `channel`, `dc_id` remains in-scope. Applies filter `status IN (\"FAIL\",\"TIMEOUT\",\"PARTIAL\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ims:sync`** — Scheduled automation elevates `channel` without crossing configured threshold for UC-10.12.36. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`, `channel`, `dc_id`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ims:sync`** — First 48h baseline for UC-10.12.36 on `sku` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

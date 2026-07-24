@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Application Routing Decisions' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_application_routing_decisions` (UC-5.5.9), SOC dashboard panel \"Operations — Application Routing Decisions\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='cisco:sdwan:flow' where `app_name` satisfies detection threshold for UC-5.5.9 ('Application Routing Decisions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `cisco:sdwan:flow` events where `app_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.5.9."
+    "positiveScenario": "UC-5.5.9 positive (Application, Routing, Decisions): ingest synthetic events into `index=network` sourcetype='cisco:sdwan:flow' where `bytes` grouped by `app_name`, `local_color`, `remote_system_ip` satisfies detection threshold for 'Application Routing Decisions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.5.9 negative (Routing Decisions): ingest benign `network` / `cisco:sdwan:flow` events where `app_name`, `local_color`, `remote_system_ip` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Application Routing Decisions'."
   },
   "dataSources": "`sourcetype=cisco:sdwan:approute`, `sourcetype=cisco:sdwan:flow` Indexes: network. Sourcetypes: cisco:sdwan:flow. Key fields: app_name, local_color, remote_system_ip. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "`Cisco Catalyst Add-on for Splunk` (Splunkbase 7538), Cisco vManage API",
   "spl": "index=network sourcetype=\"cisco:sdwan:flow\"\n| stats sum(octets) as bytes by app_name, local_color, remote_system_ip\n| eval MB=round(bytes/1048576,1)\n| sort -MB\n| head 50",
-  "description": "Validates that SD-WAN policies are steering traffic correctly. Detects policy misconfigurations that route real-time traffic over suboptimal paths.",
-  "value": "Validates that SD-WAN policies are steering traffic correctly. Timely UC-5.5.9 alerting on 'Application Routing Decisions' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-5.5.9 — Application, Routing, Decisions — using `index=network` sourcetype `cisco:sdwan:flow`, grouped by `app_name`, `local_color`, `remote_system_ip`. Outputs `bytes` each `the scheduled window`; alert when configured threshold. Primary focus: Routing Decisions. Purpose-built for 'Application Routing Decisions' in Operations workflows.",
+  "value": "UC-5.5.9 gives Operations teams earlier visibility into Routing Decisions through `cisco:sdwan:flow` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Collect flow and app-route data from vManage. Verify voice/video uses MPLS, web traffic uses Internet. Alert when critical apps route over non-preferred transports.",
   "visualization": "Sankey diagram (app → transport), Table (app, path, volume), Pie chart.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'Application Routing Decisions' shifts `sum` over `span=1h` while `app_name` remains in-scope for UC-5.5.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:sdwan:flow`** — Scheduled automation elevates `local_color` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:sdwan:flow`** — First 48h baseline for `app_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.5.9)** — Planned work for 'Application Routing Decisions' shifts `bytes` over `span=1h` while `app_name`, `local_color`, `remote_system_ip` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:sdwan:flow`** — Scheduled automation elevates `local_color` without crossing configured threshold for UC-5.5.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `app_name`, `local_color`, `remote_system_ip`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:sdwan:flow`** — First 48h baseline for UC-5.5.9 on `app_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `app_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

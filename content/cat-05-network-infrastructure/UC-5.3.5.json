@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'HTTP Error Rate by VIP (F5 BIG-IP)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_http_error_rate_by_vip_f5_big_ip` (UC-5.3.5), SOC dashboard panel \"Operations — HTTP Error Rate by VIP (F5 BIG-IP)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm:http' where `virtual_server` satisfies `response_code` >= 500 for UC-5.3.5 ('HTTP Error Rate by VIP (F5 BIG-IP)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `f5:bigip:ltm:http` events where `virtual_server` stays below `response_code` >= 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.3.5."
+    "positiveScenario": "UC-5.3.5 positive (HTTP, Error, Rate, VIP, (F5): ingest synthetic events into `index=network` sourcetype='f5:bigip:ltm:http' where `errors` grouped by `virtual_server` satisfies `response_code` >= 500, or `error_rate` > 5 for 'HTTP Error Rate by VIP (F5 BIG-IP)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.3.5 negative (BIG IP)): ingest benign `network` / `f5:bigip:ltm:http` events where `virtual_server` stays below `response_code` >= 500, or `error_rate` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'HTTP Error Rate by VIP (F5 BIG-IP)'."
   },
   "dataSources": "F5 request logging profile Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_f5-bigip`, request logging — Universal Forwarder (Splunkbase 617)",
   "spl": "index=network sourcetype=\"f5:bigip:ltm:http\"\n| eval is_error=if(response_code>=500,1,0)\n| timechart span=5m sum(is_error) as errors, count as total by virtual_server\n| eval error_rate=round(errors/total*100,2) | where error_rate>5",
-  "description": "Backend 5xx errors indicate application issues. Per-VIP tracking isolates degraded services. Searches `index=network` with sourcetype `f5:bigip:ltm:http` for UC-5.3.5, aggregating `sum` by `virtual_server` over `5m`. Alerts when grouped results cross `response_code` >= 500 in the saved search. Gives Operations operators a repeatable signal for 'HTTP Error Rate by VIP (F5 BIG-IP)' without manual log review.",
-  "value": "Backend 5xx errors indicate application issues. Timely UC-5.3.5 alerting on 'HTTP Error Rate by VIP (F5 BIG-IP)' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-5.3.5 — HTTP, Error, Rate, VIP, (F5 — using `index=network` sourcetype `f5:bigip:ltm:http`, grouped by `virtual_server`. Outputs `errors` each `5m`; alert when `response_code` >= 500, or `error_rate` > 5. Primary focus: BIG IP). Purpose-built for 'HTTP Error Rate by VIP (F5 BIG-IP)' in Operations workflows.",
+  "value": "Alerting on HTTP, Error, Rate, VIP, (F5 through UC-5.3.5 reduces operational risk and delayed incident response by surfacing `errors` early.",
   "implementation": "Enable F5 request logging profile on VIPs. Alert when 5xx rate >5% over 5 minutes.",
   "visualization": "Line chart (error rate), Table (VIP, error rate), Single value.",
   "cimModels": [],
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'HTTP Error Rate by VIP (F5 BIG-IP)' shifts `sum` over `span=5m` while `virtual_server` remains in-scope for UC-5.3.5. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `f5:bigip:ltm:http`** — Scheduled automation elevates `is_error` without crossing `response_code` >= 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm:http`** — First 48h baseline for `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.3.5)** — Planned work for 'HTTP Error Rate by VIP (F5 BIG-IP)' shifts `errors` over `span=5m` while `virtual_server` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `f5:bigip:ltm:http`** — Scheduled automation elevates `is_error` without crossing `response_code` >= 500 for UC-5.3.5. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `virtual_server`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `f5:bigip:ltm:http`** — First 48h baseline for UC-5.3.5 on `virtual_server` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `virtual_server`, `exception_reason`, `valid_until`.",
   "equipment": [
     "f5"
   ],

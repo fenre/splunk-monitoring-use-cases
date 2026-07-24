@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=plm` sourcetype='plm:sku' where `product_sku` satisfies detection threshold for UC-22.21.19 ('CE Marking Evidence — Test Report Coverage (Art. 48)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `plm` / `plm:sku` events where `product_sku` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.21.19."
+    "positiveScenario": "UC-22.21.19 positive (Marking, Evidence, Test, Report, Coverage): ingest synthetic events into `index=plm` sourcetype='plm:sku' where `ok` grouped by `product_sku`, `]` satisfies -1d for 'CE Marking Evidence — Test Report Coverage (Art. 48)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.21.19 negative ((Art. 48)): ingest benign `plm` / `plm:sku` events where `product_sku`, `]` stays below -1d, or exclude the test entity via `compliance_exception_register.csv`. Variant 13 confirms zero alert rows for 'CE Marking Evidence — Test Report Coverage (Art. 48)'."
   },
   "dataSources": "`index=product` `sourcetype=plm:sku` joined with `index=testlab` `sourcetype=lab:report`",
   "app": "Splunk DB Connect (2686), Splunk ITSI (1841) (Splunkbase)",
   "spl": "index=plm sourcetype=\"plm:sku\" earliest=-1d\n| fields product_sku, model_family, hw_rev\n| join type=left product_sku [\n    search index=testlab sourcetype=\"lab:report\" earliest=-400d\n    | stats latest(report_id) as test_report_id by product_sku\n  ]\n| eval covered=if(isnotnull(test_report_id),1,0)\n| stats sum(covered) as ok, count as total\n| eval coverage_pct=round(100*ok/total,2)",
-  "description": "Joins product_sku to test_report_id coverage from test lab feeds for CE marking evidentiary chain. Searches `index=plm` with sourcetype `plm:sku` for UC-22.21.19, aggregating `sum` by `product_sku` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'CE Marking Evidence — Test Report Coverage (Art. 48)' without manual log review.",
-  "value": "Joins product_sku to test_report_id coverage from test lab feeds for CE marking evidentiary chain. Timely UC-22.21.19 alerting on 'CE Marking Evidence — Test Report Coverage (Art. 48)' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.21.19 — Marking, Evidence, Test, Report, Coverage — using `index=plm` sourcetype `plm:sku`, grouped by `product_sku`, `]`. Outputs `ok` each `the scheduled window`; alert when -1d. Primary focus: (Art. 48). Purpose-built for 'CE Marking Evidence — Test Report Coverage (Art. 48)' in Compliance workflows.",
+  "value": "UC-22.21.19 gives Compliance teams earlier visibility into (Art. 48) through `plm:sku` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Normalize SKU keys; (2) nightly DB Connect sync; (3) alert coverage_pct < 100 for EU SKUs; (4) map to notified body references outside Splunk. Indexes required: `index=plm`, `index=product`, `index=testlab`; Sourcetypes: `sourcetype=lab:report`, `sourcetype=lab:report``, `sourcetype=plm:sku`, `sourcetype=plm:sku``.",
   "visualization": "Single value (coverage_pct), Table (uncovered SKU), Pie chart (covered vs not)",
   "cimModels": [],

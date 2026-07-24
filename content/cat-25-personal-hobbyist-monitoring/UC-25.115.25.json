@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Vet Visit Failure Rate' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_vet_visit_failure_rate` (UC-25.115.25), SOC dashboard panel \"Personal — Vet Visit Failure Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='vet:visit' where `visit_type` satisfies detection threshold for UC-25.115.25 ('Vet Visit Failure Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `vet:visit` events where `visit_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.115.25."
+    "positiveScenario": "UC-25.115.25 positive (Vet, Visit, Failure, Rate): ingest synthetic events into `index=personal` sourcetype='vet:visit' where `failed_events` grouped by `visit_type` satisfies detection threshold for 'Vet Visit Failure Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.115.25 negative (Failure Rate): ingest benign `personal` / `vet:visit` events where `visit_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Vet Visit Failure Rate'."
   },
   "dataSources": "Trupanion claims (`trupanion:claim`), vet invoices (`vet:invoice`), pet insurance premiums (`petinsurance:premium`), and vet visits (`vet:visit`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Trupanion claim exports, veterinary invoice logs, pet insurance premium bills, and vet visit records streamed into Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=vet:visit\n| eval status_value=lower(coalesce(visit_status,\"unknown\"))\n| eval failed=if(match(status_value,\"error|fail|alert|overdue|late|stale|breach\"),1,0)\n| stats count as events, sum(failed) as failed_events by visit_type\n| eval failure_pct=round(100*failed_events/events,1)\n| sort - failure_pct - failed_events",
-  "description": "Measures how often vet visit records land in an unhealthy or exception state for each visit type. Searches `index=personal` with sourcetype `vet:visit` for UC-25.115.25, aggregating `sum` by `visit_type` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Vet Visit Failure Rate' without manual log review.",
-  "value": "Measures how often vet visit records land in an unhealthy or exception state for each visit type. Timely UC-25.115.25 alerting on 'Vet Visit Failure Rate' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.115.25 — Vet, Visit, Failure, Rate — using `index=personal` sourcetype `vet:visit`, grouped by `visit_type`. Outputs `failed_events` each `the scheduled window`; alert when configured threshold. Primary focus: Failure Rate. Purpose-built for 'Vet Visit Failure Rate' in Personal workflows.",
+  "value": "Tracking `failed_events` via UC-25.115.25 on `vet:visit` feeds improves response to 'Vet Visit Failure Rate' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Normalize visit_status values into good or bad states and review the failure percentage per visit type.",
   "visualization": "Bar chart of failure percentage by entity.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Vet Visit Failure Rate' stops polling `vet:visit`; stale `visit_type` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:visit`. Dedup with `stats latest(*) by visit_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.115.25)** — Connector for 'Vet Visit Failure Rate' stops polling `vet:visit`; stale `failed_events` on `visit_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `failed_events` over `1w` is expected for UC-25.115.25, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `vet:visit`. Dedup with `stats latest(*) by visit_type`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Vet Visit Failure Rate'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

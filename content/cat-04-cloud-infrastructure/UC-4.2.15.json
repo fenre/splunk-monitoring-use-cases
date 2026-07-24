@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Azure Backup Job Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_azure_backup_job_failures` (UC-4.2.15), SOC dashboard panel \"Operations — Azure Backup Job Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' where `entity` satisfies detection threshold for UC-4.2.15 ('Azure Backup Job Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `azure` / `mscs:azure:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.2.15."
+    "positiveScenario": "UC-4.2.15 positive (Azure, Backup, Job, Failures): ingest synthetic events into `index=azure` sourcetype='mscs:azure:audit' where `count` grouped by `entity` satisfies detection threshold for 'Azure Backup Job Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.2.15 negative (Job Failures): ingest benign `azure` / `mscs:azure:audit` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Azure Backup Job Failures'."
   },
   "dataSources": "Azure Monitor Activity Log (Backup job events), or Backup vault diagnostic logs Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
   "spl": "index=azure sourcetype=\"mscs:azure:audit\" operationName.value=\"*Backup*\" status.value=\"Failed\"\n| table _time caller operationName.value resourceGroupName properties\n| sort -_time",
-  "description": "Backup job failures break recovery guarantees. Detecting failures ensures backups are fixed before they are needed for restore.",
-  "value": "Early 'Azure Backup Job Failures' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Job Failures anomalies for UC-4.2.15 with window `the scheduled window` on `index=azure` sourcetype `mscs:azure:audit`. Combines `count` by `entity` and compares against configured threshold. Mapped to keywords Azure, Backup, Job, Failures for dashboard routing.",
+  "value": "Alerting on Azure, Backup, Job, Failures through UC-4.2.15 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Enable Activity Log or diagnostic settings for Recovery Services vault. Ingest backup job completion events. Alert on status=Failed. Dashboard job success rate by vault and policy.",
   "visualization": "Table (job, vault, status, time), Timeline (failed jobs), Single value (failed last 24h).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure`** — Planned work for 'Azure Backup Job Failures' shifts `count` over `span=1h` while `host` remains in-scope for UC-4.2.15. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:audit`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:audit`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.15)** — Planned work for 'Azure Backup Job Failures' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:audit`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.2.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:audit`** — First 48h baseline for UC-4.2.15 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "hashicorp",

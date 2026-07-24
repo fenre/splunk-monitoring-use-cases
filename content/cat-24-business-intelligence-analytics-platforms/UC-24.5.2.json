@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Superset SQL Lab Query Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_superset_sql_lab_query_failures` (UC-24.5.2), SOC dashboard panel \"Operations — Superset SQL Lab Query Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='superset:app' where `database_name` satisfies `failures` > 0 for UC-24.5.2 ('Superset SQL Lab Query Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `superset:app` events where `database_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.5.2."
+    "positiveScenario": "UC-24.5.2 positive (Superset, SQL, Lab, Query, Failures): ingest synthetic events into `index=bi` sourcetype='superset:app' where `sum` grouped by `database_name` satisfies `failures` > 0 for 'Superset SQL Lab Query Failures'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.5.2 negative (Query Failures): ingest benign `bi` / `superset:app` events where `database_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Superset SQL Lab Query Failures'."
   },
   "dataSources": "Superset logs (`superset:app`, Celery worker/beat), Metabase logs (`metabase:app`), Redash query logs, app repository tables (query cache, dashboard views), embedding/SDK error events via HEC. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Apache Superset / Metabase / Redash application logs via Universal Forwarder or container stdout; Celery worker metrics and app repository databases via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=superset:app (event=sqllab_query OR event=explore_json)\n| stats count as queries, sum(eval(status=\"failed\")) as failures by database_name\n| eval failure_rate=round(100*failures/queries,1)\n| where failures>0\n| sort - failure_rate",
-  "description": "Tracks Superset query execution and ranks the databases with the highest query failure rates, pointing at connection or SQL issues.",
-  "value": "Tracks Superset query execution and ranks the databases with the highest query failure rates, pointing at c.... Timely UC-24.5.2 alerting on 'Superset SQL Lab Query Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-24.5.2 — Superset, SQL, Lab, Query, Failures — using `index=bi` sourcetype `superset:app`, grouped by `database_name`. Outputs `sum` each `the scheduled window`; alert when `failures` > 0. Primary focus: Query Failures. Purpose-built for 'Superset SQL Lab Query Failures' in Operations workflows.",
+  "value": "UC-24.5.2 operationalises 'Superset SQL Lab Query Failures' against `superset:app` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Superset app logs; schedule hourly; alert on rising failure rate per database.",
   "visualization": "Table by failure rate, timechart of query failures.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Superset SQL Lab Query Failures' shifts `sum` over `span=1h` while `database_name` remains in-scope for UC-24.5.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `superset:app`** — Scheduled automation elevates `failure_rate` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.5.2)** — Planned work for 'Superset SQL Lab Query Failures' shifts `sum` over `span=1h` while `database_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `superset:app`** — Scheduled automation elevates `failure_rate` without crossing `failures` > 0 for UC-24.5.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `database_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `superset:app`** — First 48h baseline for UC-24.5.2 on `database_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `database_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "apache",
     "db_connect"

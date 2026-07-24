@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Optimal Charge-Window Adherence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_optimal_charge_window_adherence` (UC-25.3.8), SOC dashboard panel \"Personal — Optimal Charge-Window Adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:charge' where `entity` satisfies `hour` >= 1 for UC-25.3.8 ('Optimal Charge-Window Adherence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tesla:charge` events where `entity` stays below `hour` >= 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.8."
+    "positiveScenario": "UC-25.3.8 positive (Optimal, Charge, Window, Adherence): ingest synthetic events into `index=personal` sourcetype='tesla:charge' where `total_kwh` grouped by `entity` satisfies `hour` >= 1, or `hour` < 6 for 'Optimal Charge-Window Adherence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.8 negative (Window Adherence): ingest benign `personal` / `tesla:charge` events where `entity` stays below `hour` >= 1, or `hour` < 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 8 confirms zero alert rows for 'Optimal Charge-Window Adherence'."
   },
   "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:charge\n| eval hour=strftime(_time,\"%H\")\n| eval off_peak=if(hour>=1 AND hour<6,1,0)\n| stats sum(eval(off_peak*energy_added_kwh)) as offpeak_kwh, sum(energy_added_kwh) as total_kwh\n| eval pct_offpeak=round(100*offpeak_kwh/total_kwh,1)",
-  "description": "Measures what share of your charging happened during cheap off-peak hours so you can see whether your scheduled charging is actually working.",
-  "value": "Measures what share of your charging happened during cheap off-peak hours so you can see whether your sched.... Timely UC-25.3.8 alerting on 'Optimal Charge-Window Adherence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.3.8 — Optimal, Charge, Window, Adherence — using `index=personal` sourcetype `tesla:charge`, grouped by `entity`. Outputs `total_kwh` each `the scheduled window`; alert when `hour` >= 1, or `hour` < 6. Primary focus: Window Adherence. Purpose-built for 'Optimal Charge-Window Adherence' in Personal workflows.",
+  "value": "UC-25.3.8 accelerates insight into Window Adherence ('Optimal Charge-Window Adherence') by tracking `total_kwh` on `tesla:charge` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Ingest charge sessions with timestamps; adjust the off-peak window to your tariff and schedule weekly.",
   "visualization": "Gauge of off-peak charging percentage over time.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Optimal Charge-Window Adherence' stops polling `tesla:charge`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:charge`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.8)** — Connector for 'Optimal Charge-Window Adherence' stops polling `tesla:charge`; stale `total_kwh` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_kwh` over `1w` is expected for UC-25.3.8, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:charge`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hour` >= 1 for 'Optimal Charge-Window Adherence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

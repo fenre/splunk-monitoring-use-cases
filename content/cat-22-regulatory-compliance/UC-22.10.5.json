@@ -53,14 +53,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hr` sourcetype='workday:termination' where `entity` satisfies detection threshold for UC-22.10.5 ('Termination — Access Revocation Within Policy Window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hr` / `workday:termination` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.5."
+    "positiveScenario": "UC-22.10.5 positive (Termination, Access, Revocation, Within, Policy): ingest synthetic events into `index=hr` sourcetype='workday:termination' where `count` grouped by `entity` satisfies -30d for 'Termination — Access Revocation Within Policy Window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.5 negative (Policy Window): ingest benign `hr` / `workday:termination` events where `entity` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 7 confirms zero alert rows for 'Termination — Access Revocation Within Policy Window'."
   },
   "dataSources": "`WinEventLog:Security` EventCode=4624, `index=citrix`, `index=epic` `sourcetype=epic:audit`, `index=hr` terminations (`term_date`, `samaccountname`)",
   "app": "Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Citrix (2757) (Splunkbase)",
   "spl": "index=hr sourcetype=\"workday:termination\" earliest=-30d\n| eval term_epoch=strptime(term_date,\"%Y-%m-%d %H:%M:%S\")\n| table samaccountname, term_epoch\n| rename samaccountname as user\n| join type=inner user [\n    search index=windows EventCode=\"4624\" earliest=-30d\n    | eval user=mvindex(Security_ID,0)\n    | rex field=user \"\\\\\\\\(?<sam>[^\\\\\\\\]+)$\"\n    | eval user=coalesce(sam,user)\n    | table _time, user, WorkstationName, Logon_Type ]\n| where _time > term_epoch\n| eval hours_after_term=round((_time-term_epoch)/3600,2)",
-  "description": "Detects logons, VPN sessions, or EHR access after HR termination timestamp so access revocation SLAs are provably enforced.",
-  "value": "Detects logons, VPN sessions, or EHR access after HR termination timestamp so access revocation SLAs are pr.... Timely UC-22.10.5 alerting on 'Termination — Access Revocation Within Policy Window' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.10.5 — Termination, Access, Revocation, Within, Policy — using `index=hr` sourcetype `workday:termination`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -30d. Primary focus: Policy Window. Purpose-built for 'Termination — Access Revocation Within Policy Window' in Compliance workflows.",
+  "value": "UC-22.10.5 operationalises 'Termination — Access Revocation Within Policy Window' against `workday:termination` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Ingest authoritative termination feed within 15 minutes SLA; (2) tune out break-glass shared accounts; (3) auto-disable via SOAR optional; (4) weekly HIPAA access committee digest. Indexes required: `index=citrix`, `index=epic`, `index=hr`, `index=windows`; Sourcetypes: `sourcetype=epic:audit``, `sourcetype=workday:termination`.",
   "visualization": "Table (user, hours_after_term, workstation), Timeline (violations), Single value (count).",
   "cimModels": [],

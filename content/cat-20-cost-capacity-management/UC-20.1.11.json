@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Spot Instance Interruption Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_spot_instance_interruption_rate` (UC-20.1.11), SOC dashboard panel \"Operations — Spot Instance Interruption Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `entity` satisfies detection threshold for UC-20.1.11 ('Spot Instance Interruption Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.11."
+    "positiveScenario": "UC-20.1.11 positive (Spot, Instance, Interruption, Rate): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `instance_hours`, `interruptions`, `ih` grouped by `entity` satisfies -30d for 'Spot Instance Interruption Rate'. Validate filter `lineItem_UsageType=\"*SpotUsage*\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.11 negative (Interruption Rate): ingest benign `aws` / `aws:cloudtrail` events where `entity` stays below -30d, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Spot Instance Interruption Rate'."
   },
   "dataSources": "`aws:cloudtrail` Spot events, instance-hours from CUR Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk Add-on for AWS`, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudtrail\" earliest=-30d\n| search eventName=\"SpotInstanceInterruption\"\n| stats count as intr\n| append [ search index=cloud_billing sourcetype=\"aws:billing:cur\" earliest=-30d\n  | search lineItem_UsageType=\"*SpotUsage*\"\n  | stats sum(lineItem_NormalizedUsageAmount) as instance_hours ]\n| stats sum(intr) as interruptions sum(instance_hours) as ih\n| eval intr_per_1k=round(1000*interruptions/nullif(ih,0),2)",
-  "description": "Interruptions per 1,000 instance-hours by pool and AZ — extends raw event counts (UC-20.1.7) with a **rate** for SLO tracking.",
-  "value": "Early 'Spot Instance Interruption Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on Interruption Rate activity in UC-20.1.11 ('Spot Instance Interruption Rate') from `index=aws` sourcetype `aws:cloudtrail`. Rolls up `instance_hours`, `interruptions`, `ih` by `entity` across `the scheduled window` and pages when -30d. Uses filter `lineItem_UsageType=\"*SpotUsage*\"`. Operations operators treat UC-20.1.11 as the canonical signal.",
+  "value": "Operators running UC-20.1.11 on `aws:cloudtrail` feeds shorten triage for Interruption Rate tied to 'Spot Instance Interruption Rate', lowering operational risk and delayed incident response.",
   "implementation": "Align instance-hour denominator from CUR `NormalizedUsageAmount`. Alert when `intr_per_1k` exceeds baseline for stateful tiers.",
   "visualization": "Single value (interruptions per 1k hours), Line chart (rate trend), Table (by AZ).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Spot Instance Interruption Rate' shifts `sum` over `span=1h` while `host` remains in-scope for UC-20.1.11. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudtrail`** — Scheduled automation elevates `intr_per_1k` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-20.1.11)** — Planned work for 'Spot Instance Interruption Rate' shifts `instance_hours`, `interruptions`, `ih` over `span=1h` while `host` remains in-scope. Applies filter `lineItem_UsageType=\"*SpotUsage*\"`. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudtrail`** — Scheduled automation elevates `intr_per_1k` without crossing configured threshold for UC-20.1.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-20.1.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

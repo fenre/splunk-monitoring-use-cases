@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'VM Snapshot Sprawl' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vm_snapshot_sprawl` (UC-2.1.5), SOC dashboard panel \"Linux — VM Snapshot Sprawl\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vmware` sourcetype='vmware:inv:vm' where `entity` satisfies `snapshot_age_days` > 3 for UC-2.1.5 ('VM Snapshot Sprawl'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vmware` / `vmware:inv:vm` events where `entity` stays below `snapshot_age_days` > 3, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.1.5."
+    "positiveScenario": "UC-2.1.5 positive (Snapshot, Sprawl): ingest synthetic events into `index=vmware` sourcetype='vmware:inv:vm' where `count` grouped by `entity` satisfies `snapshot_age_days` > 3 for 'VM Snapshot Sprawl'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.1.5 negative (Snapshot Sprawl): ingest benign `vmware` / `vmware:inv:vm` events where `entity` stays below `snapshot_age_days` > 3, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'VM Snapshot Sprawl'."
   },
   "dataSources": "`sourcetype=vmware:inv:vm` (inventory data) Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
   "spl": "index=vmware sourcetype=\"vmware:inv:vm\" snapshot_name=*\n| eval snapshot_age_days = round((now() - strptime(snapshot_createTime, \"%Y-%m-%dT%H:%M:%S\")) / 86400, 0)\n| where snapshot_age_days > 3\n| table vm_name, host, snapshot_name, snapshot_age_days, snapshot_sizeBytes\n| eval snapshot_size_GB = round(snapshot_sizeBytes / 1073741824, 2)\n| sort -snapshot_age_days",
-  "description": "Old snapshots consume datastore space exponentially, degrade VM I/O performance, and complicate backups. Snapshots >72 hours old are generally a problem.",
-  "value": "Early 'VM Snapshot Sprawl' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies 'VM Snapshot Sprawl' (UC-2.1.5) using `index=vmware` sourcetype `vmware:inv:vm` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when `snapshot_age_days` > 3. Keywords: Snapshot, Sprawl. Focuses on Snapshot Sprawl behaviour so linux teams can triage UC-2.1.5 without ad-hoc log review.",
+  "value": "UC-2.1.5 accelerates insight into Snapshot Sprawl ('VM Snapshot Sprawl') by tracking `activity` on `vmware:inv:vm` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
   "implementation": "Splunk_TA_vmware collects VM inventory including snapshots. Run daily report identifying snapshots >72 hours old. Escalate snapshots >7 days to VM owners. Include snapshot size to show storage impact.",
   "visualization": "Table (VM, snapshot name, age, size), Bar chart (top VMs by snapshot size), Single value (total snapshots >3d).",
   "cimModels": [

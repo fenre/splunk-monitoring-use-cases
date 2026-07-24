@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='pan:globalprotect' where `user` satisfies detection threshold for UC-22.15.14 ('Weak OTP or Missing MFA Step for OT VPN'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vpn` / `pan:globalprotect` events where `user` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.15.14."
+    "positiveScenario": "UC-22.15.14 positive (Weak, OTP, Missing, MFA, Step): ingest synthetic events into `index=vpn` sourcetype='pan:globalprotect' where `count` grouped by `user`, `portal`, `public_ip`, `host` satisfies -7d for 'Weak OTP or Missing MFA Step for OT VPN'. Validate lookup `ot_vpn_profiles.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.15.14 negative (OT VPN): ingest benign `vpn` / `pan:globalprotect` events where `user`, `portal`, `public_ip`, `host` stays below -7d, or exclude the test entity via `compliance_exception_register.csv`. Variant 5 confirms zero alert rows for 'Weak OTP or Missing MFA Step for OT VPN'."
   },
   "dataSources": "`pan:globalprotect` or `pan:auth` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Palo Alto Networks (2757) (Splunkbase)",
   "spl": "index=vpn sourcetype=\"pan:globalprotect\" earliest=-7d\n| eval mfa=coalesce(factor_type, auth_method, mfa_mechanism)\n| where stage=\"login\" AND (isnull(mfa) OR mfa=\"none\" OR mfa=\"password-only\")\n| lookup ot_vpn_profiles.csv portal OUTPUT requires_mfa\n| where requires_mfa=\"true\"\n| stats count by user, portal, public_ip, host\n| sort - count",
-  "description": "Identifies VPN authentications that skip second factor or reuse legacy token methods for paths into OT jump zones. Searches `index=vpn` with sourcetype `pan:globalprotect` for UC-22.15.14, aggregating `count` by `user` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Weak OTP or Missing MFA Step for OT VPN' without manual log review.",
-  "value": "Identifies VPN authentications that skip second factor or reuse legacy token methods for paths into OT jump.... Timely UC-22.15.14 alerting on 'Weak OTP or Missing MFA Step for OT VPN' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects 'Weak OTP or Missing MFA Step for OT VPN' patterns (UC-22.15.14) sourced from `index=vpn` sourcetype `pan:globalprotect`. Threshold bundle: -7d; aggregation grain: `user`, `portal`, `public_ip`, `host`; metrics: `count`. Enrichment path: lookup `ot_vpn_profiles.csv`.",
+  "value": "UC-22.15.14 gives Compliance teams earlier visibility into OT VPN through `pan:globalprotect` feeds, lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Map portals to MFA policy; (2) upgrade GP app versions enforcing MFA; (3) block legacy profiles; (4) weekly exception report to IAM. Indexes required: `index=vpn`; Sourcetypes: `sourcetype=pan:globalprotect`; Lookups: `ot_vpn_profiles`, `ot_vpn_profiles.csv`.",
   "visualization": "Table, Single value (violations), Time chart. Key fields: `host`, `mfa`, `portal`, `public_ip`, `user`.",
   "cimModels": [],

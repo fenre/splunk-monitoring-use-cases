@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'GitLab Pipeline Duration Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_gitlab_pipeline_duration_trending` (UC-12.2.12), SOC dashboard panel \"Operations — GitLab Pipeline Duration Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='gitlab:pipeline' where `ref` satisfies `avg_duration` > 0 for UC-12.2.12 ('GitLab Pipeline Duration Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `gitlab:pipeline` events where `ref` stays below `avg_duration` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.12."
+    "positiveScenario": "UC-12.2.12 positive (GitLab, Pipeline, Duration, Trending): ingest synthetic events into `index=cicd` sourcetype='gitlab:pipeline' where `avg_duration` grouped by `ref` satisfies `avg_duration` > 0 for 'GitLab Pipeline Duration Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.12 negative (Duration Trending): ingest benign `cicd` / `gitlab:pipeline` events where `ref` stays below `avg_duration` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'GitLab Pipeline Duration Trending'."
   },
   "dataSources": "GitLab /api/v4/projects/:id/pipelines Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (GitLab API) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"gitlab:pipeline\"\n| eval duration_sec=coalesce(duration, 0)\n| timechart span=1d avg(duration_sec) as avg_duration, percentile(duration_sec, 95) as p95_duration by ref\n| where avg_duration > 0",
-  "description": "Pipeline getting slower over time indicates growing tech debt or resource constraints. Trending enables proactive optimization before developer velocity degrades.",
-  "value": "Early 'GitLab Pipeline Duration Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects 'GitLab Pipeline Duration Trending' (UC-12.2.12) using `index=cicd` sourcetype `gitlab:pipeline` by aggregating `avg_duration` grouped by `ref` over `1d` and alerting when `avg_duration` > 0. Keywords: GitLab, Pipeline, Duration, Trending. Focuses on Duration Trending behaviour so operations teams can triage UC-12.2.12 without ad-hoc log review.",
+  "value": "UC-12.2.12 accelerates insight into Duration Trending ('GitLab Pipeline Duration Trending') by tracking `avg_duration` on `gitlab:pipeline` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Poll GitLab pipelines API per project. Ingest id, ref, status, duration, created_at. Calculate duration for completed pipelines. Track 7-day rolling average. Alert when avg duration increases >25% week-over-week. Correlate with runner capacity and stage-level timings.",
   "visualization": "Line chart (pipeline duration trend by branch), Bar chart (avg duration by project), Table (slowest pipelines this week), Single value (p95 duration).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'GitLab Pipeline Duration Trending' shifts `avg` over `span=1d` while `ref` remains in-scope for UC-12.2.12. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gitlab:pipeline`** — Scheduled automation elevates `duration_sec` without crossing `avg_duration` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ref`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gitlab:pipeline`** — First 48h baseline for `ref` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ref`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.12)** — Planned work for 'GitLab Pipeline Duration Trending' shifts `avg_duration` over `span=1d` while `ref` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `gitlab:pipeline`** — Scheduled automation elevates `duration_sec` without crossing `avg_duration` > 0 for UC-12.2.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `ref`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `gitlab:pipeline`** — First 48h baseline for UC-12.2.12 on `ref` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `ref`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gitlab"
   ],

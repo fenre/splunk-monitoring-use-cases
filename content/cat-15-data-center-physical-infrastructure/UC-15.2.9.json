@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Hot/Cold Aisle Temperature Delta' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_hot_cold_aisle_temperature_delta` (UC-15.2.9), SOC dashboard panel \"Operations — Hot/Cold Aisle Temperature Delta\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=environment` sourcetype='sensor:temperature' where `row_id` satisfies `delta_t` < 8 for UC-15.2.9 ('Hot/Cold Aisle Temperature Delta'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `environment` / `sensor:temperature` events where `row_id` stays below `delta_t` < 8, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-15.2.9."
+    "positiveScenario": "UC-15.2.9 positive (Hot, Cold, Aisle, Temperature, Delta): ingest synthetic events into `index=environment` sourcetype='sensor:temperature' where `avg` grouped by `row_id`, `_time` satisfies `delta_t` < 8, or `delta_t` > 22 for 'Hot/Cold Aisle Temperature Delta'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-15.2.9 negative (Temperature Delta): ingest benign `environment` / `sensor:temperature` events where `row_id`, `_time` stays below `delta_t` < 8, or `delta_t` > 22, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Hot/Cold Aisle Temperature Delta'."
   },
   "dataSources": "`sourcetype=\"sensor:temperature\"` position IN (\"hot_aisle\",\"cold_aisle\") Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Environmental sensors — Universal Forwarder (Splunkbase 617)",
   "spl": "index=environment sourcetype=\"sensor:temperature\" row_id=*\n| bin _time span=5m\n| stats avg(eval(if(position=\"cold_aisle\",temp_c,null()))) as cold_c, avg(eval(if(position=\"hot_aisle\",temp_c,null()))) as hot_c by row_id, _time\n| eval delta_t=hot_c-cold_c\n| where delta_t < 8 OR delta_t > 22\n| table row_id, cold_c, hot_c, delta_t",
-  "description": "Low ΔT across containment indicates bypass airflow or insufficient airflow; high ΔT may signal restricted return. Searches `index=environment` with sourcetype `sensor:temperature` for UC-15.2.9, aggregating `avg` by `row_id` over `5m`. Alerts when grouped results cross `delta_t` < 8 in the saved search. Gives Operations operators a repeatable signal for 'Hot/Cold Aisle Temperature Delta' without manual log review.",
-  "value": "Early 'Hot/Cold Aisle Temperature Delta' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'Hot/Cold Aisle Temperature Delta' patterns (UC-15.2.9) sourced from `index=environment` sourcetype `sensor:temperature`. Threshold bundle: `delta_t` < 8, or `delta_t` > 22; aggregation grain: `row_id`, `_time`; metrics: `avg`. Watch terms: Hot, Cold, Aisle, Temperature, Delta.",
+  "value": "UC-15.2.9 gives Operations teams earlier visibility into Temperature Delta through `sensor:temperature` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Pair sensors per row. Baseline expected ΔT for your containment design. Alert outside band.",
   "visualization": "Line chart (ΔT by row), Heatmap (row × time), Gauge (current ΔT).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `environment`** — Planned work for 'Hot/Cold Aisle Temperature Delta' shifts `avg` over `span=5m` while `row_id` remains in-scope for UC-15.2.9. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `sensor:temperature`** — Scheduled automation elevates `_time` without crossing `delta_t` < 8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `row_id`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sensor:temperature`** — First 48h baseline for `row_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `row_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `environment` (UC-15.2.9)** — Planned work for 'Hot/Cold Aisle Temperature Delta' shifts `avg` over `span=5m` while `row_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `sensor:temperature`** — Scheduled automation elevates `_time` without crossing `delta_t` < 8 for UC-15.2.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `row_id`, `_time`** — Health checks in `environment` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sensor:temperature`** — First 48h baseline for UC-15.2.9 on `row_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `row_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

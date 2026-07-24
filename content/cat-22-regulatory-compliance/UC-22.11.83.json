@@ -26,14 +26,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hr` sourcetype='knowbe4:training' where `user` satisfies `assigned` > 0 for UC-22.11.83 ('Security Awareness Training Completion for Personnel with CDE Access'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hr` / `knowbe4:training` events where `user` stays below `assigned` > 0, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.83."
+    "positiveScenario": "UC-22.11.83 positive (Security, Awareness, Training, Completion, for): ingest synthetic events into `index=hr` sourcetype='knowbe4:training' where `done` grouped by `user` satisfies `assigned` > 0, or `pct` < 100 for 'Security Awareness Training Completion for Personnel with CDE Access'. Validate lookup `pci_cde_users.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.83 negative (CDE Access): ingest benign `hr` / `knowbe4:training` events where `user` stays below `assigned` > 0, or `pct` < 100, or exclude the test entity via `compliance_exception_register.csv`. Variant 12 confirms zero alert rows for 'Security Awareness Training Completion for Personnel with CDE Access'."
   },
   "dataSources": "`index=hr` `sourcetype=\"knowbe4:training\"` — `user`, `course`, `completed_date`, `status`",
   "app": "LMS HEC `sourcetype=\"knowbe4:training\"` or Workday `workday:learning` (Splunkbase)",
   "spl": "index=hr sourcetype=\"knowbe4:training\" earliest=-400d\n| lookup pci_cde_users.csv email AS user OUTPUT has_cde_access\n| where has_cde_access=\"true\"\n| where match(course,\"(?i)PCI|security\\\\s*awareness|phishing)\")\n| eval completed=if(isnotnull(completed_date) OR match(status,\"(?i)completed\"),1,0)\n| stats sum(completed) as done, count as assigned by user\n| eval pct=if(assigned>0, round(100*done/assigned,2), null())\n| where pct<100\n| sort pct, user",
-  "description": "Measures annual or periodic training completion for users who can access the cardholder environment so the information security awareness program is evidenced by actual completion rates, not policy alone.",
-  "value": "Measures annual or periodic training completion for users who can access the cardholder environment so the.... Timely UC-22.11.83 alerting on 'Security Awareness Training Completion for Personnel with CDE Access' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Identifies UC-22.11.83 — Security, Awareness, Training, Completion, for — using `index=hr` sourcetype `knowbe4:training`, grouped by `user`. Outputs `done` each `the scheduled window`; alert when `assigned` > 0, or `pct` < 100. Filter chain includes lookup `pci_cde_users.csv`. Purpose-built for 'Security Awareness Training Completion for Personnel with CDE Access' in Compliance workflows.",
+  "value": "Tracking `done` via UC-22.11.83 on `knowbe4:training` feeds improves response to 'Security Awareness Training Completion for Personnel with CDE Access' and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Sync HR email with IAM quarterly. (2) Auto-remind via SOAR when `pct<100`. (3) Store annual completion CSV for PCI. (4) Exclude contractors with separate policy if applicable via lookup flag. Indexes required: `index=hr`; Sourcetypes: `sourcetype=knowbe4:training`.",
   "visualization": "Table (incomplete users), gauge (org completion %), bar (by department from lookup join).",
   "cimModels": [

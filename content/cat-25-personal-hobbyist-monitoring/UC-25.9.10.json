@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Wi-Fi Reconnect Flap Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_wi_fi_reconnect_flap_detection` (UC-25.9.10), SOC dashboard panel \"Personal — Wi-Fi Reconnect Flap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='unifi:event' where `hostname` satisfies `wifi_events` > 6 for UC-25.9.10 ('Wi-Fi Reconnect Flap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `unifi:event` events where `hostname` stays below `wifi_events` > 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.10."
+    "positiveScenario": "UC-25.9.10 positive (Reconnect, Flap, Detection): ingest synthetic events into `index=personal` sourcetype='unifi:event' where `count` grouped by `hostname`, `_time` satisfies `wifi_events` > 6 for 'Wi-Fi Reconnect Flap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.10 negative (Flap Detection): ingest benign `personal` / `unifi:event` events where `hostname`, `_time` stays below `wifi_events` > 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Wi-Fi Reconnect Flap Detection'."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=unifi:event (event_key=\"EVT_WU_Disconnected\" OR event_key=\"EVT_WU_Connected\")\n| bin _time span=1h\n| stats count as wifi_events by hostname _time\n| where wifi_events>6\n| sort - wifi_events",
-  "description": "Finds devices that keep disconnecting and reconnecting within the hour, the tell-tale sign of poor coverage, roaming trouble, or a dying radio.",
-  "value": "Finds devices that keep disconnecting and reconnecting within the hour, the tell-tale sign of poor coverage.... Timely UC-25.9.10 alerting on 'Wi-Fi Reconnect Flap Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects Flap Detection anomalies for UC-25.9.10 with window `1h` on `index=personal` sourcetype `unifi:event`. Combines `count` by `hostname`, `_time` and compares against `wifi_events` > 6. Mapped to keywords Reconnect, Flap, Detection for dashboard routing.",
+  "value": "Alerting on Reconnect, Flap, Detection through UC-25.9.10 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Forward UniFi association events; review clients with frequent reconnect churn and compare them with signal quality or AP placement.",
   "visualization": "Hourly table of clients by reconnect event count.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Wi-Fi Reconnect Flap Detection' stops polling `unifi:event`; stale `hostname` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by hostname`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `wifi_events` > 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.10)** — Connector for 'Wi-Fi Reconnect Flap Detection' stops polling `unifi:event`; stale `count` on `hostname`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1h` is expected for UC-25.9.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `unifi:event`. Dedup with `stats latest(*) by hostname`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `wifi_events` > 6 for 'Wi-Fi Reconnect Flap Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

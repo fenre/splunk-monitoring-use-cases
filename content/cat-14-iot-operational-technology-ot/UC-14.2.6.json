@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Unauthorized Access Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_unauthorized_access_detection` (UC-14.2.6), SOC dashboard panel \"Operations — Unauthorized Access Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='ics_firewall' where `src` satisfies detection threshold for UC-14.2.6 ('Unauthorized Access Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `ics_firewall` events where `src` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.2.6."
+    "positiveScenario": "UC-14.2.6 positive (Unauthorized, Access, Detection): ingest synthetic events into `index=ot` sourcetype='ics_firewall' where `count` grouped by `src`, `dest`, `dest_port` satisfies detection threshold for 'Unauthorized Access Detection'. Validate filter `action=\"deny\" OR src_zone=\"untrusted\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.2.6 negative (Access Detection): ingest benign `ot` / `ics_firewall` events where `src`, `dest`, `dest_port` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Unauthorized Access Detection'."
   },
   "dataSources": "ICS network logs, industrial firewalls, IDS alerts Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Firewall TAs, ICS network monitoring — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ot sourcetype=\"ics_firewall\"\n| search action=\"deny\" OR src_zone=\"untrusted\"\n| stats count by src, dest, dest_port\n| sort -count",
-  "description": "Unauthorized access to ICS systems could lead to physical damage or safety incidents. Detection is critical for industrial cybersecurity.",
-  "value": "Early 'Unauthorized Access Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-14.2.6 — Unauthorized, Access, Detection — using `index=ot` sourcetype `ics_firewall`, grouped by `src`, `dest`, `dest_port`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `action=\"deny\" OR src_zone=\"untrusted\"`. Purpose-built for 'Unauthorized Access Detection' in Operations workflows.",
+  "value": "Alerting on Unauthorized, Access, Detection through UC-14.2.6 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Monitor access to ICS networks from all sources. Alert on connections from non-whitelisted IPs. Track engineering workstation access sessions. Correlate with physical access to control rooms. Report for ICS cybersecurity compliance.",
   "visualization": "Table (access events), Timeline (unauthorized attempts), Bar chart (blocked connections by source).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'Unauthorized Access Detection' shifts `count` over `span=1h` while `src` remains in-scope for UC-14.2.6. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics_firewall`** — Scheduled automation elevates `dest` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics_firewall`** — First 48h baseline for `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.2.6)** — Planned work for 'Unauthorized Access Detection' shifts `count` over `span=1h` while `src`, `dest`, `dest_port` remains in-scope. Applies filter `action=\"deny\" OR src_zone=\"untrusted\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `ics_firewall`** — Scheduled automation elevates `dest` without crossing configured threshold for UC-14.2.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`, `dest_port`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics_firewall`** — First 48h baseline for UC-14.2.6 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Lambda Dead Letter Queue Depth and Message Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_lambda_dead_letter_queue_depth_and_message_rate` (UC-4.5.10), SOC dashboard panel \"Operations — Lambda Dead Letter Queue Depth and Message Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `QueueName` satisfies `visible` > 0 for UC-4.5.10 ('Lambda Dead Letter Queue Depth and Message Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `QueueName` stays below `visible` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.5.10."
+    "positiveScenario": "UC-4.5.10 positive (Lambda, Dead, Letter, Queue, Depth): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `visible` grouped by `QueueName` satisfies `visible` > 0 for 'Lambda Dead Letter Queue Depth and Message Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.5.10 negative (Message Rate): ingest benign `aws` / `aws:cloudwatch` events where `QueueName` stays below `visible` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Lambda Dead Letter Queue Depth and Message Rate'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (namespace `AWS/SQS`), optional `sourcetype=aws:cloudwatch:events` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\"\n| where match(QueueName, \"(?i)dlq|dead\")\n| timechart span=5m max(Maximum) as visible by QueueName\n| where visible > 0",
-  "description": "Messages landing in DLQs mean unprocessed events—often billing, inventory, or security actions—until replayed or dropped.",
-  "value": "Early 'Lambda Dead Letter Queue Depth and Message Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-4.5.10 — Lambda, Dead, Letter, Queue, Depth — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `QueueName`. Outputs `visible` each `5m`; alert when `visible` > 0. Primary focus: Message Rate. Purpose-built for 'Lambda Dead Letter Queue Depth and Message Rate' in Operations workflows.",
+  "value": "UC-4.5.10 gives Operations teams earlier visibility into Message Rate through `aws:cloudwatch` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Tag or name DLQ queues consistently (`*dlq*`). Ingest SQS CloudWatch metrics per queue. Correlate queue to owning Lambda via Event Source Mapping inventory (lookup table). Alert on any sustained visible message count or sudden spikes after bad deployments.",
   "visualization": "Single value (DLQ depth), Line chart (visible messages by queue), Table (QueueName, linked function, visible).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Lambda Dead Letter Queue Depth and Message Rate' shifts `max` over `span=5m` while `QueueName` remains in-scope for UC-4.5.10. Cross-check CMDB CHG.\n\n2. **Batch `max` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `visible` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QueueName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `QueueName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QueueName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.5.10)** — Planned work for 'Lambda Dead Letter Queue Depth and Message Rate' shifts `visible` over `span=5m` while `QueueName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing `visible` > 0 for UC-4.5.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QueueName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.5.10 on `QueueName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QueueName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1610"
   ],

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4624 where `Account_Name` satisfies detection threshold for UC-22.13.36 ('Shared Account Justification Review Queue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.36."
+    "positiveScenario": "UC-22.13.36 positive (Shared, Account, Justification, Review, Queue): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4624 where `systems` grouped by `Account_Name`, `shared_owner`, `review_due` satisfies -30d for 'Shared Account Justification Review Queue'. Validate lookup `shared_accounts_register.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.36 negative (Review Queue): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `shared_owner`, `review_due` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'Shared Account Justification Review Queue'."
   },
   "dataSources": "`index=wineventlog` `EventCode=4624`, `shared_accounts_register.csv` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4624 earliest=-30d\n| lookup shared_accounts_register.csv Account_Name OUTPUT shared_owner review_due\n| where isnotnull(shared_owner)\n| eval due_epoch=strptime(review_due,\"%Y-%m-%d\")\n| where due_epoch < now() OR isnull(review_due)\n| stats dc(ComputerName) as systems values(bes_system) as sites by Account_Name, shared_owner, review_due",
-  "description": "We track shared or functional accounts that logged onto BES assets against a justification register due for periodic review.",
-  "value": "We track shared or functional accounts that logged onto BES assets against a justification register due for.... Timely UC-22.13.36 alerting on 'Shared Account Justification Review Queue' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.13.36 — Shared, Account, Justification, Review, Queue — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `Account_Name`, `shared_owner`, `review_due`. Outputs `systems` each `the scheduled window`; alert when -30d. Filter chain includes lookup `shared_accounts_register.csv`. Purpose-built for 'Shared Account Justification Review Queue' in Compliance workflows.",
+  "value": "Alerting on Shared, Account, Justification, Review, Queue through UC-22.13.36 reduces audit findings, regulatory gaps, and attestation delays by surfacing `systems` early.",
   "implementation": "(1) Maintain register with review due dates. (2) Quarterly export for access governance. (3) Require re-approval tickets. (4) Remove retired shared accounts from register. Indexes required: `index=wineventlog`; Sourcetypes: `sourcetype=WinEventLog:Security`; Lookups: `shared_accounts_register`, `shared_accounts_register.csv`.",
   "visualization": "Table (accounts overdue), Timeline (reviews), Single value (count). Key fields: `Account_Name`, `due_epoch`, `review_due`, `shared_owner`, `sites`, `systems`.",
   "cimModels": [

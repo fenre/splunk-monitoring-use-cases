@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'FordPass Vehicle Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_fordpass_vehicle_sync_gap_watch` (UC-25.3.67), SOC dashboard panel \"Personal — FordPass Vehicle Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='fordpass:vehicle' where `vehicle_nickname` satisfies `hours_since` > 6 for UC-25.3.67 ('FordPass Vehicle Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `fordpass:vehicle` events where `vehicle_nickname` stays below `hours_since` > 6, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.67."
+    "positiveScenario": "UC-25.3.67 positive (FordPass, Vehicle, Sync, Gap, Watch): ingest synthetic events into `index=personal` sourcetype='fordpass:vehicle' where `last_seen` grouped by `vehicle_nickname` satisfies `hours_since` > 6 for 'FordPass Vehicle Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.67 negative (Gap Watch): ingest benign `personal` / `fordpass:vehicle` events where `vehicle_nickname` stays below `hours_since` > 6, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 0 confirms zero alert rows for 'FordPass Vehicle Sync Gap Watch'."
   },
   "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT/Postgres, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=fordpass:vehicle\n| stats max(_time) as last_seen by vehicle_nickname\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>6\n| sort - hours_since",
-  "description": "Detects when FordPass vehicle data has stopped arriving for a given vehicle. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when FordPass vehicle data has stopped arriving for a given vehicle. Timely UC-25.3.67 alerting on 'FordPass Vehicle Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects 'FordPass Vehicle Sync Gap Watch' (UC-25.3.67) using `index=personal` sourcetype `fordpass:vehicle` by aggregating `last_seen` grouped by `vehicle_nickname` over `the scheduled window` and alerting when `hours_since` > 6. Keywords: FordPass, Vehicle, Sync, Gap, Watch. Focuses on Gap Watch behaviour so personal teams can triage UC-25.3.67 without ad-hoc log review.",
+  "value": "UC-25.3.67 accelerates insight into Gap Watch ('FordPass Vehicle Sync Gap Watch') by tracking `last_seen` on `fordpass:vehicle` feeds, reducing missed training goals, stale hobby data, and connector failures before spreadsheet checks hide regressions.",
   "implementation": "Track the latest event time per vehicle and alert when the feed is older than 6 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'FordPass Vehicle Sync Gap Watch' stops polling `fordpass:vehicle`; stale `vehicle_nickname` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fordpass:vehicle`. Dedup with `stats latest(*) by vehicle_nickname`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 6. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.67)** — Connector for 'FordPass Vehicle Sync Gap Watch' stops polling `fordpass:vehicle`; stale `last_seen` on `vehicle_nickname` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.3.67, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `fordpass:vehicle`. Dedup with `stats latest(*) by vehicle_nickname`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 6 for 'FordPass Vehicle Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

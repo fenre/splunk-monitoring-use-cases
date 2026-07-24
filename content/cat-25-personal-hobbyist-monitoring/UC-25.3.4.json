@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Tire Pressure Low Warning' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_tire_pressure_low_warning` (UC-25.3.4), SOC dashboard panel \"Personal — Tire Pressure Low Warning\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `entity` satisfies `tpms_fl` < 2.5 for UC-25.3.4 ('Tire Pressure Low Warning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `tesla:vehicle` events where `entity` stays below `tpms_fl` < 2.5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.4."
+    "positiveScenario": "UC-25.3.4 positive (Tire, Pressure, Low, Warning): ingest synthetic events into `index=personal` sourcetype='tesla:vehicle' where `count` grouped by `entity` satisfies `tpms_fl` < 2.5, `tpms_fr` < 2.5, `tpms_rl` < 2.5, or `tpms_rr` < 2.5 for 'Tire Pressure Low Warning'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.4 negative (Low Warning): ingest benign `personal` / `tesla:vehicle` events where `entity` stays below `tpms_fl` < 2.5, `tpms_fr` < 2.5, `tpms_rl` < 2.5, or `tpms_rr` < 2.5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Tire Pressure Low Warning'."
   },
   "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=tesla:vehicle\n| eval low=if(tpms_fl<2.5 OR tpms_fr<2.5 OR tpms_rl<2.5 OR tpms_rr<2.5,1,0)\n| where low=1\n| table _time tpms_fl tpms_fr tpms_rl tpms_rr\n| sort - _time",
-  "description": "Checks the tyre-pressure readings reported by the car and alerts when any wheel drops below a safe threshold. Searches `index=personal` with sourcetype `tesla:vehicle` for UC-25.3.4, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `tpms_fl` < 2.5 in the saved search. Gives Personal operators a repeatable signal for 'Tire Pressure Low Warning' without manual log review.",
-  "value": "Checks the tyre-pressure readings reported by the car and alerts when any wheel drops below a safe threshold. Timely UC-25.3.4 alerting on 'Tire Pressure Low Warning' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.3.4 — Tire, Pressure, Low, Warning — using `index=personal` sourcetype `tesla:vehicle`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `tpms_fl` < 2.5, `tpms_fr` < 2.5, `tpms_rl` < 2.5, or `tpms_rr` < 2.5. Primary focus: Low Warning. Purpose-built for 'Tire Pressure Low Warning' in Personal workflows.",
+  "value": "Alerting on Tire, Pressure, Low, Warning through UC-25.3.4 reduces missed training goals, stale hobby data, and connector failures by surfacing `activity` early.",
   "implementation": "Ingest per-wheel pressure fields; schedule hourly and alert when any wheel falls below your safe pressure.",
   "visualization": "Table of low-pressure events with per-wheel values.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Tire Pressure Low Warning' stops polling `tesla:vehicle`; stale `external_id` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `tpms_fl` < 2.5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.4)** — Connector for 'Tire Pressure Low Warning' stops polling `tesla:vehicle`; stale `count` on `external_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.3.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `tesla:vehicle`. Dedup with `stats latest(*) by external_id`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `tpms_fl` < 2.5 for 'Tire Pressure Low Warning'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

@@ -52,14 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=change` sourcetype='prod:apply' where `entity` satisfies detection threshold for UC-22.42.4 ('CAB approval bypass — change pushed before scheduled window'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `change` / `prod:apply` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.42.4."
+    "positiveScenario": "UC-22.42.4 positive (CAB, approval, bypass, change, pushed): ingest synthetic events into `index=change` sourcetype='prod:apply' where `count` grouped by `entity` satisfies -1h for 'CAB approval bypass — change pushed before scheduled window'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.42.4 negative (scheduled window): ingest benign `change` / `prod:apply` events where `entity` stays below -1h, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'CAB approval bypass — change pushed before scheduled window'."
   },
   "dataSources": "CI/CD pipeline apply events tagged with change_id, ServiceNow CR schedule data. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=change sourcetype=prod:apply earliest=-1h\n| join change_id [search index=itsm sourcetype=servicenow:change | fields change_id window_start window_end approval_type]\n| eval start_s=strptime(window_start,\"%Y-%m-%dT%H:%M:%SZ\"), end_s=strptime(window_end,\"%Y-%m-%dT%H:%M:%SZ\")\n| where approval_type!=\"emergency\" AND (_time<start_s OR _time>end_s)\n| table _time change_id applied_by window_start window_end",
-  "description": "Correlates every production apply event to its CR scheduled window and emits those that landed outside the declared window. Out-of-window changes that are not flagged as emergency are a primary ITGC deficiency.",
-  "value": "Correlates every production apply event to its CR scheduled window and emits those that landed outside the.... Timely UC-22.42.4 alerting on 'CAB approval bypass — change pushed before scheduled window' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.42.4 — CAB, approval, bypass, change, pushed — using `index=change` sourcetype `prod:apply`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -1h. Primary focus: scheduled window. Purpose-built for 'CAB approval bypass — change pushed before scheduled window' in Compliance workflows.",
+  "value": "UC-22.42.4 helps teams contain CAB, approval, bypass, change, pushed scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Force CI/CD pipelines to emit change_id; (2) ingest CR schedule data; (3) run hourly; (4) SOAR auto-freezes the pipeline on hit. Indexes required: `index=change`, `index=itsm`; Sourcetypes: `sourcetype=prod:apply`, `sourcetype=servicenow:change`.",
   "visualization": "Table of out-of-window applies, bar chart of offending pipelines, single-value '% of changes applied in window'. Key fields: `applied_by`, `change_id`, `start_s`, `window_end`, `window_start`.",
   "cimModels": [

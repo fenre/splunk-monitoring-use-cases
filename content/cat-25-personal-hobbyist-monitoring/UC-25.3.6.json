@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'OBD-II Check-Engine and Fault-Code Capture' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_obd_ii_check_engine_and_fault_code_capture` (UC-25.3.6), SOC dashboard panel \"Personal — OBD-II Check-Engine and Fault-Code Capture\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='obd:pid' where `vin` satisfies `dtc_count` > 0 for UC-25.3.6 ('OBD-II Check-Engine and Fault-Code Capture'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `obd:pid` events where `vin` stays below `dtc_count` > 0, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.6."
+    "positiveScenario": "UC-25.3.6 positive (OBD, Check, Engine, and, Fault): ingest synthetic events into `index=personal` sourcetype='obd:pid' where `last_seen` grouped by `vin` satisfies `dtc_count` > 0 for 'OBD-II Check-Engine and Fault-Code Capture'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.6 negative (Code Capture): ingest benign `personal` / `obd:pid` events where `vin` stays below `dtc_count` > 0, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 10 confirms zero alert rows for 'OBD-II Check-Engine and Fault-Code Capture'."
   },
   "dataSources": "Tesla vehicle/charge state (`tesla:vehicle`, `tesla:charge`), TeslaMate MQTT, OBD-II PIDs (`obd:pid`), Smartcar API (`smartcar:vehicle`), charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, Teslafi, and generic OBD-II / Smartcar / manufacturer APIs via HEC scripted inputs and MQTT bridges. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=obd:pid dtc_count>0\n| stats latest(dtc_codes) as codes, latest(dtc_count) as count, max(_time) as last_seen by vin\n| eval last=strftime(last_seen,\"%F %T\")\n| sort - last_seen",
-  "description": "Captures diagnostic trouble codes from an OBD-II dongle so a check-engine light comes with the actual fault codes instead of a mystery symbol.",
-  "value": "Captures diagnostic trouble codes from an OBD-II dongle so a check-engine light comes with the actual fault.... Timely UC-25.3.6 alerting on 'OBD-II Check-Engine and Fault-Code Capture' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.3.6 — OBD, Check, Engine, and, Fault — using `index=personal` sourcetype `obd:pid`, grouped by `vin`. Outputs `last_seen` each `the scheduled window`; alert when `dtc_count` > 0. Primary focus: Code Capture. Purpose-built for 'OBD-II Check-Engine and Fault-Code Capture' in Personal workflows.",
+  "value": "For 'OBD-II Check-Engine and Fault-Code Capture', UC-25.3.6 converts `last_seen` on `obd:pid` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Read OBD-II PIDs via a Bluetooth/Wi-Fi dongle bridged to HEC; schedule frequently and alert whenever a new trouble code appears.",
   "visualization": "Table of vehicles by current trouble codes and last-seen time.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'OBD-II Check-Engine and Fault-Code Capture' stops polling `obd:pid`; stale `vin` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obd:pid`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `dtc_count` > 0. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.6)** — Connector for 'OBD-II Check-Engine and Fault-Code Capture' stops polling `obd:pid`; stale `last_seen` on `vin` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.3.6, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `obd:pid`. Dedup with `stats latest(*) by vin`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `dtc_count` > 0 for 'OBD-II Check-Engine and Fault-Code Capture'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

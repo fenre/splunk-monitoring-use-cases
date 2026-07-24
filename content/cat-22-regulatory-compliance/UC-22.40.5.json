@@ -52,14 +52,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:command' where `entity` satisfies detection threshold for UC-22.40.5 ('High-risk privileged-session command without JIT approval'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `cyberark:command` events where `entity` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.40.5."
+    "positiveScenario": "UC-22.40.5 positive (High, risk, privileged, session, command): ingest synthetic events into `index=pam` sourcetype='cyberark:command' where `count` grouped by `entity` satisfies -5m for 'High-risk privileged-session command without JIT approval'. Validate lookup `high_risk_commands.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.40.5 negative (JIT approval): ingest benign `pam` / `cyberark:command` events where `entity` stays below -5m, or exclude the test entity via `compliance_exception_register.csv`. Variant 15 confirms zero alert rows for 'High-risk privileged-session command without JIT approval'."
   },
   "dataSources": "PAM session keystroke/command logs, GRC JIT ticketing events, high-risk command catalogue (high_risk_commands.csv).",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=pam sourcetype=cyberark:command OR sourcetype=beyondtrust:command earliest=-5m\n| lookup high_risk_commands.csv command_pattern AS command OUTPUT risk_class\n| where risk_class IN (\"destructive\",\"mass-data\",\"security-control\")\n| join session_id [search index=grc sourcetype=jit:approval earliest=-1h | fields session_id ticket_id approver approved_at]\n| where isnull(ticket_id)\n| table _time session_id user command risk_class target_host",
-  "description": "Correlates privileged-session command execution against a catalogue of destructive, mass-data, or security-control commands and requires a matching JIT approval within the prior hour. Missing approvals are treated as a finding.",
-  "value": "Correlates privileged-session command execution against a catalogue of destructive, mass-data, or security-.... Timely UC-22.40.5 alerting on 'High-risk privileged-session command without JIT approval' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects UC-22.40.5 — High, risk, privileged, session, command — using `index=pam` sourcetype `cyberark:command`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when -5m. Filter chain includes lookup `high_risk_commands.csv`. Purpose-built for 'High-risk privileged-session command without JIT approval' in Compliance workflows.",
+  "value": "UC-22.40.5 operationalises 'High-risk privileged-session command without JIT approval' against `cyberark:command` feeds so operators reduce audit findings, regulatory gaps, and attestation delays without manual correlation.",
   "implementation": "(1) Curate high_risk_commands.csv with regex patterns; (2) instrument GRC JIT to emit session_id; (3) run every 5 min; (4) SOAR auto-terminates session on hit. Indexes required: `index=grc`, `index=pam`; Sourcetypes: `sourcetype=beyondtrust:command`, `sourcetype=cyberark:command`, `sourcetype=jit:approval`.",
   "visualization": "Table of unapproved high-risk commands, bar chart of commands by risk class, single-value 'high-risk commands approved (7d)'.",
   "cimModels": [],

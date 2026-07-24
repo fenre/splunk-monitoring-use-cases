@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'FinOps Budget Alert Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_finops_budget_alert_correlation` (UC-20.1.12), SOC dashboard panel \"Operations — FinOps Budget Alert Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=finops` sourcetype='aws:budget:alert' where `account_id` satisfies detection threshold for UC-20.1.12 ('FinOps Budget Alert Correlation'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `finops` / `aws:budget:alert` events where `account_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-20.1.12."
+    "positiveScenario": "UC-20.1.12 positive (FinOps, Budget, Alert, Correlation): ingest synthetic events into `index=finops` sourcetype='aws:budget:alert' where `daily_cost` grouped by `account_id`, `_time`, `]` satisfies -7d for 'FinOps Budget Alert Correlation'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-20.1.12 negative (Alert Correlation): ingest benign `finops` / `aws:budget:alert` events where `account_id`, `_time`, `]` stays below -7d, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'FinOps Budget Alert Correlation'."
   },
   "dataSources": "Budget alert SNS/email logs, `cost:daily`, CloudTrail Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "Cloud billing TAs, CloudTrail — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=finops sourcetype=\"aws:budget:alert\" earliest=-7d\n| eval budget_name=coalesce(budget_name,BudgetName)\n| join type=left max=1 budget_name [ search index=cloud_cost sourcetype=\"cost:daily\" earliest=-7d | bin _time span=1d\n| stats sum(cost) as daily_cost by account_id, _time ]\n| table _time, budget_name, threshold_type, daily_cost",
-  "description": "Joins AWS Budgets / Azure budget notifications with resource change events and anomaly searches to explain **why** a threshold fired.",
-  "value": "Early 'FinOps Budget Alert Correlation' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces risk tied to FinOps, Budget, Alert, Correlation through UC-20.1.12 on `index=finops` sourcetype `aws:budget:alert`. Summarises `daily_cost` grouped by `account_id`, `_time`, `]` across `1d` before applying -7d. Operators tune 'FinOps Budget Alert Correlation' using UC-20.1.12 runbook steps.",
+  "value": "Tracking `daily_cost` via UC-20.1.12 on `aws:budget:alert` feeds improves response to 'FinOps Budget Alert Correlation' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest budget notifications via HEC or Lambda. Drill down to service cost change same day. Link to change tickets.",
   "visualization": "Timeline (budget alerts overlaid with spend), Table (alert + cost delta), Sankey (alert → service).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `finops`** — Planned work for 'FinOps Budget Alert Correlation' shifts `sum` over `span=1d` while `account_id` remains in-scope for UC-20.1.12. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:budget:alert`** — Scheduled automation elevates `_time` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `account_id`** — Health checks in `finops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:budget:alert`** — First 48h baseline for `account_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `account_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `finops` (UC-20.1.12)** — Planned work for 'FinOps Budget Alert Correlation' shifts `daily_cost` over `span=1d` while `account_id`, `_time`, `]` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:budget:alert`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-20.1.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `account_id`, `_time`, `]`** — Health checks in `finops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:budget:alert`** — First 48h baseline for UC-20.1.12 on `account_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `account_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"

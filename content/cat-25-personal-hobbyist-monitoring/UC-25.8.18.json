@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Probe HTTP Error Hotspots' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_probe_http_error_hotspots` (UC-25.8.18), SOC dashboard panel \"Personal — Probe HTTP Error Hotspots\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='uptime:probe' where `service` satisfies `status_code` >= 500 for UC-25.8.18 ('Probe HTTP Error Hotspots'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `uptime:probe` events where `service` stays below `status_code` >= 500, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.18."
+    "positiveScenario": "UC-25.8.18 positive (Probe, HTTP, Error, Hotspots): ingest synthetic events into `index=personal` sourcetype='uptime:probe' where `sum` grouped by `service` satisfies `status_code` >= 500, `checks` >= 10, or `error_pct` > 5 for 'Probe HTTP Error Hotspots'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.18 negative (Error Hotspots): ingest benign `personal` / `uptime:probe` events where `service` stays below `status_code` >= 500, `checks` >= 10, or `error_pct` > 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Probe HTTP Error Hotspots'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`), uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=uptime:probe\n| stats count as checks, sum(eval(status_code>=500)) as server_errors by service\n| eval error_pct=round(100*server_errors/checks,1)\n| where checks>=10 AND error_pct>5\n| sort - error_pct",
-  "description": "Highlights services that are technically up but returning too many server errors, the awkward middle ground between green and genuinely healthy.",
-  "value": "Highlights services that are technically up but returning too many server errors, the awkward middle ground.... Timely UC-25.8.18 alerting on 'Probe HTTP Error Hotspots' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.8.18 for Probe, HTTP, Error, Hotspots over `index=personal` sourcetype `uptime:probe` with thresholds `status_code` >= 500, `checks` >= 10, or `error_pct` > 5. Groups `sum` by `service` each `the scheduled window`. Centered on Error Hotspots indicators. Supports repeatable personal triage for 'Probe HTTP Error Hotspots'.",
+  "value": "For 'Probe HTTP Error Hotspots', UC-25.8.18 converts `activity` on `uptime:probe` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Forward probe status codes to Splunk; review services with elevated 5xx rates and pair the findings with application logs.",
   "visualization": "Table of services by probe count and HTTP error percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Probe HTTP Error Hotspots' stops polling `uptime:probe`; stale `service` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptime:probe`. Dedup with `stats latest(*) by service`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `status_code` >= 500. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.18)** — Connector for 'Probe HTTP Error Hotspots' stops polling `uptime:probe`; stale `sum` on `service` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.8.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `uptime:probe`. Dedup with `stats latest(*) by service`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `status_code` >= 500 for 'Probe HTTP Error Hotspots'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

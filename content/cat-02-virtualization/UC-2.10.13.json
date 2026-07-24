@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'VxRail vSAN Resync ETA and Throttle Pressure' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_vxrail_vsan_resync_eta_and_throttle_pressure` (UC-2.10.13), SOC dashboard panel \"Linux — VxRail vSAN Resync ETA and Throttle Pressure\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan' where `cluster_id` satisfies `remain` > 1099511627776 for UC-2.10.13 ('VxRail vSAN Resync ETA and Throttle Pressure'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vxrail` / `vxrail:vsan` events where `cluster_id` stays below `remain` > 1099511627776, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-2.10.13."
+    "positiveScenario": "UC-2.10.13 positive (VxRail, vSAN, Resync, ETA, and): ingest synthetic events into `index=vxrail` sourcetype='vxrail:vsan' where `count` grouped by `cluster_id` satisfies `remain` > 1099511627776, or `eta` > 86400 for 'VxRail vSAN Resync ETA and Throttle Pressure'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-2.10.13 negative (Throttle Pressure): ingest benign `vxrail` / `vxrail:vsan` events where `cluster_id` stays below `remain` > 1099511627776, or `eta` > 86400, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'VxRail vSAN Resync ETA and Throttle Pressure'."
   },
   "dataSources": "`index=vxrail` `sourcetype=\"vxrail:vsan\"` — `cluster_id`, `resync_bytes_remaining`, `resync_eta_sec`, `throttle_mbps`, `congestion` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "vSAN performance service metrics scraped to Splunk — Universal Forwarder (Splunkbase 617)",
   "spl": "index=vxrail sourcetype=\"vxrail:vsan\" earliest=-6h\n| eval remain=tonumber(resync_bytes_remaining)\n| eval eta=tonumber(resync_eta_sec)\n| where remain>1099511627776 OR eta>86400 OR tonumber(throttle_mbps)<50\n| stats latest(remain) as bytes_left, latest(eta) as eta_sec, latest(throttle_mbps) as throttle by cluster_id",
-  "description": "Long resync ETAs after maintenance extend vulnerability windows. Throttle saturation shows contention with production IO.",
-  "value": "Long resync ETAs after maintenance extend vulnerability windows. Timely UC-2.10.13 alerting on 'VxRail vSAN Resync ETA and Throttle Pressure' reduces capacity incidents, patch regressions, and service outages before manual triage or audit channels escalate.",
+  "description": "Detects Throttle Pressure anomalies for UC-2.10.13 with window `the scheduled window` on `index=vxrail` sourcetype `vxrail:vsan`. Combines `count` by `cluster_id` and compares against `remain` > 1099511627776, or `eta` > 86400. Mapped to keywords VxRail, vSAN, Resync, ETA, and for dashboard routing.",
+  "value": "Alerting on VxRail, vSAN, Resync, ETA, and through UC-2.10.13 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
   "implementation": "Ingest resync metrics every 5 minutes. Alert when ETA exceeds policy. Compare with `vxrail:vsan_capacity` free chunk balance.",
   "visualization": "Area chart bytes remaining; gauge ETA; line chart throttle.",
   "cimModels": [

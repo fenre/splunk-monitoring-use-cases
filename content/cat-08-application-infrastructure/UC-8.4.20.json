@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Memcached Connection Count Versus maxconn' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_memcached_connection_count_versus_maxconn` (UC-8.4.20), SOC dashboard panel \"Operations — Memcached Connection Count Versus maxconn\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `host` satisfies `max_connections` > 0 for UC-8.4.20 ('Memcached Connection Count Versus maxconn'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `memcached:stats` events where `host` stays below `max_connections` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.20."
+    "positiveScenario": "UC-8.4.20 positive (Memcached, Connection, Count, Versus, maxconn): ingest synthetic events into `index=cache` sourcetype='memcached:stats' where `used_pct` grouped by `host` satisfies `max_connections` > 0, or `conn_pct` > 80 for 'Memcached Connection Count Versus maxconn'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.20 negative (Versus maxconn): ingest benign `cache` / `memcached:stats` events where `host` stays below `max_connections` > 0, or `conn_pct` > 80, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'Memcached Connection Count Versus maxconn'."
   },
   "dataSources": "`index=cache` `sourcetype=memcached:stats` (`curr_connections`, `max_connections`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"memcached:stats\"\n| eval conn_pct=if(max_connections>0, round(100*curr_connections/max_connections,1), null())\n| where conn_pct > 80\n| timechart span=5m max(conn_pct) as used_pct by host",
-  "description": "Approaching `max_connections` risks refused sockets even when memory is healthy. Searches `index=cache` with sourcetype `memcached:stats` for UC-8.4.20, aggregating `max` by `host` over `5m`. Alerts when grouped results cross `max_connections` > 0 in the saved search. Gives Operations operators a repeatable signal for 'Memcached Connection Count Versus maxconn' without manual log review.",
-  "value": "Approaching `max_connections` risks refused sockets even when memory is healthy. Timely UC-8.4.20 alerting on 'Memcached Connection Count Versus maxconn' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-8.4.20 — Memcached, Connection, Count, Versus, maxconn — using `index=cache` sourcetype `memcached:stats`, grouped by `host`. Outputs `used_pct` each `5m`; alert when `max_connections` > 0, or `conn_pct` > 80. Primary focus: Versus maxconn. Purpose-built for 'Memcached Connection Count Versus maxconn' in Operations workflows.",
+  "value": "UC-8.4.20 operationalises 'Memcached Connection Count Versus maxconn' against `memcached:stats` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Some builds omit `max_connections`—derive from config via lookup if needed.",
   "visualization": "Gauge, line chart, alert when >80% for 15m.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Memcached Connection Count Versus maxconn' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.4.20. Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats`** — Scheduled automation elevates `conn_pct` without crossing `max_connections` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.4.20)** — Planned work for 'Memcached Connection Count Versus maxconn' shifts `used_pct` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `memcached:stats`** — Scheduled automation elevates `conn_pct` without crossing `max_connections` > 0 for UC-8.4.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `memcached:stats`** — First 48h baseline for UC-8.4.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "memcached"
   ],

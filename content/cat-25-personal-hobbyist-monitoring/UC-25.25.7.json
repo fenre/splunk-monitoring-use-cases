@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Supplement and Medication Adherence' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_supplement_and_medication_adherence` (UC-25.25.7), SOC dashboard panel \"Personal — Supplement and Medication Adherence\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='supplement:intake' where `item` satisfies detection threshold for UC-25.25.7 ('Supplement and Medication Adherence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `supplement:intake` events where `item` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.25.7."
+    "positiveScenario": "UC-25.25.7 positive (Supplement, and, Medication, Adherence): ingest synthetic events into `index=personal` sourcetype='supplement:intake' where `avg_adherence` grouped by `item`, `_time` satisfies detection threshold for 'Supplement and Medication Adherence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.25.7 negative (Medication Adherence): ingest benign `personal` / `supplement:intake` events where `item`, `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Supplement and Medication Adherence'."
   },
   "dataSources": "HRV (`hrv:reading`), blood oxygen (`spo2:reading`), lab panels (`bloodpanel:result`), supplements (`supplement:intake`), continuous glucose (`cgm:glucose`), sleep-apnea events (`apnea:event`), body composition (`bodycomp:measure`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Biohacking and advanced-health data — HRV chest straps, pulse oximeters, blood-pressure cuffs, continuous glucose monitors, body-composition scales, lab-result exports, and supplement logs — ingested to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=supplement:intake\n| bin _time span=1w\n| stats sum(eval(if(taken=\"true\",1,0))) as taken, count as scheduled by item _time\n| eval adherence=round(100*taken/scheduled)\n| stats avg(adherence) as avg_adherence by item\n| sort avg_adherence",
-  "description": "Measures how reliably you actually take each supplement or medication, so a forgotten dose does not undermine the whole regimen.",
-  "value": "Measures how reliably you actually take each supplement or medication, so a forgotten dose does not undermi.... Timely UC-25.25.7 alerting on 'Supplement and Medication Adherence' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.25.7 — Supplement, and, Medication, Adherence — using `index=personal` sourcetype `supplement:intake`, grouped by `item`, `_time`. Outputs `avg_adherence` each `1w`; alert when configured threshold. Primary focus: Medication Adherence. Purpose-built for 'Supplement and Medication Adherence' in Personal workflows.",
+  "value": "Alerting on Supplement, and, Medication, Adherence through UC-25.25.7 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_adherence` early.",
   "implementation": "Log intake to `index=personal`; schedule weekly and rank items by adherence.",
   "visualization": "Bar chart of adherence rate by supplement or medication.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Supplement and Medication Adherence' stops polling `supplement:intake`; stale `item` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supplement:intake`. Dedup with `stats latest(*) by item`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.25.7)** — Connector for 'Supplement and Medication Adherence' stops polling `supplement:intake`; stale `avg_adherence` on `item`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_adherence` over `1w` is expected for UC-25.25.7, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `supplement:intake`. Dedup with `stats latest(*) by item`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Supplement and Medication Adherence'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

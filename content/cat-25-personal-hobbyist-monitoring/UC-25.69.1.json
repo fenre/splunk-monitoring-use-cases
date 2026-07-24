@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Planta Watering Overdue Queue' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_planta_watering_overdue_queue` (UC-25.69.1), SOC dashboard panel \"Personal — Planta Watering Overdue Queue\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='planta:plant' where `plant_name` satisfies detection threshold for UC-25.69.1 ('Planta Watering Overdue Queue'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `planta:plant` events where `plant_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.69.1."
+    "positiveScenario": "UC-25.69.1 positive (Planta, Watering, Overdue, Queue): ingest synthetic events into `index=personal` sourcetype='planta:plant' where `days_since_watered` grouped by `plant_name`, `room_name` satisfies detection threshold for 'Planta Watering Overdue Queue'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.69.1 negative (Overdue Queue): ingest benign `personal` / `planta:plant` events where `plant_name`, `room_name` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Planta Watering Overdue Queue'."
   },
   "dataSources": "Planta plant care events (`planta:plant`), Govee soil readings (`govee:soil`), Philips Hue grow-light cycles (`hue:event`), and SensorPush dome climate (`sensorpush:climate`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Planta reminders, Govee soil sensors, Philips Hue grow-light schedules, and SensorPush humidity-dome readings streamed into Splunk. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=planta:plant care_status=\"watering_due\"\n| stats max(days_since_watered) as days_since_watered by plant_name room_name\n| sort - days_since_watered",
-  "description": "Builds an ordered queue of plants that are currently overdue for watering. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Builds an ordered queue of plants that are currently overdue for watering. Timely UC-25.69.1 alerting on 'Planta Watering Overdue Queue' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.69.1 — Planta, Watering, Overdue, Queue — using `index=personal` sourcetype `planta:plant`, grouped by `plant_name`, `room_name`. Outputs `days_since_watered` each `the scheduled window`; alert when configured threshold. Primary focus: Overdue Queue. Purpose-built for 'Planta Watering Overdue Queue' in Personal workflows.",
+  "value": "UC-25.69.1 operationalises 'Planta Watering Overdue Queue' against `planta:plant` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Export Planta reminders with plant and room context, then rank the current watering queue by days overdue.",
   "visualization": "Table of overdue plants grouped by room.",
   "cimModels": [],
@@ -50,7 +50,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Planta Watering Overdue Queue' stops polling `planta:plant`; stale `plant_name` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `planta:plant`. Dedup with `stats latest(*) by plant_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.69.1)** — Connector for 'Planta Watering Overdue Queue' stops polling `planta:plant`; stale `days_since_watered` on `plant_name`, `room_name` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `days_since_watered` over `1w` is expected for UC-25.69.1, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `planta:plant`. Dedup with `stats latest(*) by plant_name`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Planta Watering Overdue Queue'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

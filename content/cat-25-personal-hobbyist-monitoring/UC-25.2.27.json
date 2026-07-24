@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Long Nap Recovery Tradeoff' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_long_nap_recovery_tradeoff` (UC-25.2.27), SOC dashboard panel \"Personal — Long Nap Recovery Tradeoff\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='apple:health' where `person` satisfies `nap_min` > 90 for UC-25.2.27 ('Long Nap Recovery Tradeoff'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `apple:health` events where `person` stays below `nap_min` > 90, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.2.27."
+    "positiveScenario": "UC-25.2.27 positive (Long, Nap, Recovery, Tradeoff): ingest synthetic events into `index=personal` sourcetype='apple:health' where `nap_min`, `next_day_hrv` grouped by `person`, `_time` satisfies `nap_min` > 90 for 'Long Nap Recovery Tradeoff'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.2.27 negative (Recovery Tradeoff): ingest benign `personal` / `apple:health` events where `person`, `_time` stays below `nap_min` > 90, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'Long Nap Recovery Tradeoff'."
   },
   "dataSources": "Recovery and biometrics (`apple:health`, `oura:daily`, `whoop:cycle`, `dexcom:egv`, `levels:glucose`, `libre:glucose`, `eightsleep:sleep`, `withings:measure`, `garmin:bodybattery`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Apple Health / Apple Watch exports, Oura, WHOOP, Dexcom, Levels, LibreView, Eight Sleep, Withings, and Garmin Body Battery feeds via vendor APIs, exports, Home Assistant bridges, and Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=apple:health metric=nap\n| bin _time span=1d\n| stats sum(nap_min) as nap_min, max(next_day_hrv) as next_day_hrv by person _time\n| where nap_min>90\n| sort - nap_min",
-  "description": "Uses Apple Health nap exports telemetry to monitor very long daytime naps and the next-day recovery context in index=personal.",
-  "value": "Uses Apple Health nap exports telemetry to monitor very long daytime naps and the next-day recovery context.... Timely UC-25.2.27 alerting on 'Long Nap Recovery Tradeoff' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.2.27 — Long, Nap, Recovery, Tradeoff — using `index=personal` sourcetype `apple:health`, grouped by `person`, `_time`. Outputs `nap_min`, `next_day_hrv` each `1d`; alert when `nap_min` > 90. Primary focus: Recovery Tradeoff. Purpose-built for 'Long Nap Recovery Tradeoff' in Personal workflows.",
+  "value": "Alerting on Long, Nap, Recovery, Tradeoff through UC-25.2.27 reduces missed training goals, stale hobby data, and connector failures by surfacing `nap_min`, `next_day_hrv` early.",
   "implementation": "Ingest Apple Health nap exports data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a daily cadence.",
   "visualization": "Daily table of nap duration and next-day HRV.",
   "cimModels": [],
@@ -65,7 +65,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Long Nap Recovery Tradeoff' stops polling `apple:health`; stale `person` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1d` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `nap_min` > 90. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.2.27)** — Connector for 'Long Nap Recovery Tradeoff' stops polling `apple:health`; stale `nap_min`, `next_day_hrv` on `person`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `nap_min`, `next_day_hrv` over `1d` is expected for UC-25.2.27, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `apple:health`. Dedup with `stats latest(*) by person`.\n\n4. **Timezone bucket misalignment** — `1d` bins on UTC vs local schedule skew `nap_min` > 90 for 'Long Nap Recovery Tradeoff'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

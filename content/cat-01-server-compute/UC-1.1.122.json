@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Systemd Unit State Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `linux_systemd_unit_state_monitoring` (UC-1.1.122), SOC dashboard panel \"Linux — Systemd Unit State Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=os` sourcetype='systemd_units' where `host` satisfies `NRestarts` > 0 for UC-1.1.122 ('Systemd Unit State Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `os` / `systemd_units` events where `host` stays below `NRestarts` > 0, or exclude the test entity via `linux_capacity_exceptions.csv` with a valid window. Confirm zero alert rows for UC-1.1.122."
+    "positiveScenario": "UC-1.1.122 positive (Systemd, Unit, State, Monitoring): ingest synthetic events into `index=os` sourcetype='systemd_units' where `total_restarts` grouped by `host`, `Unit` satisfies `NRestarts` > 0, or `total_restarts` > 5 for 'Systemd Unit State Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-1.1.122 negative (State Monitoring): ingest benign `os` / `systemd_units` events where `host`, `Unit` stays below `NRestarts` > 0, or `total_restarts` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Systemd Unit State Monitoring'."
   },
   "dataSources": "`systemctl list-units` output, systemd journal Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_nix` (scripted input) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=os sourcetype=systemd_units host=* NRestarts>0\n| stats sum(NRestarts) as total_restarts by host, Unit\n| where total_restarts > 5\n| sort -total_restarts",
-  "description": "Track failed/inactive systemd services, auto-restart counts, and service startup time to prevent cascading failures and identify misconfigured or unhealthy units.",
-  "value": "Early 'Systemd Unit State Monitoring' detection reduces capacity incidents, patch regressions, and service outages by giving Linux operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects State Monitoring activity in UC-1.1.122 ('Systemd Unit State Monitoring') from `index=os` sourcetype `systemd_units`. Rolls up `total_restarts` by `host`, `Unit` across `the scheduled window` and pages when `NRestarts` > 0, or `total_restarts` > 5. Covers Systemd, Unit, State, Monitoring. Linux operators treat UC-1.1.122 as the canonical signal.",
+  "value": "Operators running UC-1.1.122 on `systemd_units` feeds shorten triage for State Monitoring tied to 'Systemd Unit State Monitoring', lowering capacity incidents, patch regressions, and service outages.",
   "implementation": "Create a scripted input that runs `systemctl list-units --all --no-pager --plain` and `systemctl show --property=ActiveState,SubState,NRestarts` for critical units. Parse ActiveState, SubState, and NRestarts. Run every 60 seconds. For startup time, use `systemd-analyze` output. Alert on any failed units; alert when NRestarts exceeds 5 in 1 hour for critical services.",
   "visualization": "Table (failed/inactive units by host), Single value (count of failed units), Timechart of restart counts.",
   "cimModels": [

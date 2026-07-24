@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Activity Upload Gap Detection' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_activity_upload_gap_detection` (UC-25.1.10), SOC dashboard panel \"Personal — Activity Upload Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='garmin:activity' where `device` satisfies `hours_since` > 36 for UC-25.1.10 ('Activity Upload Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `garmin:activity` events where `device` stays below `hours_since` > 36, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.10."
+    "positiveScenario": "UC-25.1.10 positive (Activity, Upload, Gap, Detection): ingest synthetic events into `index=personal` sourcetype='garmin:activity' where `last_sync` grouped by `device` satisfies `hours_since` > 36 for 'Activity Upload Gap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.10 negative (Gap Detection): ingest benign `personal` / `garmin:activity` events where `device` stays below `hours_since` > 36, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 13 confirms zero alert rows for 'Activity Upload Gap Detection'."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=garmin:activity\n| stats max(_time) as last_sync by device\n| eval hours_since=round((now()-last_sync)/3600,1)\n| where hours_since>36\n| sort - hours_since",
-  "description": "Detects when a fitness device has stopped syncing activities, which usually means a broken connection, a dead battery, or a forgotten watch.",
-  "value": "Detects when a fitness device has stopped syncing activities, which usually means a broken connection, a de.... Timely UC-25.1.10 alerting on 'Activity Upload Gap Detection' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies UC-25.1.10 — Activity, Upload, Gap, Detection — using `index=personal` sourcetype `garmin:activity`, grouped by `device`. Outputs `last_sync` each `the scheduled window`; alert when `hours_since` > 36. Primary focus: Gap Detection. Purpose-built for 'Activity Upload Gap Detection' in Personal workflows.",
+  "value": "UC-25.1.10 gives Personal teams earlier visibility into Gap Detection through `garmin:activity` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest per-device activity events; schedule twice daily and alert when a device has not synced within its expected window.",
   "visualization": "Table of devices by hours since last sync.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Activity Upload Gap Detection' stops polling `garmin:activity`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:activity`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 36. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.10)** — Connector for 'Activity Upload Gap Detection' stops polling `garmin:activity`; stale `last_sync` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_sync` over `1w` is expected for UC-25.1.10, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `garmin:activity`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 36 for 'Activity Upload Gap Detection'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

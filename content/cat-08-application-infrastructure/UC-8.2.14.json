@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'JVM Garbage Collection Pause Time (STW)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_jvm_garbage_collection_pause_time_stw` (UC-8.2.14), SOC dashboard panel \"Operations — JVM Garbage Collection Pause Time (STW)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=jvm` sourcetype='jvm:gc' where `host` satisfies `gc_pause_ms` > 500 for UC-8.2.14 ('JVM Garbage Collection Pause Time (STW)'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `jvm` / `jvm:gc` events where `host` stays below `gc_pause_ms` > 500, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.14."
+    "positiveScenario": "UC-8.2.14 positive (JVM, Garbage, Collection, Pause, Time): ingest synthetic events into `index=jvm` sourcetype='jvm:gc' where `max_pause` grouped by `host` satisfies `gc_pause_ms` > 500, or `p95_pause` > 200 for 'JVM Garbage Collection Pause Time (STW)'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.14 negative (Time (STW)): ingest benign `jvm` / `jvm:gc` events where `host` stays below `gc_pause_ms` > 500, or `p95_pause` > 200, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'JVM Garbage Collection Pause Time (STW)'."
   },
   "dataSources": "`-Xlog:gc*` (Java 11+), `gc_pause_ms`, `gc_type` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GC log parsing, `jvm:gc` sourcetype — Universal Forwarder (Splunkbase 617)",
   "spl": "index=jvm sourcetype=\"jvm:gc\"\n| where gc_pause_ms > 500\n| timechart span=5m perc95(gc_pause_ms) as p95_pause, max(gc_pause_ms) as max_pause by host\n| where p95_pause > 200",
-  "description": "Stop-the-world pause duration percentiles from unified GC logs (G1, ZGC) drive SLA breaches before heap % alerts fire. Searches `index=jvm` with sourcetype `jvm:gc` for UC-8.2.14, aggregating `max` by `host` over `5m`. Alerts when grouped results cross `gc_pause_ms` > 500 in the saved search. Gives Operations operators a repeatable signal for 'JVM Garbage Collection Pause Time (STW)' without manual log review.",
-  "value": "Early 'JVM Garbage Collection Pause Time (STW)' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects Time (STW) activity in UC-8.2.14 ('JVM Garbage Collection Pause Time (STW)') from `index=jvm` sourcetype `jvm:gc`. Rolls up `max_pause` by `host` across `5m` and pages when `gc_pause_ms` > 500, or `p95_pause` > 200. Covers JVM, Garbage, Collection, Pause, Time. Operations operators treat UC-8.2.14 as the canonical signal.",
+  "value": "Operators running UC-8.2.14 on `jvm:gc` feeds shorten triage for Time (STW) tied to 'JVM Garbage Collection Pause Time (STW)', lowering operational risk and delayed incident response.",
   "implementation": "Parse pause events only (not concurrent phases). Alert on p95 >200ms or any pause >2s. Split by pool (G1 Old Gen vs Young).",
   "visualization": "Line chart (p95/max pause), Histogram (pause distribution), Table (worst hosts).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `jvm`** — Planned work for 'JVM Garbage Collection Pause Time (STW)' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.2.14. Cross-check CMDB CHG.\n\n2. **Batch `max` on `jvm:gc`** — Scheduled automation elevates `src` without crossing `gc_pause_ms` > 500. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jvm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jvm:gc`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `jvm` (UC-8.2.14)** — Planned work for 'JVM Garbage Collection Pause Time (STW)' shifts `max_pause` over `span=5m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `jvm:gc`** — Scheduled automation elevates `src` without crossing `gc_pause_ms` > 500 for UC-8.2.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jvm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jvm:gc`** — First 48h baseline for UC-8.2.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Storage Class Transition Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_storage_class_transition_tracking` (UC-6.2.10), SOC dashboard panel \"Operations — Storage Class Transition Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:s3:inventory' where `bucket_name` satisfies `pct` > 40 for UC-6.2.10 ('Storage Class Transition Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:s3:inventory` events where `bucket_name` stays below `pct` > 40, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.2.10."
+    "positiveScenario": "UC-6.2.10 positive (Storage, Class, Transition, Tracking): ingest synthetic events into `index=aws` sourcetype='aws:s3:inventory' where `bytes`, `total` grouped by `bucket_name`, `storage_class` satisfies `pct` > 40 for 'Storage Class Transition Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.2.10 negative (Transition Tracking): ingest benign `aws` / `aws:s3:inventory` events where `bucket_name`, `storage_class` stays below `pct` > 40, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Storage Class Transition Tracking'."
   },
   "dataSources": "S3 Inventory reports (CSV), `BucketSizeBytes` by `StorageType` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "S3 Inventory, Azure Blob inventory, CloudWatch storage class metrics — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:s3:inventory\" OR sourcetype=\"aws:cloudwatch\" metric_name=\"BucketSizeBytes\"\n| stats sum(size_bytes) as bytes by bucket_name, storage_class\n| eventstats sum(bytes) as total by bucket_name\n| eval pct=round(bytes/total*100,1)\n| where storage_class=\"STANDARD\" AND pct > 40",
-  "description": "Validates that objects move to IA/Glacier/Archive per policy. Stalled transitions indicate rule gaps or unsupported objects.",
-  "value": "Early 'Storage Class Transition Tracking' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-6.2.10 — Storage, Class, Transition, Tracking — using `index=aws` sourcetype `aws:s3:inventory`, grouped by `bucket_name`, `storage_class`. Outputs `bytes`, `total` each `the scheduled window`; alert when `pct` > 40. Primary focus: Transition Tracking. Purpose-built for 'Storage Class Transition Tracking' in Operations workflows.",
+  "value": "Operators running UC-6.2.10 on `aws:s3:inventory` feeds shorten triage for Transition Tracking tied to 'Storage Class Transition Tracking', lowering operational risk and delayed incident response.",
   "implementation": "Ingest periodic inventory or CloudWatch breakdown. Compare STANDARD % vs policy targets. Report buckets with excessive STANDARD after expected transition age.",
   "visualization": "Stacked bar (storage class % per bucket), Table (buckets with high STANDARD %), Line chart (class mix over time).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'Storage Class Transition Tracking' shifts `sum` over `span=1h` while `bucket_name` remains in-scope for UC-6.2.10. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:s3:inventory`** — Scheduled automation elevates `storage_class` without crossing `pct` > 40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:s3:inventory`** — First 48h baseline for `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-6.2.10)** — Planned work for 'Storage Class Transition Tracking' shifts `bytes`, `total` over `span=1h` while `bucket_name`, `storage_class` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:s3:inventory`** — Scheduled automation elevates `storage_class` without crossing `pct` > 40 for UC-6.2.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `bucket_name`, `storage_class`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:s3:inventory`** — First 48h baseline for UC-6.2.10 on `bucket_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `bucket_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws",
     "azure"

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OAuth Token Abuse' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_oauth_token_abuse` (UC-9.3.9), SOC dashboard panel \"IAM — OAuth Token Abuse\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `actor.alternateId` satisfies `count` > 200 for UC-9.3.9 ('OAuth Token Abuse'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events where `actor.alternateId` stays below `count` > 200, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.9."
+    "positiveScenario": "UC-9.3.9 positive (OAuth, Token, Abuse): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `ips` grouped by `actor.alternateId`, `client_id` satisfies `count` > 200, or `ips` > 5 for 'OAuth Token Abuse'. Validate eventType `app.oauth2.token.grant`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.9 negative (Token Abuse): ingest benign `okta` / `OktaIM2:log` events where `actor.alternateId`, `client_id` stays below `count` > 200, or `ips` > 5, or exclude the test entity via `iam_exception_register.csv`. Variant 11 confirms zero alert rows for 'OAuth Token Abuse'."
   },
   "dataSources": "`app.oauth2.token.grant`, Entra `TokenIssuance` / `Update application` (consent) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta`, Entra sign-in + Graph audit, API gateway logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" eventType=\"app.oauth2.token.grant\"\n| stats count, dc(client.ipAddress) as ips by actor.alternateId, client_id\n| where count > 200 OR ips > 5\n| sort -count",
-  "description": "Excessive refresh grants, scope expansion, or token use from new ASNs indicates stolen refresh tokens or malicious OAuth clients.",
-  "value": "Early 'OAuth Token Abuse' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.3.9 — OAuth, Token, Abuse — using `index=okta` sourcetype `OktaIM2:log`, grouped by `actor.alternateId`, `client_id`. Outputs `ips` each `the scheduled window`; alert when `count` > 200, or `ips` > 5. Filter chain includes eventType `app.oauth2.token.grant`. Purpose-built for 'OAuth Token Abuse' in IAM workflows.",
+  "value": "UC-9.3.9 helps teams contain OAuth, Token, Abuse scenarios and reduce account takeover risk, help-desk load, and audit findings before incidents compound.",
   "implementation": "Baseline grants per user and client. Alert on burst refresh or grants from many IPs. Revoke client on anomaly. Mirror logic for `azure:aad:signin` with `tokenIssuerType`.",
   "visualization": "Table (abusive clients), Line chart (grants over time), Bar chart (by client_id).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'OAuth Token Abuse' shifts `dc` over `span=1h` while `actor.alternateId` remains in-scope for UC-9.3.9. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `OktaIM2:log`** — Scheduled automation elevates `client_id` without crossing `count` > 200. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.alternateId`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for `actor.alternateId` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.alternateId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.3.9)** — Planned work for 'OAuth Token Abuse' shifts `ips` over `span=1h` while `actor.alternateId`, `client_id` remains in-scope. eventType=app.oauth2.token.grant Applies eventType `app.oauth2.token.grant`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `OktaIM2:log`** — Scheduled automation elevates `client_id` without crossing `count` > 200 for UC-9.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `actor.alternateId`, `client_id`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.3.9 on `actor.alternateId` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `actor.alternateId`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1528",
     "T1550.001"

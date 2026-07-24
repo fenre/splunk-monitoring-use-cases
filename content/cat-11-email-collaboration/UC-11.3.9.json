@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Mailbox Size and Quota Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mailbox_size_and_quota_trending` (UC-11.3.9), SOC dashboard panel \"Operations — Mailbox Size and Quota Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=o365` sourcetype='exchange:mailbox_stats' where `user` satisfies `used_pct` >= 80 for UC-11.3.9 ('Mailbox Size and Quota Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `o365` / `exchange:mailbox_stats` events where `user` stays below `used_pct` >= 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.3.9."
+    "positiveScenario": "UC-11.3.9 positive (Mailbox, Size, and, Quota, Trending): ingest synthetic events into `index=o365` sourcetype='exchange:mailbox_stats' where `count` grouped by `user`, `mailbox_type` satisfies `used_pct` >= 80 for 'Mailbox Size and Quota Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.3.9 negative (Quota Trending): ingest benign `o365` / `exchange:mailbox_stats` events where `user`, `mailbox_type` stays below `used_pct` >= 80, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'Mailbox Size and Quota Trending'."
   },
   "dataSources": "Mailbox size and quota metrics Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_MS_O365`, Exchange Online / M365 reporting, mailbox stats API — Universal Forwarder (Splunkbase 617)",
   "spl": "index=o365 sourcetype=\"exchange:mailbox_stats\"\n| stats latest(mailbox_size_mb) as size_mb, latest(quota_mb) as quota_mb by user, mailbox_type\n| eval used_pct=round((size_mb/quota_mb)*100, 1)\n| where used_pct >= 80\n| sort -used_pct",
-  "description": "Mailbox growth and quota usage help plan storage and avoid user lockouts. Trending supports capacity planning and proactive quota increases.",
-  "value": "Early 'Mailbox Size and Quota Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Quota Trending activity in UC-11.3.9 ('Mailbox Size and Quota Trending') from `index=o365` sourcetype `exchange:mailbox_stats`. Rolls up `count` by `user`, `mailbox_type` across `the scheduled window` and pages when `used_pct` >= 80. Covers Mailbox, Size, and, Quota, Trending. Operations operators treat UC-11.3.9 as the canonical signal.",
+  "value": "Operators running UC-11.3.9 on `exchange:mailbox_stats` feeds shorten triage for Quota Trending tied to 'Mailbox Size and Quota Trending', lowering operational risk and delayed incident response.",
   "implementation": "Ingest mailbox size and quota from Graph API or Exchange reporting. Alert when usage exceeds 80% of quota. Report on top consumers and growth rate by department.",
   "visualization": "Table (mailboxes near quota), Bar chart (size by user), Line chart (growth trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `o365`** — Planned work for 'Mailbox Size and Quota Trending' shifts `count` over `span=1h` while `user` remains in-scope for UC-11.3.9. Cross-check CMDB CHG.\n\n2. **Batch `count` on `exchange:mailbox_stats`** — Scheduled automation elevates `mailbox_type` without crossing `used_pct` >= 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `exchange:mailbox_stats`** — First 48h baseline for `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `o365` (UC-11.3.9)** — Planned work for 'Mailbox Size and Quota Trending' shifts `count` over `span=1h` while `user`, `mailbox_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `exchange:mailbox_stats`** — Scheduled automation elevates `mailbox_type` without crossing `used_pct` >= 80 for UC-11.3.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `user`, `mailbox_type`** — Health checks in `o365` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `exchange:mailbox_stats`** — First 48h baseline for UC-11.3.9 on `user` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "m365"

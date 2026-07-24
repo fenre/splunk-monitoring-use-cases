@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SNMP Polling Gap Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_snmp_polling_gap_detection` (UC-5.8.8), SOC dashboard panel \"Operations — SNMP Polling Gap Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:*' where `host` satisfies `gap_pct` > 20 for UC-5.8.8 ('SNMP Polling Gap Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:*` events where `host` stays below `gap_pct` > 20, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.8.8."
+    "positiveScenario": "UC-5.8.8 positive (SNMP, Polling, Gap, Detection): ingest synthetic events into `index=network` sourcetype='snmp:*' where `count` grouped by `host`, `sourcetype`, `_time` satisfies `gap_pct` > 20 for 'SNMP Polling Gap Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.8.8 negative (Gap Detection): ingest benign `network` / `snmp:*` events where `host`, `sourcetype`, `_time` stays below `gap_pct` > 20, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'SNMP Polling Gap Detection'."
   },
   "dataSources": "Any `snmp:*` metric sourcetype with steady poll interval (compare metadata to poller config) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk core (metadata search) — Universal Forwarder (Splunkbase 617)",
   "spl": "| tstats count where index=network sourcetype=\"snmp:*\" by host, sourcetype, _time span=10m\n| stats range(_time) as time_range, count as poll_count by host, sourcetype\n| eval expected_polls=round(time_range/300,0)\n| eval gap_pct=round((1-poll_count/expected_polls)*100,1)\n| where gap_pct > 20 | sort -gap_pct",
-  "description": "Missing SNMP polls create gaps in monitoring data. Detecting polling failures ensures metrics dashboards remain accurate.",
-  "value": "Missing SNMP polls create gaps in monitoring data. Timely UC-5.8.8 alerting on 'SNMP Polling Gap Detection' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Monitors UC-5.8.8 — SNMP, Polling, Gap, Detection — using `index=network` sourcetype `snmp:*`, grouped by `host`, `sourcetype`, `_time`. Outputs `count` each `10m`; alert when `gap_pct` > 20. Primary focus: Gap Detection. Purpose-built for 'SNMP Polling Gap Detection' in Operations workflows.",
+  "value": "Alerting on SNMP, Polling, Gap, Detection through UC-5.8.8 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Track SNMP data arrival per device using `tstats`. Compare expected vs. actual poll count. Alert when gap exceeds 20%. Investigate SNMP community/credential issues.",
   "visualization": "Table (device, expected, actual, gap %), Single value (devices with gaps), Heatmap.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'SNMP Polling Gap Detection' shifts `count` over `span=10m` while `host` remains in-scope for UC-5.8.8. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:*`** — Scheduled automation elevates `sourcetype` without crossing `gap_pct` > 20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:*`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.8.8)** — Planned work for 'SNMP Polling Gap Detection' shifts `count` over `span=10m` while `host`, `sourcetype`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:*`** — Scheduled automation elevates `sourcetype` without crossing `gap_pct` > 20 for UC-5.8.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `sourcetype`, `_time`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:*`** — First 48h baseline for UC-5.8.8 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "dell_emc",
     "snmp"

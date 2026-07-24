@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'DNS Latency Degradation by Resolver' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_dns_latency_degradation_by_resolver` (UC-25.9.9), SOC dashboard panel \"Personal — DNS Latency Degradation by Resolver\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='pihole:query' where `upstream` satisfies `avg_ms` > 50 for UC-25.9.9 ('DNS Latency Degradation by Resolver'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `pihole:query` events where `upstream` stays below `avg_ms` > 50, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.9.9."
+    "positiveScenario": "UC-25.9.9 positive (DNS, Latency, Degradation, Resolver): ingest synthetic events into `index=personal` sourcetype='pihole:query' where `avg_ms`, `baseline` grouped by `upstream`, `_time` satisfies `avg_ms` > 50 for 'DNS Latency Degradation by Resolver'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.9.9 negative (by Resolver): ingest benign `personal` / `pihole:query` events where `upstream`, `_time` stays below `avg_ms` > 50, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 14 confirms zero alert rows for 'DNS Latency Degradation by Resolver'."
   },
   "dataSources": "UniFi controller events (`unifi:event`), Pi-hole query log (`pihole:query`), AdGuard Home (`adguard:query`), speedtest-cli results (`speedtest:result`), router/firewall syslog, ISP uptime probes (`uptime:probe`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "UniFi / router syslog, Pi-hole/AdGuard, and scheduled speedtests via HEC scripted inputs and the Universal Forwarder. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=pihole:query\n| bin _time span=1h\n| stats avg(reply_time_ms) as avg_ms by upstream _time\n| eventstats avg(avg_ms) as baseline by upstream\n| where avg_ms>baseline*1.5 AND avg_ms>50\n| sort - avg_ms",
-  "description": "Compares hourly DNS response time against each upstream resolver's own baseline and catches the nameserver that is suddenly making everything feel slow.",
-  "value": "Compares hourly DNS response time against each upstream resolver's own baseline and catches the nameserver.... Timely UC-25.9.9 alerting on 'DNS Latency Degradation by Resolver' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-25.9.9 — DNS, Latency, Degradation, Resolver — using `index=personal` sourcetype `pihole:query`, grouped by `upstream`, `_time`. Outputs `avg_ms`, `baseline` each `1h`; alert when `avg_ms` > 50. Primary focus: by Resolver. Purpose-built for 'DNS Latency Degradation by Resolver' in Personal workflows.",
+  "value": "Alerting on DNS, Latency, Degradation, Resolver through UC-25.9.9 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_ms`, `baseline` early.",
   "implementation": "Forward Pi-hole query timing and upstream server fields; alert when one resolver drifts materially above normal latency.",
   "visualization": "Hourly table of upstream resolvers by average response time and baseline delta.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'DNS Latency Degradation by Resolver' stops polling `pihole:query`; stale `upstream` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1h` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pihole:query`. Dedup with `stats latest(*) by upstream`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `avg_ms` > 50. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.9.9)** — Connector for 'DNS Latency Degradation by Resolver' stops polling `pihole:query`; stale `avg_ms`, `baseline` on `upstream`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_ms`, `baseline` over `1h` is expected for UC-25.9.9, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `pihole:query`. Dedup with `stats latest(*) by upstream`.\n\n4. **Timezone bucket misalignment** — `1h` bins on UTC vs local schedule skew `avg_ms` > 50 for 'DNS Latency Degradation by Resolver'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "syslog"
   ],

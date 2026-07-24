@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airflow Task Queue Latency' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airflow_task_queue_latency` (UC-24.7.16), SOC dashboard panel \"Operations — Airflow Task Queue Latency\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airflow:task' where `queue` satisfies `p95_s` > 120 for UC-24.7.16 ('Airflow Task Queue Latency'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airflow:task` events where `queue` stays below `p95_s` > 120, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.7.16."
+    "positiveScenario": "UC-24.7.16 positive (Airflow, Task, Queue, Latency): ingest synthetic events into `index=bi` sourcetype='airflow:task' where `avg_s` grouped by `queue` satisfies `p95_s` > 120 for 'Airflow Task Queue Latency'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.7.16 negative (Queue Latency): ingest benign `bi` / `airflow:task` events where `queue` stays below `p95_s` > 120, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Airflow Task Queue Latency'."
   },
   "dataSources": "Airflow logs (`airflow:scheduler`, `airflow:worker`, `airflow:task`), REST API `/dags/*/dagRuns`, StatsD counters (`airflow:statsd`), and metadata tables via DB Connect. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airflow task/scheduler logs via Universal Forwarder; Airflow REST API (`/api/v1`) and StatsD/OpenTelemetry metrics via HEC scripted inputs; Airflow metadata database (`dag_run`, `task_instance`, `job`) via Splunk DB Connect. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airflow:task\n| eval queue_latency=queued_duration\n| stats avg(queue_latency) as avg_s, p95(queue_latency) as p95_s by queue\n| where p95_s>120\n| sort - p95_s",
-  "description": "Computes how long tasks sit in the queued state before a worker picks them up, broken down by executor queue, to reveal worker-capacity shortfalls.",
-  "value": "Computes how long tasks sit in the queued state before a worker picks them up, broken down by executor queu.... Timely UC-24.7.16 alerting on 'Airflow Task Queue Latency' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-24.7.16 — Airflow, Task, Queue, Latency — using `index=bi` sourcetype `airflow:task`, grouped by `queue`. Outputs `avg_s` each `the scheduled window`; alert when `p95_s` > 120. Primary focus: Queue Latency. Purpose-built for 'Airflow Task Queue Latency' in Operations workflows.",
+  "value": "UC-24.7.16 accelerates insight into Queue Latency ('Airflow Task Queue Latency') by tracking `avg_s` on `airflow:task` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Derive queued duration from task instance start vs. queued timestamps (logs or metadata DB); schedule hourly and alert when p95 latency crosses your window.",
   "visualization": "Table of queue by p95 latency, timechart of queue wait.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airflow Task Queue Latency' shifts `avg` over `span=1h` while `queue` remains in-scope for UC-24.7.16. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airflow:task`** — Scheduled automation elevates `queue_latency` without crossing `p95_s` > 120. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `queue`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for `queue` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `queue`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.7.16)** — Planned work for 'Airflow Task Queue Latency' shifts `avg_s` over `span=1h` while `queue` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `airflow:task`** — Scheduled automation elevates `queue_latency` without crossing `p95_s` > 120 for UC-24.7.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `queue`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airflow:task`** — First 48h baseline for UC-24.7.16 on `queue` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `queue`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "opentelemetry"

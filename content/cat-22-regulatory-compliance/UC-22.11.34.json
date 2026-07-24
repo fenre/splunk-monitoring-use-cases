@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `host_fqdn` satisfies detection threshold for UC-22.11.34 ('Critical CVE Remediation SLA Breach Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vm` / `tenable:sc:vuln` events where `host_fqdn` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.11.34."
+    "positiveScenario": "UC-22.11.34 positive (Critical, CVE, Remediation, SLA, Breach): ingest synthetic events into `index=vm` sourcetype='tenable:sc:vuln' where `max_age` grouped by `host_fqdn`, `plugin_name` satisfies -90d for 'Critical CVE Remediation SLA Breach Tracking'. Validate lookup `pci_in_scope_hosts.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.11.34 negative (Breach Tracking): ingest benign `vm` / `tenable:sc:vuln` events where `host_fqdn`, `plugin_name` stays below -90d, or exclude the test entity via `compliance_exception_register.csv`. Variant 3 confirms zero alert rows for 'Critical CVE Remediation SLA Breach Tracking'."
   },
   "dataSources": "`index=vm` `tenable:sc:vuln` — `first_found`, `last_found`, `severity`, `host_fqdn`",
   "app": "Splunk Add-on for Tenable (4060) (Splunkbase)",
   "spl": "index=vm sourcetype=\"tenable:sc:vuln\" severity=\"Critical\" earliest=-90d\n| lookup pci_in_scope_hosts.csv fqdn AS host_fqdn OUTPUT in_scope\n| where in_scope=\"true\"\n| where match(state,\"(?i)open|reopened)\")\n| eval age_days=round((now()-first_found)/86400,1)\n| eval sla_days=30\n| where age_days>sla_days\n| stats max(age_days) as max_age by host_fqdn, plugin_name\n| sort - max_age",
-  "description": "Computes age in days for critical vulnerabilities against the organization’s documented remediation SLA so PCI expectations for timely flaw correction are measurable.",
-  "value": "Computes age in days for critical vulnerabilities against the organization’s documented remediation SLA so.... Timely UC-22.11.34 alerting on 'Critical CVE Remediation SLA Breach Tracking' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors when Breach Tracking criteria fire for 'Critical CVE Remediation SLA Breach Tracking' (UC-22.11.34) in `index=vm` sourcetype `tenable:sc:vuln`. Pipeline aggregates `max_age` by `host_fqdn`, `plugin_name` over `the scheduled window`. Alert logic enforces -90d. SPL signature: lookup `pci_in_scope_hosts.csv`. Eliminates manual hunting for UC-22.11.34 conditions.",
+  "value": "UC-22.11.34 helps teams contain Critical, CVE, Remediation, SLA, Breach scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Adjust `sla_days` per risk policy (15 for internet-facing). (2) Join patch ticket state from ITSM to exclude in-progress. (3) Weekly governance email. (4) Document exceptions with compensating controls. Indexes required: `index=vm`; Sourcetypes: `sourcetype=tenable:sc:vuln`; Lookups: `pci_in_scope_hosts`, `pci_in_scope_hosts.csv`.",
   "visualization": "Bar (max_age by host), table (plugin_name), single value (count of SLA breaches).",
   "cimModels": [

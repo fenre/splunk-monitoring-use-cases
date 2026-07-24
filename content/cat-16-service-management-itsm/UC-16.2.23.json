@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_opsgenie_alert_fatigue_repeated_close_reopen_loo` (UC-16.2.23), SOC dashboard panel \"Operations — Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=alerts` sourcetype='opsgenie:alert' where `alias` satisfies `count` > 15 for UC-16.2.23 ('Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `alerts` / `opsgenie:alert` events where `alias` stays below `count` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.23."
+    "positiveScenario": "UC-16.2.23 positive (Opsgenie, Alert, Fatigue, Repeated, Close): ingest synthetic events into `index=alerts` sourcetype='opsgenie:alert' where `action_dc` grouped by `alias`, `tinyId` satisfies `count` > 15, or `action_dc` >= 2 for 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.23 negative (per Alias): ingest benign `alerts` / `opsgenie:alert` events where `alias`, `tinyId` stays below `count` > 15, or `action_dc` >= 2, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias'."
   },
   "dataSources": "Opsgenie alert activity (`opsgenie:alert`) from OEC or integration logs Indexes: alerts. Sourcetypes: opsgenie:alert. Key fields: action_dc, alias, tinyId. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "Opsgenie for Splunk (Splunkbase 3759) forwarding alert JSON",
   "spl": "index=alerts sourcetype=\"opsgenie:alert\"\n| eval alias=coalesce(alias, message)\n| stats count, dc(action) as action_dc by alias, tinyId\n| where count>15 AND action_dc>=2\n| sort -count",
-  "description": "Flapping integrations waste responder focus and distort MTTR metrics. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Flapping integrations waste responder focus and distort MTTR metrics. Timely UC-16.2.23 alerting on 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces per Alias anomalies for UC-16.2.23 with window `the scheduled window` on `index=alerts` sourcetype `opsgenie:alert`. Combines `action_dc` by `alias`, `tinyId` and compares against `count` > 15, or `action_dc` >= 2. Mapped to keywords Opsgenie, Alert, Fatigue, Repeated, Close for dashboard routing.",
+  "value": "Alerting on Opsgenie, Alert, Fatigue, Repeated, Close through UC-16.2.23 reduces operational risk and delayed incident response by surfacing `action_dc` early.",
   "implementation": "Include `action` field (Create, Close, Ack). Redact customer PII from `message`.",
   "visualization": "Bar chart (top aliases), Line chart (flap rate).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `alerts`** — Planned work for 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias' shifts `dc` over `span=1h` while `alias` remains in-scope for UC-16.2.23. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `opsgenie:alert`** — Scheduled automation elevates `tinyId` without crossing `count` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alias`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opsgenie:alert`** — First 48h baseline for `alias` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `alias`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `alerts` (UC-16.2.23)** — Planned work for 'Opsgenie Alert Fatigue — Repeated Close-Reopen Loops per Alias' shifts `action_dc` over `span=1h` while `alias`, `tinyId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `opsgenie:alert`** — Scheduled automation elevates `tinyId` without crossing `count` > 15 for UC-16.2.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `alias`, `tinyId`** — Health checks in `alerts` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `opsgenie:alert`** — First 48h baseline for UC-16.2.23 on `alias` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `alias`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "pagerduty"

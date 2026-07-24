@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Terraform Drift Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_terraform_drift_detection` (UC-4.4.1), SOC dashboard panel \"Operations — Terraform Drift Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=devops` sourcetype='terraform:plan' where `workspace` satisfies detection threshold for UC-4.4.1 ('Terraform Drift Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `devops` / `terraform:plan` events where `workspace` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.4.1."
+    "positiveScenario": "UC-4.4.1 positive (Terraform, Drift, Detection): ingest synthetic events into `index=devops` sourcetype='terraform:plan' where `count` grouped by `workspace`, `resource_type` satisfies detection threshold for 'Terraform Drift Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.4.1 negative (Drift Detection): ingest benign `devops` / `terraform:plan` events where `workspace`, `resource_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Terraform Drift Detection'."
   },
   "dataSources": "`terraform plan` output, CI/CD pipeline logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom input (Terraform CLI output, CI/CD integration) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=devops sourcetype=\"terraform:plan\"\n| where changes_detected=\"true\"\n| stats count as drifted_resources by workspace, resource_type\n| sort -drifted_resources",
-  "description": "Infrastructure drift from declared IaC state means manual changes broke the single source of truth. Causes unpredictable behavior and deployment failures.",
-  "value": "Early 'Terraform Drift Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors Drift Detection anomalies for UC-4.4.1 with window `the scheduled window` on `index=devops` sourcetype `terraform:plan`. Combines `count` by `workspace`, `resource_type` and compares against configured threshold. Mapped to keywords Terraform, Drift, Detection for dashboard routing.",
+  "value": "Alerting on Terraform, Drift, Detection through UC-4.4.1 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Run `terraform plan -detailed-exitcode` on schedule in CI/CD. Forward plan output to Splunk via HEC. Exit code 2 = changes detected (drift). Alert on any drift in production workspaces.",
   "visualization": "Table (workspace, resource, drift), Single value (drifted resources), Bar chart.",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `devops`** — Planned work for 'Terraform Drift Detection' shifts `count` over `span=1h` while `workspace` remains in-scope for UC-4.4.1. Cross-check CMDB CHG.\n\n2. **Batch `count` on `terraform:plan`** — Scheduled automation elevates `resource_type` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workspace`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `terraform:plan`** — First 48h baseline for `workspace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workspace`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `devops` (UC-4.4.1)** — Planned work for 'Terraform Drift Detection' shifts `count` over `span=1h` while `workspace`, `resource_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `terraform:plan`** — Scheduled automation elevates `resource_type` without crossing configured threshold for UC-4.4.1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `workspace`, `resource_type`** — Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `terraform:plan`** — First 48h baseline for UC-4.4.1 on `workspace` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `workspace`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1578"
   ],

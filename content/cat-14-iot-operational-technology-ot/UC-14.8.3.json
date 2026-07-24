@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OEE Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_oee_trending` (UC-14.8.3), SOC dashboard panel \"Operations — OEE Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='target_sourcetype' where `asset_id` satisfies detection threshold for UC-14.8.3 ('OEE Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `target_sourcetype` events where `asset_id` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.8.3."
+    "positiveScenario": "UC-14.8.3 positive (OEE, Trending): ingest synthetic events into `index=ot` sourcetype='target_sourcetype' where `fleet_oee` grouped by `asset_id`, `_time` satisfies detection threshold for 'OEE Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.8.3 negative (OEE Trending): ingest benign `ot` / `target_sourcetype` events where `asset_id`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'OEE Trending'."
   },
   "dataSources": "`index=ot` `| mstats` on `metric_name=\"oee\"` with `asset_id` or `line_id`; fallback `sourcetype=edge_hub:metrics` events carrying `oee` fields Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Edge Hub, MES or historian connectors (optional), OT metrics model — Universal Forwarder (Splunkbase 617)",
   "spl": "| mstats avg(_value) WHERE index=ot metric_name=\"oee\" span=1w BY asset_id\n| rename \"avg(_value)\" as oee_avg\n| eval oee_pct=round(oee_avg*100,2)\n| stats avg(oee_pct) as fleet_oee by _time\n| trendline sma4(fleet_oee) as oee_trend\n| eval gap_to_target=round(85 - fleet_oee,2)",
-  "description": "Overall Equipment Effectiveness summarizes availability, performance, and quality; weekly or monthly trends show whether maintenance programs and changeovers are improving plant output without waiting for quarterly business reviews.",
-  "value": "Early 'OEE Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-14.8.3 — OEE, Trending — using `index=ot` sourcetype `configured sourcetype`, grouped by `asset_id`, `_time`. Outputs `fleet_oee` each `1w`; alert when configured threshold. Primary focus: OEE Trending. Purpose-built for 'OEE Trending' in Operations workflows.",
+  "value": "UC-14.8.3 operationalises 'OEE Trending' against UC-14.8.3 search results so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "If OEE is not pre-calculated, derive it from availability × performance × quality metrics ingested separately (use `eval` in a scheduled search writing to a summary index). Align shifts and planned downtime using a `production_calendar` lookup to avoid penalizing scheduled stops. Compare assets to peers in the same technology line. Alert when 4-week rolling OEE drops more than 5 points below baseline.",
   "visualization": "Line chart (OEE % by line over weeks), Area chart (components if split metrics), Bullet chart (actual versus target OEE).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'OEE Trending' shifts `avg` over `span=1w` while `asset_id` remains in-scope for UC-14.8.3. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `_time` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_id`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `asset_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.8.3)** — Planned work for 'OEE Trending' shifts `fleet_oee` over `span=1w` while `asset_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `_time` without crossing configured threshold for UC-14.8.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `asset_id`, `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-14.8.3 on `asset_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `asset_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "edge_hub"
   ],

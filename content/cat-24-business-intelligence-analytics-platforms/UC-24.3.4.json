@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Looker API Usage and Rate Limiting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_looker_api_usage_and_rate_limiting` (UC-24.3.4), SOC dashboard panel \"Operations — Looker API Usage and Rate Limiting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `api_client` satisfies `throttled` > 0 for UC-24.3.4 ('Looker API Usage and Rate Limiting'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `looker:system_activity` events where `api_client` stays below `throttled` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.3.4."
+    "positiveScenario": "UC-24.3.4 positive (Looker, API, Usage, and, Rate): ingest synthetic events into `index=bi` sourcetype='looker:system_activity' where `sum` grouped by `api_client`, `_time` satisfies `throttled` > 0 for 'Looker API Usage and Rate Limiting'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.3.4 negative (Rate Limiting): ingest benign `bi` / `looker:system_activity` events where `api_client`, `_time` stays below `throttled` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Looker API Usage and Rate Limiting'."
   },
   "dataSources": "Looker System Activity (`history`, `pdt_builds`, `scheduled_plan`, `event`, `api_usage`), Looker API queue/PDT metrics, GCP audit logs for Looker Studio and BigQuery-backed reports. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Looker System Activity and Admin API via HEC scripted inputs; Looker Studio and BigQuery-backed usage via the Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`). — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=looker:system_activity view=api_usage\n| bin _time span=1h\n| stats count as calls, sum(eval(http_status=429)) as throttled by api_client, _time\n| where throttled>0\n| sort - _time",
-  "description": "Tracks Looker API call volume by client and flags rate-limited (HTTP 429) calls, which break embeds and integrations relying on the API.",
-  "value": "Tracks Looker API call volume by client and flags rate-limited (HTTP 429) calls, which break embeds and int.... Timely UC-24.3.4 alerting on 'Looker API Usage and Rate Limiting' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Alerts on Rate Limiting anomalies for UC-24.3.4 with window `1h` on `index=bi` sourcetype `looker:system_activity`. Combines `sum` by `api_client`, `_time` and compares against `throttled` > 0. Mapped to keywords Looker, API, Usage, and, Rate for dashboard routing.",
+  "value": "Alerting on Looker, API, Usage, and, Rate through UC-24.3.4 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Query the `api_usage` view or ingest API access logs; schedule hourly; alert on sustained 429s per client.",
   "visualization": "Timechart of API calls vs throttled, table by client.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Looker API Usage and Rate Limiting' shifts `sum` over `span=1h` while `api_client` remains in-scope for UC-24.3.4. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `looker:system_activity`** — Scheduled automation elevates `_time` without crossing `throttled` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `api_client`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for `api_client` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `api_client`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.3.4)** — Planned work for 'Looker API Usage and Rate Limiting' shifts `sum` over `span=1h` while `api_client`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `looker:system_activity`** — Scheduled automation elevates `_time` without crossing `throttled` > 0 for UC-24.3.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `api_client`, `_time`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `looker:system_activity`** — First 48h baseline for UC-24.3.4 on `api_client` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `api_client`, `exception_reason`, `valid_until`.",
   "equipment": [
     "gcp"
   ],

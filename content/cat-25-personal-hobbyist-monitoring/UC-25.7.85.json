@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Twitch VOD Session Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_twitch_vod_session_sync_gap_watch` (UC-25.7.85), SOC dashboard panel \"Personal — Twitch VOD Session Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='twitch:vod' where `channel` satisfies `hours_since` > 24 for UC-25.7.85 ('Twitch VOD Session Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `twitch:vod` events where `channel` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.7.85."
+    "positiveScenario": "UC-25.7.85 positive (Twitch, VOD, Session, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='twitch:vod' where `last_seen` grouped by `channel` satisfies `hours_since` > 24 for 'Twitch VOD Session Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.7.85 negative (Gap Watch): ingest benign `personal` / `twitch:vod` events where `channel` stays below `hours_since` > 24, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Twitch VOD Session Sync Gap Watch'."
   },
   "dataSources": "Tautulli/Plex playback (`tautulli:play`), Jellyfin activity (`jellyfin:activity`), Spotify recently-played (`spotify:play`), Steam player/achievements (`steam:player`), Sonarr/Radarr events (`sonarr:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Plex / Jellyfin (Tautulli), Sonos, Spotify, Steam, Xbox/PSN, and *arr stack (Sonarr/Radarr) APIs and webhooks via HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=twitch:vod\n| stats max(_time) as last_seen by channel\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>24\n| sort - hours_since",
-  "description": "Detects when Twitch VOD session data has stopped arriving for a given channel. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Twitch VOD session data has stopped arriving for a given channel. Timely UC-25.7.85 alerting on 'Twitch VOD Session Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects Gap Watch anomalies for UC-25.7.85 with window `the scheduled window` on `index=personal` sourcetype `twitch:vod`. Combines `last_seen` by `channel` and compares against `hours_since` > 24. Mapped to keywords Twitch, VOD, Session, Sync, Gap for dashboard routing.",
+  "value": "Alerting on Twitch, VOD, Session, Sync, Gap through UC-25.7.85 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Track the latest event time per channel and alert when the feed is older than 24 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Twitch VOD Session Sync Gap Watch' stops polling `twitch:vod`; stale `channel` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `twitch:vod`. Dedup with `stats latest(*) by channel`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.7.85)** — Connector for 'Twitch VOD Session Sync Gap Watch' stops polling `twitch:vod`; stale `last_seen` on `channel` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.7.85, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `twitch:vod`. Dedup with `stats latest(*) by channel`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 24 for 'Twitch VOD Session Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

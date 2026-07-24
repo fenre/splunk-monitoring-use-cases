@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Varnish Worker Thread Queue Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_varnish_worker_thread_queue_backlog` (UC-8.1.22), SOC dashboard panel \"Operations — Varnish Worker Thread Queue Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cache` sourcetype='varnish:stats' where `host` satisfies `worker_queue_depth` > 50 for UC-8.1.22 ('Varnish Worker Thread Queue Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cache` / `varnish:stats` events where `host` stays below `worker_queue_depth` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.1.22."
+    "positiveScenario": "UC-8.1.22 positive (Varnish, Worker, Thread, Queue, Backlog): ingest synthetic events into `index=cache` sourcetype='varnish:stats' where `worker_queue_depth` grouped by `host` satisfies `worker_queue_depth` > 50 for 'Varnish Worker Thread Queue Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.1.22 negative (Queue Backlog): ingest benign `cache` / `varnish:stats` events where `host` stays below `worker_queue_depth` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Varnish Worker Thread Queue Backlog'."
   },
   "dataSources": "`index=cache` `sourcetype=varnish:stats` (`MAIN.n_wrk_queue` / `n_wrk_queue`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`varnishstat -j`) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cache sourcetype=\"varnish:stats\"\n| timechart span=1m max(n_wrk_queue) as worker_queue_depth by host\n| where worker_queue_depth > 50",
-  "description": "`n_wrk_queue` grows when worker threads cannot dequeue requests fast enough. Backlog leads to elevated latency and client timeouts.",
-  "value": "`n_wrk_queue` grows when worker threads cannot dequeue requests fast enough. Timely UC-8.1.22 alerting on 'Varnish Worker Thread Queue Backlog' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-8.1.22 — Varnish, Worker, Thread, Queue, Backlog — using `index=cache` sourcetype `varnish:stats`, grouped by `host`. Outputs `worker_queue_depth` each `1m`; alert when `worker_queue_depth` > 50. Primary focus: Queue Backlog. Purpose-built for 'Varnish Worker Thread Queue Backlog' in Operations workflows.",
+  "value": "UC-8.1.22 operationalises 'Varnish Worker Thread Queue Backlog' against `varnish:stats` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll `varnishstat -j` every 30–60s; flatten `MAIN.n_wrk_queue` to `n_wrk_queue`. Correlate with `cache_hit` drops and backend latency.",
   "visualization": "Line chart (queue depth), overlay with `n_wrk_busy`, table (peaks by POP).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cache`** — Planned work for 'Varnish Worker Thread Queue Backlog' shifts `max` over `span=1m` while `host` remains in-scope for UC-8.1.22. Cross-check CMDB CHG.\n\n2. **Batch `max` on `varnish:stats`** — Scheduled automation elevates `src` without crossing `worker_queue_depth` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:stats`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cache` (UC-8.1.22)** — Planned work for 'Varnish Worker Thread Queue Backlog' shifts `worker_queue_depth` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `varnish:stats`** — Scheduled automation elevates `src` without crossing `worker_queue_depth` > 50 for UC-8.1.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cache` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `varnish:stats`** — First 48h baseline for UC-8.1.22 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "varnish"
   ],

@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Promotional Pricing Compliance' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_promotional_pricing_compliance` (UC-10.12.35), SOC dashboard panel \"Security Infra — Promotional Pricing Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=retail` sourcetype='price:audit' where `sku` satisfies detection threshold for UC-10.12.35 ('Promotional Pricing Compliance'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `retail` / `price:audit` events where `sku` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.12.35."
+    "positiveScenario": "UC-10.12.35 positive (Promotional, Pricing, Compliance): ingest synthetic events into `index=retail` sourcetype='price:audit' where `values` grouped by `sku`, `store_id`, `_time` satisfies detection threshold for 'Promotional Pricing Compliance'. Validate lookup `promo_calendar`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.12.35 negative (Pricing Compliance): ingest benign `retail` / `price:audit` events where `sku`, `store_id`, `_time` stays below detection threshold, or exclude the test entity via `soc_exception_register.csv`. Variant 3 confirms zero alert rows for 'Promotional Pricing Compliance'."
   },
   "dataSources": "`sourcetype=\"price:audit\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "ERP, e-commerce pricing engine — Universal Forwarder (Splunkbase 617)",
   "spl": "index=retail sourcetype=\"price:audit\"\n| lookup promo_calendar sku OUTPUT promo_start promo_end\n| where _time < promo_start OR _time > promo_end\n| stats values(shelf_price) as prices by sku, store_id, _time\n| sort -_time",
-  "description": "Ensures discounts apply only during approved windows and price books match marketing filings. Searches `index=retail` with sourcetype `price:audit` for UC-10.12.35, aggregating `values` by `sku` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Security Infra operators a repeatable signal for 'Promotional Pricing Compliance' without manual log review.",
-  "value": "Early 'Promotional Pricing Compliance' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects when Pricing Compliance criteria fire for 'Promotional Pricing Compliance' (UC-10.12.35) in `index=retail` sourcetype `price:audit`. Pipeline aggregates `values` by `sku`, `store_id`, `_time` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: lookup `promo_calendar`. Eliminates manual hunting for UC-10.12.35 conditions.",
+  "value": "UC-10.12.35 helps teams contain Promotional, Pricing, Compliance scenarios and reduce missed threat campaigns, control regressions, and SOC SLA breaches before incidents compound.",
   "implementation": "SOX-relevant for material promotions; feed exceptions to merchandising before financial close.",
   "visualization": "Table (out-of-window pricing), Calendar heatmap (promos), Bar chart (variance $).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `retail`** — Planned work for 'Promotional Pricing Compliance' shifts `values` over `span=1h` while `sku` remains in-scope for UC-10.12.35. Cross-check CMDB CHG.\n\n2. **Batch `values` on `price:audit`** — Scheduled automation elevates `store_id` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `price:audit`** — First 48h baseline for `sku` is unstable; join `promo_calendar` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `retail` (UC-10.12.35)** — Planned work for 'Promotional Pricing Compliance' shifts `values` over `span=1h` while `sku`, `store_id`, `_time` remains in-scope. Applies lookup `promo_calendar`. Cross-check CMDB CHG.\n\n2. **Batch `values` on `price:audit`** — Scheduled automation elevates `store_id` without crossing configured threshold for UC-10.12.35. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `sku`, `store_id`, `_time`** — Health checks in `retail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `price:audit`** — First 48h baseline for UC-10.12.35 on `sku` is unstable; join `promo_calendar` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `sku`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

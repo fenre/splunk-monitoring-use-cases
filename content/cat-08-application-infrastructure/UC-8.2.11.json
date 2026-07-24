@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'PHP-FPM Pool Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_php_fpm_pool_monitoring` (UC-8.2.11), SOC dashboard panel \"Operations — PHP-FPM Pool Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=php` sourcetype='phpfpm:status' where `host` satisfies `pool_util` > 80 for UC-8.2.11 ('PHP-FPM Pool Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `php` / `phpfpm:status` events where `host` stays below `pool_util` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.11."
+    "positiveScenario": "UC-8.2.11 positive (PHP, FPM, Pool, Monitoring): ingest synthetic events into `index=php` sourcetype='phpfpm:status' where `util_pct`, `queue_depth` grouped by `host`, `pool` satisfies `pool_util` > 80, or `listen_queue` > 5 for 'PHP-FPM Pool Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.11 negative (Pool Monitoring): ingest benign `php` / `phpfpm:status` events where `host`, `pool` stays below `pool_util` > 80, or `listen_queue` > 5, or exclude the test entity via `ops_exception_register.csv`. Variant 1 confirms zero alert rows for 'PHP-FPM Pool Monitoring'."
   },
   "dataSources": "PHP-FPM status page (JSON output, `/status?json`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (PHP-FPM status page) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=php sourcetype=\"phpfpm:status\"\n| eval pool_util=round(active_processes/(active_processes+idle_processes)*100,1)\n| where pool_util > 80 OR listen_queue > 5\n| timechart span=5m max(pool_util) as util_pct, max(listen_queue) as queue_depth by host, pool",
-  "description": "Active/idle process counts, listen queue depth, and slow request detection indicate PHP-FPM capacity and backend saturation. Exhausted pools cause 502 errors and request timeouts.",
-  "value": "Early 'PHP-FPM Pool Monitoring' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces Pool Monitoring activity in UC-8.2.11 ('PHP-FPM Pool Monitoring') from `index=php` sourcetype `phpfpm:status`. Rolls up `util_pct`, `queue_depth` by `host`, `pool` across `5m` and pages when `pool_util` > 80, or `listen_queue` > 5. Covers PHP, FPM, Pool, Monitoring. Operations operators treat UC-8.2.11 as the canonical signal.",
+  "value": "Operators running UC-8.2.11 on `phpfpm:status` feeds shorten triage for Pool Monitoring tied to 'PHP-FPM Pool Monitoring', lowering operational risk and delayed incident response.",
   "implementation": "Enable PHP-FPM status via `pm.status_path = /status` and `pm.status_listen` in pool config. Add `fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name`; protect with auth. Poll `/status?json` via scripted input every minute. Parse active_processes, idle_processes, listen_queue, max_listen_queue, slow_requests. Forward to Splunk via HEC. Alert when pool_util >80% or listen_queue >5. Track slow_requests for endpoints needing optimization.",
   "visualization": "Gauge (% pool used), Line chart (pool utilization and queue depth), Table (pools with high utilization), Single value (slow requests).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `php`** — Planned work for 'PHP-FPM Pool Monitoring' shifts `max` over `span=5m` while `host` remains in-scope for UC-8.2.11. Cross-check CMDB CHG.\n\n2. **Batch `max` on `phpfpm:status`** — Scheduled automation elevates `pool` without crossing `pool_util` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `php` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `php` (UC-8.2.11)** — Planned work for 'PHP-FPM Pool Monitoring' shifts `util_pct`, `queue_depth` over `span=5m` while `host`, `pool` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `max` on `phpfpm:status`** — Scheduled automation elevates `pool` without crossing `pool_util` > 80 for UC-8.2.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`, `pool`** — Health checks in `php` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `phpfpm:status`** — First 48h baseline for UC-8.2.11 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "phpfpm"
   ],

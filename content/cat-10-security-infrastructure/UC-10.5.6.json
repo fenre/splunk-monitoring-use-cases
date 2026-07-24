@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Bandwidth Abuse Detection' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_bandwidth_abuse_detection` (UC-10.5.6), SOC dashboard panel \"Security Infra — Bandwidth Abuse Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='cisco:umbrella:proxy' where `src_user` satisfies `total_bytes` > 1073741824 for UC-10.5.6 ('Bandwidth Abuse Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `cisco:umbrella:proxy` events where `src_user` stays below `total_bytes` > 1073741824, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.5.6."
+    "positiveScenario": "UC-10.5.6 positive (Bandwidth, Abuse, Detection): ingest synthetic events into `index=proxy` sourcetype='cisco:umbrella:proxy' where `total_bytes` grouped by `src_user`, `categories` satisfies `total_bytes` > 1073741824 for 'Bandwidth Abuse Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.5.6 negative (Abuse Detection): ingest benign `proxy` / `cisco:umbrella:proxy` events where `src_user`, `categories` stays below `total_bytes` > 1073741824, or exclude the test entity via `soc_exception_register.csv`. Variant 2 confirms zero alert rows for 'Bandwidth Abuse Detection'."
   },
   "dataSources": "SWG traffic logs (bytes transferred, URL category) Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SWG TA — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=proxy sourcetype=\"cisco:umbrella:proxy\"\n| stats sum(bytes) as total_bytes by src_user, categories\n| where match(categories,\"Streaming|Gaming|Social\") AND total_bytes > 1073741824\n| eval gb=round(total_bytes/1073741824,2)\n| table src_user, categories, gb",
-  "description": "Excessive bandwidth on non-business sites impacts network performance and productivity. Detection supports acceptable use enforcement.",
-  "value": "Early 'Bandwidth Abuse Detection' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-10.5.6 for Bandwidth, Abuse, Detection over `index=proxy` sourcetype `cisco:umbrella:proxy` with thresholds `total_bytes` > 1073741824. Groups `total_bytes` by `src_user`, `categories` each `the scheduled window`. Centered on Abuse Detection indicators. Supports repeatable security infra triage for 'Bandwidth Abuse Detection'.",
+  "value": "For 'Bandwidth Abuse Detection', UC-10.5.6 converts `total_bytes` on `cisco:umbrella:proxy` feeds into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Track bandwidth usage per user by URL category. Alert when individual users exceed thresholds on non-business categories (>1GB/day on streaming). Report top bandwidth consumers for management review.",
   "visualization": "Bar chart (bandwidth by user/category), Table (top consumers), Pie chart (bandwidth by category).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Bandwidth Abuse Detection' shifts `sum` over `span=1h` while `src_user` remains in-scope for UC-10.5.6. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:umbrella:proxy`** — Scheduled automation elevates `categories` without crossing `total_bytes` > 1073741824. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_user`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:umbrella:proxy`** — First 48h baseline for `src_user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src_user`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-10.5.6)** — Planned work for 'Bandwidth Abuse Detection' shifts `total_bytes` over `span=1h` while `src_user`, `categories` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `cisco:umbrella:proxy`** — Scheduled automation elevates `categories` without crossing `total_bytes` > 1073741824 for UC-10.5.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src_user`, `categories`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cisco:umbrella:proxy`** — First 48h baseline for UC-10.5.6 on `src_user` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `src_user`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

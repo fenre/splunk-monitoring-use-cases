@@ -11,14 +11,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Restore Duration by Backup Set' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_restore_duration_by_backup_set` (UC-25.38.23), SOC dashboard panel \"Personal — Restore Duration by Backup Set\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='backuprestore:test' where `backup_set` satisfies detection threshold for UC-25.38.23 ('Restore Duration by Backup Set'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `backuprestore:test` events where `backup_set` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.38.23."
+    "positiveScenario": "UC-25.38.23 positive (Restore, Duration, Backup, Set): ingest synthetic events into `index=personal` sourcetype='backuprestore:test' where `avg_restore_sec` grouped by `backup_set` satisfies detection threshold for 'Restore Duration by Backup Set'. Validate filter `restore_sec=*`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.38.23 negative (Backup Set): ingest benign `personal` / `backuprestore:test` events where `backup_set` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Restore Duration by Backup Set'."
   },
   "dataSources": "Breach alerts (`hibp:alert`), password age snapshots (`passwordage:account`), backup restore tests (`backuprestore:test`), and DNS leak checks (`dnsleak:check`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Personal security telemetry from Have I Been Pwned, password-age exports, backup restore drills, and DNS leak checks sent to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=backuprestore:test\n| search restore_sec=*\n| stats avg(restore_sec) as avg_restore_sec perc90(restore_sec) as p90_restore_sec count as samples by backup_set\n| sort 0 - avg_restore_sec",
-  "description": "Measures backup restore duration by backup set. Runs scheduled SPL against `index=personal` to surface **Restore Duration by Backup Set** so you can spot drift before it becomes a habit.",
-  "value": "Measures backup restore duration by backup set. Timely UC-25.38.23 alerting on 'Restore Duration by Backup Set' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Identifies Backup Set anomalies for UC-25.38.23 with window `the scheduled window` on `index=personal` sourcetype `backuprestore:test`. Combines `avg_restore_sec` by `backup_set` and compares against configured threshold. Mapped to keywords Restore, Duration, Backup, Set for dashboard routing.",
+  "value": "Alerting on Restore, Duration, Backup, Set through UC-25.38.23 reduces missed training goals, stale hobby data, and connector failures by surfacing `avg_restore_sec` early.",
   "implementation": "Send the relevant duration field for backup restore duration to `index=personal` and review both average and p90 latency instead of relying on single examples.",
   "visualization": "Table of average and p90 backup restore duration.",
   "cimModels": [],
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Restore Duration by Backup Set' stops polling `backuprestore:test`; stale `backup_set` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `backuprestore:test`. Dedup with `stats latest(*) by backup_set`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.38.23)** — Connector for 'Restore Duration by Backup Set' stops polling `backuprestore:test`; stale `avg_restore_sec` on `backup_set` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_restore_sec` over `1w` is expected for UC-25.38.23, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `backuprestore:test`. Dedup with `stats latest(*) by backup_set`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Restore Duration by Backup Set'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

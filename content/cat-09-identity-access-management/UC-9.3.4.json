@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Application Access Patterns' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_application_access_patterns` (UC-9.3.4), SOC dashboard panel \"IAM — Application Access Patterns\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `target{}.displayName` satisfies detection threshold for UC-9.3.4 ('Application Access Patterns'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `okta` / `OktaIM2:log` events where `target{}.displayName` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.3.4."
+    "positiveScenario": "UC-9.3.4 positive (Application, Access, Patterns): ingest synthetic events into `index=okta` sourcetype='OktaIM2:log' where `unique_users` grouped by `target{}.displayName` satisfies detection threshold for 'Application Access Patterns'. Validate eventType `user.authentication.sso`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.3.4 negative (Access Patterns): ingest benign `okta` / `OktaIM2:log` events where `target{}.displayName` stays below detection threshold, or exclude the test entity via `iam_exception_register.csv`. Variant 12 confirms zero alert rows for 'Application Access Patterns'."
   },
   "dataSources": "IdP application access logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_okta` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=okta sourcetype=\"OktaIM2:log\" eventType=\"user.authentication.sso\"\n| stats dc(actor.alternateId) as unique_users, count as total_access by target{}.displayName\n| sort -unique_users",
-  "description": "Monitors which applications users access for license optimization and detects anomalous access indicating potential compromise.",
-  "value": "Early 'Application Access Patterns' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies UC-9.3.4 — Application, Access, Patterns — using `index=okta` sourcetype `OktaIM2:log`, grouped by `target{}.displayName`. Outputs `unique_users` each `the scheduled window`; alert when configured threshold. Filter chain includes eventType `user.authentication.sso`. Purpose-built for 'Application Access Patterns' in IAM workflows.",
+  "value": "Tracking `unique_users` via UC-9.3.4 on `OktaIM2:log` feeds improves response to 'Application Access Patterns' and reduces account takeover risk, help-desk load, and audit findings.",
   "implementation": "Track SSO events per application. Build user-application access matrix. Detect users accessing applications outside their normal pattern. Report on application usage for license optimization and access reviews.",
   "visualization": "Bar chart (top applications by user count), Table (application usage summary), Heatmap (user × application access).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `okta`** — Planned work for 'Application Access Patterns' shifts `dc` over `span=1h` while `target{}.displayName` remains in-scope for UC-9.3.4. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `OktaIM2:log`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `target{}.displayName`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for `target{}.displayName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `target{}.displayName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `okta` (UC-9.3.4)** — Planned work for 'Application Access Patterns' shifts `unique_users` over `span=1h` while `target{}.displayName` remains in-scope. eventType=user.authentication.sso Applies eventType `user.authentication.sso`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `OktaIM2:log`** — Scheduled automation elevates `src` without crossing configured threshold for UC-9.3.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `target{}.displayName`** — Health checks in `okta` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `OktaIM2:log`** — First 48h baseline for UC-9.3.4 on `target{}.displayName` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `target{}.displayName`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1078",
     "T1528"

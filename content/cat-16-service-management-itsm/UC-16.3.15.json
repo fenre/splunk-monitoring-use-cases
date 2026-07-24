@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Open Problem Record Aging' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_open_problem_record_aging` (UC-16.3.15), SOC dashboard panel \"Operations — Open Problem Record Aging\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:problem' where `assignment_group` satisfies detection threshold for UC-16.3.15 ('Open Problem Record Aging'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:problem` events where `assignment_group` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.3.15."
+    "positiveScenario": "UC-16.3.15 positive (Open, Problem, Record, Aging): ingest synthetic events into `index=itsm` sourcetype='snow:problem' where `med_age`, `max_age` grouped by `assignment_group`, `category` satisfies -180d for 'Open Problem Record Aging'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.3.15 negative (Record Aging): ingest benign `itsm` / `snow:problem` events where `assignment_group`, `category` stays below -180d, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Open Problem Record Aging'."
   },
   "dataSources": "`index=itsm` `sourcetype=\"snow:problem\"` (`state`, `sys_created_on`, `assignment_group`, `category`, `number`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:problem\" earliest=-180d\n| where NOT match(lower(state),\"(?i)closed|resolved\")\n| eval age_days=round((now()-sys_created_on)/86400,0)\n| stats count as open_pr, median(age_days) as med_age, max(age_days) as max_age by assignment_group, category\n| sort -open_pr",
-  "description": "Aging open problems indicate stalled root-cause work and undermine permanent corrective actions; backlog visibility strengthens ITIL problem management cadence with incident and change stakeholders.",
-  "value": "Early 'Open Problem Record Aging' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Record Aging anomalies for UC-16.3.15 with window `the scheduled window` on `index=itsm` sourcetype `snow:problem`. Combines `med_age`, `max_age` by `assignment_group`, `category` and compares against -180d. Mapped to keywords Open, Problem, Record, Aging for dashboard routing.",
+  "value": "Alerting on Open, Problem, Record, Aging through UC-16.3.15 reduces operational risk and delayed incident response by surfacing `med_age`, `max_age` early.",
   "implementation": "(1) Map `state` values for your problem workflow; (2) Add filters for known backlog categories excluded from SLA; (3) Weekly review of `max_age` with problem managers and link to related `snow:incident` volume via `problem_id` in a companion panel.",
   "visualization": "Table (open problem aging by group), Bar chart (open count by category), Single value (total open problems).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Open Problem Record Aging' shifts `median` over `span=1h` while `assignment_group` remains in-scope for UC-16.3.15. Cross-check CMDB CHG.\n\n2. **Batch `median` on `snow:problem`** — Scheduled automation elevates `category` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `assignment_group`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:problem`** — First 48h baseline for `assignment_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `assignment_group`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.3.15)** — Planned work for 'Open Problem Record Aging' shifts `med_age`, `max_age` over `span=1h` while `assignment_group`, `category` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `snow:problem`** — Scheduled automation elevates `category` without crossing configured threshold for UC-16.3.15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `assignment_group`, `category`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:problem`** — First 48h baseline for UC-16.3.15 on `assignment_group` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `assignment_group`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

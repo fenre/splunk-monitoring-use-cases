@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Oracle Tablespace Utilization' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_oracle_tablespace_utilization` (UC-7.1.27), SOC dashboard panel \"Operations — Oracle Tablespace Utilization\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='dbconnect:oracle_tablespace' where `TABLESPACE_NAME` satisfies `used_pct` > 80 for UC-7.1.27 ('Oracle Tablespace Utilization'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `dbconnect:oracle_tablespace` events where `TABLESPACE_NAME` stays below `used_pct` > 80, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.1.27."
+    "positiveScenario": "UC-7.1.27 positive (Oracle, Tablespace, Utilization): ingest synthetic events into `index=database` sourcetype='dbconnect:oracle_tablespace' where `count` grouped by `TABLESPACE_NAME` satisfies `used_pct` > 80, or `used_pct` > 85 for 'Oracle Tablespace Utilization'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.1.27 negative (Tablespace Utilization): ingest benign `database` / `dbconnect:oracle_tablespace` events where `TABLESPACE_NAME` stays below `used_pct` > 80, or `used_pct` > 85, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Oracle Tablespace Utilization'."
   },
   "dataSources": "`DBA_TABLESPACE_USAGE_METRICS`, `DBA_DATA_FILES` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Splunk DB Connect — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"dbconnect:oracle_tablespace\"\n| eval used_pct=round(USED_PERCENT, 1)\n| where used_pct > 80\n| timechart span=1d latest(used_pct) as used_pct by TABLESPACE_NAME\n| where used_pct > 85",
-  "description": "Approaching max size per tablespace causes ORA-1653 (out of space) errors and application failures. Proactive monitoring prevents outages.",
-  "value": "Early 'Oracle Tablespace Utilization' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-7.1.27 — Oracle, Tablespace, Utilization — using `index=database` sourcetype `dbconnect:oracle_tablespace`, grouped by `TABLESPACE_NAME`. Outputs `count` each `1d`; alert when `used_pct` > 80, or `used_pct` > 85. Primary focus: Tablespace Utilization. Purpose-built for 'Oracle Tablespace Utilization' in Operations workflows.",
+  "value": "For 'Oracle Tablespace Utilization', UC-7.1.27 converts `activity` on `dbconnect:oracle_tablespace` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll `DBA_TABLESPACE_USAGE_METRICS` (or `DBA_FREE_SPACE` + `DBA_DATA_FILES`) via DB Connect every 4–6 hours. Extract used percent per tablespace. Alert at 80% (warning) and 90% (critical). Track growth rate for capacity planning. Include temp and undo tablespaces.",
   "visualization": "Gauge (tablespace used %), Table (tablespaces over threshold), Line chart (utilization trend by tablespace).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Oracle Tablespace Utilization' shifts `count` over `span=1d` while `TABLESPACE_NAME` remains in-scope for UC-7.1.27. Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:oracle_tablespace`** — Scheduled automation elevates `used_pct` without crossing `used_pct` > 80. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TABLESPACE_NAME`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:oracle_tablespace`** — First 48h baseline for `TABLESPACE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TABLESPACE_NAME`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.1.27)** — Planned work for 'Oracle Tablespace Utilization' shifts `count` over `span=1d` while `TABLESPACE_NAME` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `dbconnect:oracle_tablespace`** — Scheduled automation elevates `used_pct` without crossing `used_pct` > 80 for UC-7.1.27. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `TABLESPACE_NAME`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `dbconnect:oracle_tablespace`** — First 48h baseline for UC-7.1.27 on `TABLESPACE_NAME` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `TABLESPACE_NAME`, `exception_reason`, `valid_until`.",
   "equipment": [
     "db_connect",
     "oracle"

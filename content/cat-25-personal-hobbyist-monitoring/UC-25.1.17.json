@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Peloton Recovery-Ride Deficit' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_peloton_recovery_ride_deficit` (UC-25.1.17), SOC dashboard panel \"Personal — Peloton Recovery-Ride Deficit\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='peloton:workout' where `athlete` satisfies `total_classes` >= 8 for UC-25.1.17 ('Peloton Recovery-Ride Deficit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `peloton:workout` events where `athlete` stays below `total_classes` >= 8, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.1.17."
+    "positiveScenario": "UC-25.1.17 positive (Peloton, Recovery, Ride, Deficit): ingest synthetic events into `index=personal` sourcetype='peloton:workout' where `sum` grouped by `athlete`, `_time` satisfies `total_classes` >= 8, or `recovery_pct` < 5 for 'Peloton Recovery-Ride Deficit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.1.17 negative (Ride Deficit): ingest benign `personal` / `peloton:workout` events where `athlete`, `_time` stays below `total_classes` >= 8, or `recovery_pct` < 5, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'Peloton Recovery-Ride Deficit'."
   },
   "dataSources": "Strava API activities (`strava:activity`), Garmin Connect (`garmin:activity`), Fitbit Web API (`fitbit:activity`), Peloton workout history (`peloton:workout`), Zwift ride exports (`zwift:activity`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Strava / Garmin Connect / Fitbit / Peloton / Zwift APIs and webhooks via Splunk HEC scripted inputs; GPX/FIT/CSV activity exports ingested as file inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=peloton:workout\n| bin _time span=1mon\n| stats count as total_classes, sum(eval(class_type=\"Recovery Ride\")) as recovery_classes by athlete _time\n| eval recovery_pct=round(100*recovery_classes/total_classes,1)\n| where total_classes>=8 AND recovery_pct<5\n| sort recovery_pct",
-  "description": "Calculates how often your Peloton month includes actual recovery rides instead of only hard sessions and power workouts.",
-  "value": "Calculates how often your Peloton month includes actual recovery rides instead of only hard sessions and po.... Timely UC-25.1.17 alerting on 'Peloton Recovery-Ride Deficit' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Alerts on 'Peloton Recovery-Ride Deficit' patterns (UC-25.1.17) sourced from `index=personal` sourcetype `peloton:workout`. Threshold bundle: `total_classes` >= 8, or `recovery_pct` < 5; aggregation grain: `athlete`, `_time`; metrics: `sum`. Watch terms: Peloton, Recovery, Ride, Deficit.",
+  "value": "UC-25.1.17 gives Personal teams earlier visibility into Ride Deficit through `peloton:workout` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Capture Peloton class metadata including class type; schedule monthly and nudge yourself when recovery work disappears from the mix.",
   "visualization": "Monthly table of class counts and recovery-ride percentage.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Peloton Recovery-Ride Deficit' stops polling `peloton:workout`; stale `athlete` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `peloton:workout`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_classes` >= 8. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.1.17)** — Connector for 'Peloton Recovery-Ride Deficit' stops polling `peloton:workout`; stale `sum` on `athlete`, `_time` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1m` is expected for UC-25.1.17, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `peloton:workout`. Dedup with `stats latest(*) by athlete`.\n\n4. **Timezone bucket misalignment** — `1m` bins on UTC vs local schedule skew `total_classes` >= 8 for 'Peloton Recovery-Ride Deficit'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

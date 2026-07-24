@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Charge Session Start Delay' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_charge_session_start_delay` (UC-25.3.14), SOC dashboard panel \"Personal — Charge Session Start Delay\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `charger` satisfies `delay_min` > 15 for UC-25.3.14 ('Charge Session Start Delay'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `evcharger:session` events where `charger` stays below `delay_min` > 15, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.3.14."
+    "positiveScenario": "UC-25.3.14 positive (Charge, Session, Start, Delay): ingest synthetic events into `index=personal` sourcetype='evcharger:session' where `count` grouped by `charger`, `session_id` satisfies `delay_min` > 15 for 'Charge Session Start Delay'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.3.14 negative (Start Delay): ingest benign `personal` / `evcharger:session` events where `charger`, `session_id` stays below `delay_min` > 15, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 15 confirms zero alert rows for 'Charge Session Start Delay'."
   },
   "dataSources": "Tesla vehicle and charge state (`tesla:vehicle`, `tesla:charge`), OBD-II PIDs (`obd:pid`), Smart EV charger sessions (`evcharger:session`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Tesla Fleet API / TeslaMate, TeslaFi, and generic OBD-II / Smartcar / charger APIs via HEC scripted inputs and MQTT. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=evcharger:session\n| stats earliest(planned_start_ts) as planned, earliest(actual_start_ts) as actual by charger session_id\n| eval delay_min=round((actual-planned)/60,1)\n| where delay_min>15\n| sort - delay_min",
-  "description": "Measures how often scheduled charging starts late, a useful way to catch flaky timers, utility-control handshakes, or a charger that misses the cheap-rate window.",
-  "value": "Measures how often scheduled charging starts late, a useful way to catch flaky timers, utility-control hand.... Timely UC-25.3.14 alerting on 'Charge Session Start Delay' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-25.3.14 — Charge, Session, Start, Delay — using `index=personal` sourcetype `evcharger:session`, grouped by `charger`, `session_id`. Outputs `count` each `the scheduled window`; alert when `delay_min` > 15. Primary focus: Start Delay. Purpose-built for 'Charge Session Start Delay' in Personal workflows.",
+  "value": "UC-25.3.14 operationalises 'Charge Session Start Delay' against `evcharger:session` feeds so operators reduce missed training goals, stale hobby data, and connector failures without manual correlation.",
   "implementation": "Forward both planned and actual charger start times; alert on meaningful start delays before they cause a half-charged morning.",
   "visualization": "Table of scheduled sessions by start delay in minutes.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Charge Session Start Delay' stops polling `evcharger:session`; stale `charger` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by charger`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `delay_min` > 15. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.3.14)** — Connector for 'Charge Session Start Delay' stops polling `evcharger:session`; stale `count` on `charger`, `session_id` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `count` over `1w` is expected for UC-25.3.14, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `evcharger:session`. Dedup with `stats latest(*) by charger`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `delay_min` > 15 for 'Charge Session Start Delay'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

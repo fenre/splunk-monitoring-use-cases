@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Solr Core Admin Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_solr_core_admin_health` (UC-7.5.20), SOC dashboard panel \"Operations — Solr Core Admin Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='solr:core_status' where `core` satisfies detection threshold for UC-7.5.20 ('Solr Core Admin Health'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `solr:core_status` events where `core` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.5.20."
+    "positiveScenario": "UC-7.5.20 positive (Solr, Core, Admin, Health): ingest synthetic events into `index=database` sourcetype='solr:core_status' where `count` grouped by `core`, `collection`, `node_name` satisfies detection threshold for 'Solr Core Admin Health'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.5.20 negative (Admin Health): ingest benign `database` / `solr:core_status` events where `core`, `collection`, `node_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Solr Core Admin Health'."
   },
   "dataSources": "`sourcetype=solr:core_status` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom scripted input (`/admin/cores?action=STATUS`), Solr logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"solr:core_status\"\n| where state!=\"active\" OR isnotnull(error_msg)\n| stats latest(state) as state, latest(index_version) as index_version by core, collection, node_name\n| sort state",
-  "description": "Core-level errors (recovery failures, corrupt index flags, leader election issues) degrade search for specific collections; admin health checks catch per-core problems early.",
-  "value": "Early 'Solr Core Admin Health' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Admin Health anomalies for UC-7.5.20 with window `the scheduled window` on `index=database` sourcetype `solr:core_status`. Combines `count` by `core`, `collection`, `node_name` and compares against configured threshold. Mapped to keywords Solr, Core, Admin, Health for dashboard routing.",
+  "value": "Alerting on Solr, Core, Admin, Health through UC-7.5.20 reduces operational risk and delayed incident response by surfacing `activity` early.",
   "implementation": "Poll `STATUS` for all cores on a schedule; capture `instanceDir`, `dataDir`, `uptime`, replication/Cloud role fields. Ingest ERROR lines from `solr.log`. Alert when core state is not active, recovery fails, or leader/replica roles mismatch expectations.",
   "visualization": "Status grid (core × healthy), Table (cores with errors), Single value (unhealthy core count).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Solr Core Admin Health' shifts `count` over `span=1h` while `core` remains in-scope for UC-7.5.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `solr:core_status`** — Scheduled automation elevates `collection` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `core`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `solr:core_status`** — First 48h baseline for `core` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `core`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.5.20)** — Planned work for 'Solr Core Admin Health' shifts `count` over `span=1h` while `core`, `collection`, `node_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `solr:core_status`** — Scheduled automation elevates `collection` without crossing configured threshold for UC-7.5.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `core`, `collection`, `node_name`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `solr:core_status`** — First 48h baseline for UC-7.5.20 on `core` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `core`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

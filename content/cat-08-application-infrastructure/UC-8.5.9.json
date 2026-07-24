@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Squid Proxy Cache Hit Ratio' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_squid_proxy_cache_hit_ratio` (UC-8.5.9), SOC dashboard panel \"Operations — Squid Proxy Cache Hit Ratio\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=proxy` sourcetype='squid:access' where `cache_result` satisfies `pct` > 30 for UC-8.5.9 ('Squid Proxy Cache Hit Ratio'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `proxy` / `squid:access` events where `cache_result` stays below `pct` > 30, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.5.9."
+    "positiveScenario": "UC-8.5.9 positive (Squid, Proxy, Cache, Hit, Ratio): ingest synthetic events into `index=proxy` sourcetype='squid:access' where `total` grouped by `cache_result` satisfies `pct` > 30 for 'Squid Proxy Cache Hit Ratio'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.5.9 negative (Hit Ratio): ingest benign `proxy` / `squid:access` events where `cache_result` stays below `pct` > 30, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Squid Proxy Cache Hit Ratio'."
   },
   "dataSources": "Squid access.log (cache result codes), SNMP Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (Squid access log, SNMP) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=proxy sourcetype=\"squid:access\"\n| rex \"TCP_(?<cache_result>HIT|MISS|DENIED|REFRESH)\"\n| stats count by cache_result\n| eventstats sum(count) as total\n| eval pct=round(count/total*100,2)\n| where cache_result==\"MISS\" AND pct > 30",
-  "description": "Cache HIT/MISS/DENY rates on forward/reverse proxy indicate cache effectiveness and upstream load. Declining ratio increases origin latency and bandwidth.",
-  "value": "Early 'Squid Proxy Cache Hit Ratio' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-8.5.9 — Squid, Proxy, Cache, Hit, Ratio — using `index=proxy` sourcetype `squid:access`, grouped by `cache_result`. Outputs `total` each `the scheduled window`; alert when `pct` > 30. Primary focus: Hit Ratio. Purpose-built for 'Squid Proxy Cache Hit Ratio' in Operations workflows.",
+  "value": "Alerting on Squid, Proxy, Cache, Hit, Ratio through UC-8.5.9 reduces operational risk and delayed incident response by surfacing `total` early.",
   "implementation": "Configure Squid to log cache result codes (TCP_HIT, TCP_MISS, TCP_DENIED, TCP_REFRESH) in access.log. Forward via Universal Forwarder. Parse cache_result field. Alternatively poll Squid SNMP cacheHitRatio if available. Calculate hit ratio per 5-minute window. Alert when MISS rate exceeds 30%. Correlate with request rate for capacity planning.",
   "visualization": "Pie chart (HIT vs MISS vs DENY), Line chart (hit ratio over time), Table (cache result distribution), Single value (hit ratio %).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `proxy`** — Planned work for 'Squid Proxy Cache Hit Ratio' shifts `sum` over `span=1h` while `cache_result` remains in-scope for UC-8.5.9. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `squid:access`** — Scheduled automation elevates `pct` without crossing `pct` > 30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cache_result`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:access`** — First 48h baseline for `cache_result` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cache_result`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `proxy` (UC-8.5.9)** — Planned work for 'Squid Proxy Cache Hit Ratio' shifts `total` over `span=1h` while `cache_result` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `squid:access`** — Scheduled automation elevates `pct` without crossing `pct` > 30 for UC-8.5.9. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cache_result`** — Health checks in `proxy` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `squid:access`** — First 48h baseline for UC-8.5.9 on `cache_result` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cache_result`, `exception_reason`, `valid_until`.",
   "equipment": [
     "snmp",
     "squid"

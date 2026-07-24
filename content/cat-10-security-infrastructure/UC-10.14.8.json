@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'OT Network Reconnaissance and Scanning' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_ot_network_reconnaissance_and_scanning` (UC-10.14.8), SOC dashboard panel \"Security Infra — OT Network Reconnaissance and Scanning\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='ics:ids' where `_time` satisfies `targets` >= 10 for UC-10.14.8 ('OT Network Reconnaissance and Scanning'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `ics:ids` events where `_time` stays below `targets` >= 10, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.14.8."
+    "positiveScenario": "UC-10.14.8 positive (Network, Reconnaissance, and, Scanning): ingest synthetic events into `index=ot` sourcetype='ics:ids' where `targets`, `ports` grouped by `_time`, `src` satisfies `targets` >= 10, or `ports` >= 20 for 'OT Network Reconnaissance and Scanning'. Validate lookup `ot_asset_inventory`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.14.8 negative (and Scanning): ingest benign `ot` / `ics:ids` events where `_time`, `src` stays below `targets` >= 10, or `ports` >= 20, or exclude the test entity via `soc_exception_register.csv`. Variant 9 confirms zero alert rows for 'OT Network Reconnaissance and Scanning'."
   },
   "dataSources": "`index=ot` IDS/IPS `sourcetype=\"ics:ids\"`, firewall deny logs Indexes: ot. Sourcetypes: ics:ids, ics:firewall. Key fields: _time, asset_owner zone, ports, src, targets. Validate field extraction in Search before saving the alert; compare event counts to the vendor admin console.",
   "app": "OT Security Add-on for Splunk (Splunkbase 5151)",
   "spl": "index=ot (sourcetype=\"ics:ids\" OR sourcetype=\"ics:firewall\" action=\"deny\")\n| bin _time span=5m\n| stats dc(dest) as targets dc(dest_port) as ports count by _time, src\n| where targets>=10 OR ports>=20\n| lookup ot_asset_inventory src OUTPUT asset_owner zone",
-  "description": "Detects port and service scanning inside ICS VLANs (T0846), often precursors to exploitation or lateral movement toward PLCs and HMIs.",
-  "value": "Early 'OT Network Reconnaissance and Scanning' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-10.14.8 — Network, Reconnaissance, and, Scanning — using `index=ot` sourcetype `ics:ids`, grouped by `_time`, `src`. Outputs `targets`, `ports` each `5m`; alert when `targets` >= 10, or `ports` >= 20. Filter chain includes lookup `ot_asset_inventory`. Purpose-built for 'OT Network Reconnaissance and Scanning' in Security Infra workflows.",
+  "value": "Operators running UC-10.14.8 on `ics:ids` feeds shorten triage for and Scanning tied to 'OT Network Reconnaissance and Scanning', lowering missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Use OT Security Add-on with ES. Distinguish vulnerability scanners from adversary behavior via source allow-lists. Map to T0846 in ES MITRE views.",
   "visualization": "Heatmap (time × src), Bubble chart (targets vs ports).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'OT Network Reconnaissance and Scanning' shifts `dc` over `span=5m` while `_time` remains in-scope for UC-10.14.8. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ics:ids`** — Scheduled automation elevates `src` without crossing `targets` >= 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:ids`** — First 48h baseline for `_time` is unstable; join `ot_asset_inventory` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-10.14.8)** — Planned work for 'OT Network Reconnaissance and Scanning' shifts `targets`, `ports` over `span=5m` while `_time`, `src` remains in-scope. Applies lookup `ot_asset_inventory`. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `ics:ids`** — Scheduled automation elevates `src` without crossing `targets` >= 10 for UC-10.14.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `src`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `ics:ids`** — First 48h baseline for UC-10.14.8 on `_time` is unstable; join `ot_asset_inventory` prior to threshold.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

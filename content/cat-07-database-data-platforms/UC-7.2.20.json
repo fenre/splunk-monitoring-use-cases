@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Redis Eviction Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_redis_eviction_rate` (UC-7.2.20), SOC dashboard panel \"Operations — Redis Eviction Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=database` sourcetype='redis:info' where `host` satisfies `evict_per_sec` > 10 for UC-7.2.20 ('Redis Eviction Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `database` / `redis:info` events where `host` stays below `evict_per_sec` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-7.2.20."
+    "positiveScenario": "UC-7.2.20 positive (Redis, Eviction, Rate): ingest synthetic events into `index=database` sourcetype='redis:info' where `count` grouped by `host` satisfies `evict_per_sec` > 10 for 'Redis Eviction Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-7.2.20 negative (Eviction Rate): ingest benign `database` / `redis:info` events where `host` stays below `evict_per_sec` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'Redis Eviction Rate'."
   },
   "dataSources": "`evicted_keys`, `maxmemory`, `used_memory` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "redis-cli `INFO stats` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=database sourcetype=\"redis:info\"\n| timechart span=1m per_second(evicted_keys) as evict_per_sec by host\n| where evict_per_sec > 10",
-  "description": "Rising `evicted_keys` per second indicates memory pressure and cache miss storms. Distinct from fragmentation and hit ratio for ops response.",
-  "value": "Early 'Redis Eviction Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-7.2.20 — Redis, Eviction, Rate — using `index=database` sourcetype `redis:info`, grouped by `host`. Outputs `count` each `1m`; alert when `evict_per_sec` > 10. Primary focus: Eviction Rate. Purpose-built for 'Redis Eviction Rate' in Operations workflows.",
+  "value": "UC-7.2.20 gives Operations teams earlier visibility into Eviction Rate through `redis:info` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Derive per-second evictions from counter deltas. Alert when sustained above baseline. Correlate with `maxmemory` policy and traffic.",
   "visualization": "Line chart (evictions/sec), Table (hosts spiking), Dual-axis (evictions + memory).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `database`** — Planned work for 'Redis Eviction Rate' shifts `count` over `span=1m` while `host` remains in-scope for UC-7.2.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `redis:info`** — Scheduled automation elevates `src` without crossing `evict_per_sec` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `database` (UC-7.2.20)** — Planned work for 'Redis Eviction Rate' shifts `count` over `span=1m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `redis:info`** — Scheduled automation elevates `src` without crossing `evict_per_sec` > 10 for UC-7.2.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `database` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `redis:info`** — First 48h baseline for UC-7.2.20 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "redis"
   ],

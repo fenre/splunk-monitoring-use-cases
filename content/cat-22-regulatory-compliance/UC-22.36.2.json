@@ -87,14 +87,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=dsar` sourcetype='target_sourcetype' where `subject_token` satisfies detection threshold for UC-22.36.2 ('Right-to-erasure propagation completeness across downstream systems'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `dsar` / `target_sourcetype` events where `subject_token` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.36.2."
+    "positiveScenario": "UC-22.36.2 positive (Right, erasure, propagation, completeness, across): ingest synthetic events into `index=dsar` sourcetype='target_sourcetype' where `values` grouped by `subject_token`, `ticket_id` satisfies -180d for 'Right-to-erasure propagation completeness across downstream systems'. Validate lookup `ropa_system_map.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.36.2 negative (downstream systems): ingest benign `dsar` / `target_sourcetype` events where `subject_token`, `ticket_id` stays below -180d, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'Right-to-erasure propagation completeness across downstream systems'."
   },
   "dataSources": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "index=dsar subject_token=* action=erasure earliest=-180d\n| stats values(system) as acked_systems by subject_token ticket_id\n| lookup ropa_system_map.csv ticket_id OUTPUT systems_in_scope\n| eval missing=mvfilter(NOT match(acked_systems, system))\n| where mvcount(missing)>0\n| table ticket_id subject_token systems_in_scope acked_systems missing",
-  "description": "Enforces that every registered downstream system reports a deletion acknowledgement for each accepted erasure request within seven days. A subject_token that persists past the SLA in any system is a direct Art.17 / CPRA §1798.105 finding.",
-  "value": "Enforces that every registered downstream system reports a deletion acknowledgement for each accepted erasu.... Timely UC-22.36.2 alerting on 'Right-to-erasure propagation completeness across downstream systems' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.36.2 — Right, erasure, propagation, completeness, across — using `index=dsar` sourcetype `configured sourcetype`, grouped by `subject_token`, `ticket_id`. Outputs `values` each `the scheduled window`; alert when -180d. Filter chain includes lookup `ropa_system_map.csv`. Purpose-built for 'Right-to-erasure propagation completeness across downstream systems' in Compliance workflows.",
+  "value": "Alerting on Right, erasure, propagation, completeness, across through UC-22.36.2 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Publish a ropa_system_map.csv lookup keyed by ticket_id → list of systems-in-scope; (2) ingest deletion-ack events from each system (DB TTL jobs, DWH deletion manifests, app-level hooks); (3) run hourly; (4) integrate with SOAR to auto-reopen tickets with missing acks. Indexes required: `index=dsar`.",
   "visualization": "Matrix of ticket_id × system with green/red cells; aging histogram; single-value for 'in-scope systems with ack in SLA'.",
   "cimModels": [],

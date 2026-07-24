@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Vulnerability Age Tracking' only. Does not supplant organization-wide SIEM playbooks for unrelated threat classes or regulatory attestation. Entities listed in `soc_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `security_infra_vulnerability_age_tracking` (UC-10.13.25), SOC dashboard panel \"Security Infra — Vulnerability Age Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:soc_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `dest` satisfies `age_days` > 90 for UC-10.13.25 ('Vulnerability Age Tracking'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `security` / `target_sourcetype` events where `dest` stays below `age_days` > 90, or exclude the test entity via `soc_exception_register.csv` with a valid window. Confirm zero alert rows for UC-10.13.25."
+    "positiveScenario": "UC-10.13.25 positive (Vulnerability, Age, Tracking): ingest synthetic events into `index=security` sourcetype='target_sourcetype' where `total_age` grouped by `dest`, `cve` satisfies `age_days` > 90 for 'Vulnerability Age Tracking'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-10.13.25 negative (Age Tracking): ingest benign `security` / `target_sourcetype` events where `dest`, `cve` stays below `age_days` > 90, or exclude the test entity via `soc_exception_register.csv`. Variant 10 confirms zero alert rows for 'Vulnerability Age Tracking'."
   },
   "dataSources": "`Vulnerabilities` CIM with `status`, `cve` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Tenable, Qualys → Vulnerabilities — Universal Forwarder (Splunkbase 617)",
   "spl": "index=security tag=vulnerability status=open\n| eval age_days=(now()-strptime(first_found,\"%Y-%m-%d\"))/86400\n| where age_days>90\n| stats sum(age_days) as total_age by dest, cve",
-  "description": "Time open since `first_found` drives SLA and board reporting. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Early 'Vulnerability Age Tracking' detection reduces missed threat campaigns, control regressions, and SOC SLA breaches by giving Security Infra operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-10.13.25 — Vulnerability, Age, Tracking — using `index=security` sourcetype `configured sourcetype`, grouped by `dest`, `cve`. Outputs `total_age` each `the scheduled window`; alert when `age_days` > 90. Primary focus: Age Tracking. Purpose-built for 'Vulnerability Age Tracking' in Security Infra workflows.",
+  "value": "For 'Vulnerability Age Tracking', UC-10.13.25 converts `total_age` on UC-10.13.25 search results into actionable rows and reduces missed threat campaigns, control regressions, and SOC SLA breaches.",
   "implementation": "Join CVSS for prioritization; exclude accepted risks with GRC ID.",
   "visualization": "Histogram (age), Table (oldest 20).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `security`** — Planned work for 'Vulnerability Age Tracking' shifts `sum` over `span=1h` while `dest` remains in-scope for UC-10.13.25. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `cve` without crossing `age_days` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for `dest` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `security` (UC-10.13.25)** — Planned work for 'Vulnerability Age Tracking' shifts `total_age` over `span=1h` while `dest`, `cve` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `cve` without crossing `age_days` > 90 for UC-10.13.25. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`, `cve`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `configured_sourcetype`** — First 48h baseline for UC-10.13.25 on `dest` is unstable; window via `soc_exception_register.csv`.\n\n**Suppression mechanism:** `soc_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
   "equipment": [
     "qualys",
     "tenable"

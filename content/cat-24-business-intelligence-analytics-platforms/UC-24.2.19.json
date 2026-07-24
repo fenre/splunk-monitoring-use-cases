@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Power BI Consumption Cost Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_power_bi_consumption_cost_anomaly` (UC-24.2.19), SOC dashboard panel \"Operations — Power BI Consumption Cost Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='powerbi:admin:api' where `report_name` satisfies detection threshold for UC-24.2.19 ('Power BI Consumption Cost Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `powerbi:admin:api` events where `report_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.2.19."
+    "positiveScenario": "UC-24.2.19 positive (Power, Consumption, Cost, Anomaly): ingest synthetic events into `index=bi` sourcetype='powerbi:admin:api' where `consumption`, `avg_c`, `sd_c` grouped by `report_name` satisfies detection threshold for 'Power BI Consumption Cost Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.2.19 negative (Cost Anomaly): ingest benign `bi` / `powerbi:admin:api` events where `report_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 10 confirms zero alert rows for 'Power BI Consumption Cost Anomaly'."
   },
   "dataSources": "Power BI admin refreshes (`powerbi:admin:refreshes`), admin API (`powerbi:admin:api`), gateway logs, and capacity metrics. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Power BI activity events from the Microsoft 365 / Purview audit log and the Power BI Admin & Fabric Capacity Metrics APIs via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=powerbi:admin:api\n| timechart span=1d sum(cu_seconds) as consumption by report_name\n| untable _time report_name consumption\n| eventstats avg(consumption) as avg_c, stdev(consumption) as sd_c by report_name\n| where consumption>avg_c+3*sd_c\n| sort - consumption",
-  "description": "Baselines daily Power BI consumption per report and flags spikes far above normal, the main early-warning signal for a runaway bill.",
-  "value": "Baselines daily Power BI consumption per report and flags spikes far above normal, the main early-warning s.... Timely UC-24.2.19 alerting on 'Power BI Consumption Cost Anomaly' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Detects UC-24.2.19 — Power, Consumption, Cost, Anomaly — using `index=bi` sourcetype `powerbi:admin:api`, grouped by `report_name`. Outputs `consumption`, `avg_c`, `sd_c` each `1d`; alert when configured threshold. Primary focus: Cost Anomaly. Purpose-built for 'Power BI Consumption Cost Anomaly' in Operations workflows.",
+  "value": "For 'Power BI Consumption Cost Anomaly', UC-24.2.19 converts `consumption`, `avg_c`, `sd_c` on `powerbi:admin:api` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Ingest Power BI consumption metrics; schedule daily and alert on 3-sigma consumption spikes per report.",
   "visualization": "Timechart of consumption per report, anomaly table, cost projection.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Power BI Consumption Cost Anomaly' shifts `sum` over `span=1d` while `report_name` remains in-scope for UC-24.2.19. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `powerbi:admin:api`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `report_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `powerbi:admin:api`** — First 48h baseline for `report_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `report_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.2.19)** — Planned work for 'Power BI Consumption Cost Anomaly' shifts `consumption`, `avg_c`, `sd_c` over `span=1d` while `report_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `powerbi:admin:api`** — Scheduled automation elevates `src` without crossing configured threshold for UC-24.2.19. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `report_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `powerbi:admin:api`** — First 48h baseline for UC-24.2.19 on `report_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `report_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco"
   ],

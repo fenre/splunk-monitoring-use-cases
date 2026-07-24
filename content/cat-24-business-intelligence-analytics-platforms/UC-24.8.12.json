@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'Airbyte Normalization Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_airbyte_normalization_failures` (UC-24.8.12), SOC dashboard panel \"Operations — Airbyte Normalization Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=bi` sourcetype='airbyte:job' where `connection_name` satisfies `failures` > 0 for UC-24.8.12 ('Airbyte Normalization Failures'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `bi` / `airbyte:job` events where `connection_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-24.8.12."
+    "positiveScenario": "UC-24.8.12 positive (Airbyte, Normalization, Failures): ingest synthetic events into `index=bi` sourcetype='airbyte:job' where `count` grouped by `connection_name` satisfies `failures` > 0 for 'Airbyte Normalization Failures'. Validate filter `(attempt_status=\"failed\" AND failure_origin=\"normalization\")`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-24.8.12 negative (Normalization Failures): ingest benign `bi` / `airbyte:job` events where `connection_name` stays below `failures` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Airbyte Normalization Failures'."
   },
   "dataSources": "Airbyte API job/connection status (`airbyte:job`), worker logs (`airbyte:worker`), and normalization logs. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Airbyte API (`/api/v1/jobs`, `/api/v1/connections`) and Airbyte worker/server logs via HEC scripted inputs. — Universal Forwarder (Splunkbase 617)",
   "spl": "index=bi sourcetype=airbyte:job job_type=\"sync\"\n| search (attempt_status=\"failed\" AND failure_origin=\"normalization\") OR failure_type=\"normalization\"\n| stats count as failures by connection_name\n| where failures>0\n| sort - failures",
-  "description": "Isolates Airbyte sync failures whose origin is the normalization step, distinguishing dbt-normalization breakage from source/destination errors.",
-  "value": "Isolates Airbyte sync failures whose origin is the normalization step, distinguishing dbt-normalization bre.... Timely UC-24.8.12 alerting on 'Airbyte Normalization Failures' reduces operational risk and delayed incident response before manual triage or audit channels escalate.",
+  "description": "Identifies UC-24.8.12 — Airbyte, Normalization, Failures — using `index=bi` sourcetype `airbyte:job`, grouped by `connection_name`. Outputs `count` each `the scheduled window`; alert when `failures` > 0. Filter chain includes filter `(attempt_status=\"failed\" AND failure_origin=\"normalization\")`. Purpose-built for 'Airbyte Normalization Failures' in Operations workflows.",
+  "value": "UC-24.8.12 operationalises 'Airbyte Normalization Failures' against `airbyte:job` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Ingest Airbyte job events including failure origin; schedule every 15 minutes and alert on normalization failures for key connections.",
   "visualization": "Table of connection by normalization failures, timechart.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `bi`** — Planned work for 'Airbyte Normalization Failures' shifts `count` over `span=1h` while `connection_name` remains in-scope for UC-24.8.12. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airbyte:job`** — Scheduled automation elevates `src` without crossing `failures` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connection_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airbyte:job`** — First 48h baseline for `connection_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connection_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `bi` (UC-24.8.12)** — Planned work for 'Airbyte Normalization Failures' shifts `count` over `span=1h` while `connection_name` remains in-scope. Applies filter `(attempt_status=\"failed\" AND failure_origin=\"normalization\")`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `airbyte:job`** — Scheduled automation elevates `src` without crossing `failures` > 0 for UC-24.8.12. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connection_name`** — Health checks in `bi` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `airbyte:job`** — First 48h baseline for UC-24.8.12 on `connection_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `connection_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

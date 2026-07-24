@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Authelia Auth Event Sync Gap Watch' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_authelia_auth_event_sync_gap_watch` (UC-25.8.67), SOC dashboard panel \"Personal — Authelia Auth Event Sync Gap Watch\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='authelia:auth' where `username` satisfies `hours_since` > 1 for UC-25.8.67 ('Authelia Auth Event Sync Gap Watch'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `authelia:auth` events where `username` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.8.67."
+    "positiveScenario": "UC-25.8.67 positive (Authelia, Auth, Event, Sync, Gap): ingest synthetic events into `index=personal` sourcetype='authelia:auth' where `last_seen` grouped by `username` satisfies `hours_since` > 1 for 'Authelia Auth Event Sync Gap Watch'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.8.67 negative (Gap Watch): ingest benign `personal` / `authelia:auth` events where `username` stays below `hours_since` > 1, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 6 confirms zero alert rows for 'Authelia Auth Event Sync Gap Watch'."
   },
   "dataSources": "Proxmox node/VM metrics (`proxmox:metric`), Docker container stats (`docker:stats`), Synology/TrueNAS (`synology:disk`, `truenas:pool`), Raspberry Pi host metrics, UPS status via NUT (`nut:ups`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Proxmox / Docker / Portainer, Synology/TrueNAS, Raspberry Pi, and UPS (NUT) metrics via the Splunk Universal Forwarder, collectd/telegraf, and HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=authelia:auth\n| stats max(_time) as last_seen by username\n| eval hours_since=round((now()-last_seen)/3600,1)\n| where hours_since>1\n| sort - hours_since",
-  "description": "Detects when Authelia auth event data has stopped arriving for a given user. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Detects when Authelia auth event data has stopped arriving for a given user. Timely UC-25.8.67 alerting on 'Authelia Auth Event Sync Gap Watch' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors Gap Watch anomalies for UC-25.8.67 with window `the scheduled window` on `index=personal` sourcetype `authelia:auth`. Combines `last_seen` by `username` and compares against `hours_since` > 1. Mapped to keywords Authelia, Auth, Event, Sync, Gap for dashboard routing.",
+  "value": "Alerting on Authelia, Auth, Event, Sync, Gap through UC-25.8.67 reduces missed training goals, stale hobby data, and connector failures by surfacing `last_seen` early.",
   "implementation": "Track the latest event time per user and alert when the feed is older than 1 hours.",
   "visualization": "Table of entities by hours since last event.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Authelia Auth Event Sync Gap Watch' stops polling `authelia:auth`; stale `username` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `max` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `authelia:auth`. Dedup with `stats latest(*) by username`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.8.67)** — Connector for 'Authelia Auth Event Sync Gap Watch' stops polling `authelia:auth`; stale `last_seen` on `username` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `last_seen` over `1w` is expected for UC-25.8.67, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `authelia:auth`. Dedup with `stats latest(*) by username`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `hours_since` > 1 for 'Authelia Auth Event Sync Gap Watch'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "docker",
     "proxmox",

@@ -69,14 +69,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `entity` satisfies detection threshold for UC-12.2.17 ('Deploy Approval Bypass Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `cicd` / `deployment_event` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-12.2.17."
+    "positiveScenario": "UC-12.2.17 positive (Deploy, Approval, Bypass, Detection): ingest synthetic events into `index=cicd` sourcetype='deployment_event' where `count` grouped by `entity` satisfies detection threshold for 'Deploy Approval Bypass Detection'. Validate filter `user!=\"svc_cd_bot\"`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-12.2.17 negative (Bypass Detection): ingest benign `cicd` / `deployment_event` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'Deploy Approval Bypass Detection'."
   },
   "dataSources": "Deployment events with `approval_id`, `change_ticket` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "CD platform audit logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=cicd sourcetype=\"deployment_event\" environment=\"production\"\n| where isnull(approval_id) OR isnull(change_ticket)\n| search user!=\"svc_cd_bot\"\n| table _time, application, user, version, environment",
-  "description": "Production deploys without change ticket or approval group in CD system (Spinnaker, Argo Rollouts, Harness). Searches `index=cicd` with sourcetype `deployment_event` for UC-12.2.17, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Operations operators a repeatable signal for 'Deploy Approval Bypass Detection' without manual log review.",
-  "value": "Early 'Deploy Approval Bypass Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on when Bypass Detection criteria fire for 'Deploy Approval Bypass Detection' (UC-12.2.17) in `index=cicd` sourcetype `deployment_event`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `user!=\"svc_cd_bot\"`. Eliminates manual hunting for UC-12.2.17 conditions.",
+  "value": "UC-12.2.17 helps teams contain Deploy, Approval, Bypass, Detection scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Enforce required fields in CD templates. Alert on nulls. Correlate with Entra/Okta for human actors.",
   "visualization": "Table (unapproved deploys), Timeline, Single value (violations 30d).",
   "cimModels": [
@@ -106,7 +106,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cicd`** — Planned work for 'Deploy Approval Bypass Detection' shifts `count` over `span=1h` while `host` remains in-scope for UC-12.2.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `deployment_event`** — Scheduled automation elevates `src` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `cicd` (UC-12.2.17)** — Planned work for 'Deploy Approval Bypass Detection' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `user!=\"svc_cd_bot\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `deployment_event`** — Scheduled automation elevates `src` without crossing configured threshold for UC-12.2.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `deployment_event`** — First 48h baseline for UC-12.2.17 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "m365",
     "okta"

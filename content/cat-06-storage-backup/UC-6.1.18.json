@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'NetApp ONTAP Performance Counters' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_netapp_ontap_performance_counters` (UC-6.1.18), SOC dashboard panel \"Operations — NetApp ONTAP Performance Counters\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=storage` sourcetype='netapp:ontap:counter' where `instance_name` satisfies `read_ms` > 15 for UC-6.1.18 ('NetApp ONTAP Performance Counters'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `storage` / `netapp:ontap:counter` events where `instance_name` stays below `read_ms` > 15, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.1.18."
+    "positiveScenario": "UC-6.1.18 positive (NetApp, ONTAP, Performance, Counters): ingest synthetic events into `index=storage` sourcetype='netapp:ontap:counter' where `read_ms`, `write_ms`, `iops` grouped by `instance_name` satisfies `read_ms` > 15, or `write_ms` > 15 for 'NetApp ONTAP Performance Counters'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.1.18 negative (Performance Counters): ingest benign `storage` / `netapp:ontap:counter` events where `instance_name` stays below `read_ms` > 15, or `write_ms` > 15, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'NetApp ONTAP Performance Counters'."
   },
   "dataSources": "ONTAP REST `/api/cluster/counter/tables/*` or ZAPI `perf-object-get-list` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`TA-netapp_ontap`, REST API scripted input — Universal Forwarder (Splunkbase 617)",
   "spl": "index=storage sourcetype=\"netapp:ontap:counter\"\n| where object_name=\"volume\" OR object_name=\"lun\"\n| timechart span=5m avg(read_latency) as read_ms, avg(write_latency) as write_ms, avg(total_ops) as iops by instance_name\n| where read_ms > 15 OR write_ms > 15",
-  "description": "Counter-based throughput, latency, and queue depth from ONTAP complement volume-level views. Trending counters catches node or aggregate saturation before user-visible latency spikes.",
-  "value": "Early 'NetApp ONTAP Performance Counters' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on UC-6.1.18 — NetApp, ONTAP, Performance, Counters — using `index=storage` sourcetype `netapp:ontap:counter`, grouped by `instance_name`. Outputs `read_ms`, `write_ms`, `iops` each `5m`; alert when `read_ms` > 15, or `write_ms` > 15. Primary focus: Performance Counters. Purpose-built for 'NetApp ONTAP Performance Counters' in Operations workflows.",
+  "value": "UC-6.1.18 gives Operations teams earlier visibility into Performance Counters through `netapp:ontap:counter` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable performance counter polling (15m) for volumes/LUNs. Map instance to SVM and export. Baseline p95 latency and IOPS; alert on sustained deviation from baseline.",
   "visualization": "Line chart (latency and IOPS by object), Table (top latency contributors), Single value (max read/write ms).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `storage`** — Planned work for 'NetApp ONTAP Performance Counters' shifts `avg` over `span=5m` while `instance_name` remains in-scope for UC-6.1.18. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `netapp:ontap:counter`** — Scheduled automation elevates `src` without crossing `read_ms` > 15. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:counter`** — First 48h baseline for `instance_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `storage` (UC-6.1.18)** — Planned work for 'NetApp ONTAP Performance Counters' shifts `read_ms`, `write_ms`, `iops` over `span=5m` while `instance_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `netapp:ontap:counter`** — Scheduled automation elevates `src` without crossing `read_ms` > 15 for UC-6.1.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `instance_name`** — Health checks in `storage` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `netapp:ontap:counter`** — First 48h baseline for UC-6.1.18 on `instance_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `instance_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "netapp"
   ],

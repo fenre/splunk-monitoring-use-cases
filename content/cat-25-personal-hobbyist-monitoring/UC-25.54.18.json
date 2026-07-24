@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'DIY vs Contractor Hour Mix' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_diy_vs_contractor_hour_mix` (UC-25.54.18), SOC dashboard panel \"Personal — DIY vs Contractor Hour Mix\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='reno:contractor' where `project_phase` satisfies detection threshold for UC-25.54.18 ('DIY vs Contractor Hour Mix'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `reno:contractor` events where `project_phase` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.54.18."
+    "positiveScenario": "UC-25.54.18 positive (DIY, Contractor, Hour, Mix): ingest synthetic events into `index=personal` sourcetype='reno:contractor' where `sum` grouped by `project_phase` satisfies detection threshold for 'DIY vs Contractor Hour Mix'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.54.18 negative (Hour Mix): ingest benign `personal` / `reno:contractor` events where `project_phase` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 5 confirms zero alert rows for 'DIY vs Contractor Hour Mix'."
   },
   "dataSources": "Renovation tasks (`reno:task`), budget and receipts (`reno:budget`), material orders (`reno:material`), inspections (`reno:inspection`), contractor logs (`reno:contractor`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home-renovation project management — task boards (Trello, Notion), budget and receipt trackers, material orders, and inspection / permit logs — streamed to Splunk HEC via APIs and scripted inputs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=reno:contractor\n| stats sum(eval(if(worker_type=\"diy\",hours_worked,0))) as diy_hours, sum(eval(if(worker_type=\"contractor\",hours_worked,0))) as contractor_hours by project_phase\n| eval diy_share_pct=round(100*diy_hours/(diy_hours+contractor_hours),1)\n| sort - diy_share_pct",
-  "description": "Shows which phases are mostly homeowner effort versus contracted labor. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Shows which phases are mostly homeowner effort versus contracted labor. Timely UC-25.54.18 alerting on 'DIY vs Contractor Hour Mix' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects 'DIY vs Contractor Hour Mix' patterns (UC-25.54.18) sourced from `index=personal` sourcetype `reno:contractor`. Threshold bundle: configured threshold; aggregation grain: `project_phase`; metrics: `sum`. Watch terms: DIY, Contractor, Hour, Mix.",
+  "value": "UC-25.54.18 gives Personal teams earlier visibility into Hour Mix through `reno:contractor` feeds, lowering missed training goals, stale hobby data, and connector failures.",
   "implementation": "Tag work logs by worker type and project phase; compute DIY share percentage for each phase.",
   "visualization": "Stacked bar chart of DIY versus contractor hours by phase.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'DIY vs Contractor Hour Mix' stops polling `reno:contractor`; stale `project_phase` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:contractor`. Dedup with `stats latest(*) by project_phase`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.54.18)** — Connector for 'DIY vs Contractor Hour Mix' stops polling `reno:contractor`; stale `sum` on `project_phase` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected for UC-25.54.18, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `reno:contractor`. Dedup with `stats latest(*) by project_phase`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'DIY vs Contractor Hour Mix'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

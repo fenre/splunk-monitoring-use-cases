@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'File Deletion Volume Anomaly' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_file_deletion_volume_anomaly` (UC-6.4.18), SOC dashboard panel \"Operations — File Deletion Volume Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `Account_Name` satisfies `deletes` > 50 for UC-6.4.18 ('File Deletion Volume Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name` stays below `deletes` > 50, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.4.18."
+    "positiveScenario": "UC-6.4.18 positive (File, Deletion, Volume, Anomaly): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' where `avg_d`, `stdev_d` grouped by `Account_Name`, `ShareName`, `_time` satisfies `deletes` > 50 for 'File Deletion Volume Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.4.18 negative (Volume Anomaly): ingest benign `wineventlog` / `WinEventLog:Security` events where `Account_Name`, `ShareName`, `_time` stays below `deletes` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'File Deletion Volume Anomaly'."
   },
   "dataSources": "Event ID 4660 (object deleted), 4663 with Delete access Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4660,4663) AccessMask=\"*DELETE*\"\n| bucket _time span=1m\n| stats count as deletes by Account_Name, ShareName, _time\n| eventstats avg(deletes) as avg_d, stdev(deletes) as stdev_d by Account_Name\n| where deletes > avg_d + 4*stdev_d AND deletes > 50",
-  "description": "Sudden spike in delete operations may indicate ransomware preparation, malicious insider, or script error. Complements mass-modify ransomware use cases.",
-  "value": "Early 'File Deletion Volume Anomaly' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-6.4.18 — File, Deletion, Volume, Anomaly — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `Account_Name`, `ShareName`, `_time`. Outputs `avg_d`, `stdev_d` each `1m`; alert when `deletes` > 50. Primary focus: Volume Anomaly. Purpose-built for 'File Deletion Volume Anomaly' in Operations workflows.",
+  "value": "UC-6.4.18 gives Operations teams earlier visibility into Volume Anomaly through `WinEventLog:Security` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Enable auditing on delete for sensitive trees. Baseline deletes per user/share. Alert on statistical outliers. Exclude known maintenance accounts via lookup.",
   "visualization": "Timeline (delete bursts), Table (user, share, delete count), Line chart (deletes per minute).",
   "cimModels": [
@@ -46,7 +46,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `wineventlog`** — Planned work for 'File Deletion Volume Anomaly' shifts `avg` over `span=1m` while `Account_Name` remains in-scope for UC-6.4.18. Cross-check CMDB CHG.\n\n2. **Batch `avg` on `WinEventLog:Security`** — Scheduled automation elevates `ShareName` without crossing `deletes` > 50. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `wineventlog` (UC-6.4.18)** — Planned work for 'File Deletion Volume Anomaly' shifts `avg_d`, `stdev_d` over `span=1m` while `Account_Name`, `ShareName`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `WinEventLog:Security`** — Scheduled automation elevates `ShareName` without crossing `deletes` > 50 for UC-6.4.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `Account_Name`, `ShareName`, `_time`** — Health checks in `wineventlog` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `WinEventLog:Security`** — First 48h baseline for UC-6.4.18 on `Account_Name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `Account_Name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "windows"
   ],

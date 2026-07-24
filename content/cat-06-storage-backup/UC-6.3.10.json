@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Backup Data Growth Rate' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_backup_data_growth_rate` (UC-6.3.10), SOC dashboard panel \"Operations — Backup Data Growth Rate\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=backup` sourcetype='veeam:repository' where `repository_name` satisfies detection threshold for UC-6.3.10 ('Backup Data Growth Rate'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `backup` / `veeam:repository` events where `repository_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-6.3.10."
+    "positiveScenario": "UC-6.3.10 positive (Backup, Data, Growth, Rate): ingest synthetic events into `index=backup` sourcetype='veeam:repository' where `count` grouped by `repository_name` satisfies detection threshold for 'Backup Data Growth Rate'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-6.3.10 negative (Growth Rate): ingest benign `backup` / `veeam:repository` events where `repository_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'Backup Data Growth Rate'."
   },
   "dataSources": "Backup repository size over time Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Custom (backup software API/CLI) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=backup sourcetype=\"veeam:repository\" OR sourcetype=\"backup:repository\"\n| eval used_pct=round(used_bytes/capacity_bytes*100, 1)\n| timechart span=1d latest(used_bytes) as used, latest(capacity_bytes) as capacity by repository_name\n| eval used_pct=round(used/capacity*100, 1)\n| predict used as predicted future_timespan=30",
-  "description": "Backup repository consumption trending enables capacity planning and prevents surprise exhaustion. Proactive forecasting supports budget and procurement decisions.",
-  "value": "Early 'Backup Data Growth Rate' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Alerts on risk tied to Backup, Data, Growth, Rate through UC-6.3.10 on `index=backup` sourcetype `veeam:repository`. Summarises `count` grouped by `repository_name` across `1d` before applying configured threshold. Operators tune 'Backup Data Growth Rate' using UC-6.3.10 runbook steps.",
+  "value": "Tracking `activity` via UC-6.3.10 on `veeam:repository` feeds improves response to 'Backup Data Growth Rate' and reduces operational risk and delayed incident response.",
   "implementation": "Poll backup repository capacity via vendor API (Veeam, Commvault, etc.) or scripted input (filesystem df, REST endpoint). Collect used_bytes and capacity_bytes per repository daily. Index to Splunk. Use `predict` or `trendline` for 30/60/90-day forecasts. Alert when projected full date is within 90 days. Correlate growth rate with backup job data volume trends.",
   "visualization": "Line chart (repository usage % over time with prediction), Table (repositories with growth rate and ETA to full), Single value (days until first repository full).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `backup`** — Planned work for 'Backup Data Growth Rate' shifts `count` over `span=1d` while `repository_name` remains in-scope for UC-6.3.10. Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:repository`** — Scheduled automation elevates `used_pct` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `repository_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:repository`** — First 48h baseline for `repository_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `repository_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `backup` (UC-6.3.10)** — Planned work for 'Backup Data Growth Rate' shifts `count` over `span=1d` while `repository_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `veeam:repository`** — Scheduled automation elevates `used_pct` without crossing configured threshold for UC-6.3.10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `repository_name`** — Health checks in `backup` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `veeam:repository`** — First 48h baseline for UC-6.3.10 on `repository_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `repository_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "commvault",
     "hashicorp",

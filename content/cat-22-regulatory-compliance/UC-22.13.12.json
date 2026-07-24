@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=hr` sourcetype='WinEventLog:Security' EventCode=4726 where `TargetUserName` satisfies `delta_h` > 24 for UC-22.13.12 ('Post-Termination Access Revocation within 24 Hours'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `hr` / `WinEventLog:Security` events where `TargetUserName` stays below `delta_h` > 24, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.13.12."
+    "positiveScenario": "UC-22.13.12 positive (Post, Termination, Access, Revocation, within): ingest synthetic events into `index=hr` sourcetype='WinEventLog:Security' EventCode=4726 where `count` grouped by `TargetUserName` satisfies `delta_h` > 24 for 'Post-Termination Access Revocation within 24 Hours'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.13.12 negative (24 Hours): ingest benign `hr` / `WinEventLog:Security` events where `TargetUserName` stays below `delta_h` > 24, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Post-Termination Access Revocation within 24 Hours'."
   },
   "dataSources": "`index=hr` `sourcetype=hr:termination`, `index=wineventlog` `EventCode=4726` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Add-on for Microsoft Windows (742) (Splunkbase)",
   "spl": "index=hr sourcetype=hr:termination earliest=-14d\n| eval term_epoch=strptime(term_time,\"%Y-%m-%d %H:%M:%S\")\n| rename employee_id as user\n| join type=left user [\n    search index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4726 earliest=-14d\n    | stats earliest(_time) as disable_epoch by TargetUserName\n    | rename TargetUserName as user\n  ]\n| eval delta_h=round((disable_epoch-term_epoch)/3600,2)\n| where isnull(disable_epoch) OR delta_h>24\n| table user, term_time, disable_epoch, delta_h",
-  "description": "We measure hours from HR termination timestamp to Active Directory account disable for BES personnel, evidencing the one-day removal expectation.",
-  "value": "We measure hours from HR termination timestamp to Active Directory account disable for BES personnel, evide.... Timely UC-22.13.12 alerting on 'Post-Termination Access Revocation within 24 Hours' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces 24 Hours anomalies for UC-22.13.12 with window `the scheduled window` on `index=hr` sourcetype `WinEventLog:Security`. Combines `count` by `TargetUserName` and compares against `delta_h` > 24. Mapped to keywords Post, Termination, Access, Revocation, within for dashboard routing.",
+  "value": "Alerting on Post, Termination, Access, Revocation, within through UC-22.13.12 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Ensure 4726 from all in-scope domains. (2) Normalize time zones to UTC. (3) Page IAM when SLA missed. (4) Optionally join CyberArk disable events as supplemental proof. Indexes required: `index=hr`, `index=wineventlog`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=hr:termination`, `sourcetype=hr:termination``.",
   "visualization": "Table (SLA misses), Column chart (delta hours), Single value (miss count). Key fields: `delta_h`, `disable_epoch`, `term_epoch`, `term_time`, `user`.",
   "cimModels": [

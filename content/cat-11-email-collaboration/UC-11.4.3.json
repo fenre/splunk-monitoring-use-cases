@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Mail Queue Depth and Deferred Message Backlog' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mail_queue_depth_and_deferred_message_backlog` (UC-11.4.3), SOC dashboard panel \"Operations — Mail Queue Depth and Deferred Message Backlog\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=mail` sourcetype='mail_queue' where `host` satisfies `depth` > 100 for UC-11.4.3 ('Mail Queue Depth and Deferred Message Backlog'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `mail` / `mail_queue` events where `host` stays below `depth` > 100, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-11.4.3."
+    "positiveScenario": "UC-11.4.3 positive (Mail, Queue, Depth, and, Deferred): ingest synthetic events into `index=mail` sourcetype='mail_queue' where `count` grouped by `host` satisfies `depth` > 100, or `deferred` > 50 for 'Mail Queue Depth and Deferred Message Backlog'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-11.4.3 negative (Message Backlog): ingest benign `mail` / `mail_queue` events where `host` stays below `depth` > 100, or `deferred` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'Mail Queue Depth and Deferred Message Backlog'."
   },
   "dataSources": "Postfix `mailq`, Sendmail queue, Exchange queue length Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_syslog`, custom scripted input (mailq, postqueue) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=mail sourcetype=mail_queue host=*\n| stats latest(queue_depth) as depth, latest(deferred_count) as deferred, latest(_time) as last_seen by host\n| where depth > 100 OR deferred > 50\n| table host depth deferred last_seen",
-  "description": "Growing mail queue (deferred, hold) indicates delivery failures, recipient issues, or abuse. Detecting backlog early prevents bounce storms and blacklisting.",
-  "value": "Early 'Mail Queue Depth and Deferred Message Backlog' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-11.4.3 — Mail, Queue, Depth, and, Deferred — using `index=mail` sourcetype `mail_queue`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `depth` > 100, or `deferred` > 50. Primary focus: Message Backlog. Purpose-built for 'Mail Queue Depth and Deferred Message Backlog' in Operations workflows.",
+  "value": "Tracking `activity` via UC-11.4.3 on `mail_queue` feeds improves response to 'Mail Queue Depth and Deferred Message Backlog' and reduces operational risk and delayed incident response.",
   "implementation": "Run `mailq` or equivalent every 5 minutes. Parse queue depth and deferred count. Alert when queue exceeds 100 or deferred exceeds 50. Correlate with rejection logs and recipient domains.",
   "visualization": "Line chart (queue depth over time), Table (host, queue, deferred), Single value (max queue).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `mail`** — Planned work for 'Mail Queue Depth and Deferred Message Backlog' shifts `count` over `span=1h` while `host` remains in-scope for UC-11.4.3. Cross-check CMDB CHG.\n\n2. **Batch `count` on `mail_queue`** — Scheduled automation elevates `src` without crossing `depth` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mail_queue`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `mail` (UC-11.4.3)** — Planned work for 'Mail Queue Depth and Deferred Message Backlog' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mail_queue`** — Scheduled automation elevates `src` without crossing `depth` > 100 for UC-11.4.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `mail` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mail_queue`** — First 48h baseline for UC-11.4.3 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "exchange",
     "syslog"

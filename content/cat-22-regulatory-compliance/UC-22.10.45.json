@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=privacy` sourcetype='hipaa:breach_notice' where `incident_id` satisfies `days_to_mail` > 60 for UC-22.10.45 ('Individual Notification — Letter Generation & Mailing Evidence'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `privacy` / `hipaa:breach_notice` events where `incident_id` stays below `days_to_mail` > 60, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.45."
+    "positiveScenario": "UC-22.10.45 positive (Individual, Notification, Letter, Generation, Mailing): ingest synthetic events into `index=privacy` sourcetype='hipaa:breach_notice' where `count` grouped by `incident_id`, `letter_status` satisfies `days_to_mail` > 60 for 'Individual Notification — Letter Generation & Mailing Evidence'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.45 negative (Mailing Evidence): ingest benign `privacy` / `hipaa:breach_notice` events where `incident_id`, `letter_status` stays below `days_to_mail` > 60, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'Individual Notification — Letter Generation & Mailing Evidence'."
   },
   "dataSources": "`index=privacy` `sourcetype=hipaa:breach_notice` (`incident_id`, `patient_token`, `letter_status`, `mail_tracking_id`, `mailed_dttm`)",
   "app": "HTTP Event Collector (HEC), Splunk Add-on for ServiceNow (Splunkbase 1928) if tickets drive mailhouse",
   "spl": "index=privacy sourcetype=\"hipaa:breach_notice\" earliest=-120d\n| eval mailed_epoch=strptime(mailed_dttm,\"%Y-%m-%d %H:%M:%S\")\n| eval breach_discovered=strptime(breach_discovered_dttm,\"%Y-%m-%d %H:%M:%S\")\n| eval days_to_mail=round((mailed_epoch-breach_discovered)/86400,1)\n| where letter_status!=\"Mailed\" OR days_to_mail>60 OR isnull(mail_tracking_id)\n| stats count by incident_id, letter_status\n| sort - count",
-  "description": "Tracks generation, print, and certified mail tracking numbers for breach letters within the 60-day window to support individual notification compliance.",
-  "value": "Tracks generation, print, and certified mail tracking numbers for breach letters within the 60-day window t.... Timely UC-22.10.45 alerting on 'Individual Notification — Letter Generation & Mailing Evidence' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects Mailing Evidence activity in UC-22.10.45 ('Individual Notification — Letter Generation & Mailing Evidence') from `index=privacy` sourcetype `hipaa:breach_notice`. Rolls up `count` by `incident_id`, `letter_status` across `the scheduled window` and pages when `days_to_mail` > 60. Covers Individual, Notification, Letter, Generation, Mailing. Compliance operators treat UC-22.10.45 as the canonical signal.",
+  "value": "Operators running UC-22.10.45 on `hipaa:breach_notice` feeds shorten triage for Mailing Evidence tied to 'Individual Notification — Letter Generation & Mailing Evidence', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Integrate print vendor webhooks; (2) never index full SSN—use tokenized IDs; (3) legal sign-off field in same event. Indexes required: `index=privacy`; Sourcetypes: `sourcetype=hipaa:breach_notice`, `sourcetype=hipaa:breach_notice``.",
   "visualization": "Gantt-style timeline (discovered → mailed), Table (exceptions). Key fields: `breach_discovered`, `days_to_mail`, `incident_id`, `letter_status`, `mailed_epoch`.",
   "cimModels": [],

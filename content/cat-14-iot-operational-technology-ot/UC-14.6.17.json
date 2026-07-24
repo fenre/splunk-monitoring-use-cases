@@ -13,14 +13,14 @@
   "exclusions": "Covers the detection logic documented for 'BACnet Object Access Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_bacnet_object_access_audit` (UC-14.6.17), SOC dashboard panel \"Operations — BACnet Object Access Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ot` sourcetype='zeek:bacnet:json' where `source_h` satisfies detection threshold for UC-14.6.17 ('BACnet Object Access Audit'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ot` / `zeek:bacnet:json` events where `source_h` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.6.17."
+    "positiveScenario": "UC-14.6.17 positive (BACnet, Object, Access, Audit): ingest synthetic events into `index=ot` sourcetype='zeek:bacnet:json' where `count` grouped by `source_h`, `destination_h`, `object_type`, `instance_number` satisfies detection threshold for 'BACnet Object Access Audit'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.6.17 negative (Access Audit): ingest benign `ot` / `zeek:bacnet:json` events where `source_h`, `destination_h`, `object_type`, `instance_number` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'BACnet Object Access Audit'."
   },
   "dataSources": "`index=ot` `sourcetype=\"zeek:bacnet:json\"` (`bacnet_property.log` via `pdu_service`, `object_type`, `property`, `value`, `source_h`, `destination_h`)",
   "app": "TA for Zeek (Splunkbase 5466), Corelight App for Splunk (Splunkbase 3884)",
   "spl": "index=ot sourcetype=\"zeek:bacnet:json\"\n| where match(pdu_service,\"(?i)write.*property\") OR pdu_service=\"Write_Property_Request\"\n| where object_type IN (\"analog-output\",\"binary-output\",\"schedule\",\"life-safety-point\") OR match(property,\"(?i)present.value|priority\")\n| stats count by source_h destination_h object_type instance_number property\n| sort - count",
-  "description": "Writes to analog outputs, schedules, or life-safety objects can change building or process environmental limits; auditing ReadProperty/WriteProperty supports both cyber and operational accountability.",
-  "value": "Early 'BACnet Object Access Audit' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors 'BACnet Object Access Audit' patterns (UC-14.6.17) sourced from `index=ot` sourcetype `zeek:bacnet:json`. Threshold bundle: configured threshold; aggregation grain: `source_h`, `destination_h`, `object_type`, `instance_number`; metrics: `count`. Watch terms: BACnet, Object, Access, Audit.",
+  "value": "UC-14.6.17 gives Operations teams earlier visibility into Access Audit through `zeek:bacnet:json` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy ICSNPP-BACnet on UDP/47808 taps; use `bacnet_property` fields when the TA routes them into the same sourcetype or a dedicated property sourcetype. Define sensitive object lists per site; alert on writes from non-BMS servers.",
   "visualization": "Table (writes by object), Bar chart (writes by source_h), Timeline (write bursts).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ot`** — Planned work for 'BACnet Object Access Audit' shifts `count` over `span=1h` while `source_h` remains in-scope for UC-14.6.17. Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:bacnet:json`** — Scheduled automation elevates `destination_h` without crossing configured threshold. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_h`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:bacnet:json`** — First 48h baseline for `source_h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_h`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ot` (UC-14.6.17)** — Planned work for 'BACnet Object Access Audit' shifts `count` over `span=1h` while `source_h`, `destination_h`, `object_type`, `instance_number` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `zeek:bacnet:json`** — Scheduled automation elevates `destination_h` without crossing configured threshold for UC-14.6.17. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `source_h`, `destination_h`, `object_type`, `instance_number`** — Health checks in `ot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `zeek:bacnet:json`** — First 48h baseline for UC-14.6.17 on `source_h` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `source_h`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

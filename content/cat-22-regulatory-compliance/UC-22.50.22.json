@@ -30,14 +30,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `policy_domain` satisfies `age_days` > 365 for UC-22.50.22 ('NZISM §12.4 — policy documentation freshness and approval state'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `target_index` / `target_sourcetype` events where `policy_domain` stays below `age_days` > 365, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.50.22."
+    "positiveScenario": "UC-22.50.22 positive (NZISM, §12.4, policy, documentation, freshness): ingest synthetic events into `index=target_index` sourcetype='target_sourcetype' where `sum` grouped by `policy_domain` satisfies `age_days` > 365, or `stale_count` > 0 for 'NZISM §12.4 — policy documentation freshness and approval state'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.50.22 negative (approval state): ingest benign `target_index` / `target_sourcetype` events where `policy_domain` stays below `age_days` > 365, or `stale_count` > 0, or exclude the test entity via `compliance_exception_register.csv`. Variant 14 confirms zero alert rows for 'NZISM §12.4 — policy documentation freshness and approval state'."
   },
   "dataSources": "Policy repository, document control system, CISO approval records. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk Enterprise / Splunk Cloud Platform (Splunkbase)",
   "spl": "| inputlookup policy_repository.csv\n| eval age_days=round((now()-strptime(last_reviewed, \"%Y-%m-%d\"))/86400, 0)\n| eval stale=if(age_days > 365, \"yes\", \"no\")\n| stats count AS docs sum(eval(stale=\"yes\")) AS stale_count values(owner) AS owners BY policy_domain\n| eval stale_pct=round(100*stale_count/docs,1)\n| where stale_count > 0",
-  "description": "Lists policy documents that exceed the NZISM §12.4 annual review cadence. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Lists policy documents that exceed the NZISM §12. Timely UC-22.50.22 alerting on 'NZISM §12.4 — policy documentation freshness and approval state' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces UC-22.50.22 — NZISM, §12.4, policy, documentation, freshness — using `index=target_index` sourcetype `configured sourcetype`, grouped by `policy_domain`. Outputs `sum` each `the scheduled window`; alert when `age_days` > 365, or `stale_count` > 0. Primary focus: approval state. Purpose-built for 'NZISM §12.4 — policy documentation freshness and approval state' in Compliance workflows.",
+  "value": "Alerting on NZISM, §12.4, policy, documentation, freshness through UC-22.50.22 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Publish policy_repository.csv with last_reviewed dates; (2) schedule monthly; (3) alert CISO on any stale_count > 0.",
   "visualization": "Table of flagged records for investigation; single-value KPI of coverage / compliance percentage; time chart of trend over the last 90 days; drill-down per responsible owner. Key fields: `age_days`, `docs`, `owners`, `policy_domain`, `stale`, `stale_count`.",
   "cimModels": [

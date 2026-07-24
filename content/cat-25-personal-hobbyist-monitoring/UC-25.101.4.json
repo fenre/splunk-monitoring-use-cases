@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Claim Frequency by Peril Type' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_claim_frequency_by_peril_type` (UC-25.101.4), SOC dashboard panel \"Personal — Claim Frequency by Peril Type\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='claim:home' where `_time` satisfies detection threshold for UC-25.101.4 ('Claim Frequency by Peril Type'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `claim:home` events where `_time` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.101.4."
+    "positiveScenario": "UC-25.101.4 positive (Claim, Frequency, Peril, Type): ingest synthetic events into `index=personal` sourcetype='claim:home' where `total_payout` grouped by `_time`, `claim_type` satisfies detection threshold for 'Claim Frequency by Peril Type'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.101.4 negative (Peril Type): ingest benign `personal` / `claim:home` events where `_time`, `claim_type` stays below detection threshold, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 2 confirms zero alert rows for 'Claim Frequency by Peril Type'."
   },
   "dataSources": "Lemonade policies (`lemonade:policy`), home claims (`claim:home`), premium bills (`homeinsurance:premium`), and renewal offers (`homeinsurance:renewal`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Lemonade policy exports, home claim filings, premium billing snapshots, renewal offer logs, and coverage review notes streamed into Splunk HEC under `index=personal`. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=claim:home claim_type=*\n| bin _time span=1y\n| stats count as claims, sum(payout_usd) as total_payout by _time claim_type\n| chart sum(claims) over _time by claim_type",
-  "description": "Trends annual home claim counts and payout totals grouped by peril or claim type. Searches `index=personal` with sourcetype `claim:home` for UC-25.101.4, aggregating `sum` by `_time` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Personal operators a repeatable signal for 'Claim Frequency by Peril Type' without manual log review.",
-  "value": "Trends annual home claim counts and payout totals grouped by peril or claim type. Timely UC-25.101.4 alerting on 'Claim Frequency by Peril Type' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Detects UC-25.101.4 for Claim, Frequency, Peril, Type over `index=personal` sourcetype `claim:home` with thresholds configured threshold. Groups `total_payout` by `_time`, `claim_type` each `the scheduled window`. Centered on Peril Type indicators. Supports repeatable personal triage for 'Claim Frequency by Peril Type'.",
+  "value": "For 'Claim Frequency by Peril Type', UC-25.101.4 converts `total_payout` on `claim:home` feeds into actionable rows and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ensure each claim export includes `claim_type` and `payout_usd`, then review the yearly mix before renewal.",
   "visualization": "Stacked column chart of claims by year and peril type.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Claim Frequency by Peril Type' stops polling `claim:home`; stale `_time` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `sum` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `claim:home`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.101.4)** — Connector for 'Claim Frequency by Peril Type' stops polling `claim:home`; stale `total_payout` on `_time`, `claim_type` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `total_payout` over `1w` is expected for UC-25.101.4, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `claim:home`. Dedup with `stats latest(*) by _time`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew goal threshold for 'Claim Frequency by Peril Type'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],

@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=app` sourcetype='app:txn_audit' EventCode=4624 where `join_key` satisfies detection threshold for UC-22.14.9 ('Non-Repudiation Evidence for Sensitive Transactions'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `app` / `app:txn_audit` events where `join_key` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.14.9."
+    "positiveScenario": "UC-22.14.9 positive (Non, Repudiation, Evidence, for, Sensitive): ingest synthetic events into `index=app` sourcetype='app:txn_audit' EventCode=4624 where `count` grouped by `join_key`, `user`, `src_ip`, `]` satisfies -24h for 'Non-Repudiation Evidence for Sensitive Transactions'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.14.9 negative (Sensitive Transactions): ingest benign `app` / `app:txn_audit` events where `join_key`, `user`, `src_ip`, `]` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Non-Repudiation Evidence for Sensitive Transactions'."
   },
   "dataSources": "Application DB audit tables (via DBX), `WinEventLog:Security` logons — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Splunk DB Connect (Splunkbase 2686), Splunk Add-on for Microsoft Windows (Splunkbase 742)",
   "spl": "index=app sourcetype=app:txn_audit earliest=-24h status=success risk_tier=\"HIGH\"\n| eval join_key=md5(user.src_ip)\n| join type=left join_key [\n    search index=sec sourcetype=WinEventLog:Security EventCode=4624 earliest=-24h\n    | eval join_key=md5(user.src_ip)\n    | stats latest(_time) as last_logon by join_key, user, src_ip\n  ]\n| where isnull(last_logon)\n| table _time, user, src_ip, txn_id, action",
-  "description": "Chains application user actions to authentication events and source IPs to support AU-10 non-repudiation for high-risk transactions.",
-  "value": "Chains application user actions to authentication events and source IPs to support AU-10 non-repudiation fo.... Timely UC-22.14.9 alerting on 'Non-Repudiation Evidence for Sensitive Transactions' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors Sensitive Transactions anomalies for UC-22.14.9 with window `the scheduled window` on `index=app` sourcetype `app:txn_audit`. Combines `count` by `join_key`, `user`, `src_ip`, `]` and compares against -24h. Mapped to keywords Non, Repudiation, Evidence, for, Sensitive for dashboard routing.",
+  "value": "Alerting on Non, Repudiation, Evidence, for, Sensitive through UC-22.14.9 reduces audit findings, regulatory gaps, and attestation delays by surfacing `activity` early.",
   "implementation": "(1) Prefer `transaction` or `stats` over `join` at scale — prototype first; (2) hash PII keys consistently; (3) validate clock sync (AU-8); (4) document limitations where shared accounts break non-repudiation. Indexes required: `index=app`, `index=sec`; Sourcetypes: `sourcetype=WinEventLog:Security`, `sourcetype=app:txn_audit`.",
   "visualization": "Table (orphaned high-risk txns), Timeline (txn vs logon), Stats (match rate). Key fields: `action`, `join_key`, `last_logon`, `src_ip`, `txn_id`, `user`.",
   "cimModels": [

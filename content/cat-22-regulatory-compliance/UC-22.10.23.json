@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=interop` sourcetype='epic:fhir_audit' where `client_id` satisfies detection threshold for UC-22.10.23 ('FHIR / SMART on FHIR App Access to ePHI Scopes'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `interop` / `epic:fhir_audit` events where `client_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.23."
+    "positiveScenario": "UC-22.10.23 positive (FHIR, SMART, FHIR, App, Access): ingest synthetic events into `index=interop` sourcetype='epic:fhir_audit' where `count` grouped by `client_id`, `scopes`, `user_id`, `patient_id` satisfies -24h for 'FHIR / SMART on FHIR App Access to ePHI Scopes'. Validate lookup `fhir_app_register.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.23 negative (ePHI Scopes): ingest benign `interop` / `epic:fhir_audit` events where `client_id`, `scopes`, `user_id`, `patient_id` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 11 confirms zero alert rows for 'FHIR / SMART on FHIR App Access to ePHI Scopes'."
   },
   "dataSources": "`index=interop` `sourcetype=epic:fhir_audit` or Azure API Management / Apigee logs (`client_id`, `scope`, `patient`, `status_code`)",
   "app": "Splunk Add-on for Microsoft Windows (742), HTTP Event Collector (HEC) (Splunkbase)",
   "spl": "index=interop sourcetype=\"epic:fhir_audit\" earliest=-24h\n| eval scopes=split(scope,\" \")\n| mvexpand scopes\n| lookup fhir_app_register.csv client_id OUTPUT approved_scopes_mv\n| eval approved=if(isnotnull(mvfind(approved_scopes_mv,scopes)),1,0)\n| where approved=0 AND status_code IN (\"200\",\"201\")\n| stats count by client_id, scopes, user_id, patient_id\n| sort - count",
-  "description": "Monitors OAuth token grants and FHIR resource access so only authorized applications and scopes can read or write clinical data exposed via interoperability APIs.",
-  "value": "Monitors OAuth token grants and FHIR resource access so only authorized applications and scopes can read or.... Timely UC-22.10.23 alerting on 'FHIR / SMART on FHIR App Access to ePHI Scopes' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Monitors UC-22.10.23 — FHIR, SMART, FHIR, App, Access — using `index=interop` sourcetype `epic:fhir_audit`, grouped by `client_id`, `scopes`, `user_id`, `patient_id`. Outputs `count` each `the scheduled window`; alert when -24h. Filter chain includes lookup `fhir_app_register.csv`. Purpose-built for 'FHIR / SMART on FHIR App Access to ePHI Scopes' in Compliance workflows.",
+  "value": "UC-22.10.23 helps teams contain FHIR, SMART, FHIR, App, Access scenarios and reduce audit findings, regulatory gaps, and attestation delays before incidents compound.",
   "implementation": "(1) Ingest authorization server logs with scope strings; (2) maintain app registry with approved scopes; (3) block or revoke tokens via IAM integration for critical hits. Indexes required: `index=interop`; Sourcetypes: `sourcetype=epic:fhir_audit`, `sourcetype=epic:fhir_audit``; Lookups: `fhir_app_register`, `fhir_app_register.csv`.",
   "visualization": "Table (client, scope, hits), Sankey (client → resource type). Key fields: `approved`, `client_id`, `patient_id`, `scopes`, `user_id`.",
   "cimModels": [],

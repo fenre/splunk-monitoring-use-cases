@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pacs` sourcetype='pacs:door' where `asset_name` satisfies `delta_sec` > 120 for UC-22.15.9 ('Physical Access vs OT Network First-Seen Asset'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pacs` / `pacs:door` events where `asset_name` stays below `delta_sec` > 120, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.15.9."
+    "positiveScenario": "UC-22.15.9 positive (Physical, Access, Network, First, Seen): ingest synthetic events into `index=pacs` sourcetype='pacs:door' where `fs` grouped by `asset_name`, `vlan`, `who`, `]` satisfies `delta_sec` > 120 for 'Physical Access vs OT Network First-Seen Asset'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.15.9 negative (Seen Asset): ingest benign `pacs` / `pacs:door` events where `asset_name`, `vlan`, `who`, `]` stays below `delta_sec` > 120, or exclude the test entity via `compliance_exception_register.csv`. Variant 1 confirms zero alert rows for 'Physical Access vs OT Network First-Seen Asset'."
   },
   "dataSources": "`index=pacs` `sourcetype=\"pacs:door\"`; `index=ot_net` asset updates — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
   "app": "Nozomi Networks TA (6905), HEC from PACS (Splunkbase)",
   "spl": "index=pacs sourcetype=\"pacs:door\" door_id IN (\"OT-MCC-A\",\"OT-SERVER-1\") earliest=-24h\n| eval t_phys=_time, who=badge_id\n| join max=0 type=inner who [\n  search index=ot_net sourcetype=\"nozomi:assets\" earliest=-24h\n  | where first_seen_time>_time-86400\n  | eval who=owner\n  | stats min(first_seen_time) as fs by asset_name, vlan, who\n]\n| eval delta_sec=fs-t_phys\n| where delta_sec>120 OR isnull(who)\n| table _time, door_id, badge_id, asset_name, vlan, delta_sec",
-  "description": "Relates physical access events to new or unknown OT assets appearing on protected VLANs to strengthen environmental controls narrative.",
-  "value": "Relates physical access events to new or unknown OT assets appearing on protected VLANs to strengthen envir.... Timely UC-22.15.9 alerting on 'Physical Access vs OT Network First-Seen Asset' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Surfaces Seen Asset activity in UC-22.15.9 ('Physical Access vs OT Network First-Seen Asset') from `index=pacs` sourcetype `pacs:door`. Rolls up `fs` by `asset_name`, `vlan`, `who`, `]` across `the scheduled window` and pages when `delta_sec` > 120. Covers Physical, Access, Network, First, Seen. Compliance operators treat UC-22.15.9 as the canonical signal.",
+  "value": "Operators running UC-22.15.9 on `pacs:door` feeds shorten triage for Seen Asset tied to 'Physical Access vs OT Network First-Seen Asset', lowering audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Sync clocks between PACS and NMS; (2) enrich asset owner field; (3) filter tailgating test doors; (4) integrate physical security escalation path. Indexes required: `index=ot_net`, `index=pacs`; Sourcetypes: `sourcetype=nozomi:assets`, `sourcetype=pacs:door`.",
   "visualization": "Table, Map (optional), Time chart. Key fields: `asset_name`, `badge_id`, `delta_sec`, `door_id`, `fs`, `t_phys`.",
   "cimModels": [],

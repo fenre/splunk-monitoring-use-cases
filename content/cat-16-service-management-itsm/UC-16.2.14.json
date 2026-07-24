@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'CI Lifecycle Management' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_ci_lifecycle_management` (UC-16.2.14), SOC dashboard panel \"Operations — CI Lifecycle Management\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `entity` satisfies `age_days` > 90 for UC-16.2.14 ('CI Lifecycle Management'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:cmdb_ci` events where `entity` stays below `age_days` > 90, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.2.14."
+    "positiveScenario": "UC-16.2.14 positive (Lifecycle, Management): ingest synthetic events into `index=itsm` sourcetype='snow:cmdb_ci' where `count` grouped by `entity` satisfies `age_days` > 90 for 'CI Lifecycle Management'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.2.14 negative (Lifecycle Management): ingest benign `itsm` / `snow:cmdb_ci` events where `entity` stays below `age_days` > 90, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'CI Lifecycle Management'."
   },
   "dataSources": "`sourcetype=snow:cmdb_ci` (`install_status`, `operational_status`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:cmdb_ci\"\n| where match(lower(install_status),\"on order|pending install|received\")\n| eval created_epoch=coalesce(sys_created_on, sys_updated_on, _time)\n| eval age_days=round((now()-created_epoch)/86400,0)\n| where age_days>90\n| table name, install_status, operational_status, age_days, support_group",
-  "description": "Monitors CI lifecycle state transitions (ordered → received → in production → retired) for stuck states and policy compliance.",
-  "value": "Early 'CI Lifecycle Management' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects risk tied to Lifecycle, Management through UC-16.2.14 on `index=itsm` sourcetype `snow:cmdb_ci`. Summarises `count` grouped by `entity` across `the scheduled window` before applying `age_days` > 90. Operators tune 'CI Lifecycle Management' using UC-16.2.14 runbook steps.",
+  "value": "Tracking `activity` via UC-16.2.14 on `snow:cmdb_ci` feeds improves response to 'CI Lifecycle Management' and reduces operational risk and delayed incident response.",
   "implementation": "Adjust `install_status` values to your list. Flag CIs stuck in procurement or “pending install” beyond SLA. Report retired CIs still `operational` in error.",
   "visualization": "Table (stuck lifecycles), Bar chart (count by stuck state), Line chart (backlog trend).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'CI Lifecycle Management' shifts `count` over `span=1h` while `host` remains in-scope for UC-16.2.14. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:cmdb_ci`** — Scheduled automation elevates `created_epoch` without crossing `age_days` > 90. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.2.14)** — Planned work for 'CI Lifecycle Management' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:cmdb_ci`** — Scheduled automation elevates `created_epoch` without crossing `age_days` > 90 for UC-16.2.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:cmdb_ci`** — First 48h baseline for UC-16.2.14 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

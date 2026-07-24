@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Identity Sync Failure Detection' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_identity_sync_failure_detection` (UC-9.4.11), SOC dashboard panel \"IAM — Identity Sync Failure Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iam` sourcetype='sync:job' where `connector` satisfies `error_count` > 0 for UC-9.4.11 ('Identity Sync Failure Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iam` / `sync:job` events where `connector` stays below `error_count` > 0, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.4.11."
+    "positiveScenario": "UC-9.4.11 positive (Identity, Sync, Failure, Detection): ingest synthetic events into `index=iam` sourcetype='sync:job' where `values` grouped by `connector`, `target_system` satisfies `error_count` > 0 for 'Identity Sync Failure Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.4.11 negative (Failure Detection): ingest benign `iam` / `sync:job` events where `connector`, `target_system` stays below `error_count` > 0, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'Identity Sync Failure Detection'."
   },
   "dataSources": "Sync job logs, connector error logs Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Identity sync / SCIM connector logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iam sourcetype=\"sync:job\"\n| where status=\"failed\" OR error_count > 0\n| stats latest(_time) as last_failure, values(error_message) as errors by connector, target_system\n| table connector, target_system, last_failure, errors",
-  "description": "Sync failures cause stale or missing identities in target systems, leading to access denials or orphaned accounts. Detection enables quick remediation.",
-  "value": "Early 'Identity Sync Failure Detection' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Detects Failure Detection activity in UC-9.4.11 ('Identity Sync Failure Detection') from `index=iam` sourcetype `sync:job`. Rolls up `values` by `connector`, `target_system` across `the scheduled window` and pages when `error_count` > 0. Covers Identity, Sync, Failure, Detection. IAM operators treat UC-9.4.11 as the canonical signal.",
+  "value": "Operators running UC-9.4.11 on `sync:job` feeds shorten triage for Failure Detection tied to 'Identity Sync Failure Detection', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Ingest sync job results from IdP and HR-driven connectors. Alert on any failed run or error count >0. Track sync latency and delta size. Report on sync health by target.",
   "visualization": "Table (failed syncs), Single value (sync success %), Timeline (failure events).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `iam`** — Planned work for 'Identity Sync Failure Detection' shifts `values` over `span=1h` while `connector` remains in-scope for UC-9.4.11. Cross-check CMDB CHG.\n\n2. **Batch `values` on `sync:job`** — Scheduled automation elevates `target_system` without crossing `error_count` > 0. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`** — Health checks in `iam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sync:job`** — First 48h baseline for `connector` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `iam` (UC-9.4.11)** — Planned work for 'Identity Sync Failure Detection' shifts `values` over `span=1h` while `connector`, `target_system` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `values` on `sync:job`** — Scheduled automation elevates `target_system` without crossing `error_count` > 0 for UC-9.4.11. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `connector`, `target_system`** — Health checks in `iam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `sync:job`** — First 48h baseline for UC-9.4.11 on `connector` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `connector`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

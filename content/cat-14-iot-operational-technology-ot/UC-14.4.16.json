@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'IoT Device Certificate Expiry' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_iot_device_certificate_expiry` (UC-14.4.16), SOC dashboard panel \"Operations — IoT Device Certificate Expiry\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=iot` sourcetype='iot:cert_inventory' where `entity` satisfies `days_left` < 45 for UC-14.4.16 ('IoT Device Certificate Expiry'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `iot` / `iot:cert_inventory` events where `entity` stays below `days_left` < 45, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-14.4.16."
+    "positiveScenario": "UC-14.4.16 positive (IoT, Device, Certificate, Expiry): ingest synthetic events into `index=iot` sourcetype='iot:cert_inventory' where `count` grouped by `entity` satisfies `days_left` < 45 for 'IoT Device Certificate Expiry'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-14.4.16 negative (Certificate Expiry): ingest benign `iot` / `iot:cert_inventory` events where `entity` stays below `days_left` < 45, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'IoT Device Certificate Expiry'."
   },
   "dataSources": "`sourcetype=\"iot:cert_inventory\"` (device_id, not_after) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "PKI portal, device shadow attributes — Universal Forwarder (Splunkbase 617)",
   "spl": "index=iot sourcetype=\"iot:cert_inventory\"\n| eval days_left=round((strptime(not_after,\"%Y-%m-%dT%H:%M:%SZ\")-now())/86400,0)\n| where days_left < 45\n| table device_id, not_after, days_left\n| sort days_left",
-  "description": "Expired device certs break TLS to cloud and brick OTA; proactive rotation avoids mass outages. Searches `index=iot` with sourcetype `iot:cert_inventory` for UC-14.4.16, aggregating `count` by `entity` over `the scheduled window`. Alerts when grouped results cross `days_left` < 45 in the saved search. Gives Operations operators a repeatable signal for 'IoT Device Certificate Expiry' without manual log review.",
-  "value": "Early 'IoT Device Certificate Expiry' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Monitors UC-14.4.16 — IoT, Device, Certificate, Expiry — using `index=iot` sourcetype `iot:cert_inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_left` < 45. Primary focus: Certificate Expiry. Purpose-built for 'IoT Device Certificate Expiry' in Operations workflows.",
+  "value": "UC-14.4.16 gives Operations teams earlier visibility into Certificate Expiry through `iot:cert_inventory` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ingest cert metadata from AWS IoT / Azure DPS / custom PKI. Alert at 45, 14, 7 days. Automate renewal jobs.",
   "visualization": "Table (certs expiring), Timeline (renewal window), Single value (devices <30d).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `iot`** — Planned work for 'IoT Device Certificate Expiry' shifts `count` over `span=1h` while `host` remains in-scope for UC-14.4.16. Cross-check CMDB CHG.\n\n2. **Batch `count` on `iot:cert_inventory`** — Scheduled automation elevates `days_left` without crossing `days_left` < 45. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iot:cert_inventory`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `iot` (UC-14.4.16)** — Planned work for 'IoT Device Certificate Expiry' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `iot:cert_inventory`** — Scheduled automation elevates `days_left` without crossing `days_left` < 45 for UC-14.4.16. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `iot` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `iot:cert_inventory`** — First 48h baseline for UC-14.4.16 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "azure",
     "cert_pki"

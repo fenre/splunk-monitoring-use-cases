@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'API Key Abuse Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_api_key_abuse_detection` (UC-8.4.14), SOC dashboard panel \"Operations — API Key Abuse Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=api` sourcetype='kong:access' where `credential_id` satisfies `count` > 10000 for UC-8.4.14 ('API Key Abuse Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `api` / `kong:access` events where `credential_id` stays below `count` > 10000, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.4.14."
+    "positiveScenario": "UC-8.4.14 positive (API, Key, Abuse, Detection): ingest synthetic events into `index=api` sourcetype='kong:access' where `ips` grouped by `credential_id`, `_time` satisfies `count` > 10000, or `ips` > 50 for 'API Key Abuse Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.4.14 negative (Abuse Detection): ingest benign `api` / `kong:access` events where `credential_id`, `_time` stays below `count` > 10000, or `ips` > 50, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'API Key Abuse Detection'."
   },
   "dataSources": "`kong:access` `credential_id`, `src` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "Gateway logs with `consumer_id` or `api_key` hash — Universal Forwarder (Splunkbase 617)",
   "spl": "index=api sourcetype=\"kong:access\"\n| bin _time span=1h\n| stats count, dc(src) as ips by credential_id, _time\n| where count > 10000 OR ips > 50\n| table credential_id count ips",
-  "description": "Unusual volume of requests per API key or key used from many distinct IPs/countries in short window. Searches `index=api` with sourcetype `kong:access` for UC-8.4.14, aggregating `dc` by `credential_id` over `1h`. Alerts when grouped results cross `count` > 10000 in the saved search. Gives Operations operators a repeatable signal for 'API Key Abuse Detection' without manual log review.",
-  "value": "Early 'API Key Abuse Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies UC-8.4.14 — API, Key, Abuse, Detection — using `index=api` sourcetype `kong:access`, grouped by `credential_id`, `_time`. Outputs `ips` each `1h`; alert when `count` > 10000, or `ips` > 50. Primary focus: Abuse Detection. Purpose-built for 'API Key Abuse Detection' in Operations workflows.",
+  "value": "UC-8.4.14 accelerates insight into Abuse Detection ('API Key Abuse Detection') by tracking `ips` on `kong:access` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Never log raw API keys. Use hashed id. Baseline per credential. Alert on volume or IP diversity anomaly. Integrate with IP reputation.",
   "visualization": "Table (credential, count, ips), Map (src), Timeline (abuse spikes).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `api`** — Planned work for 'API Key Abuse Detection' shifts `dc` over `span=1h` while `credential_id` remains in-scope for UC-8.4.14. Cross-check CMDB CHG.\n\n2. **Batch `dc` on `kong:access`** — Scheduled automation elevates `_time` without crossing `count` > 10000. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `credential_id`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kong:access`** — First 48h baseline for `credential_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `credential_id`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `api` (UC-8.4.14)** — Planned work for 'API Key Abuse Detection' shifts `ips` over `span=1h` while `credential_id`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `dc` on `kong:access`** — Scheduled automation elevates `_time` without crossing `count` > 10000 for UC-8.4.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `credential_id`, `_time`** — Health checks in `api` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `kong:access`** — First 48h baseline for UC-8.4.14 on `credential_id` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `credential_id`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

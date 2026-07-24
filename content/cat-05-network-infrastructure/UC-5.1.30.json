@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'MAC Address Table Capacity' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_mac_address_table_capacity` (UC-5.1.30), SOC dashboard panel \"Operations — MAC Address Table Capacity\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=network` sourcetype='snmp:bridge' where `host` satisfies `util_pct` > 75 for UC-5.1.30 ('MAC Address Table Capacity'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `network` / `snmp:bridge` events where `host` stays below `util_pct` > 75, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-5.1.30."
+    "positiveScenario": "UC-5.1.30 positive (MAC, Address, Table, Capacity): ingest synthetic events into `index=network` sourcetype='snmp:bridge' where `count` grouped by `host` satisfies `util_pct` > 75 for 'MAC Address Table Capacity'. Validate lookup `mac_limit`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-5.1.30 negative (Table Capacity): ingest benign `network` / `snmp:bridge` events where `host` stays below `util_pct` > 75, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'MAC Address Table Capacity'."
   },
   "dataSources": "dot1qTpFdbTable count, show mac address-table count Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
   "app": "SNMP modular input, `TA-cisco_ios`, `Splunk_TA_juniper`, `arista:eos` via SC4S, HPE Aruba CX syslog — Splunk Add-on for Cisco Security (Splunkbase 1352)",
   "spl": "index=network sourcetype=snmp:bridge OR sourcetype=cisco:ios:mac\n| eval mac_count=coalesce(fdb_entries, mac_count, 0)\n| stats latest(mac_count) as current_mac by host\n| lookup mac_limit host OUTPUT max_mac\n| eval util_pct=round(current_mac/max_mac*100,1)\n| where util_pct > 75\n| table host current_mac max_mac util_pct",
-  "description": "CAM table utilization on switches approaching hardware limits. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Operations teams monitor MAC address table capacity across switches, detecting CAM table exhaustion that causes unicast flooding, performance degradation, and security exposure.",
+  "description": "Detects UC-5.1.30 — MAC, Address, Table, Capacity — using `index=network` sourcetype `snmp:bridge`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `util_pct` > 75. Filter chain includes lookup `mac_limit`. Purpose-built for 'MAC Address Table Capacity' in Operations workflows.",
+  "value": "UC-5.1.30 operationalises 'MAC Address Table Capacity' against `snmp:bridge` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Poll dot1qTpFdbTable (count) or parse `show mac address-table count`. Create lookup with switch model→max_mac. Alert when CAM utilization exceeds 75%.",
   "visualization": "Line chart (MAC count over time), Gauge, Table.",
   "cimModels": [],
@@ -44,7 +44,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `network`** — Planned work for 'MAC Address Table Capacity' shifts `count` over `span=1h` while `host` remains in-scope for UC-5.1.30. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:bridge`** — Scheduled automation elevates `mac_count` without crossing `util_pct` > 75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:bridge`** — First 48h baseline for `host` is unstable; join `mac_limit` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `network` (UC-5.1.30)** — Planned work for 'MAC Address Table Capacity' shifts `count` over `span=1h` while `host` remains in-scope. Applies lookup `mac_limit`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snmp:bridge`** — Scheduled automation elevates `mac_count` without crossing `util_pct` > 75 for UC-5.1.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `network` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snmp:bridge`** — First 48h baseline for UC-5.1.30 on `host` is unstable; join `mac_limit` prior to threshold.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cisco",
     "snmp",

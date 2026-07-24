@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=vpn` sourcetype='globalprotect' where `user` satisfies detection threshold for UC-22.6.20 ('Remote Working — VPN Split Tunnel and Sensitive App Access'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `vpn` / `globalprotect` events where `user` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.6.20."
+    "positiveScenario": "UC-22.6.20 positive (Remote, Working, VPN, Split, Tunnel): ingest synthetic events into `index=vpn` sourcetype='globalprotect' where `used_split` grouped by `user`, `private_ip` satisfies -24h for 'Remote Working — VPN Split Tunnel and Sensitive App Access'. Validate filter `index=proxy sourcetype=bluecoat:proxy earliest=-24h`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.6.20 negative (App Access): ingest benign `vpn` / `globalprotect` events where `user`, `private_ip` stays below -24h, or exclude the test entity via `compliance_exception_register.csv`. Variant 6 confirms zero alert rows for 'Remote Working — VPN Split Tunnel and Sensitive App Access'."
   },
   "dataSources": "`globalprotect` or `vpn:session` (Splunkbase 1621 — Splunk CIM Add-on)",
   "app": "Palo Alto GlobalProtect or AnyConnect logs",
   "spl": "index=vpn sourcetype=globalprotect earliest=-24h\n| eval split=if(match(config,\"split\"),1,0)\n| stats max(split) as used_split by user, private_ip\n| join user [| search index=proxy sourcetype=bluecoat:proxy earliest=-24h | stats values(url) as urls by user | where match(urls,\"(?i)/finance/|/hr/\") ]\n| where used_split=1",
-  "description": "Detects VPN sessions advertising split tunnel with subsequent access to finance or HR apps from same user session. Searches `index=vpn` with sourcetype `globalprotect` for UC-22.6.20, aggregating `max` by `user` over `the scheduled window`. Alerts when grouped results cross configured threshold in the saved search. Gives Compliance operators a repeatable signal for 'Remote Working — VPN Split Tunnel and Sensitive App Access' without manual log review.",
-  "value": "Detects VPN sessions advertising split tunnel with subsequent access to finance or HR apps from same user s.... Timely UC-22.6.20 alerting on 'Remote Working — VPN Split Tunnel and Sensitive App Access' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Detects App Access anomalies for UC-22.6.20 with window `the scheduled window` on `index=vpn` sourcetype `globalprotect`. Combines `used_split` by `user`, `private_ip` and compares against -24h. Mapped to keywords Remote, Working, VPN, Split, Tunnel for dashboard routing.",
+  "value": "Alerting on Remote, Working, VPN, Split, Tunnel through UC-22.6.20 reduces audit findings, regulatory gaps, and attestation delays by surfacing `used_split` early.",
   "implementation": "(1) Normalize user identifiers; (2) tune URL patterns; (3) align with remote work policy; (4) user education. Indexes required: `index=proxy`, `index=vpn`; Sourcetypes: `sourcetype=bluecoat:proxy`, `sourcetype=globalprotect`.",
   "visualization": "Table, Map. Key fields: `private_ip`, `split`, `urls`, `used_split`, `user`.",
   "cimModels": [

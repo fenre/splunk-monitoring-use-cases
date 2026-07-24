@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'Ring Motion Notification Lag' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_ring_motion_notification_lag` (UC-25.18.21), SOC dashboard panel \"Personal — Ring Motion Notification Lag\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='ring:event' where `device` satisfies `avg_delay_ms` > 4000 for UC-25.18.21 ('Ring Motion Notification Lag'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `ring:event` events where `device` stays below `avg_delay_ms` > 4000, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.18.21."
+    "positiveScenario": "UC-25.18.21 positive (Ring, Motion, Notification, Lag): ingest synthetic events into `index=personal` sourcetype='ring:event' where `avg_delay_ms`, `max_delay_ms` grouped by `device` satisfies `avg_delay_ms` > 4000, or `max_delay_ms` > 10000 for 'Ring Motion Notification Lag'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.18.21 negative (Notification Lag): ingest benign `personal` / `ring:event` events where `device` stays below `avg_delay_ms` > 4000, or `max_delay_ms` > 10000, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 12 confirms zero alert rows for 'Ring Motion Notification Lag'."
   },
   "dataSources": "Home security telemetry (`reolink:event`, `unifiprotect:event`, `ring:event`, `nestprotect:event`, `frigate:event`, `camera:health`, `alarm:event`, `doorbell:event`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Reolink, UniFi Protect, Ring, Nest Protect, Frigate, and Home Assistant security integrations streamed to Splunk HEC via MQTT, webhooks, and vendor APIs. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=ring:event event=motion\n| stats avg(notification_delay_ms) as avg_delay_ms, max(notification_delay_ms) as max_delay_ms by device\n| where avg_delay_ms>4000 OR max_delay_ms>10000\n| sort - avg_delay_ms",
-  "description": "Uses Ring motion alerts telemetry to monitor delay between motion detection and notification delivery in index=personal.",
-  "value": "Uses Ring motion alerts telemetry to monitor delay between motion detection and notification delivery in in.... Timely UC-25.18.21 alerting on 'Ring Motion Notification Lag' reduces missed training goals, stale hobby data, and connector failures before manual triage or audit channels escalate.",
+  "description": "Monitors UC-25.18.21 — Ring, Motion, Notification, Lag — using `index=personal` sourcetype `ring:event`, grouped by `device`. Outputs `avg_delay_ms`, `max_delay_ms` each `the scheduled window`; alert when `avg_delay_ms` > 4000, or `max_delay_ms` > 10000. Primary focus: Notification Lag. Purpose-built for 'Ring Motion Notification Lag' in Personal workflows.",
+  "value": "Tracking `avg_delay_ms`, `max_delay_ms` via UC-25.18.21 on `ring:event` feeds improves response to 'Ring Motion Notification Lag' and reduces missed training goals, stale hobby data, and connector failures.",
   "implementation": "Ingest Ring motion alerts data through its real API, export, MQTT bridge, or open-source connector into `index=personal`; preserve the fields referenced in the SPL and schedule the search on a hourly cadence.",
   "visualization": "Device table of average and max motion-notification delay.",
   "cimModels": [],
@@ -55,7 +55,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'Ring Motion Notification Lag' stops polling `ring:event`; stale `device` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ring:event`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_delay_ms` > 4000. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.18.21)** — Connector for 'Ring Motion Notification Lag' stops polling `ring:event`; stale `avg_delay_ms`, `max_delay_ms` on `device` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `avg_delay_ms`, `max_delay_ms` over `1w` is expected for UC-25.18.21, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `ring:event`. Dedup with `stats latest(*) by device`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `avg_delay_ms` > 4000 for 'Ring Motion Notification Lag'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "mqtt"
   ],

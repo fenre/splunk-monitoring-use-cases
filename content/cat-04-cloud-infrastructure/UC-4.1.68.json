@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'SQS Dead Letter Queue Growth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_sqs_dead_letter_queue_growth` (UC-4.1.68), SOC dashboard panel \"Operations — SQS Dead Letter Queue Growth\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `QueueName` satisfies `growth` > 10 for UC-4.1.68 ('SQS Dead Letter Queue Growth'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `aws` / `aws:cloudwatch` events where `QueueName` stays below `growth` > 10, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-4.1.68."
+    "positiveScenario": "UC-4.1.68 positive (SQS, Dead, Letter, Queue, Growth): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `count` grouped by `QueueName` satisfies `growth` > 10 for 'SQS Dead Letter Queue Growth'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-4.1.68 negative (Queue Growth): ingest benign `aws` / `aws:cloudwatch` events where `QueueName` stays below `growth` > 10, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'SQS Dead Letter Queue Growth'."
   },
   "dataSources": "`sourcetype=aws:cloudwatch` (AWS/SQS — ApproximateNumberOfMessagesVisible on DLQ ARNs) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
   "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" metric_name=\"ApproximateNumberOfMessagesVisible\" QueueName=\"*dlq*\"\n| sort 0 _time\n| streamstats window=12 global=f first(Average) as prev by QueueName\n| eval growth=Average-prev\n| where growth > 10\n| table _time QueueName Average growth",
-  "description": "DLQ depth growth means poison messages or downstream outages; rate-of-change highlights incidents faster than static thresholds.",
-  "value": "Early 'SQS Dead Letter Queue Growth' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-4.1.68 — SQS, Dead, Letter, Queue, Growth — using `index=aws` sourcetype `aws:cloudwatch`, grouped by `QueueName`. Outputs `count` each `the scheduled window`; alert when `growth` > 10. Primary focus: Queue Growth. Purpose-built for 'SQS Dead Letter Queue Growth' in Operations workflows.",
+  "value": "UC-4.1.68 operationalises 'SQS Dead Letter Queue Growth' against `aws:cloudwatch` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
   "implementation": "Tag DLQs consistently for `*dlq*` matching or use explicit dimension. Alert on positive growth over 1h or depth exceeding SLO. Replay with caution after root-cause.",
   "visualization": "Line chart (DLQ depth), Single value (growth rate), Table (queue, depth).",
   "cimModels": [
@@ -48,7 +48,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws`** — Planned work for 'SQS Dead Letter Queue Growth' shifts `count` over `span=1h` while `QueueName` remains in-scope for UC-4.1.68. Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `growth` without crossing `growth` > 10. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QueueName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for `QueueName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QueueName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.68)** — Planned work for 'SQS Dead Letter Queue Growth' shifts `count` over `span=1h` while `QueueName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch`** — Scheduled automation elevates `growth` without crossing `growth` > 10 for UC-4.1.68. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `QueueName`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.68 on `QueueName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `QueueName`, `exception_reason`, `valid_until`.",
   "equipment": [
     "aws"
   ],

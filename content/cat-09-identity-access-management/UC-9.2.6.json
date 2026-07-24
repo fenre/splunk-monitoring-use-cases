@@ -12,14 +12,14 @@
   "exclusions": "Covers the detection logic documented for 'LDAP Query Volume Anomalies' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_ldap_query_volume_anomalies` (UC-9.2.6), SOC dashboard panel \"IAM — LDAP Query Volume Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=ldap` sourcetype='openldap:access' where `src` satisfies `count` > 100 for UC-9.2.6 ('LDAP Query Volume Anomalies'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `ldap` / `openldap:access` events where `src` stays below `count` > 100, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.2.6."
+    "positiveScenario": "UC-9.2.6 positive (LDAP, Query, Volume, Anomalies): ingest synthetic events into `index=ldap` sourcetype='openldap:access' where `med` grouped by `src`, `_time` satisfies `count` > 100 for 'LDAP Query Volume Anomalies'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.2.6 negative (Volume Anomalies): ingest benign `ldap` / `openldap:access` events where `src`, `_time` stays below `count` > 100, or exclude the test entity via `iam_exception_register.csv`. Variant 1 confirms zero alert rows for 'LDAP Query Volume Anomalies'."
   },
   "dataSources": "OpenLDAP access log (SEARCH count), AD DS expensive search / query stats Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "LDAP access log parsing, `Splunk_TA_windows` (Directory Service 1644) — Universal Forwarder (Splunkbase 617)",
   "spl": "index=ldap sourcetype=\"openldap:access\" operation=\"SEARCH\"\n| bin _time span=15m\n| stats count by src, _time\n| eventstats median(count) as med by src\n| where count > med*10 AND count > 100\n| sort -count",
-  "description": "Sudden spikes in LDAP searches may indicate reconnaissance, brute enumeration, or misbehaving applications hammering directory services.",
-  "value": "Early 'LDAP Query Volume Anomalies' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Identifies Volume Anomalies activity in UC-9.2.6 ('LDAP Query Volume Anomalies') from `index=ldap` sourcetype `openldap:access`. Rolls up `med` by `src`, `_time` across `15m` and pages when `count` > 100. Covers LDAP, Query, Volume, Anomalies. IAM operators treat UC-9.2.6 as the canonical signal.",
+  "value": "Operators running UC-9.2.6 on `openldap:access` feeds shorten triage for Volume Anomalies tied to 'LDAP Query Volume Anomalies', lowering account takeover risk, help-desk load, and audit findings.",
   "implementation": "Baseline searches per source per interval. Alert on statistical outliers. Correlate with known ETL jobs via lookup. On AD, combine with 1644 expensive search events.",
   "visualization": "Line chart (query volume by source), Table (spikes), Bar chart (top talkers).",
   "cimModels": [
@@ -49,7 +49,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `ldap`** — Planned work for 'LDAP Query Volume Anomalies' shifts `median` over `span=15m` while `src` remains in-scope for UC-9.2.6. Cross-check CMDB CHG.\n\n2. **Batch `median` on `openldap:access`** — Scheduled automation elevates `_time` without crossing `count` > 100. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:access`** — First 48h baseline for `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `ldap` (UC-9.2.6)** — Planned work for 'LDAP Query Volume Anomalies' shifts `med` over `span=15m` while `src`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `median` on `openldap:access`** — Scheduled automation elevates `_time` without crossing `count` > 100 for UC-9.2.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `_time`** — Health checks in `ldap` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `openldap:access`** — First 48h baseline for UC-9.2.6 on `src` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
   "mitreAttack": [
     "T1087"
   ],

@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Recurring Incident Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_recurring_incident_detection` (UC-16.1.18), SOC dashboard panel \"Operations — Recurring Incident Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `_time` satisfies `count` >= 3 for UC-16.1.18 ('Recurring Incident Detection'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `itsm` / `snow:incident` events where `_time` stays below `count` >= 3, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-16.1.18."
+    "positiveScenario": "UC-16.1.18 positive (Recurring, Incident, Detection): ingest synthetic events into `index=itsm` sourcetype='snow:incident' where `count` grouped by `_time`, `key`, `short_description` satisfies `count` >= 3 for 'Recurring Incident Detection'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-16.1.18 negative (Incident Detection): ingest benign `itsm` / `snow:incident` events where `_time`, `key`, `short_description` stays below `count` >= 3, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Recurring Incident Detection'."
   },
   "dataSources": "Incidents (`sourcetype=snow:incident`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_snow` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=itsm sourcetype=\"snow:incident\" earliest=-30d\n| eval key=coalesce(cmdb_ci, category.\"|\".subcategory)\n| bin _time span=24h\n| stats count by _time, key, short_description\n| where count >= 3\n| sort -count",
-  "description": "Clusters of similar incidents within a short window signal candidates for problem records, known-error articles, or permanent fixes.",
-  "value": "Early 'Recurring Incident Detection' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Detects UC-16.1.18 — Recurring, Incident, Detection — using `index=itsm` sourcetype `snow:incident`, grouped by `_time`, `key`, `short_description`. Outputs `count` each `24h`; alert when `count` >= 3. Primary focus: Incident Detection. Purpose-built for 'Recurring Incident Detection' in Operations workflows.",
+  "value": "UC-16.1.18 helps teams contain Recurring, Incident, Detection scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Group by CI and/or category hash; use `cluster` or `anomalydetection` for text similarity if needed. Alert when ≥N incidents per day on same key. Feed to problem management queue.",
   "visualization": "Table (recurring clusters), Bar chart (count by key), Timeline (spikes).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `itsm`** — Planned work for 'Recurring Incident Detection' shifts `count` over `span=24h` while `_time` remains in-scope for UC-16.1.18. Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `key` without crossing `count` >= 3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `itsm` (UC-16.1.18)** — Planned work for 'Recurring Incident Detection' shifts `count` over `span=24h` while `_time`, `key`, `short_description` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `snow:incident`** — Scheduled automation elevates `key` without crossing `count` >= 3 for UC-16.1.18. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `_time`, `key`, `short_description`** — Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `snow:incident`** — First 48h baseline for UC-16.1.18 on `_time` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `_time`, `exception_reason`, `valid_until`.",
   "equipment": [
     "servicenow"
   ],

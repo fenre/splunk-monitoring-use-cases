@@ -27,14 +27,14 @@
     }
   ],
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=interop` sourcetype='apigee:proxy' where `client_id` satisfies detection threshold for UC-22.10.53 ('Subcontractor Access — Downstream API Keys Touching ePHI Interfaces'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `interop` / `apigee:proxy` events where `client_id` stays below detection threshold, or exclude the test entity via `compliance_exception_register.csv` with a valid window. Confirm zero alert rows for UC-22.10.53."
+    "positiveScenario": "UC-22.10.53 positive (Subcontractor, Access, Downstream, API, Keys): ingest synthetic events into `index=interop` sourcetype='apigee:proxy' where `status_codes` grouped by `client_id`, `api_key` satisfies -30d for 'Subcontractor Access — Downstream API Keys Touching ePHI Interfaces'. Validate lookup `ba_subcontractor_clients.csv`. Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-22.10.53 negative (ePHI Interfaces): ingest benign `interop` / `apigee:proxy` events where `client_id`, `api_key` stays below -30d, or exclude the test entity via `compliance_exception_register.csv`. Variant 10 confirms zero alert rows for 'Subcontractor Access — Downstream API Keys Touching ePHI Interfaces'."
   },
   "dataSources": "`index=interop` `sourcetype=apigee:proxy` or AWS API Gateway logs (`client_id`, `api_key`, `consumer`), `lookup ba_subcontractor_clients.csv`",
   "app": "HTTP Event Collector (HEC), Splunk Enterprise Security (263) (Splunkbase)",
   "spl": "index=interop sourcetype=\"apigee:proxy\" uri_path=\"/fhir/*\" earliest=-30d\n| stats earliest(_time) as first_seen latest(_time) as last_seen dc(status) as status_codes by client_id, api_key\n| eval key_or_client=coalesce(client_id, api_key)\n| lookup ba_subcontractor_clients.csv key_or_client OUTPUT approved_vendor, subcontractor_name\n| where isnull(approved_vendor)\n| sort first_seen",
-  "description": "Monitors first-seen API keys or OAuth clients used by BA subcontractors against an approved key registry so the extended BAA chain does not introduce unreviewed ePHI paths.",
-  "value": "Monitors first-seen API keys or OAuth clients used by BA subcontractors against an approved key registry so.... Timely UC-22.10.53 alerting on 'Subcontractor Access — Downstream API Keys Touching ePHI Interfaces' reduces audit findings, regulatory gaps, and attestation delays before manual triage or audit channels escalate.",
+  "description": "Alerts on UC-22.10.53 — Subcontractor, Access, Downstream, API, Keys — using `index=interop` sourcetype `apigee:proxy`, grouped by `client_id`, `api_key`. Outputs `status_codes` each `the scheduled window`; alert when -30d. Filter chain includes lookup `ba_subcontractor_clients.csv`. Purpose-built for 'Subcontractor Access — Downstream API Keys Touching ePHI Interfaces' in Compliance workflows.",
+  "value": "For 'Subcontractor Access — Downstream API Keys Touching ePHI Interfaces', UC-22.10.53 converts `status_codes` on `apigee:proxy` feeds into actionable rows and reduces audit findings, regulatory gaps, and attestation delays.",
   "implementation": "(1) Hash static API keys at ingest with `sha256(api_key)` for display fields; (2) require procurement to register subcontractor keys before production; (3) auto-revoke via API management integration on critical alerts. Indexes required: `index=interop`; Sourcetypes: `sourcetype=apigee:proxy`, `sourcetype=apigee:proxy``; Lookups: `ba_subcontractor_clients`, `ba_subcontractor_clients.csv`.",
   "visualization": "Table (first_seen, key hash, path), Timeline (new clients per week).",
   "cimModels": [],

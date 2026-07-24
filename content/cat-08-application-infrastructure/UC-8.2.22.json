@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for '.NET Exception Rate Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_net_exception_rate_trending` (UC-8.2.22), SOC dashboard panel \"Operations — .NET Exception Rate Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CLR_Exceptions' where `process_name` satisfies `ex_rate` > 1 for UC-8.2.22 ('.NET Exception Rate Trending'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `perfmon` / `Perfmon:CLR_Exceptions` events where `process_name` stays below `ex_rate` > 1, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.22."
+    "positiveScenario": "UC-8.2.22 positive (.NET, Exception, Rate, Trending): ingest synthetic events into `index=perfmon` sourcetype='Perfmon:CLR_Exceptions' where `ex_rate`, `baseline` grouped by `process_name` satisfies `ex_rate` > 1 for '.NET Exception Rate Trending'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.22 negative (Rate Trending): ingest benign `perfmon` / `Perfmon:CLR_Exceptions` events where `process_name` stays below `ex_rate` > 1, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for '.NET Exception Rate Trending'."
   },
   "dataSources": "`.NET CLR Exceptions` `# of Exceps Thrown / sec` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "`Splunk_TA_windows` Perfmon, Serilog/NLog — Universal Forwarder (Splunkbase 617)",
   "spl": "index=perfmon sourcetype=\"Perfmon:CLR_Exceptions\"\n| timechart span=5m sum(Exceps_Thrown_per_sec) as ex_rate by process_name\n| eventstats avg(ex_rate) as baseline by process_name\n| where ex_rate > baseline * 5 AND ex_rate > 1",
-  "description": "`# of Exceps Thrown / sec` and first-chance exception logs show error storms after deploys. Complements log-based UC-8.2.4 with runtime counters.",
-  "value": "Early '.NET Exception Rate Trending' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Surfaces UC-8.2.22 — .NET, Exception, Rate, Trending — using `index=perfmon` sourcetype `Perfmon:CLR_Exceptions`, grouped by `process_name`. Outputs `ex_rate`, `baseline` each `5m`; alert when `ex_rate` > 1. Primary focus: Rate Trending. Purpose-built for '.NET Exception Rate Trending' in Operations workflows.",
+  "value": "Operators running UC-8.2.22 on `Perfmon:CLR_Exceptions` feeds shorten triage for Rate Trending tied to '.NET Exception Rate Trending', lowering operational risk and delayed incident response.",
   "implementation": "Baseline per process. Alert on 5× baseline. Join with deployment markers from UC-8.2.5.",
   "visualization": "Line chart (exception rate), Table (process, spike factor), Single value (total exceptions/sec).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `perfmon`** — Planned work for '.NET Exception Rate Trending' shifts `sum` over `span=5m` while `process_name` remains in-scope for UC-8.2.22. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `Perfmon:CLR_Exceptions`** — Scheduled automation elevates `src` without crossing `ex_rate` > 1. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `process_name`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:CLR_Exceptions`** — First 48h baseline for `process_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `process_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `perfmon` (UC-8.2.22)** — Planned work for '.NET Exception Rate Trending' shifts `ex_rate`, `baseline` over `span=5m` while `process_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `Perfmon:CLR_Exceptions`** — Scheduled automation elevates `src` without crossing `ex_rate` > 1 for UC-8.2.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `process_name`** — Health checks in `perfmon` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `Perfmon:CLR_Exceptions`** — First 48h baseline for UC-8.2.22 on `process_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `process_name`, `exception_reason`, `valid_until`.",
   "equipment": [
     "hardware_bmc",
     "windows"

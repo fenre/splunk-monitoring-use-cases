@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'Garbage Collection Impact' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
   "evidence": "Saved search `operations_garbage_collection_impact` (UC-8.2.2), SOC dashboard panel \"Operations — Garbage Collection Impact\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=jvm` sourcetype='jvm:gc' where `host` satisfies `gc_pause_ms` > 200 for UC-8.2.2 ('Garbage Collection Impact'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `jvm` / `jvm:gc` events where `host` stays below `gc_pause_ms` > 200, or exclude the test entity via `ops_exception_register.csv` with a valid window. Confirm zero alert rows for UC-8.2.2."
+    "positiveScenario": "UC-8.2.2 positive (Garbage, Collection, Impact): ingest synthetic events into `index=jvm` sourcetype='jvm:gc' where `total_pause_ms` grouped by `host` satisfies `gc_pause_ms` > 200 for 'Garbage Collection Impact'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-8.2.2 negative (Collection Impact): ingest benign `jvm` / `jvm:gc` events where `host` stays below `gc_pause_ms` > 200, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Garbage Collection Impact'."
   },
   "dataSources": "JVM GC logs, JMX GarbageCollector MBeans Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "GC log parsing, `TA-jmx` — Universal Forwarder (Splunkbase 617)",
   "spl": "index=jvm sourcetype=\"jvm:gc\"\n| where gc_pause_ms > 200\n| timechart span=15m count as gc_events, sum(gc_pause_ms) as total_pause_ms by host\n| eval pause_pct=round(total_pause_ms/900000*100,2)",
-  "description": "Frequent or long GC pauses cause application latency spikes and request timeouts. Monitoring guides JVM tuning. Searches `index=jvm` with sourcetype `jvm:gc` for UC-8.2.2, aggregating `sum` by `host` over `15m`. Alerts when grouped results cross `gc_pause_ms` > 200 in the saved search. Gives Operations operators a repeatable signal for 'Garbage Collection Impact' without manual log review.",
-  "value": "Early 'Garbage Collection Impact' detection reduces operational risk and delayed incident response by giving Operations operators a Splunk-native signal before manual triage or audit channels surface the issue.",
+  "description": "Identifies Collection Impact anomalies for UC-8.2.2 with window `15m` on `index=jvm` sourcetype `jvm:gc`. Combines `total_pause_ms` by `host` and compares against `gc_pause_ms` > 200. Mapped to keywords Garbage, Collection, Impact for dashboard routing.",
+  "value": "Alerting on Garbage, Collection, Impact through UC-8.2.2 reduces operational risk and delayed incident response by surfacing `total_pause_ms` early.",
   "implementation": "Enable GC logging on all JVM-based app servers (`-Xlog:gc*` for Java 11+). Forward logs via UF. Parse pause duration, type, and cause. Alert on pauses >200ms or total pause time >5% of wall clock time.",
   "visualization": "Line chart (GC pause duration), Histogram (pause distribution), Single value (total pause time per hour).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `jvm`** — Planned work for 'Garbage Collection Impact' shifts `sum` over `span=15m` while `host` remains in-scope for UC-8.2.2. Cross-check CMDB CHG.\n\n2. **Batch `sum` on `jvm:gc`** — Scheduled automation elevates `pause_pct` without crossing `gc_pause_ms` > 200. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jvm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jvm:gc`** — First 48h baseline for `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `jvm` (UC-8.2.2)** — Planned work for 'Garbage Collection Impact' shifts `total_pause_ms` over `span=15m` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `jvm:gc`** — Scheduled automation elevates `pause_pct` without crossing `gc_pause_ms` > 200 for UC-8.2.2. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `jvm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `jvm:gc`** — First 48h baseline for UC-8.2.2 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
   "equipment": [
     "splunk"
   ],

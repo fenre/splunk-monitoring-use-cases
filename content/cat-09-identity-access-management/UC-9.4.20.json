@@ -11,14 +11,14 @@
   "exclusions": "Covers the detection logic documented for 'PAM Agent Health Monitoring' only. Does not replace full SIEM correlation, IdP cloud-native analytics, or regulatory attestation. Entities listed in `iam_exception_register.csv` during approved tests are excluded.",
   "evidence": "Saved search `iam_pam_agent_health_monitoring` (UC-9.4.20), SOC dashboard panel \"IAM — PAM Agent Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:iam_controls.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=pam` sourcetype='cyberark:agent_heartbeat' where `agent_type` satisfies `secs_since` > 300 for UC-9.4.20 ('PAM Agent Health Monitoring'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `pam` / `cyberark:agent_heartbeat` events where `agent_type` stays below `secs_since` > 300, or exclude the test entity via `iam_exception_register.csv` with a valid window. Confirm zero alert rows for UC-9.4.20."
+    "positiveScenario": "UC-9.4.20 positive (PAM, Agent, Health, Monitoring): ingest synthetic events into `index=pam` sourcetype='cyberark:agent_heartbeat' where `count` grouped by `agent_type`, `hostname` satisfies `secs_since` > 300 for 'PAM Agent Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-9.4.20 negative (Health Monitoring): ingest benign `pam` / `cyberark:agent_heartbeat` events where `agent_type`, `hostname` stays below `secs_since` > 300, or exclude the test entity via `iam_exception_register.csv`. Variant 14 confirms zero alert rows for 'PAM Agent Health Monitoring'."
   },
   "dataSources": "Agent heartbeat, service status, `Get-PMPServerHealth`-style scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
   "app": "CyberArk component monitoring, SNMP/HEARTBEAT logs — Universal Forwarder (Splunkbase 617)",
   "spl": "index=pam sourcetype=\"cyberark:agent_heartbeat\"\n| stats latest(_time) as last_hb by agent_type, hostname\n| eval secs_since=now()-last_hb\n| where secs_since > 300\n| table agent_type, hostname, secs_since",
-  "description": "CPM, PSM, and PVWA agents offline block rotation and session capture; distinct from vault binary health (UC-9.4.6). Searches `index=pam` with sourcetype `cyberark:agent_heartbeat` for UC-9.4.20, aggregating `count` by `agent_type` over `the scheduled window`. Alerts when grouped results cross `secs_since` > 300 in the saved search. Gives IAM operators a repeatable signal for 'PAM Agent Health Monitoring' without manual log review.",
-  "value": "Early 'PAM Agent Health Monitoring' detection reduces account takeover risk, help-desk load, and audit findings by giving IAM operators a Splunk-native signal before IdP lockout or breach reports arrive through manual channels.",
+  "description": "Alerts on UC-9.4.20 — PAM, Agent, Health, Monitoring — using `index=pam` sourcetype `cyberark:agent_heartbeat`, grouped by `agent_type`, `hostname`. Outputs `count` each `the scheduled window`; alert when `secs_since` > 300. Primary focus: Health Monitoring. Purpose-built for 'PAM Agent Health Monitoring' in IAM workflows.",
+  "value": "Alerting on PAM, Agent, Health, Monitoring through UC-9.4.20 reduces account takeover risk, help-desk load, and audit findings by surfacing `activity` early.",
   "implementation": "Agents send heartbeat every 60s. Alert if no heartbeat >5 minutes. Auto-ticket remediation for PSM in production zones.",
   "visualization": "Status grid (agent × host), Single value (unhealthy agents), Line chart (heartbeat age).",
   "cimModels": [
@@ -47,7 +47,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `pam`** — Planned work for 'PAM Agent Health Monitoring' shifts `count` over `span=1h` while `agent_type` remains in-scope for UC-9.4.20. Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:agent_heartbeat`** — Scheduled automation elevates `hostname` without crossing `secs_since` > 300. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_type`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:agent_heartbeat`** — First 48h baseline for `agent_type` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `agent_type`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Maintenance window on `pam` (UC-9.4.20)** — Planned work for 'PAM Agent Health Monitoring' shifts `count` over `span=1h` while `agent_type`, `hostname` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `cyberark:agent_heartbeat`** — Scheduled automation elevates `hostname` without crossing `secs_since` > 300 for UC-9.4.20. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `agent_type`, `hostname`** — Health checks in `pam` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `cyberark:agent_heartbeat`** — First 48h baseline for UC-9.4.20 on `agent_type` is unstable; window via `iam_exception_register.csv`.\n\n**Suppression mechanism:** `iam_exception_register.csv` keyed on `agent_type`, `exception_reason`, `valid_until`.",
   "equipment": [
     "cyberark",
     "hashicorp",

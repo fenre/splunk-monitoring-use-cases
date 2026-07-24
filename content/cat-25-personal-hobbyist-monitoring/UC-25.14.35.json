@@ -12,14 +12,14 @@
   "exclusions": "Covers personal hobby monitoring for 'OpenSky Altitude Hold Anomaly' only. Does not replace enterprise SIEM, ITSM, or compliance attestation. Not intended for production security operations — exclude shared/demo HEC tokens during connector testing.",
   "evidence": "Saved search `personal_opensky_altitude_hold_anomaly` (UC-25.14.35), SOC dashboard panel \"Personal — OpenSky Altitude Hold Anomaly\", and weekly export to `index=audit_evidence` sourcetype=csv:personal_metrics.",
   "controlTest": {
-    "positiveScenario": "Ingest synthetic events into `index=personal` sourcetype='opensky:state' where `icao24` satisfies `alt_sd` < 5 for UC-25.14.35 ('OpenSky Altitude Hold Anomaly'). Run the saved search and confirm at least one alertable row with expected fields populated.",
-    "negativeScenario": "Ingest benign `personal` / `opensky:state` events where `icao24` stays below `alt_sd` < 5, or exclude the test entity via `personal_monitoring_notes.csv` with a valid window. Confirm zero alert rows for UC-25.14.35."
+    "positiveScenario": "UC-25.14.35 positive (OpenSky, Altitude, Hold, Anomaly): ingest synthetic events into `index=personal` sourcetype='opensky:state' where `alt_sd` grouped by `icao24` satisfies `alt_sd` < 5, or `velocity_mps` > 100 for 'OpenSky Altitude Hold Anomaly'.  Run the saved search and confirm at least one alertable row.",
+    "negativeScenario": "UC-25.14.35 negative (Hold Anomaly): ingest benign `personal` / `opensky:state` events where `icao24` stays below `alt_sd` < 5, or `velocity_mps` > 100, or exclude the test entity via `personal_monitoring_notes.csv`. Variant 3 confirms zero alert rows for 'OpenSky Altitude Hold Anomaly'."
   },
   "dataSources": "ADS-B aircraft snapshots (`adsb:aircraft`), personal flight logbook (`flight:log`), commute trips (`commute:trip`), transit arrivals (`transit:arrival`), geofence events (`geofence:event`), travel documents (`travel:document`), fare quotes (`airprice:quote`). Ingested via Universal Forwarder or Splunk HEC (Splunkbase 617) scripted input or token.",
   "app": "Home ADS-B receiver (dump1090/readsb/tar1090 JSON feed), personal flight logbook exports, commute/transit APIs, and phone geofence webhooks via Splunk HEC. — Universal Forwarder or Splunk HEC (Splunkbase 617)",
   "spl": "index=personal sourcetype=opensky:state\n| streamstats window=10 stdev(baro_altitude_m) as alt_sd by icao24\n| where alt_sd<5 AND velocity_mps>100",
-  "description": "Finds OpenSky tracks with unusually stable altitude at high speed. This use case monitors the condition described in the title using the SPL and data sources documented on this page.",
-  "value": "Surfacing opensky altitude hold anomaly helps you act before small issues become habits reduces missed training goals, stale hobby data, and connector failures by surfacing actionable rows before manual triage or audit channels escalate the issue.",
+  "description": "Alerts on when Hold Anomaly criteria fire for 'OpenSky Altitude Hold Anomaly' (UC-25.14.35) in `index=personal` sourcetype `opensky:state`. Pipeline aggregates `alt_sd` by `icao24` over `the scheduled window`. Alert logic enforces `alt_sd` < 5, or `velocity_mps` > 100. Title terms: OpenSky, Altitude, Hold, Anomaly. Eliminates manual hunting for UC-25.14.35 conditions.",
+  "value": "UC-25.14.35 helps teams contain OpenSky, Altitude, Hold, Anomaly scenarios and reduce missed training goals, stale hobby data, and connector failures before incidents compound.",
   "implementation": "Ingest the relevant travel, commute & flight-spotting export into `index=personal` and schedule this search weekly.",
   "visualization": "Table or chart of key fields.",
   "cimModels": [],
@@ -45,7 +45,7 @@
       "retrieved": "2026-04-25"
     }
   ],
-  "knownFalsePositives": "1. **OAuth or API token expiry** — Connector for 'OpenSky Altitude Hold Anomaly' stops polling `opensky:state`; stale `icao24` rows remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `stdev` over `1w` is expected, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `opensky:state`. Dedup with `stats latest(*) by icao24`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `alt_sd` < 5. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
+  "knownFalsePositives": "1. **OAuth or API token expiry (UC-25.14.35)** — Connector for 'OpenSky Altitude Hold Anomaly' stops polling `opensky:state`; stale `alt_sd` on `icao24` remain in `index=personal`. Check `_internal` HEC 401s.\n\n2. **Rest day or planned break** — Zero `alt_sd` over `1w` is expected for UC-25.14.35, not ingestion failure.\n\n3. **Multi-device double-count** — Same activity synced from watch and phone into `opensky:state`. Dedup with `stats latest(*) by icao24`.\n\n4. **Timezone bucket misalignment** — `1w` bins on UTC vs local schedule skew `alt_sd` < 5 for 'OpenSky Altitude Hold Anomaly'. Document offset in SPL `bin _time`.\n\n**Suppression mechanism:** Personal preference notes in `personal_monitoring_notes.csv` (not enterprise CMDB/ServiceNow registers).",
   "equipment": [
     "splunk"
   ],
