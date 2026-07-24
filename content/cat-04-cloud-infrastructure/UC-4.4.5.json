@@ -13,11 +13,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.5 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.5 search returns zero rows."
   },
-  "dataSources": "AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs)",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via Combined cloud TAs, Config/Policy exports, or third-party CSPM; validate ingest with `| stats count by sourcetype`.",
   "app": "Combined cloud TAs, Config/Policy exports, or third-party CSPM",
-  "spl": "index=aws OR index=azure OR index=gcp\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval resource_type=coalesce(resourceType, type, resource.type)\n| stats dc(resourceId) as resource_count values(cloud) as clouds by resource_type\n| sort -resource_count",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" OR index=azure OR index=gcp\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.5_cloud_resource_inventory_5\"\n| sort -_time",
   "description": "Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.",
-  "value": "Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting cloud resource inventory and drift summary early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Export resource inventory from each provider (Config snapshot, Resource Graph query, Asset Inventory API) to S3/storage or stream to Splunk. Normalize resource type and tags. Dashboard resource count by type and cloud. Compare with IaC state for drift.",
   "visualization": "Table (type, cloud, count), Stacked bar (resources by cloud), Pie chart (resource distribution).",
   "cimModels": [
@@ -27,6 +27,10 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "A plan can show a diff right after a release while state catches up, or when we intentionally tuned something in the console during an emergency. We confirm the workspace and the window before we treat it as unplanned drift.",
@@ -36,17 +40,18 @@
   ],
   "securityDomain": "cloud",
   "equipment": [
+    "aws",
     "azure"
   ],
   "equipmentModels": [
-    "azure_activity_log"
+    "aws_cloudtrail"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Combined cloud TAs, Config/Policy exports, or third-party CSPM.\n• Ensure the following data sources are available: AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport resource inventory from each provider (Config snapshot, Resource Graph query, Asset Inventory API) to S3/storage or stream to Splunk. Normalize resource type and tags. Dashboard resource count by type and cloud. Compare with IaC state for drift.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws OR index=azure OR index=gcp\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval resource_type=coalesce(resourceType, type, resource.type)\n| stats dc(resourceId) as resource_count values(cloud) as clouds by resource_type\n| sort -resource_count\n```\n\nUnderstanding this SPL\n\n**Cloud Resource Inventory and Drift Summary** — Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection. Drift summary highlights resources changed outside IaC.\n\nDocumented **Data sources**: AWS Config, Azure Resource Graph, GCP Asset Inventory (or provider APIs). **App/TA** (typical add-on context): Combined cloud TAs, Config/Policy exports, or third-party CSPM. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **resource_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by resource_type** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (type, cloud, count), Stacked bar (resources by cloud), Pie chart (resource distribution).",
-  "grandmaExplanation": "Unified inventory of resources across AWS/Azure/GCP supports compliance, cost, and drift detection.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Combined cloud TAs, Config/Policy exports, or third-party CSPM with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nExport resource inventory from each provider (Config snapshot, Resource Graph query, Asset Inventory API) to S3/storage or stream to Splunk. Normalize resource type and tags. Dashboard resource count by type and cloud. Compare with IaC state for drift.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" OR index=azure OR index=gcp\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.5_cloud_resource_inventory_5\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=aws` to detect cloud resource inventory and drift summary. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_5_alert` with severity aligned to `medium` criticality. Dashboard: Table (type, cloud, count), Stacked bar (resources by cloud), Pie chart (resource distribution)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Combined cloud TAs, Config/Policy exports, or third-party CSPM and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud resource inventory and drift summary so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.17 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.17 search returns zero rows."
   },
-  "dataSources": "AWS Service Quotas API, Trusted Advisor (limits), Azure usage and quotas, GCP quota API",
+  "dataSources": "`index=aws` sourcetype=`aws:service_quotas` collected via `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas",
-  "spl": "index=aws sourcetype=\"aws:service_quotas\"\n| eval usage_pct=round(usage/value*100, 1)\n| where usage_pct > 80\n| table quota_name region usage value usage_pct\n| sort -usage_pct",
+  "spl": "index=aws sourcetype=\"aws:service_quotas\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.17_cloud_quota_and_service_17\"\n| sort -_time",
   "description": "Hitting account or region quotas (e.g. EC2 instance limit, VPCs, EBS volumes) blocks provisioning and causes runtime failures. Proactive tracking supports limit increase requests.",
-  "value": "Hitting account or region quotas (e.g. EC2 instance limit, VPCs, EBS volumes) blocks provisioning and causes runtime failures. Proactive tracking supports limit increase requests. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting cloud quota and service limit utilization early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Poll Service Quotas (or equivalent) for key limits (EC2, EBS, VPC, Lambda concurrency). Ingest current usage and quota value. Alert when utilization exceeds 80%. Dashboard all quotas with trend.",
   "visualization": "Table (quota, usage %, limit), Gauge per critical quota, Bar chart (top near-limit quotas).",
   "cimModels": [
@@ -26,6 +26,10 @@
     {
       "title": "Splunk_TA_aws",
       "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "Planned load tests, new regions, and one-off batch jobs can legitimately run near limits. We treat a breach as normal when it is tied to a change ticket and a known window, and we reset after the window ends.",
@@ -36,14 +40,14 @@
     "gcp"
   ],
   "equipmentModels": [
-    "aws_cloudtrail"
+    "aws_service_quotas"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas.\n• Ensure the following data sources are available: AWS Service Quotas API, Trusted Advisor (limits), Azure usage and quotas, GCP quota API.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll Service Quotas (or equivalent) for key limits (EC2, EBS, VPC, Lambda concurrency). Ingest current usage and quota value. Alert when utilization exceeds 80%. Dashboard all quotas with trend.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:service_quotas\"\n| eval usage_pct=round(usage/value*100, 1)\n| where usage_pct > 80\n| table quota_name region usage value usage_pct\n| sort -usage_pct\n```\n\nUnderstanding this SPL\n\n**Cloud Quota and Service Limit Utilization** — Hitting account or region quotas (e.g. EC2 instance limit, VPCs, EBS volumes) blocks provisioning and causes runtime failures. Proactive tracking supports limit increase requests.\n\nDocumented **Data sources**: AWS Service Quotas API, Trusted Advisor (limits), Azure usage and quotas, GCP quota API. **App/TA** (typical add-on context): `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:service_quotas. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:service_quotas\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **usage_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where usage_pct > 80` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cloud Quota and Service Limit Utilization**): table quota_name region usage value usage_pct\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (quota, usage %, limit), Gauge per critical quota, Bar chart (top near-limit quotas).",
-  "grandmaExplanation": "Hitting account or region quotas (cloud servers instance limit, VPCs, EBS volumes) blocks provisioning and causes runtime failures.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas with the modular input for `aws:service_quotas`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nPoll Service Quotas (or equivalent) for key limits (EC2, EBS, VPC, Lambda concurrency). Ingest current usage and quota value. Alert when utilization exceeds 80%. Dashboard all quotas with trend.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:service_quotas\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:service_quotas\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.17_cloud_quota_and_service_17\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:service_quotas` in `index=aws` to detect cloud quota and service limit utilization. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_17_alert` with severity aligned to `high` criticality. Dashboard: Table (quota, usage %, limit), Gauge per critical quota, Bar chart (top near-limit quotas)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws`, Service Quotas API, Azure quotas, GCP quotas and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud quota and service limit utilization so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

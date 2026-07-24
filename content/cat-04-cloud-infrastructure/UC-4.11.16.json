@@ -22,11 +22,11 @@
     "positiveScenario": "Replay or inject sample `azure:monitor:resource` events matching `*` into `index=azure`. Confirm UC-4.11.16 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `azure:monitor:resource` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=azure` `sourcetype=azure:monitor:resource`",
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:resource` collected via Splunk Add-on for Microsoft Cloud Services; validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for Microsoft Cloud Services",
-  "spl": "index=azure sourcetype=\"azure:monitor:resource\"\n| table _time action user resource\n| sort -_time",
-  "description": "Monitors Azure cost signals for functions consumption spike.",
-  "value": "Functions Consumption Spike on Azure affects commit and PAYG efficiency.",
+  "spl": "index=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*Consumption Spike\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.11.16_azure_finops_functions_c_16\"\n| sort -_time",
+  "description": "Monitors Azure cost signals for functions consumption spike. This UC monitors `azure:monitor:resource` for azure finops functions consumption spike and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "Functions Consumption Spike on Azure affects commit and PAYG efficiency. Detecting azure finops functions consumption spike early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:resource.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -48,14 +48,17 @@
   "equipment": [
     "azure"
   ],
+  "equipmentModels": [
+    "azure_metrics"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=azure`.\n• Install and configure: Splunk Add-on for Microsoft Cloud Services.\n• Ensure `azure:monitor:resource` events are flowing (prerequisite UC: 4.11.1 when applicable).\n• Map `azure` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:resource.\nExpected sourcetype: `azure:monitor:resource`. Validate with:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `azure:monitor:resource` in `index=azure` and applies `*` to surface `Azure FinOps Functions Consumption Spike`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_11_16_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for Microsoft Cloud Services` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for azure finops functions consumption spike in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk Add-on for Microsoft Cloud Services with the modular input for `azure:monitor:resource`.\n• Prerequisite crawl UC(s): UC-4.11.1.\n• Confirm field extractions in `props.conf` for `ResourceId` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:resource.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*Consumption Spike\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.11.16_azure_finops_functions_c_16\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:resource` in `index=azure` to detect azure finops functions consumption spike. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Metrics explorer for the same 24-hour window. Confirm row counts and `ResourceId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_11_16_alert` with severity aligned to `medium` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Microsoft Cloud Services and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure finops functions consumption spike so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.11.1"
   ],

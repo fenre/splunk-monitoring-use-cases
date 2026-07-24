@@ -22,11 +22,11 @@
     "positiveScenario": "Replay or inject sample `google:gcp:pubsub:message` events matching `*` into `index=gcp`. Confirm UC-4.5.23 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `google:gcp:pubsub:message` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=gcp` `sourcetype=google:gcp:pubsub:message`",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:pubsub:message` collected via Provider serverless monitoring via cloud TA; validate ingest with `| stats count by sourcetype`.",
   "app": "Provider serverless monitoring via cloud TA",
-  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\"\n| table _time action user resource\n| sort -_time",
-  "description": "Cloud Run latency breaches SLO.",
-  "value": "GCP Cloud Run Request Latency impacts serverless SLOs and cost efficiency.",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.5.23_gcp_cloud_run_request_la_23\"\n| sort -_time",
+  "description": "Cloud Run latency breaches SLO. This UC monitors `google:gcp:pubsub:message` for gcp cloud run request latency and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "GCP Cloud Run Request Latency impacts serverless SLOs and cost efficiency. Detecting gcp cloud run request latency early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:pubsub:message.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -48,14 +48,17 @@
   "equipment": [
     "gcp"
   ],
+  "equipmentModels": [
+    "gcp_pubsub"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=gcp`.\n• Install and configure: Provider serverless monitoring via cloud TA.\n• Ensure `google:gcp:pubsub:message` events are flowing (prerequisite UC: 4.5.16 when applicable).\n• Map `gcp` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:pubsub:message.\nExpected sourcetype: `google:gcp:pubsub:message`. Validate with:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `google:gcp:pubsub:message` in `index=gcp` and applies `*` to surface `GCP Cloud Run Request Latency`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_23_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Provider serverless monitoring via cloud TA` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for gcp cloud run request latency in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure Provider serverless monitoring via cloud TA with the modular input for `google:gcp:pubsub:message`.\n• Prerequisite crawl UC(s): UC-4.5.16.\n• Confirm field extractions in `props.conf` for `messageId` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:pubsub:message.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.5.23_gcp_cloud_run_request_la_23\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:pubsub:message` in `index=gcp` to detect gcp cloud run request latency. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `messageId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_23_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Provider serverless monitoring via cloud TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp cloud run request latency so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.5.16"
   ],

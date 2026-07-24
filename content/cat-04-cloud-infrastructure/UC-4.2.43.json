@@ -13,11 +13,11 @@
     "positiveScenario": "Inject sample events matching UC-4.2.43 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.2.43 search returns zero rows."
   },
-  "dataSources": "Defender for Cloud recommendations JSON, continuous export to Log Analytics/Event Hub",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:defender` collected via `Splunk_TA_microsoft-cloudservices`, Defender export API; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_microsoft-cloudservices`, Defender export API",
-  "spl": "index=azure sourcetype=\"mscs:azure:defender\" recommendationState=\"Active\"\n| stats count by recommendationName, severity\n| sort -count",
+  "spl": "index=azure sourcetype=\"mscs:azure:defender\" recommendationState=\"Active\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.43_defender_for_cloud_recom_43\"\n| sort -_time",
   "description": "Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.",
-  "value": "Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting defender for cloud recommendations early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Export recommendations on schedule via Logic App or Microsoft Graph security API to Splunk. Track mean time to remediate by severity. Executive dashboard of secure score trend if ingested.",
   "visualization": "Bar chart (recommendations by type), Table (severity, count), Line chart (open recommendations over time).",
   "cimModels": [
@@ -40,18 +40,17 @@
   "securityDomain": "cloud",
   "equipment": [
     "azure",
-    "defender",
     "m365"
   ],
   "equipmentModels": [
-    "azure_activity_log"
+    "azure_defender"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`, Defender export API.\n• Ensure the following data sources are available: Defender for Cloud recommendations JSON, continuous export to Log Analytics/Event Hub.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nExport recommendations on schedule via Logic App or Microsoft Graph security API to Splunk. Track mean time to remediate by severity. Executive dashboard of secure score trend if ingested.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:defender\" recommendationState=\"Active\"\n| stats count by recommendationName, severity\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Defender for Cloud Recommendations** — Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.\n\nDocumented **Data sources**: Defender for Cloud recommendations JSON, continuous export to Log Analytics/Event Hub. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`, Defender export API. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:defender. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:defender\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by recommendationName, severity** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (recommendations by type), Table (severity, count), Line chart (open recommendations over time).",
-  "grandmaExplanation": "Secure score and recommendations drive hardening backlog; trending open recommendations shows risk posture over time.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices`, Defender export API with the modular input for `mscs:azure:defender`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nExport recommendations on schedule via Logic App or Microsoft Graph security API to Splunk. Track mean time to remediate by severity. Executive dashboard of secure score trend if ingested.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:defender\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:defender\" recommendationState=\"Active\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.43_defender_for_cloud_recom_43\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:defender` in `index=azure` to detect defender for cloud recommendations. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_43_alert` with severity aligned to `medium` criticality. Dashboard: Bar chart (recommendations by type), Table (severity, count), Line chart (open recommendations over time)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices`, Defender export API and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of defender for cloud recommendations so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.2.58"
   ],

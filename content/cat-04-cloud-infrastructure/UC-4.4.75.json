@@ -23,9 +23,9 @@
     "positiveScenario": "Replay or inject sample `aws:cloudtrail` events matching `*` into `index=cloud_multi`. Confirm UC-4.4.75 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=cloud_multi` `sourcetype=aws:cloudtrail`",
+  "dataSources": "`index=cloud_multi` sourcetype=`aws:cloudtrail` collected via Multi-index correlation across cloud TAs; validate ingest with `| stats count by sourcetype`.",
   "app": "Multi-index correlation across cloud TAs",
-  "spl": "index=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time",
+  "spl": "index=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.75_cross_cloud_kms_key_disa_75\"\n| sort -_time",
   "description": "Correlates cross-cloud kms key disable within 1 hour signals across AWS, Azure, and GCP indexes.",
   "value": "Cross-Cloud KMS Key Disable Within 1 Hour may indicate coordinated attack or change across cloud providers.",
   "implementation": "Configure required cloud inputs per provider guide; index=cloud_multi sourcetype=aws:cloudtrail.",
@@ -51,14 +51,17 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=cloud_multi`.\n• Install and configure: Multi-index correlation across cloud TAs.\n• Ensure `aws:cloudtrail` events are flowing (prerequisite UC: 4.4.33 when applicable).\n• Map `cloud_multi` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=cloud_multi sourcetype=aws:cloudtrail.\nExpected sourcetype: `aws:cloudtrail`. Validate with:\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudtrail` in `index=cloud_multi` and applies `*` to surface `Cross-Cloud KMS Key Disable Within 1 Hour`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_75_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Multi-index correlation across cloud TAs` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for cross-cloud kms key disable within 1 hour in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud_multi`.\n• Install and configure Multi-index correlation across cloud TAs with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=cloud_multi sourcetype=aws:cloudtrail.\nValidate ingest before alerting:\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud_multi sourcetype=\"aws:cloudtrail\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.75_cross_cloud_kms_key_disa_75\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=cloud_multi` to detect cross-cloud kms key disable within 1 hour. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_75_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Multi-index correlation across cloud TAs and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cross-cloud kms key disable within 1 hour so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

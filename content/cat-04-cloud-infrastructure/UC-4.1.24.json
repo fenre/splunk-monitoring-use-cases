@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.1.24 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.1.24 search returns zero rows."
   },
-  "dataSources": "CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage)",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| bin _time span=5m\n| eval depth=if(metric_name=\"ApproximateNumberOfMessagesVisible\", Average, null()),\n       age_s=if(metric_name=\"ApproximateAgeOfOldestMessage\", Average, null())\n| stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName\n| where depth > 1000 OR age_s > 300",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.1.24_sqs_queue_depth_and_age_24\"\n| sort -_time",
   "description": "Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches.",
-  "value": "Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting sqs queue depth and age of oldest message early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Collect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.",
   "visualization": "Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth).",
   "cimModels": [
@@ -28,6 +28,10 @@
     {
       "title": "Splunk_TA_aws",
       "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
@@ -36,14 +40,14 @@
     "aws"
   ],
   "equipmentModels": [
-    "aws_cloudtrail"
+    "aws_cloudwatch"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| bin _time span=5m\n| eval depth=if(metric_name=\"ApproximateNumberOfMessagesVisible\", Average, null()),\n       age_s=if(metric_name=\"ApproximateAgeOfOldestMessage\", Average, null())\n| stats avg(depth) as depth, avg(age_s) as age_s by _time, QueueName\n| where depth > 1000 OR age_s > 300\n```\n\nUnderstanding this SPL\n\n**SQS Queue Depth and Age of Oldest Message** — Growing queue depth or old messages indicate consumers are falling behind or failing. Prevents backlog and SLA breaches.\n\nDocumented **Data sources**: CloudWatch SQS metrics (ApproximateNumberOfMessagesVisible, ApproximateAgeOfOldestMessage). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `eval` defines or adjusts **depth** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by _time, QueueName** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where depth > 1000 OR age_s > 300` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth).",
-  "grandmaExplanation": "We keep an eye on sqs queue depth and age of oldest message. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws` with the modular input for `aws:cloudwatch`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `metric_name` and related actor fields.\n\nStep 1 — Configure data collection\nCollect SQS metrics. Alert when queue depth exceeds threshold (e.g. 1000) or age of oldest message > 5 minutes. Monitor dead-letter queue (ApproximateNumberOfMessagesDelayed) separately.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/SQS\" (metric_name=\"ApproximateNumberOfMessagesVisible\" OR metric_name=\"ApproximateAgeOfOldestMessage\")\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.1.24_sqs_queue_depth_and_age_24\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch` in `index=aws` to detect sqs queue depth and age of oldest message. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon CloudWatch console Metrics for the same 24-hour window. Confirm row counts and `metric_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_24_alert` with severity aligned to `high` criticality. Dashboard: Line chart (depth, age by queue), Single value (oldest message age), Table (queue, depth)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of sqs queue depth and age of oldest message so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.1.78"
   ],

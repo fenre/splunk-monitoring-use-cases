@@ -23,11 +23,11 @@
     "positiveScenario": "Replay or inject sample `azure:monitor:activity` events matching `*` into `index=azure`. Confirm UC-4.4.62 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `azure:monitor:activity` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=azure` `sourcetype=azure:monitor:activity`",
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:activity` collected via Splunk cloud TA for Azure; validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk cloud TA for Azure",
-  "spl": "index=azure sourcetype=\"azure:monitor:activity\"\n| table _time action user resource\n| sort -_time",
-  "description": "Monitors Azure resources for overprivileged managed policy attachment.",
-  "value": "AdministratorAccess attachments on workload roles violate least privilege.",
+  "spl": "index=azure sourcetype=\"azure:monitor:activity\" eventName=\"AttachUserPolicy\" OR eventName=\"AttachRolePolicy\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.4.62_azure_overprivileged_man_62\"\n| sort -_time",
+  "description": "Monitors Azure resources for overprivileged managed policy attachment. This UC monitors `azure:monitor:activity` for azure overprivileged managed policy attachment and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "AdministratorAccess attachments on workload roles violate least privilege. Detecting azure overprivileged managed policy attachment early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -49,14 +49,17 @@
   "equipment": [
     "azure"
   ],
+  "equipmentModels": [
+    "azure_activity_log"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=azure`.\n• Install and configure: Splunk cloud TA for Azure.\n• Ensure `azure:monitor:activity` events are flowing (prerequisite UC: 4.4.33 when applicable).\n• Map `azure` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.\nExpected sourcetype: `azure:monitor:activity`. Validate with:\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `azure:monitor:activity` in `index=azure` and applies `*` to surface `Azure Overprivileged Managed Policy Attachment`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_62_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk cloud TA for Azure` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for azure overprivileged managed policy attachment in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk cloud TA for Azure with the modular input for `azure:monitor:activity`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `operationName` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" eventName=\"AttachUserPolicy\" OR eventName=\"AttachRolePolicy\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.4.62_azure_overprivileged_man_62\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:activity` in `index=azure` to detect azure overprivileged managed policy attachment. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Activity Log blade for the same 24-hour window. Confirm row counts and `operationName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_62_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk cloud TA for Azure and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure overprivileged managed policy attachment so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

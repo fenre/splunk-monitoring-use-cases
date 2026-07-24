@@ -23,9 +23,9 @@
     "positiveScenario": "Replay or inject sample `aws:macie` events matching `*` into `index=aws`. Confirm UC-4.1.151 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:macie` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:macie`",
+  "dataSources": "`index=aws` sourcetype=`aws:macie` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:macie\"\n| table _time severity findingType resourceDetails\n| sort -_time",
+  "spl": "index=aws sourcetype=\"aws:macie\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.151_macie_sensitive_data_fin_151\"\n| sort -_time",
   "description": "Ingests Amazon Macie findings for S3 buckets containing sensitive data classifications.",
   "value": "Macie findings show where PII or secrets sit in object storage—critical for data-loss prevention.",
   "implementation": "Enable macie integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:macie`. Validate field extractions before alerting.",
@@ -49,14 +49,17 @@
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_macie"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876).\n• Ensure `aws:macie` events are flowing (prerequisite UC: 4.1.78 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable macie integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:macie`. Validate field extractions before alerting.\nExpected sourcetype: `aws:macie`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:macie\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:macie\"\n| table _time severity findingType resourceDetails\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:macie` in `index=aws` and applies `*` to surface `Macie Sensitive Data Findings`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_151_alert` with appropriate severity. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for macie sensitive data findings in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:macie`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable macie integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:macie`. Validate field extractions before alerting.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:macie\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:macie\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.151_macie_sensitive_data_fin_151\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:macie` in `index=aws` to detect macie sensitive data findings. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_151_alert` with severity aligned to `high` criticality. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of macie sensitive data findings so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.1.78"
   ],

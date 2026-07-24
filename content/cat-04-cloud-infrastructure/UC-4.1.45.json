@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.1.45 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.1.45 search returns zero rows."
   },
-  "dataSources": "SSM compliance data via Config, or custom Lambda polling SSM DescribeInstancePatchStates",
+  "dataSources": "`index=aws` sourcetype=`aws:ssm:compliance` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`",
-  "spl": "index=aws sourcetype=\"aws:ssm:compliance\" ComplianceType=\"Patch\" status!=\"Compliant\"\n| stats count by status, InstanceId\n| sort -count",
+  "spl": "index=aws sourcetype=\"aws:ssm:compliance\" ComplianceType=\"Patch\" status!=\"Compliant\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.45_systems_manager_ssm_patc_45\"\n| sort -_time",
   "description": "Low patch compliance increases vulnerability. SSM Patch Manager compliance status enables prioritization and remediation tracking.",
-  "value": "Low patch compliance increases vulnerability. SSM Patch Manager compliance status enables prioritization and remediation tracking. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting systems manager (ssm) patch compliance early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Use AWS Config rule for patch-compliance or custom automation to export Patch Manager compliance to S3/CloudWatch. Ingest in Splunk. Dashboard compliance % by OU/account. Alert when compliance drops below threshold.",
   "visualization": "Table (instance, status), Pie chart (compliant vs non-compliant), Bar chart by patch group.",
   "cimModels": [
@@ -28,6 +28,10 @@
     {
       "title": "Splunk_TA_aws",
       "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "Patch waves not finished yet, instances powered off, and CAB exceptions you already published.",
@@ -36,14 +40,14 @@
     "aws"
   ],
   "equipmentModels": [
-    "aws_cloudtrail"
+    "aws_compliance"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: SSM compliance data via Config, or custom Lambda polling SSM DescribeInstancePatchStates.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse AWS Config rule for patch-compliance or custom automation to export Patch Manager compliance to S3/CloudWatch. Ingest in Splunk. Dashboard compliance % by OU/account. Alert when compliance drops below threshold.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:ssm:compliance\" ComplianceType=\"Patch\" status!=\"Compliant\"\n| stats count by status, InstanceId\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Systems Manager (SSM) Patch Compliance** — Low patch compliance increases vulnerability. SSM Patch Manager compliance status enables prioritization and remediation tracking.\n\nDocumented **Data sources**: SSM compliance data via Config, or custom Lambda polling SSM DescribeInstancePatchStates. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:ssm:compliance. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:ssm:compliance\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by status, InstanceId** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (instance, status), Pie chart (compliant vs non-compliant), Bar chart by patch group.",
-  "grandmaExplanation": "We keep an eye on systems manager (ssm) patch compliance. Which machines are not in the patch state the business asked for, before auditors or ransomware find them first. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws` with the modular input for `aws:ssm:compliance`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nUse AWS Config rule for patch-compliance or custom automation to export Patch Manager compliance to S3/CloudWatch. Ingest in Splunk. Dashboard compliance % by OU/account. Alert when compliance drops below threshold.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:ssm:compliance\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:ssm:compliance\" ComplianceType=\"Patch\" status!=\"Compliant\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.45_systems_manager_ssm_patc_45\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:ssm:compliance` in `index=aws` to detect systems manager (ssm) patch compliance. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_45_alert` with severity aligned to `high` criticality. Dashboard: Table (instance, status), Pie chart (compliant vs non-compliant), Bar chart by patch group..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of systems manager (ssm) patch compliance so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.1.78"
   ],

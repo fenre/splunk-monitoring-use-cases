@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.2.50 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.2.50 search returns zero rows."
   },
-  "dataSources": "`sourcetype=azure:diagnostics` (PipelineRuns, ActivityRuns, TriggerRuns)",
+  "dataSources": "`index=cloud` sourcetype=`azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics); validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics)",
-  "spl": "index=cloud sourcetype=\"azure:diagnostics\" Category=\"PipelineRuns\"\n| where status=\"Failed\"\n| stats count as failures, latest(start) as last_failure by pipelineName, resource_name\n| sort -failures",
+  "spl": "index=cloud sourcetype=\"azure:diagnostics\" Category=\"PipelineRuns\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.50_azure_data_factory_pipel_50\"\n| sort -_time",
   "description": "Data Factory orchestrates ETL/ELT pipelines that feed data warehouses, analytics, and operational systems. Pipeline failures cause stale data, broken dashboards, and missed SLAs.",
-  "value": "Data Factory orchestrates ETL/ELT pipelines that feed data warehouses, analytics, and operational systems. Pipeline failures cause stale data, broken dashboards, and missed SLAs. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting azure data factory pipeline failures early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Enable diagnostics on Data Factory to route `PipelineRuns`, `ActivityRuns`, and `TriggerRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause (copy failures, data flow errors, linked service timeouts). Monitor pipeline duration trending to detect degradation before SLA breach.",
   "visualization": "Table (failed pipelines with error), Bar chart (failures by pipeline), Line chart (pipeline duration trend).",
   "cimModels": [
@@ -26,6 +26,10 @@
     {
       "title": "Splunk_TA_microsoft-cloudservices",
       "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
@@ -35,14 +39,14 @@
     "m365"
   ],
   "equipmentModels": [
-    "azure_activity_log"
+    "azure_diagnostics"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics).\n• Ensure the following data sources are available: `sourcetype=azure:diagnostics` (PipelineRuns, ActivityRuns, TriggerRuns).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable diagnostics on Data Factory to route `PipelineRuns`, `ActivityRuns`, and `TriggerRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause (copy failures, data flow errors, linked service timeouts). Monitor pipeline duration trending to detect degradation before SLA breach.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"PipelineRuns\"\n| where status=\"Failed\"\n| stats count as failures, latest(start) as last_failure by pipelineName, resource_name\n| sort -failures\n```\n\nUnderstanding this SPL\n\n**Azure Data Factory Pipeline Failures** — Data Factory orchestrates ETL/ELT pipelines that feed data warehouses, analytics, and operational systems. Pipeline failures cause stale data, broken dashboards, and missed SLAs.\n\nDocumented **Data sources**: `sourcetype=azure:diagnostics` (PipelineRuns, ActivityRuns, TriggerRuns). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where status=\"Failed\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by pipelineName, resource_name** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (failed pipelines with error), Bar chart (failures by pipeline), Line chart (pipeline duration trend).",
-  "grandmaExplanation": "Data Factory orchestrates ETL/ELT pipelines that feed data warehouses, analytics, and operational systems.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics) with the modular input for `azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable diagnostics on Data Factory to route `PipelineRuns`, `ActivityRuns`, and `TriggerRuns` to Splunk via Event Hub. Alert on failed pipeline runs. Track activity-level errors for root cause (copy failures, data flow errors, linked service timeouts). Monitor pipeline duration trending to detect degradation before SLA breach.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"PipelineRuns\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.50_azure_data_factory_pipel_50\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:diagnostics` in `index=cloud` to detect azure data factory pipeline failures. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_50_alert` with severity aligned to `high` criticality. Dashboard: Table (failed pipelines with error), Bar chart (failures by pipeline), Line chart (pipeline duration trend)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` (Azure Monitor diagnostics) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure data factory pipeline failures so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.2.58"
   ],

@@ -13,11 +13,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.18 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.18 search returns zero rows."
   },
-  "dataSources": "Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status",
+  "dataSources": "`index=cloud` sourcetype=`endpoint:health` collected via Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health; validate ingest with `| stats count by sourcetype`.",
   "app": "Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health",
-  "spl": "index=cloud sourcetype=\"endpoint:health\"\n| stats latest(connect_ok) as ok, latest(rtt_ms) as rtt by endpoint_id, vpc_id\n| where ok != 1 OR rtt > 500\n| table endpoint_id vpc_id ok rtt _time",
+  "spl": "index=cloud sourcetype=\"endpoint:health\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.18_cloud_endpoint_and_dns_r_18\"\n| sort -_time",
   "description": "PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.",
-  "value": "PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting cloud endpoint and dns resolution health early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Run periodic probes (DNS lookup for private hosted zone, HTTPS to VPC endpoint) from a central host or Lambda. Ingest success/failure and latency. Alert when endpoint is unreachable or RTT exceeds threshold.",
   "visualization": "Status grid (endpoint, OK/fail), Table (endpoint, RTT), Line chart (RTT over time).",
   "cimModels": [
@@ -27,6 +27,10 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.splunk.com/Documentation/CIM"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
@@ -40,14 +44,14 @@
     "m365"
   ],
   "equipmentModels": [
-    "aws_cloudtrail"
+    "aws_health"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health.\n• Ensure the following data sources are available: Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRun periodic probes (DNS lookup for private hosted zone, HTTPS to VPC endpoint) from a central host or Lambda. Ingest success/failure and latency. Alert when endpoint is unreachable or RTT exceeds threshold.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"endpoint:health\"\n| stats latest(connect_ok) as ok, latest(rtt_ms) as rtt by endpoint_id, vpc_id\n| where ok != 1 OR rtt > 500\n| table endpoint_id vpc_id ok rtt _time\n```\n\nUnderstanding this SPL\n\n**Cloud Endpoint and DNS Resolution Health** — PrivateLink, VPC endpoints, and private DNS zones enable secure access to AWS/Azure/GCP services. Endpoint or DNS failures cause application outages that are hard to diagnose.\n\nDocumented **Data sources**: Route53 Resolver query logs, VPC endpoint connection acceptance, Azure Private Endpoint status. **App/TA** (typical add-on context): Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: endpoint:health. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"endpoint:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by endpoint_id, vpc_id** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where ok != 1 OR rtt > 500` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Cloud Endpoint and DNS Resolution Health**): table endpoint_id vpc_id ok rtt _time\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (endpoint, OK/fail), Table (endpoint, RTT), Line chart (RTT over time).",
-  "grandmaExplanation": "PrivateLink, VPC endpoints, and private zones enable secure access to AWS/Azure/GCP services.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health with the modular input for `endpoint:health`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nRun periodic probes (DNS lookup for private hosted zone, HTTPS to VPC endpoint) from a central host or Lambda. Ingest success/failure and latency. Alert when endpoint is unreachable or RTT exceeds threshold.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"endpoint:health\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"endpoint:health\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.18_cloud_endpoint_and_dns_r_18\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `endpoint:health` in `index=cloud` to detect cloud endpoint and dns resolution health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_18_alert` with severity aligned to `medium` criticality. Dashboard: Status grid (endpoint, OK/fail), Table (endpoint, RTT), Line chart (RTT over time)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Custom scripted input (nslookup, curl to endpoint), CloudWatch Route53 health and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud endpoint and dns resolution health so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

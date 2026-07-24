@@ -13,11 +13,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.23 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.23 search returns zero rows."
   },
-  "dataSources": "`sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled)",
+  "dataSources": "`index=cloud` sourcetype=`dns:health` collected via Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs); validate ingest with `| stats count by sourcetype`.",
   "app": "Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs)",
-  "spl": "index=cloud (sourcetype=\"dns:health\" OR sourcetype=\"synthetic:dns\")\n| stats latest(success) as ok, avg(latency_ms) as avg_ms by provider, resolver_vantage, tested_fqdn\n| where ok=0 OR avg_ms>500\n| eval avg_ms=round(avg_ms,1)\n| sort provider tested_fqdn",
+  "spl": "index=cloud sourcetype=\"dns:health\" ( OR sourcetype=\"synthetic:dns\")\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.23_multi_cloud_dns_resoluti_23\"\n| sort -_time",
   "description": "DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.",
-  "value": "DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting multi-cloud dns resolution health early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Emit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.",
   "visualization": "Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes).",
   "cimModels": [
@@ -27,6 +27,10 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.splunk.com/Documentation/CIM"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
@@ -38,14 +42,14 @@
     "azure"
   ],
   "equipmentModels": [
-    "azure_activity_log"
+    "azure_health"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs).\n• Ensure the following data sources are available: `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEmit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud (sourcetype=\"dns:health\" OR sourcetype=\"synthetic:dns\")\n| stats latest(success) as ok, avg(latency_ms) as avg_ms by provider, resolver_vantage, tested_fqdn\n| where ok=0 OR avg_ms>500\n| eval avg_ms=round(avg_ms,1)\n| sort provider tested_fqdn\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud DNS Resolution Health** — DNS failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.\n\nDocumented **Data sources**: `sourcetype=dns:health`, `sourcetype=aws:route53resolverquerylog`, `sourcetype=mscs:azure:diagnostics` (DNS if enabled). **App/TA** (typical add-on context): Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: dns:health, synthetic:dns. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"dns:health\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by provider, resolver_vantage, tested_fqdn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where ok=0 OR avg_ms>500` — typically the threshold or rule expression for this monitoring goal.\n• `eval` defines or adjusts **avg_ms** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes).",
-  "grandmaExplanation": "Failures in one cloud or resolver path strand hybrid apps; proactive health checks catch resolver outages and split-horizon misconfiguration before user impact.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs) with the modular input for `dns:health`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEmit probe results from each cloud (success, latency_ms, NXDOMAIN rate) via HEC. Optionally join Route 53 Resolver query logs for SERVFAIL spikes. Page when any critical FQDN fails from two vantage points or latency doubles vs baseline.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"dns:health\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"dns:health\" ( OR sourcetype=\"synthetic:dns\")\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.23_multi_cloud_dns_resoluti_23\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `dns:health` in `index=cloud` to detect multi-cloud dns resolution health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_23_alert` with severity aligned to `high` criticality. Dashboard: Status grid (FQDN × provider), Line chart (success rate over time), Single value (failed probes)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Custom (synthetic probes, Route 53 Resolver / Azure DNS / Cloud DNS logs) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of multi-cloud dns resolution health so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

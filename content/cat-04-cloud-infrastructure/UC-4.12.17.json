@@ -23,11 +23,11 @@
     "positiveScenario": "Replay or inject sample `aws:cloudtrail` events matching `*` into `index=aws`. Confirm UC-4.12.17 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:cloudtrail`",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via Cloud provider TA; validate ingest with `| stats count by sourcetype`.",
   "app": "Cloud provider TA",
-  "spl": "index=aws sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time",
-  "description": "Detects failed automated backup events for managed Redis instances.",
-  "value": "Backup failures on Redis jeopardize RPO/RTO commitments.",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"*Backup*\" OR errorCode=\"*\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.12.17_managed_redis_backup_fai_17\"\n| sort -_time",
+  "description": "Monitors `aws:cloudtrail` for `*Backup*` events matching managed redis backup failure. Surfaces actor identity, source context, and affected resources for SOC triage.",
+  "value": "Backup failures on Redis jeopardize RPO/RTO commitments. Detecting managed redis backup failure early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudtrail.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -52,14 +52,17 @@
     "gcp",
     "redis"
   ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Cloud provider TA.\n• Ensure `aws:cloudtrail` events are flowing (prerequisite UC: 4.12.1 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudtrail.\nExpected sourcetype: `aws:cloudtrail`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudtrail` in `index=aws` and applies `*` to surface `Managed Redis Backup Failure`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_12_17_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Cloud provider TA` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for managed redis backup failure in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Cloud provider TA with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.12.1.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudtrail.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" eventName=\"*Backup*\" OR errorCode=\"*\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.12.17_managed_redis_backup_fai_17\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=aws` to detect managed redis backup failure. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_12_17_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of managed redis backup failure so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.12.1"
   ],

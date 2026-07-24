@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.3.14 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.3.14 search returns zero rows."
   },
-  "dataSources": "GKE cluster logs, Cloud Monitoring (container metrics)",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:pubsub:message` collected via `Splunk_TA_google-cloudplatform`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_google-cloudplatform`",
-  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"k8s_cluster\" textPayload=*\"upgrade\"*\n| table _time resource.labels.cluster_name textPayload\n| sort -_time",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"k8s_cluster\" textPayload=*\"upgrade\"*\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.14_gke_node_pool_autoscalin_14\"\n| sort -_time",
   "description": "Node pool scale-up/down and upgrade events affect workload placement and availability. Monitoring supports capacity and upgrade windows.",
-  "value": "Node pool scale-up/down and upgrade events affect workload placement and availability. Monitoring supports capacity and upgrade windows. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting gke node pool autoscaling and upgrade events early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Ingest GKE logs (cluster operations, node pool events). Monitor node count and autoscaler events. Track upgrade and maintenance window events. Alert on node pool scaling failures.",
   "visualization": "Timeline (node pool events), Table (cluster, pool, node count), Line chart (node count over time).",
   "cimModels": [
@@ -26,6 +26,10 @@
     {
       "title": "Splunk_TA_google-cloudplatform",
       "url": "https://splunkbase.splunk.com/app/3088"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://cloud.google.com/docs"
     }
   ],
   "knownFalsePositives": "During a roll-out, nodes come and go and metrics briefly look off. We ignore short windows that line up with a deployment and we focus on steady-state failures after the cluster is calm again.",
@@ -34,14 +38,14 @@
     "gcp"
   ],
   "equipmentModels": [
-    "gcp_audit_log"
+    "gcp_pubsub"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: GKE cluster logs, Cloud Monitoring (container metrics).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest GKE logs (cluster operations, node pool events). Monitor node count and autoscaler events. Track upgrade and maintenance window events. Alert on node pool scaling failures.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"k8s_cluster\" textPayload=*\"upgrade\"*\n| table _time resource.labels.cluster_name textPayload\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**GKE Node Pool Autoscaling and Upgrade Events** — Node pool scale-up/down and upgrade events affect workload placement and availability. Monitoring supports capacity and upgrade windows.\n\nDocumented **Data sources**: GKE cluster logs, Cloud Monitoring (container metrics). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **GKE Node Pool Autoscaling and Upgrade Events**): table _time resource.labels.cluster_name textPayload\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (node pool events), Table (cluster, pool, node count), Line chart (node count over time).",
-  "grandmaExplanation": "Node pool scale-up/down and upgrade events affect workload placement and availability.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure `Splunk_TA_google-cloudplatform` with the modular input for `google:gcp:pubsub:message`.\n• Prerequisite crawl UC(s): UC-4.3.41.\n• Confirm field extractions in `props.conf` for `messageId` and related actor fields.\n\nStep 1 — Configure data collection\nIngest GKE logs (cluster operations, node pool events). Monitor node count and autoscaler events. Track upgrade and maintenance window events. Alert on node pool scaling failures.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"k8s_cluster\" textPayload=*\"upgrade\"*\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.14_gke_node_pool_autoscalin_14\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:pubsub:message` in `index=gcp` to detect gke node pool autoscaling and upgrade events. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `messageId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_14_alert` with severity aligned to `high` criticality. Dashboard: Timeline (node pool events), Table (cluster, pool, node count), Line chart (node count over time)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_google-cloudplatform` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gke node pool autoscaling and upgrade events so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.3.41"
   ],

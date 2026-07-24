@@ -23,11 +23,11 @@
     "positiveScenario": "Replay or inject sample `azure:monitor:activity` events matching `*` into `index=gcp`. Confirm UC-4.10.16 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `azure:monitor:activity` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=gcp` `sourcetype=azure:monitor:activity`",
+  "dataSources": "`index=gcp` sourcetype=`azure:monitor:activity` collected via Cloud posture integration via provider TA; validate ingest with `| stats count by sourcetype`.",
   "app": "Cloud posture integration via provider TA",
-  "spl": "index=gcp sourcetype=\"azure:monitor:activity\"\n| table _time action user resource\n| sort -_time",
-  "description": "Surfaces CSPM posture finding: stale admin credential on GCP.",
-  "value": "Stale Admin Credential on GCP maps to measurable compliance gaps before breach.",
+  "spl": "index=gcp sourcetype=\"azure:monitor:activity\" Title=\"*credential*\" OR Title=\"*password*\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.10.16_gcp_cspm_stale_admin_cre_16\"\n| sort -_time",
+  "description": "Surfaces CSPM posture finding: stale admin credential on GCP. This UC monitors `azure:monitor:activity` for gcp cspm stale admin credential and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "Stale Admin Credential on GCP maps to measurable compliance gaps before breach. Detecting gcp cspm stale admin credential early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=gcp sourcetype=azure:monitor:activity.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -50,14 +50,17 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "azure_activity_log"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=gcp`.\n• Install and configure: Cloud posture integration via provider TA.\n• Ensure `azure:monitor:activity` events are flowing (prerequisite UC: 4.10.1 when applicable).\n• Map `gcp` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=gcp sourcetype=azure:monitor:activity.\nExpected sourcetype: `azure:monitor:activity`. Validate with:\n```spl\nindex=gcp sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"azure:monitor:activity\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `azure:monitor:activity` in `index=gcp` and applies `*` to surface `GCP CSPM Stale Admin Credential`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_10_16_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Cloud posture integration via provider TA` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for gcp cspm stale admin credential in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure Cloud posture integration via provider TA with the modular input for `azure:monitor:activity`.\n• Prerequisite crawl UC(s): UC-4.10.1.\n• Confirm field extractions in `props.conf` for `operationName` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=gcp sourcetype=azure:monitor:activity.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"azure:monitor:activity\" Title=\"*credential*\" OR Title=\"*password*\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.10.16_gcp_cspm_stale_admin_cre_16\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:activity` in `index=gcp` to detect gcp cspm stale admin credential. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Activity Log blade for the same 24-hour window. Confirm row counts and `operationName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_10_16_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud posture integration via provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp cspm stale admin credential so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.10.1"
   ],

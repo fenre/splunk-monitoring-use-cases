@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.13 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.13 search returns zero rows."
   },
-  "dataSources": "AWS Service Health Dashboard, Azure Status, GCP Status (APIs or scraped)",
+  "dataSources": "`index=cloud_status` sourcetype=`aws:cloudtrail` collected via Custom input (status page API or RSS), or status page integration; validate ingest with `| stats count by sourcetype`.",
   "app": "Custom input (status page API or RSS), or status page integration",
-  "spl": "index=cloud_status provider=* status=*impact*\n| table _time provider service status description\n| sort -_time",
+  "spl": "index=cloud_status sourcetype=\"aws:cloudtrail\" provider=* status=*impact*\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.13_cloud_provider_status_an_13\"\n| sort -_time",
   "description": "When AWS/Azure/GCP have outages, correlating provider status with your alerts prevents wasted troubleshooting and supports customer communication.",
-  "value": "When AWS/Azure/GCP have outages, correlating provider status with your alerts prevents wasted troubleshooting and supports customer communication. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting cloud provider status and incident correlation early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Poll provider status APIs (e.g. status.aws.amazon.com, status.azure.com) or ingest RSS. Normalize to common schema. When your alerts spike, search status index for same time window and provider. Dashboard active incidents by provider.",
   "visualization": "Table (provider, service, status), Timeline (incidents), Single value (active incidents).",
   "cimModels": [
@@ -26,22 +26,27 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "securityDomain": "cloud",
   "equipment": [
+    "aws",
     "azure"
   ],
   "equipmentModels": [
-    "azure_activity_log"
+    "aws_cloudtrail"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom input (status page API or RSS), or status page integration.\n• Ensure the following data sources are available: AWS Service Health Dashboard, Azure Status, GCP Status (APIs or scraped).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll provider status APIs (e.g. status.aws.amazon.com, status.azure.com) or ingest RSS. Normalize to common schema. When your alerts spike, search status index for same time window and provider. Dashboard active incidents by provider.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud_status provider=* status=*impact*\n| table _time provider service status description\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Cloud Provider Status and Incident Correlation** — When AWS/Azure/GCP have outages, correlating provider status with your alerts prevents wasted troubleshooting and supports customer communication.\n\nDocumented **Data sources**: AWS Service Health Dashboard, Azure Status, GCP Status (APIs or scraped). **App/TA** (typical add-on context): Custom input (status page API or RSS), or status page integration. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud_status.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud_status. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **Cloud Provider Status and Incident Correlation**): table _time provider service status description\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (provider, service, status), Timeline (incidents), Single value (active incidents).",
-  "grandmaExplanation": "When AWS/Azure/GCP have outages, correlating provider status with your alerts prevents wasted troubleshooting and supports customer communication.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud_status`.\n• Install and configure Custom input (status page API or RSS), or status page integration with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nPoll provider status APIs (e.g. status.aws.amazon.com, status.azure.com) or ingest RSS. Normalize to common schema. When your alerts spike, search status index for same time window and provider. Dashboard active incidents by provider.\nValidate ingest before alerting:\n```spl\nindex=cloud_status sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud_status sourcetype=\"aws:cloudtrail\" provider=* status=*impact*\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.13_cloud_provider_status_an_13\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=cloud_status` to detect cloud provider status and incident correlation. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_13_alert` with severity aligned to `medium` criticality. Dashboard: Table (provider, service, status), Timeline (incidents), Single value (active incidents)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Custom input (status page API or RSS), or status page integration and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud provider status and incident correlation so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

@@ -13,11 +13,11 @@
     "positiveScenario": "Inject sample events matching UC-4.4.15 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.4.15 search returns zero rows."
   },
-  "dataSources": "AWS Config (resource compliance), Azure Policy compliance, GCP labels API",
+  "dataSources": "`index=aws` sourcetype=`aws:config:resource` collected via `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory",
-  "spl": "index=aws sourcetype=\"aws:config:resource\" tag_compliance=\"non_compliant\"\n| stats count by resourceType, account_id, region\n| where count > 0\n| sort -count",
+  "spl": "index=aws sourcetype=\"aws:config:resource\" tag_compliance=\"non_compliant\"\n| table _time resourceType resourceId awsRegion\n| eval uc_marker=\"UC-4.4.15_cloud_resource_tag_compl_15\"\n| sort -_time",
   "description": "Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement.",
-  "value": "Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting cloud resource tag compliance and drift early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Use AWS Config rules (required-tags), Azure Policy (e.g. RequireTagAndValue), or GCP org policy for label requirements. Ingest compliance results. Alert when net new untagged resources appear or compliance score drops below threshold. Dashboard by OU/account and resource type.",
   "visualization": "Table (account, resource type, non-compliant count), Gauge (tag compliance %), Bar chart by tag key missing.",
   "cimModels": [
@@ -27,6 +27,10 @@
     {
       "title": "Splunk_TA_aws",
       "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
   "knownFalsePositives": "A plan can show a diff right after a release while state catches up, or when we intentionally tuned something in the console during an emergency. We confirm the workspace and the window before we treat it as unplanned drift.",
@@ -40,14 +44,15 @@
     "gcp"
   ],
   "equipmentModels": [
-    "aws_cloudtrail"
+    "aws_config",
+    "azure_metrics"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory.\n• Ensure the following data sources are available: AWS Config (resource compliance), Azure Policy compliance, GCP labels API.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse AWS Config rules (required-tags), Azure Policy (e.g. RequireTagAndValue), or GCP org policy for label requirements. Ingest compliance results. Alert when net new untagged resources appear or compliance score drops below threshold. Dashboard by OU/account and resource type.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:config:resource\" tag_compliance=\"non_compliant\"\n| stats count by resourceType, account_id, region\n| where count > 0\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Cloud Resource Tag Compliance and Drift** — Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance. Detecting untagged or non-compliant resources supports tag policy enforcement.\n\nDocumented **Data sources**: AWS Config (resource compliance), Azure Policy compliance, GCP labels API. **App/TA** (typical add-on context): `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:config:resource. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:config:resource\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by resourceType, account_id, region** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (account, resource type, non-compliant count), Gauge (tag compliance %), Bar chart by tag key missing.",
-  "grandmaExplanation": "Missing or inconsistent tags (Owner, CostCenter, Environment) block cost allocation, automation, and governance.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory with the modular input for `aws:config:resource`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `resourceType` and related actor fields.\n\nStep 1 — Configure data collection\nUse AWS Config rules (required-tags), Azure Policy (e.g. RequireTagAndValue), or GCP org policy for label requirements. Ingest compliance results. Alert when net new untagged resources appear or compliance score drops below threshold. Dashboard by OU/account and resource type.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:config:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:config:resource\" tag_compliance=\"non_compliant\"\n| table _time resourceType resourceId awsRegion\n| eval uc_marker=\"UC-4.4.15_cloud_resource_tag_compl_15\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:config:resource` in `index=aws` to detect cloud resource tag compliance and drift. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `resourceType` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_15_alert` with severity aligned to `medium` criticality. Dashboard: Table (account, resource type, non-compliant count), Gauge (tag compliance %), Bar chart by tag key missing..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws`, Azure Resource Graph, GCP Asset Inventory and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud resource tag compliance and drift so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.4.33"
   ],

@@ -23,10 +23,10 @@
     "positiveScenario": "Replay or inject sample `aws:cur` events matching `*` into `index=aws`. Confirm UC-4.11.8 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:cur` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:cur`",
+  "dataSources": "`index=aws` sourcetype=`aws:cur` collected via Splunk Add-on for AWS billing/CUR inputs; validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for AWS billing/CUR inputs",
-  "spl": "index=aws sourcetype=\"aws:cur\"\n| table _time action user resource\n| sort -_time",
-  "description": "Analyzes CUR billing data for nat gateway data processing spike.",
+  "spl": "index=aws sourcetype=\"aws:cur\"\n| table _time product_product_name lineItem_UsageAmount lineItem_UnblendedCost\n| eval uc_marker=\"UC-4.11.8_aws_finops_nat_gateway_d_8\"\n| sort -_time",
+  "description": "Analyzes CUR billing data for nat gateway data processing spike. This UC monitors `aws:cur` for aws finops nat gateway data processing spike and surfaces events for SOC triage, change review, and compliance evidence.",
   "value": "NAT Gateway Data Processing Spike drives waste and budget overruns visible before finance close.",
   "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:cur.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
@@ -49,14 +49,17 @@
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_billing"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS billing/CUR inputs.\n• Ensure `aws:cur` events are flowing (prerequisite UC: 4.11.1 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cur.\nExpected sourcetype: `aws:cur`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:cur\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cur\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cur` in `index=aws` and applies `*` to surface `AWS FinOps NAT Gateway Data Processing Spike`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_11_8_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS billing/CUR inputs` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for aws finops nat gateway data processing spike in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS billing/CUR inputs with the modular input for `aws:cur`.\n• Prerequisite crawl UC(s): UC-4.11.1.\n• Confirm field extractions in `props.conf` for `product_product_name` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cur.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cur\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cur\"\n| table _time product_product_name lineItem_UsageAmount lineItem_UnblendedCost\n| eval uc_marker=\"UC-4.11.8_aws_finops_nat_gateway_d_8\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cur` in `index=aws` to detect aws finops nat gateway data processing spike. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS Cost Explorer console for the same 24-hour window. Confirm row counts and `product_product_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_11_8_alert` with severity aligned to `medium` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS billing/CUR inputs and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aws finops nat gateway data processing spike so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.11.1"
   ],

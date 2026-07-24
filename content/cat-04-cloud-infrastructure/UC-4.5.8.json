@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.5.8 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.5.8 search returns zero rows."
   },
-  "dataSources": "`sourcetype=google:gcp:pubsub:message` (Cloud Logging for `cloud_function`), `sourcetype=google:gcp:monitoring`",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:pubsub:message` collected via `Splunk_TA_google-cloudplatform`; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_google-cloudplatform`",
-  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"cloud_function\"\n| where match(_raw, \"(?i)timeout|deadline exceeded|function execution took too long\")\n| stats count as timeout_events by resource.labels.function_name, resource.labels.region\n| sort -timeout_events",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"cloud_function\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.5.8_gcp_cloud_functions_time_8\"\n| sort -_time",
   "description": "Timeouts indicate hung dependencies or insufficient deadline; they drive retries, duplicate side effects, and user-visible failures in synchronous invocations.",
-  "value": "Timeouts indicate hung dependencies or insufficient deadline; they drive retries, duplicate side effects, and user-visible failures in synchronous invocations. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting gcp cloud functions timeout monitoring early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Forward Cloud Functions logs to Pub/Sub and ingest with `resource.type=\"cloud_function\"`. Optionally add monitoring metrics for execution times and error result codes. Alert on timeout string patterns or rising timeout counts after dependency or region incidents.",
   "visualization": "Column chart (timeouts by function), Line chart (timeouts over time), Table (function_name, region, count).",
   "cimModels": [
@@ -26,6 +26,10 @@
     {
       "title": "Splunk_TA_google-cloudplatform",
       "url": "https://splunkbase.splunk.com/app/3088"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://cloud.google.com/docs"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
@@ -34,14 +38,14 @@
     "gcp"
   ],
   "equipmentModels": [
-    "gcp_audit_log"
+    "gcp_pubsub"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=google:gcp:pubsub:message` (Cloud Logging for `cloud_function`), `sourcetype=google:gcp:monitoring`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Cloud Functions logs to Pub/Sub and ingest with `resource.type=\"cloud_function\"`. Optionally add monitoring metrics for execution times and error result codes. Alert on timeout string patterns or rising timeout counts after dependency or region incidents.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"cloud_function\"\n| where match(_raw, \"(?i)timeout|deadline exceeded|function execution took too long\")\n| stats count as timeout_events by resource.labels.function_name, resource.labels.region\n| sort -timeout_events\n```\n\nUnderstanding this SPL\n\n**GCP Cloud Functions Timeout Monitoring** — Timeouts indicate hung dependencies or insufficient deadline; they drive retries, duplicate side effects, and user-visible failures in synchronous invocations.\n\nDocumented **Data sources**: `sourcetype=google:gcp:pubsub:message` (Cloud Logging for `cloud_function`), `sourcetype=google:gcp:monitoring`. **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(_raw, \"(?i)timeout|deadline exceeded|function execution took too long\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by resource.labels.function_name, resource.labels.region** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Column chart (timeouts by function), Line chart (timeouts over time), Table (function_name, region, count).",
-  "grandmaExplanation": "Timeouts indicate hung dependencies or insufficient deadline; they drive retries, duplicate side effects, and user-visible failures in synchronous invocations.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure `Splunk_TA_google-cloudplatform` with the modular input for `google:gcp:pubsub:message`.\n• Prerequisite crawl UC(s): UC-4.5.16.\n• Confirm field extractions in `props.conf` for `messageId` and related actor fields.\n\nStep 1 — Configure data collection\nForward Cloud Functions logs to Pub/Sub and ingest with `resource.type=\"cloud_function\"`. Optionally add monitoring metrics for execution times and error result codes. Alert on timeout string patterns or rising timeout counts after dependency or region incidents.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" resource.type=\"cloud_function\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.5.8_gcp_cloud_functions_time_8\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:pubsub:message` in `index=gcp` to detect gcp cloud functions timeout monitoring. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `messageId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_8_alert` with severity aligned to `high` criticality. Dashboard: Column chart (timeouts by function), Line chart (timeouts over time), Table (function_name, region, count)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_google-cloudplatform` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp cloud functions timeout monitoring so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.5.16"
   ],

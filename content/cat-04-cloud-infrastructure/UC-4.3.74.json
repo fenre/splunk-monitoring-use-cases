@@ -13,10 +13,10 @@
     "positiveScenario": "Replay or inject sample `google:gcp:billing:report` events matching `*` into `index=gcp`. Confirm UC-4.3.74 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `google:gcp:billing:report` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=gcp` `sourcetype=google:gcp:billing:report`",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:billing:report` collected via Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)",
-  "spl": "index=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
-  "description": "Compares daily GCP billing export spend against seven-day baseline per project.",
+  "spl": "index=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.3.74_gcp_billing_export_cost_74\"\n| sort -_time",
+  "description": "Compares daily GCP billing export spend against seven-day baseline per project. This UC monitors `google:gcp:billing:report` for gcp billing export cost anomaly and surfaces events for SOC triage, change review, and compliance evidence.",
   "value": "Cost anomalies catch mis-provisioned resources and cryptomining before invoice close.",
   "implementation": "Enable BigQuery billing export; ingest billing table via GCP add-on or HEC.",
   "visualization": "Daily cost timechart, top services, anomaly single value.",
@@ -39,14 +39,17 @@
   "equipment": [
     "gcp"
   ],
+  "equipmentModels": [
+    "gcp_report"
+  ],
   "status": "community",
   "cost": {
     "tier": "low",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=gcp`.\n• Install and configure: Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088).\n• Ensure `google:gcp:billing:report` events are flowing (prerequisite UC: 4.3.41 when applicable).\n• Map `gcp` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable BigQuery billing export; ingest billing table via GCP add-on or HEC.\nExpected sourcetype: `google:gcp:billing:report`. Validate with:\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `google:gcp:billing:report` in `index=gcp` and applies `*` to surface `GCP Billing Export Cost Anomaly`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_74_alert` with appropriate severity. Dashboard: Daily cost timechart, top services, anomaly single value..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for gcp billing export cost anomaly in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088) with the modular input for `google:gcp:billing:report`.\n• Prerequisite crawl UC(s): UC-4.3.41.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable BigQuery billing export; ingest billing table via GCP add-on or HEC.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:billing:report\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.3.74_gcp_billing_export_cost_74\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:billing:report` in `index=gcp` to detect gcp billing export cost anomaly. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_74_alert` with severity aligned to `medium` criticality. Dashboard: Daily cost timechart, top services, anomaly single value..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp billing export cost anomaly so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.3.41"
   ],

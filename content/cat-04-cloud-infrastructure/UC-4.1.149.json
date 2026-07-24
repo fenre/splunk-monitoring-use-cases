@@ -23,9 +23,9 @@
     "positiveScenario": "Replay or inject sample `aws:securityhub:findings` events matching `Compliance.Status=FAILED OR RecordState=ACTIVE` into `index=aws`. Confirm UC-4.1.149 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:securityhub:findings` traffic without `Compliance.Status=FAILED OR RecordState=ACTIVE` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:securityhub:findings`",
+  "dataSources": "`index=aws` sourcetype=`aws:securityhub:findings` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time severity findingType resourceDetails\n| sort -_time",
+  "spl": "index=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time Finding.Title Finding.Severity.Label Finding.AwsAccountId\n| eval uc_marker=\"UC-4.1.149_security_hub_failed_cont_149\"\n| sort -_time",
   "description": "Lists active Security Hub findings where compliance status is FAILED against enabled standards.",
   "value": "Security Hub aggregates CIS, PCI, and FSBP controls—failed checks show measurable posture gaps.",
   "implementation": "Enable securityhub integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:securityhub:findings`. Validate field extractions before alerting.",
@@ -49,14 +49,18 @@
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_billing",
+    "aws_securityhub"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876).\n• Ensure `aws:securityhub:findings` events are flowing (prerequisite UC: 4.1.78 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable securityhub integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:securityhub:findings`. Validate field extractions before alerting.\nExpected sourcetype: `aws:securityhub:findings`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time severity findingType resourceDetails\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:securityhub:findings` in `index=aws` and applies `Compliance.Status=FAILED OR RecordState=ACTIVE` to surface `Security Hub Failed Controls`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_149_alert` with appropriate severity. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for security hub failed controls in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:securityhub:findings`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `Finding.Title` and related actor fields.\n\nStep 1 — Configure data collection\nEnable securityhub integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:securityhub:findings`. Validate field extractions before alerting.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time Finding.Title Finding.Severity.Label Finding.AwsAccountId\n| eval uc_marker=\"UC-4.1.149_security_hub_failed_cont_149\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:securityhub:findings` in `index=aws` to detect security hub failed controls. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS Security Hub console Findings for the same 24-hour window. Confirm row counts and `Finding.Title` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_149_alert` with severity aligned to `high` criticality. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of security hub failed controls so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.1.78"
   ],

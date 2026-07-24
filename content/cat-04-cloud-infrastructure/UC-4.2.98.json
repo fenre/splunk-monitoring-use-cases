@@ -13,10 +13,10 @@
     "positiveScenario": "Replay or inject sample `ms:defender:m365` events matching `severity=High OR severity=Medium` into `index=azure`. Confirm UC-4.2.98 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `ms:defender:m365` traffic without `severity=High OR severity=Medium` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=azure` `sourcetype=ms:defender:m365`",
+  "dataSources": "`index=azure` sourcetype=`ms:defender:m365` collected via Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"ms:defender:m365\" severity=High OR severity=Medium\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
-  "description": "Ingests Microsoft Defender for Cloud alerts at Medium or High severity.",
+  "spl": "index=azure sourcetype=\"ms:defender:m365\" severity=High OR severity=Medium\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.98_azure_defender_for_cloud_98\"\n| sort -_time",
+  "description": "Ingests Microsoft Defender for Cloud alerts at Medium or High severity. This UC monitors `ms:defender:m365` for azure defender for cloud high-severity alerts and surfaces events for SOC triage, change review, and compliance evidence.",
   "value": "Defender for Cloud maps Azure misconfigurations and threat detections to actionable alerts.",
   "implementation": "Enable Defender plans and forward alerts via Microsoft Cloud Services add-on.",
   "visualization": "Alert table, severity timeline, resourceId pivot.",
@@ -41,14 +41,17 @@
     "defender",
     "m365"
   ],
+  "equipmentModels": [
+    "azure_m365"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=azure`.\n• Install and configure: Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110).\n• Ensure `ms:defender:m365` events are flowing (prerequisite UC: 4.2.58 when applicable).\n• Map `azure` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable Defender plans and forward alerts via Microsoft Cloud Services add-on.\nExpected sourcetype: `ms:defender:m365`. Validate with:\n```spl\nindex=azure sourcetype=\"ms:defender:m365\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"ms:defender:m365\" severity=High OR severity=Medium\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `ms:defender:m365` in `index=azure` and applies `severity=High OR severity=Medium` to surface `Azure Defender for Cloud High-Severity Alerts`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_98_alert` with appropriate severity. Dashboard: Alert table, severity timeline, resourceId pivot..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for azure defender for cloud high-severity alerts in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) with the modular input for `ms:defender:m365`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable Defender plans and forward alerts via Microsoft Cloud Services add-on.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"ms:defender:m365\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"ms:defender:m365\" severity=High OR severity=Medium\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.98_azure_defender_for_cloud_98\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `ms:defender:m365` in `index=azure` to detect azure defender for cloud high-severity alerts. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_98_alert` with severity aligned to `critical` criticality. Dashboard: Alert table, severity timeline, resourceId pivot..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure defender for cloud high-severity alerts so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.2.58"
   ],

@@ -23,11 +23,11 @@
     "positiveScenario": "Replay or inject sample `aws:cloudwatch` events matching `*` into `index=aws`. Confirm UC-4.15.7 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:cloudwatch` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:cloudwatch`",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch` collected via Cloud edge logs via provider TA; validate ingest with `| stats count by sourcetype`.",
   "app": "Cloud edge logs via provider TA",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch\"\n| table _time action user resource\n| sort -_time",
-  "description": "Monitors edge/CDN/WAF telemetry: ddos mitigation triggered.",
-  "value": "DDoS mitigation indicates active attack.",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.15.7_edge_cdn_waf_ddos_mitiga_7\"\n| sort -_time",
+  "description": "Monitors edge/CDN/WAF telemetry: ddos mitigation triggered. This UC monitors `aws:cloudwatch` for edge cdn waf ddos mitigation triggered and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "DDoS mitigation indicates active attack. Detecting edge cdn waf ddos mitigation triggered early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudwatch.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -51,14 +51,17 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_cloudwatch"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Cloud edge logs via provider TA.\n• Ensure `aws:cloudwatch` events are flowing (prerequisite UC: 4.15.1 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudwatch.\nExpected sourcetype: `aws:cloudwatch`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudwatch` in `index=aws` and applies `*` to surface `Edge CDN WAF DDoS Mitigation Triggered`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_15_7_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Cloud edge logs via provider TA` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for edge cdn waf ddos mitigation triggered in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Cloud edge logs via provider TA with the modular input for `aws:cloudwatch`.\n• Prerequisite crawl UC(s): UC-4.15.1.\n• Confirm field extractions in `props.conf` for `metric_name` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudwatch.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.15.7_edge_cdn_waf_ddos_mitiga_7\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch` in `index=aws` to detect edge cdn waf ddos mitigation triggered. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon CloudWatch console Metrics for the same 24-hour window. Confirm row counts and `metric_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_15_7_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud edge logs via provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of edge cdn waf ddos mitigation triggered so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.15.1"
   ],

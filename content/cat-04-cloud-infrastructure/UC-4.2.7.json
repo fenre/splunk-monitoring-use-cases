@@ -12,11 +12,11 @@
     "positiveScenario": "Inject sample events matching UC-4.2.7 SPL; confirm the search returns rows and alert fires.",
     "negativeScenario": "Replay benign traffic without matching markers; confirm UC-4.2.7 search returns zero rows."
   },
-  "dataSources": "AKS diagnostics, kube-state-metrics",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector; validate ingest with `| stats count by sourcetype`.",
   "app": "`Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector",
-  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"kube-apiserver\" level=\"Error\"\n| stats count by host, message\n| sort -count",
+  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"kube-apiserver\" level=\"Error\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.7_aks_cluster_health_7\"\n| sort -_time",
   "description": "AKS cluster health monitoring ensures Kubernetes workloads are running reliably on Azure's managed platform.",
-  "value": "AKS cluster health monitoring ensures Kubernetes workloads are running reliably on Azure's managed platform. Detecting this early reduces breach impact, audit findings, and operational blind spots.",
+  "value": "Detecting aks cluster health early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Enable AKS diagnostic logging to Event Hub (kube-apiserver, kube-controller-manager, kube-scheduler, kube-audit). Deploy OTel Collector in the AKS cluster for deeper K8s-level monitoring (see Category 3.2).",
   "visualization": "Status panel, Error timeline, Table.",
   "cimModels": [
@@ -26,6 +26,10 @@
     {
       "title": "Splunk_TA_microsoft-cloudservices",
       "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
   "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
@@ -37,14 +41,15 @@
     "opentelemetry"
   ],
   "equipmentModels": [
+    "azure_diagnostics",
     "kubernetes_k8s"
   ],
   "cost": {
     "tier": "medium",
     "search_load": "moderate"
   },
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector.\n• Ensure the following data sources are available: AKS diagnostics, kube-state-metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable AKS diagnostic logging to Event Hub (kube-apiserver, kube-controller-manager, kube-scheduler, kube-audit). Deploy OTel Collector in the AKS cluster for deeper K8s-level monitoring (see Category 3.2).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"kube-apiserver\" level=\"Error\"\n| stats count by host, message\n| sort -count\n```\n\nUnderstanding this SPL\n\n**AKS Cluster Health** — AKS cluster health monitoring ensures Kubernetes workloads are running reliably on Azure's managed platform.\n\nDocumented **Data sources**: AKS diagnostics, kube-state-metrics. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:diagnostics. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, message** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status panel, Error timeline, Table.",
-  "grandmaExplanation": "Clusters cluster health monitoring ensures Kubernetes workloads are running reliably on Azure's managed platform.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector with the modular input for `mscs:azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable AKS diagnostic logging to Event Hub (kube-apiserver, kube-controller-manager, kube-scheduler, kube-audit). Deploy OTel Collector in the AKS cluster for deeper K8s-level monitoring (see Category 3.2).\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"kube-apiserver\" level=\"Error\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.7_aks_cluster_health_7\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:diagnostics` in `index=azure` to detect aks cluster health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_7_alert` with severity aligned to `high` criticality. Dashboard: Status panel, Error timeline, Table..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices`, Splunk OTel Collector and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aks cluster health so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.2.58"
   ],

@@ -23,9 +23,9 @@
     "positiveScenario": "Replay or inject sample `aws:s3:accesslogs` events matching `operation=REST.GET.OBJECT AND http_status=200` into `index=aws`. Confirm UC-4.1.154 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:s3:accesslogs` traffic without `operation=REST.GET.OBJECT AND http_status=200` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:s3:accesslogs`",
+  "dataSources": "`index=aws` sourcetype=`aws:s3:accesslogs` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:s3:accesslogs\" operation=REST.GET.OBJECT AND http_status=200\n| table _time bucket key requester_ip operation http_status\n| sort -_time",
+  "spl": "index=aws sourcetype=\"aws:s3:accesslogs\" operation=REST.GET.OBJECT AND http_status=200\n| table _time bucket requester_operation key clientIP\n| eval uc_marker=\"UC-4.1.154_s3_access_log_anonymous_154\"\n| sort -_time",
   "description": "Finds successful S3 object reads from anonymous or unexpected principals in access logs.",
   "value": "Anonymous GET success on sensitive buckets indicates public exposure beyond policy intent.",
   "implementation": "Enable s3 integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:s3:accesslogs`. Validate field extractions before alerting.",
@@ -49,14 +49,17 @@
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_s3"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876).\n• Ensure `aws:s3:accesslogs` events are flowing (prerequisite UC: 4.1.78 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable s3 integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:s3:accesslogs`. Validate field extractions before alerting.\nExpected sourcetype: `aws:s3:accesslogs`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" operation=REST.GET.OBJECT AND http_status=200\n| table _time bucket key requester_ip operation http_status\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:s3:accesslogs` in `index=aws` and applies `operation=REST.GET.OBJECT AND http_status=200` to surface `S3 Access Log Anonymous Requests`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_154_alert` with appropriate severity. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for s3 access log anonymous requests in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:s3:accesslogs`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `bucket` and related actor fields.\n\nStep 1 — Configure data collection\nEnable s3 integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:s3:accesslogs`. Validate field extractions before alerting.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" operation=REST.GET.OBJECT AND http_status=200\n| table _time bucket requester_operation key clientIP\n| eval uc_marker=\"UC-4.1.154_s3_access_log_anonymous_154\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:s3:accesslogs` in `index=aws` to detect s3 access log anonymous requests. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon S3 console Server access logging for the same 24-hour window. Confirm row counts and `bucket` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_154_alert` with severity aligned to `high` criticality. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of s3 access log anonymous requests so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.1.78"
   ],

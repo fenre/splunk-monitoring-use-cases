@@ -13,11 +13,11 @@
     "positiveScenario": "Replay or inject sample `aws:cloudwatch` events matching `*` into `index=aws`. Confirm UC-4.6.7 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:cloudwatch` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:cloudwatch`",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch` collected via Splunk Add-on for AWS (Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for AWS (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
-  "description": "Verifies cloud metrics trend baseline data flows into Splunk continuously.",
-  "value": "Cloud Metrics Trend Baseline is the prerequisite feed for all 4.6 detections.",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.6.7_cloud_metrics_trend_base_7\"\n| sort -_time",
+  "description": "Verifies cloud metrics trend baseline data flows into Splunk continuously. This UC monitors `aws:cloudwatch` for cloud metrics trend baseline and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "Cloud Metrics Trend Baseline is the prerequisite feed for all 4.6 detections. Detecting cloud metrics trend baseline early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Enable aws:cloudwatch ingestion via the appropriate Splunk TA into index=aws.",
   "visualization": "Ingestion health single value and lag chart.",
   "cimModels": [],
@@ -41,14 +41,17 @@
     "azure",
     "gcp"
   ],
+  "equipmentModels": [
+    "aws_cloudwatch"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Splunk Add-on for AWS (Splunkbase 1876).\n• Ensure `aws:cloudwatch` events are flowing (prerequisite UC: none when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable aws:cloudwatch ingestion via the appropriate Splunk TA into index=aws.\nExpected sourcetype: `aws:cloudwatch`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:cloudwatch` in `index=aws` and applies `*` to surface `Cloud Metrics Trend Baseline`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_6_7_alert` with appropriate severity. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for AWS (Splunkbase 1876)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for cloud metrics trend baseline in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (Splunkbase 1876) with the modular input for `aws:cloudwatch`.\n• Prerequisite crawl UC(s): none.\n• Confirm field extractions in `props.conf` for `metric_name` and related actor fields.\n\nStep 1 — Configure data collection\nEnable aws:cloudwatch ingestion via the appropriate Splunk TA into index=aws.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.6.7_cloud_metrics_trend_base_7\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch` in `index=aws` to detect cloud metrics trend baseline. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon CloudWatch console Metrics for the same 24-hour window. Confirm row counts and `metric_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_6_7_alert` with severity aligned to `critical` criticality. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud metrics trend baseline so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [],
   "splunkbaseApps": [
     {

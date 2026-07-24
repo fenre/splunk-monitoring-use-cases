@@ -22,11 +22,11 @@
     "positiveScenario": "Replay or inject sample `aws:lambda:cloudwatchlogs` events matching `*` into `index=aws`. Confirm UC-4.5.19 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `aws:lambda:cloudwatchlogs` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=aws` `sourcetype=aws:lambda:cloudwatchlogs`",
+  "dataSources": "`index=aws` sourcetype=`aws:lambda:cloudwatchlogs` collected via Provider serverless monitoring via cloud TA; validate ingest with `| stats count by sourcetype`.",
   "app": "Provider serverless monitoring via cloud TA",
-  "spl": "index=aws sourcetype=\"aws:lambda:cloudwatchlogs\"\n| table _time action user resource\n| sort -_time",
-  "description": "Memory pegged at limit causes OOM kills.",
-  "value": "AWS Lambda Memory Utilization High impacts serverless SLOs and cost efficiency.",
+  "spl": "index=aws sourcetype=\"aws:lambda:cloudwatchlogs\"\n| table _time function_name report_requestId duration memory\n| eval uc_marker=\"UC-4.5.19_aws_lambda_memory_utiliz_19\"\n| sort -_time",
+  "description": "Memory pegged at limit causes OOM kills. This UC monitors `aws:lambda:cloudwatchlogs` for aws lambda memory utilization high and surfaces events for SOC triage, change review, and compliance evidence.",
+  "value": "AWS Lambda Memory Utilization High impacts serverless SLOs and cost efficiency. Detecting aws lambda memory utilization high early reduces mean time to contain cloud incidents, supports audit logging controls, and prevents silent misconfiguration drift across accounts.",
   "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:lambda:cloudwatchlogs.",
   "visualization": "Dashboard panel, alert, and weekly compliance report.",
   "cimModels": [],
@@ -48,14 +48,18 @@
   "equipment": [
     "aws"
   ],
+  "equipmentModels": [
+    "aws_cloudwatch",
+    "aws_lambda"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=aws`.\n• Install and configure: Provider serverless monitoring via cloud TA.\n• Ensure `aws:lambda:cloudwatchlogs` events are flowing (prerequisite UC: 4.5.16 when applicable).\n• Map `aws` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:lambda:cloudwatchlogs.\nExpected sourcetype: `aws:lambda:cloudwatchlogs`. Validate with:\n```spl\nindex=aws sourcetype=\"aws:lambda:cloudwatchlogs\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:lambda:cloudwatchlogs\"\n| table _time action user resource\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `aws:lambda:cloudwatchlogs` in `index=aws` and applies `*` to surface `AWS Lambda Memory Utilization High`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_19_alert` with appropriate severity. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Provider serverless monitoring via cloud TA` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for aws lambda memory utilization high in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Provider serverless monitoring via cloud TA with the modular input for `aws:lambda:cloudwatchlogs`.\n• Prerequisite crawl UC(s): UC-4.5.16.\n• Confirm field extractions in `props.conf` for `function_name` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:lambda:cloudwatchlogs.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:lambda:cloudwatchlogs\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:lambda:cloudwatchlogs\"\n| table _time function_name report_requestId duration memory\n| eval uc_marker=\"UC-4.5.19_aws_lambda_memory_utiliz_19\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:lambda:cloudwatchlogs` in `index=aws` to detect aws lambda memory utilization high. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `function_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_19_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Provider serverless monitoring via cloud TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aws lambda memory utilization high so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [
     "UC-4.5.16"
   ],

@@ -13,10 +13,10 @@
     "positiveScenario": "Replay or inject sample `oci:audit` events matching `*` into `index=oci`. Confirm UC-4.7.1 search returns >=1 row and alert fires.",
     "negativeScenario": "Replay benign `oci:audit` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
   },
-  "dataSources": "`index=oci` `sourcetype=oci:audit`",
+  "dataSources": "`index=oci` sourcetype=`oci:audit` collected via Splunk Add-on for OCI (Splunkbase 5680); validate ingest with `| stats count by sourcetype`.",
   "app": "Splunk Add-on for OCI (Splunkbase 5680)",
-  "spl": "index=oci sourcetype=\"oci:audit\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time",
-  "description": "Verifies oci audit log baseline ingestion data flows into Splunk continuously.",
+  "spl": "index=oci sourcetype=\"oci:audit\"\n| table _time eventName identity.principalName resourceId\n| eval uc_marker=\"UC-4.7.1_oci_audit_log_baseline_i_1\"\n| sort -_time",
+  "description": "Verifies oci audit log baseline ingestion data flows into Splunk continuously. This UC monitors `oci:audit` for oci audit log baseline ingestion and surfaces events for SOC triage, change review, and compliance evidence.",
   "value": "OCI Audit Log Baseline Ingestion is the prerequisite feed for all 4.7 detections.",
   "implementation": "Enable oci:audit ingestion via the appropriate Splunk TA into index=oci.",
   "visualization": "Ingestion health single value and lag chart.",
@@ -39,14 +39,17 @@
   "equipment": [
     "oci"
   ],
+  "equipmentModels": [
+    "oci_audit"
+  ],
   "status": "community",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
     "tstats_eligible": false
   },
-  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=oci`.\n• Install and configure: Splunk Add-on for OCI (Splunkbase 5680).\n• Ensure `oci:audit` events are flowing (prerequisite UC: none when applicable).\n• Map `oci` and field extractions per `docs/guides/aws.md`, `docs/guides/azure.md`, or `docs/guides/gcp.md` as appropriate.\n\nStep 1 — Configure data collection\nEnable oci:audit ingestion via the appropriate Splunk TA into index=oci.\nExpected sourcetype: `oci:audit`. Validate with:\n```spl\nindex=oci sourcetype=\"oci:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=oci sourcetype=\"oci:audit\"\n| table _time userIdentity.arn eventName sourceIPAddress errorCode\n| sort -_time\n```\n\nUnderstanding this SPL\nThe search scopes `oci:audit` in `index=oci` and applies `*` to surface `OCI Audit Log Baseline Ingestion`. Tune time range and alert threshold to your change cadence; exclude break-glass principals via a lookup.\n\nStep 3 — Validate\nCompare result counts to the vendor console (CloudTrail Event history, Azure Activity Log, GCP Logs Explorer, or service-native UI). Spot-check `_time` and actor fields. Confirm CIM acceleration only after TA field mappings are verified.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_7_1_alert` with appropriate severity. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) empty results — verify TA input and index routing; (2) duplicate events — check S3/SQS duplication; (3) missing fields — upgrade `Splunk Add-on for OCI (Splunkbase 5680)` and review `props.conf` aliases; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
-  "grandmaExplanation": "We watch for oci audit log baseline ingestion in your cloud audit logs so the team catches important changes early instead of finding out from auditors or customers.",
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=oci`.\n• Install and configure Splunk Add-on for OCI (Splunkbase 5680) with the modular input for `oci:audit`.\n• Prerequisite crawl UC(s): none.\n• Confirm field extractions in `props.conf` for `eventName` and related actor fields.\n\nStep 1 — Configure data collection\nEnable oci:audit ingestion via the appropriate Splunk TA into index=oci.\nValidate ingest before alerting:\n```spl\nindex=oci sourcetype=\"oci:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=oci sourcetype=\"oci:audit\"\n| table _time eventName identity.principalName resourceId\n| eval uc_marker=\"UC-4.7.1_oci_audit_log_baseline_i_1\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `oci:audit` in `index=oci` to detect oci audit log baseline ingestion. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the OCI Console Audit page for the same 24-hour window. Confirm row counts and `eventName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_7_1_alert` with severity aligned to `critical` criticality. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for OCI (Splunkbase 5680) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of oci audit log baseline ingestion so your team catches problems in your online services before customers or auditors do.",
   "prerequisiteUseCases": [],
   "splunkbaseApps": [
     {
