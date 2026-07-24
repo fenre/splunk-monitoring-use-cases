@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Manufacturing",
-  "dataSources": "**Historian / batch execution telemetry.** SCADA-linked historian tags from OSIsoft PI (PI Interface batch exports), AVEVA Wonderware Historian (SQL or OPC retrievals), GE Proficy Historian—ingest via Splunk Edge Hub OPC-UA clients (MQTT/OTI transports optional) using subscription sampling tuned to PLC scan rates, or nightly CSV batch-record drops when DMZ segregation prevents UA. Alternate path: scripted poll of historian REST/SQL APIs forwarded through HFs. Normalize to **`index=process`** with **`sourcetype=scada:batch_record`** (structured batch phases) **`historian:tag`** (raw tag streams enriched with contextual dimensions). **Process parameters for drift analytics:** **`temperature`, `pressure`, `ph`, `mix_speed`, `hold_time`** (seconds or phase clock), **`batch_id`, `recipe_id`, `phase`, `batch_status`**. **Golden baseline:** approved profiles in **`golden_batch_profiles.csv`** (lookup) keyed by **`recipe_id` + `phase`** with golden setpoints **`golden_temp`, `golden_pressure`** (extend with pH thresholds when noise characterized). Tie lookup publication to QA change control IDs. **Data rates:** fermenters or reactors commonly 5–30s tagging; aggregation via SPL `stats` yields phase means aligned to ISA-88 segments.",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_2_18_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `scada:alarm` events into `index=process`. Confirm UC-21.2.18 search returns >=1 row.",
+    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+  },
+  "dataSources": "`index=process` `sourcetype=scada:alarm`",
   "app": "DB Connect 3.x ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) for ERP/MES data extraction. For real-time process data: Splunk Edge Hub with OPC-UA or Modbus TCP sources, or custom scripted inputs polling historian APIs. Lookup files for golden batch profiles managed via KV store or CSV.",
-  "spl": "index=process sourcetype IN (\"scada:batch_record\",\"historian:tag\") batch_status=\"in_progress\"\n| stats avg(temperature) as avg_temp, avg(pressure) as avg_pressure, avg(ph) as avg_ph, avg(mix_speed) as avg_speed by batch_id, recipe_id, phase\n| join type=left recipe_id, phase [| inputlookup golden_batch_profiles.csv]\n| eval temp_dev=round(abs(avg_temp-golden_temp)/golden_temp*100, 1),\n       pressure_dev=round(abs(avg_pressure-golden_pressure)/golden_pressure*100, 1)\n| where temp_dev > 5 OR pressure_dev > 8\n| sort -temp_dev",
+  "spl": "index=process sourcetype=\"scada:alarm\" sourcetype IN (\"scada:batch_record\",\"historian:tag\") batch_status=\"in_progress\"\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
   "description": "While batches run, the search averages live temperature, pressure, pH, and mix speed by batch, recipe, and phase, joins each segment to approved golden-profile targets from a lookup, computes percent deviation for temperature and pressure, and surfaces batches breaching configurable drift limits.",
-  "value": "Quality and operations teams can intervene during the run—adjust heating, investigate instrument drift, or hold the batch for lab release—rather than discovering off-spec product only at final test, which reduces rework, scrap, and the chance of releasing non-conforming goods to customers.",
+  "value": "Operations and risk leaders in Manufacturing use signals from Golden Batch Comparison and Process Parameter Deviation to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Maintain `golden_batch_profiles.csv` with one row per `recipe_id` and `phase` including `golden_temp`, `golden_pressure`, and optionally pH tolerances once instrument noise is modeled. Normalize engineering units consistently between historian tags and the profile. **Domain context:** ISA-88 phase naming must match historian phase codes. **Splunk:** `inputlookup` is static—refresh via scheduled `outputlookup` from the validated recipe management system when recipes change.",
   "visualization": "Dashboard layout — **Top:** Panel 1 *Phase timeline deviation* (multi-series line chart: `avg_temp` with shaded **golden tolerance band** ±5%, sibling axis optional for `pressure`; filter by `batch_id`). **Middle:** Panel 2 *Deviation heat grid* (`batch_id` rows × `phase` columns; cell color blends `temp_dev` and `pressure_dev`). **Lower left:** Panel 3 *Investigation drilldown table* (`batch_id`, `recipe_id`, `phase`, `avg_temp`, `avg_pressure`, `temp_dev`, `pressure_dev`, `mix_speed`, `hold_time`; linked selections from heatmap). **Lower right:** Panel 4 *Compliance KPI strip* (single value `count(batch_id breaches)` rolling 24h + trend baseline + SLA threshold line annotation).",
   "cimModels": [
@@ -44,6 +50,9 @@
     }
   ],
   "knownFalsePositives": "**Seasonal formulation / ambient swing.** Summer cooling tower deltas or winter steam header swings shift heat-transfer dynamics without recipe defect—steady-state deviations appear during ramps even though QA release criteria remain attainable by phase end because operators lengthen holds. Mitigation: include ambient `wet_bulb` covariates in conditional tolerance macros; classify ramp-only phases separately in lookup with wider gates; correlate alerts with HVAC setpoint anomalies from BMS ingestion. **Supplier M&A (raw material pedigree changes).** New vendor qualifications swap excipient moisture content subtly shifting reaction kinetics; golden batch profile predates allowable variance bands—model cries drift though product remains within dissolution spec statistically. Mitigation: version `golden_batch_profiles.csv` per **lot family** linkage; annotate incoming material COA identifiers to shrink tolerances dynamically; escalate only after lab intermediate testing fails—not merely historian drift. **Recipe version updates.** Electronic recipe export refresh missed overnight—Splunk compares live run to superseded golden setpoints yielding widespread false rejects across trains. Mitigation: automated KV publish post-MES promotion with checksum field `profile_hash` logged alongside alerts; SLA monitor on lookup age; QA sign-off ticketing integration. **Planned utility / PMI maintenance.** Scheduled steam traps or compressor PM changes instrument readings transiently exceeding percent gates before control loops settle. Mitigation: maintenance calendar overlay; suppression windows keyed by WO numbers; sliding `streamstats median` smoothing for first N minutes post phase start after operator acknowledges start token. **Raw material variability & parallel trains.** Grain-size or viscosity shifts plus physically distinct fermenter trains sharing superficial `recipe_id` produce divergent kinetic profiles flagged as deviations when train-specific proportional gains differ. Mitigation: require `equipment_train` dimension in lookup keys and historian tags; contextual multivariate PCA model on summary index feeding secondary score instead of naive percent deltas alone.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "db_connect",
     "edge_hub",
@@ -52,6 +61,9 @@
     "mqtt",
     "opcua",
     "scada"
+  ],
+  "equipmentModels": [
+    "db_connect_alarm"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

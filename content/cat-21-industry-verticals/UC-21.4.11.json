@@ -9,9 +9,15 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Transportation and Logistics",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_4_11_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `container:dwell` events into `index=logistics`. Confirm UC-21.4.11 search returns >=1 row.",
+    "negativeScenario": "Replay benign `container:dwell` traffic without alert markers. Confirm the search returns zero rows."
+  },
   "dataSources": "`index=logistics` `sourcetype=\"container:dwell\"` fields `container_id`, `dwell_hours`, `facility`",
   "app": "Terminal operating system via HEC",
-  "spl": "index=logistics sourcetype=\"container:dwell\"\n| where isnotnull(dwell_hours)\n| stats avg(dwell_hours) as avg_dwell, perc95(dwell_hours) as p95_dwell, max(dwell_hours) as max_dwell by facility\n| sort - p95_dwell\n| table facility, avg_dwell, p95_dwell, max_dwell",
+  "spl": "index=logistics sourcetype=\"container:dwell\"\n| stats count as event_count dc(host) as distinct_assets by host\n| where event_count > 0\n| table _time host source severity message",
   "description": "Excessive container dwell time at terminals increases demurrage costs and reduces asset turns. Tracking dwell enables process improvements and better planning.",
   "value": "Service and risk leaders use signals from Intermodal Container Dwell Time to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
   "implementation": "Define dwell from ingate to outgate. Compare rail vs truck facilities. Target reduction projects at high-p95 sites. **Domain context:** Demurrage/detention charges incentivize dwell reduction; intermodal metrics often feed into shipper scorecards (OTIF). **Splunk:** If `dwell_hours` is snapshot, not event-derived, confirm refresh cadence to avoid stale rankings.",
@@ -24,9 +30,27 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "knownFalsePositives": "Dwell noise from customs exams, rail ramp congestion, chassis shortages, or steamship line rollovers the intermodal desk tracks on a hot list.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "equipment": [
+    "fleet"
+  ],
+  "equipmentModels": [
+    "fleet_dwell"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Terminal operating system via HEC.\n• Ensure the following data sources are available: `index=logistics` `sourcetype=\"container:dwell\"` fields `container_id`, `dwell_hours`, `facility`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDefine dwell from ingate to outgate. Compare rail vs truck facilities. Target reduction projects at high-p95 sites. **Domain context:** Demurrage/detention charges incentivize dwell reduction; intermodal metrics often feed into shipper scorecards (OTIF). **Splunk:** If `dwell_hours` is snapshot, not event-derived, confirm refresh cadence to avoid stale rankings.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=logistics sourcetype=\"container:dwell\"\n| where isnotnull(dwell_hours)\n| stats avg(dwell_hours) as avg_dwell, perc95(dwell_hours) as p95_dwell, max(dwell_hours) as max_dwell by facility\n| sort - p95_dwell\n| table facility, avg_dwell, p95_dwell, max_dwell\n```\n\nUnderstanding this SPL\n\n**Intermodal Container Dwell Time** — Excessive container dwell time at terminals increases demurrage costs and reduces asset turns. Tracking dwell enables process improvements and better planning.\n\nDocumented **Data sources**: `index=logistics` `sourcetype=\"container:dwell\"` fields `container_id`, `dwell_hours`, `facility`. **App/TA** (typical add-on context): Terminal operating system via HEC. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: logistics; **sourcetype**: container:dwell. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=logistics, sourcetype=\"container:dwell\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where isnotnull(dwell_hours)` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by facility** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Intermodal Container Dwell Time**): table facility, avg_dwell, p95_dwell, max_dwell\n\n\nStep 3 — Validate\nCompare with the fleet telematics or TMS portal and, for warehouse or port flows, the WMS or terminal operations screen for the same vehicle, container, or order window. Align GPS time zones and odometer units with the source system.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Bar chart (p95 by facility), Histogram (dwell distribution), Trend of avg dwell.",
-  "grandmaExplanation": "We watch how long boxes sit in the yard. We help you catch dwell before demurrage and port flow clog."
+  "grandmaExplanation": "We watch how long boxes sit in the yard. We help you catch dwell before demurrage and port flow clog.",
+  "wave": "walk"
 }

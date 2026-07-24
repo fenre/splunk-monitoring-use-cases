@@ -1,0 +1,70 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.13.21",
+  "title": "Faculty tenure review document access audit",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Education and Academic Medical",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_13_21_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `education:audit` events matching `action=* OR event_type=audit` into `index=education`. Confirm UC-21.13.21 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `education:audit` traffic without `action=* OR event_type=audit` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=education` `sourcetype=education:audit`",
+  "app": "Custom HEC from LMS, SIS, and campus network systems",
+  "spl": "index=education sourcetype=\"education:audit\" action=* OR event_type=audit\n| stats count as event_count dc(host) as distinct_assets by user_id\n| where event_count > 0\n| table _time user_id action resource_type campus_id",
+  "description": "Monitors faculty tenure review document access audit using `education:audit` telemetry in `index=education` to surface operational risk before it impacts education and academic medical service delivery.",
+  "value": "Operations and risk leaders in Education and Academic Medical use signals from Faculty tenure review document access audit to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
+  "implementation": "Ingest `education:audit` events via HEC or Edge Hub into `index=education`. Normalize field extractions in props/transforms for the Education and Academic Medical feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.",
+  "visualization": "Timechart by host/asset, single-value KPI, table of top offenders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk OT Intelligence",
+      "url": "https://splunkbase.splunk.com/app/5180"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "securityDomain": "industry",
+  "equipment": [
+    "campus",
+    "edge_hub",
+    "education"
+  ],
+  "equipmentModels": [
+    "education_audit"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=education`.\n• Install and configure: Custom HEC from LMS, SIS, and campus network systems.\n• Ensure `education:audit` events are flowing (prerequisite UC: none when applicable).\n• Map `education` and field extractions per `docs/guides/industry-verticals.md`.\n\nStep 1 — Configure data collection\nIngest `education:audit` events via HEC or Edge Hub into `index=education`. Normalize field extractions in props/transforms for the Education and Academic Medical feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.\nExpected sourcetype: `education:audit`. Validate with:\n```spl\nindex=education sourcetype=\"education:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=education sourcetype=\"education:audit\" action=* OR event_type=audit\n| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts\n```\n\nUnderstanding this SPL\nThe search scopes `education:audit` in `index=education` and applies `action=* OR event_type=audit` to surface `Faculty tenure review document access audit`. Tune time range and alert threshold to your operational baseline; exclude planned maintenance via asset/schedule lookup.\n\nStep 3 — Validate\nCompare result counts to the source system UI (SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console, etc.) for the same time range. Spot-check `_time` and asset fields.\n\nStep 4 — Operationalize and troubleshoot\nSave as `21_13_21_alert` with appropriate severity. Dashboard: Timechart by host/asset, single-value KPI, table of top offenders..\nFailure modes: (1) empty results — verify HEC/Edge Hub input and index routing; (2) duplicate events — check forwarder acknowledgment; (3) missing fields — review props/transforms; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch education and academic medical systems for signs of faculty tenure review document access audit so your team can act early instead of learning about problems from customers or regulators.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5180,
+      "name": "Splunk OT Intelligence",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

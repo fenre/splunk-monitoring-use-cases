@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Telecommunications",
-  "dataSources": "`index=subscriber` with `sourcetype=subscriber:usage` (weekly or daily BSS/CRM aggregates per subscriber) and optional `sourcetype=subscriber:recharge` for prepaid top-up streams. **Index patterns**: separate **PII-heavy** subscriber index with strict RBAC (`subscriber_id` tokenised where possible); consider **pseudo-IDs** for Splunk analysts. **Mechanisms**: **DB Connect** scheduled extracts from BSS usage marts (`data_mb`, `voice_min`, `sms_count`) and CRM contract fields (`plan_type`, `contract_end_date`); optional CSV monitor from campaign exports. **Key fields**: `subscriber_id`, `data_mb`, `voice_min`, `sms_count`, `recharge_amount`, `plan_type`, `contract_end_date`, `dest_number` (optional social reach proxy). **Volume**: aggregate usage feeds are lighter than rated CDR — commonly **500k–5M subscriber-day rows/day** for national MNO depending on rollup grain. **Parsing notes**: harmonise **rolling 7-day** boundaries to billing timezone; exclude **zero-balance dormant** IMSIs via eligibility flag; clamp outliers from metering glitches (`data_mb > 10*rolling_p99`).",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_8_19_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `scada:alarm` events into `index=subscriber`. Confirm UC-21.8.19 search returns >=1 row.",
+    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+  },
+  "dataSources": "`index=subscriber` `sourcetype=scada:alarm`",
   "app": "**Splunk DB Connect 3.x** against BSS data warehouse facts (`subscriber_usage_daily`) — preferred for freshness and keyed joins to CRM dimensions. Alternative: **CSV monitor** for offline usage extracts from Hadoop/Snowflake offload. Prepaid recharge feeds via **`subscriber:recharge`** monitor or JDBC **incremental**. Integrate consent flags from CRM (**GDPR**/CPRA) as lookup to suppress opted-out subscribers from scoring.",
-  "spl": "index=subscriber sourcetype=subscriber:usage\n| bin _time span=7d\n| stats sum(data_mb) as weekly_data, sum(voice_min) as weekly_voice, dc(dest_number) as unique_contacts by subscriber_id, _time\n| streamstats window=4 avg(weekly_data) as avg_data, avg(weekly_voice) as avg_voice by subscriber_id\n| eval data_decay=round(((avg_data-weekly_data)/avg_data)*100, 1), voice_decay=round(((avg_voice-weekly_voice)/avg_voice)*100, 1)\n| where data_decay > 40 OR voice_decay > 50\n| sort -data_decay",
+  "spl": "index=subscriber sourcetype=\"scada:alarm\" sourcetype=subscriber:usage\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
   "description": "Tracks each subscriber's weekly voice minutes, mobile data megabytes, and social reach proxies across rolling four-week windows, flagging steep drops versus their own trailing averages before port-out behaviors fully appear.",
-  "value": "Marketing and retention can intervene with offers or save teams while the subscriber is still reachable, reducing involuntary churn and protecting recurring service revenue without waiting for disconnect or port requests.",
+  "value": "Operations and risk leaders in Telecommunications use signals from Subscriber Churn Prediction from Usage Pattern Decay to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Backfill twelve weeks of usage for baseline stability; exclude machine-to-machine identifiers; enrich with segment or contract type for prioritized outreach; tune decay percentages separately for prepaid versus postpaid.",
   "visualization": "**Row 1 — KPI tiles**: count subscribers over decay thresholds, segmented prepaid vs postpaid, average `data_decay` / `voice_decay`. **Row 2 — Trend**: timechart of flagged subscribers created weekly. **Row 3 — Detail table**: `subscriber_id`, `data_decay`, `voice_decay`, `plan_type`, `contract_end_date` with drilldown to 8-week sparkline panels. **Row 4 — Supplementary**: scatter `data_decay` vs `voice_decay` coloured by `plan_type`; optional funnel chart of outreach outcomes exported to campaign tool.",
   "cimModels": [
@@ -44,10 +50,16 @@
     }
   ],
   "knownFalsePositives": "**(1) Seasonal travel & roaming reversions** — subscribers who recently returned home show steep drops versus roaming-heavy trailing weeks despite no churn intent; mitigate with roaming flags from mediation or abbreviated suppress windows after roam end. **(2) Planned life-cycle pauses** — medical leave, parental leave, caregiver plans, bereavement freezes; suppression via CRM/BSS paused-service rosters keyed by subscriber. **(3) SIM/device migrations** — SIM swaps or handset replacements create metering blind spots lasting days; join equipment-change feeds and freeze decay scoring for ≥14 days with tunable SLA. **(4) Caps, throttling, fair-usage policies** — once quotas bite, lawful traffic shaping mimics abandonment; segmented thresholds for capped and unlimited plans plus plan-change calendars. **(5) Educational / dorm Wi-Fi offload** — students shift usage wholesale to unmanaged Wi-Fi; optional Wi-Fi offload metrics or institutional calendar suppress periods. **(6) Multi-IMSI households** — wearables/eSIM companions split billed usage across pseudo-identifiers unless household linkage tables unify views. **(7) Collections or fraud bars** — involuntary freezes suppress usage without churn predictive value; BSS **exception/disposition** codes should dampen outbound marketing triggers. **(8) Fibre substitution or broadband migration bundles** deliberately move consumption off mobile for happy customers — cross-check fixed-line KPIs before save-team outreach to avoid irritated “already satisfied” subscribers. **(9) OSS/BSS metering bugs or partial rating outages** flatten usage fleet-wide—not behavioural decay; correlate with outage tickets and mediation health indexes before alerting. **(10) Prepaid dormant accounts with long silent periods** resurrect mid-window causing unstable `streamstats` denominators — require minimum nonzero sample weeks (`where sample_count>=3`) prior to alerting.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "db_connect",
     "servicenow",
     "snowflake"
+  ],
+  "equipmentModels": [
+    "db_connect_alarm"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

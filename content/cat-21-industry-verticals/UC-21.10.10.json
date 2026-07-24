@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Insurance",
-  "dataSources": "**Policy administration core.** Snapshot or change-data-capture extracts from Guidewire PolicyCenter, Duck Creek Policy (or analogous PAS) delivering **`policy_id`, `policyholder_id`, `renewal_date`, `premium_amount`, `last_payment_date`,** distribution channel & product segment fields for stratified retention analytics. Prefer DB Connect JDBC with parameterized rising keys (`policy_version.effective_date`). **Digital engagement telemetry.** Authenticated portal, mobile SDK, or IVR summarized sessions via Splunk HTTP Event Collector (JSON) keyed by hashed session identifiers; joinable `session_id`, page flow tags summarizable to **`activity_type`**, optional marketing consent flags. Maintain **`portal_visits`** per policy via scheduled rollups when raw click volume is excessive. Combine sources on `index=policy` with sourcetypes `policy:activity`, `portal:session`. **Operational nuance:** treat employer bill group policies distinctly—carrier-specific surrogate keys isolate policyholder personas from member-level noise where legally appropriate.",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_10_10_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `scada:alarm` events into `index=policy`. Confirm UC-21.10.10 search returns >=1 row.",
+    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+  },
+  "dataSources": "`index=policy` `sourcetype=scada:alarm`",
   "app": "DB Connect 3.x for claims/policy system extracts. Schedule batch pulls every 4-8 hours for claims data, daily for policy snapshots. Consider HEC for real-time portal activity events.",
-  "spl": "index=policy sourcetype IN (\"policy:activity\",\"portal:session\")\n| bin _time span=30d\n| stats dc(session_id) as portal_visits, count(eval(activity_type=\"payment\")) as payments, count(eval(activity_type=\"inquiry\")) as inquiries, latest(renewal_date) as next_renewal by policy_id, policyholder_id, _time\n| streamstats window=3 avg(portal_visits) as trend_visits by policy_id\n| eval engagement_decay=round(((trend_visits-portal_visits)/trend_visits)*100, 1),\n       days_to_renewal=round((strptime(next_renewal,\"%Y-%m-%d\")-now())/86400, 0)\n| where engagement_decay > 50 AND days_to_renewal < 90 AND days_to_renewal > 0\n| sort days_to_renewal",
+  "spl": "index=policy sourcetype=\"scada:alarm\" sourcetype IN (\"policy:activity\",\"portal:session\")\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
   "description": "Portal sessions and policy activities are bucketed into thirty-day windows per policy, visits and key activity types are counted, a short rolling average of visits is compared to the current bucket to measure engagement drop-off, and policies with large decay inside ninety days before renewal are listed in ascending days-to-renewal order.",
-  "value": "Retention and agent teams can reach disengaged customers with proactive outreach, payment assistance, or coverage reviews before non-renewal locks in, improving persistency, lifetime value, and broker satisfaction without waiting for the cancellation notice.",
+  "value": "Operations and risk leaders in Insurance use signals from Policyholder Lapse Risk Scoring from Engagement Decay to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Ensure `renewal_date` is authoritative and timezone-stable; fall back to policy term end if labeled differently. Treat automated payment sweeps as engagement only if that matches marketing policy. **Domain context:** group policies and bill-to employer arrangements show low portal use by design—segment by distribution channel. **Splunk:** Guard `trend_visits=0` to avoid divide-by-zero in `engagement_decay`; filter `streamstats` to policies with at least three buckets when stable trends are required.",
   "visualization": "Dashboard layout — **Header row:** Panel 1 *Renewal urgency funnel* (`days_to_renewal` cohort stacked bar of at-risk volumes). **Middle:** Panel 2 *Digital engagement longitudinal lines* (`portal_visits` per `policy_id` selection with overlay moving average dashed line). **Right column:** Panel 3 *Explainability table* (`policy_id`, `policyholder_token`, `engagement_decay`, `days_to_renewal`, `payments`, `inquiries`, premium band). **Footer strip:** Panel 4 *Operational KPI mosaic* (`count policies` meeting decay heuristic + SLA target marker + uplift % after last retention campaign annotated).",
   "cimModels": [
@@ -44,10 +50,16 @@
     }
   ],
   "knownFalsePositives": "**Large commercial / multi-state accounts with delegated servicing.** Dedicated account teams resolve issues offline; portal traffic flatlines while renewal probability remains high—decay score misroutes expensive concierge accounts into mass-market retention dialers eroding relationship equity. Mitigation: segment by `distribution_channel` + `servicing_tier`; suppress digital decay triggers for key-account flags maintained in PAS; blend CRM case activity imports as alternate engagement surrogate. **Catastrophe or regulatory moratorium windows.** Post-event customer assistance programs elongate renewal cycles and suppress marketing touches—sessions drop artificially without churn intent pending regulatory filing clarity. Mitigation: overlay geospatial peril masks and bulletin effective dates halting outbound digital measurement during moratoria; re-baseline forecasts using historical analog seasons. **Regulatory mandated non-renewal / product withdrawal.** Legislative discontinuance forces lapse-like patterns independent of voluntary disengagement; retention campaigns risk compliance violations contacting policyholders barred from solicitation. Mitigation: join withdrawn-product bulletin lookup; classify `non_renew_reason_code` exclusions prior to alerting; escalate only products still actively remarketed. **Seasonal affinity products (travel, motorcycles, tuition).** Natural seasonal dormancy lowers portal friction between usage cycles producing cyclical pseudo-decay every policy year—even healthy books appear cold during off-season buckets. Mitigation: align `bin span` adaptive by product archetype (`season_window` macros); benchmark against analogous prior-year cohort not global average. **Open enrollment overlaps & group carve-outs.** Enrollment-driven spikes swamp individual metrics; erroneous identity stitching flags employee policies as lapsing individually when employer renews centrally. Mitigation: enforce hierarchical policy grouping keys; prioritize bill-to aggregates for group lines; corroborate with enrollment file ingestion.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "customer_portal",
     "db_connect",
     "policy_admin"
+  ],
+  "equipmentModels": [
+    "customer_portal_alarm"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

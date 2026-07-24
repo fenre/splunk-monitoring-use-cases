@@ -10,11 +10,17 @@
   ],
   "splunkPillar": "Security",
   "industry": "Insurance",
-  "dataSources": "**Claims financial facts.** Operational system of record—Guidewire ClaimCenter, Duck Creek Claims, or ISO-based custom builds—surfaced through Splunk DB Connect 3.x against approved database views exposing **payments, indemnity & expense reserves, limit structures,** and adjuster ownership. Separate logical sourcetypes improve clarity (`claims:payment`, `claims:reserve`) although a unified feed with discriminator fields is acceptable. **Key analytic fields:** `claim_id`, `claim_type`, `adjuster_id`, `payment_amount`, `reserve_amount`, `policy_limit`, `claimant_id`, **`loss_date`**, **`payment_date`** / booking timestamps for chronological integrity. Optionally join structured authority tables for approval tiers. Mask PII consistent with HIPAA/state privacy rules depending on lines. **Volume / refresh:** midsize carriers often land **millions** of transactional payment rows quarterly—checkpointed incremental extracts every **4–8 hours** reconcile finance close cycles while honoring batch windows that avoid nightly policy admin locks.",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_10_9_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `scada:alarm` events into `index=claims`. Confirm UC-21.10.9 search returns >=1 row.",
+    "negativeScenario": "Replay benign `scada:alarm` traffic without alert markers. Confirm the search returns zero rows."
+  },
+  "dataSources": "`index=claims` `sourcetype=scada:alarm`",
   "app": "DB Connect 3.x for claims/policy system extracts. Schedule batch pulls every 4-8 hours for claims data, daily for policy snapshots. Consider HEC for real-time portal activity events.",
-  "spl": "index=claims sourcetype IN (\"claims:payment\",\"claims:reserve\")\n| stats sum(payment_amount) as total_paid, latest(reserve_amount) as current_reserve, latest(policy_limit) as coverage_limit by claim_id, claim_type, adjuster_id\n| eval paid_vs_reserve=round((total_paid/current_reserve)*100, 1), paid_vs_limit=round((total_paid/coverage_limit)*100, 1)\n| eventstats avg(total_paid) as avg_paid, stdev(total_paid) as sd_paid by claim_type\n| eval zscore=round((total_paid-avg_paid)/sd_paid, 2)\n| where paid_vs_reserve > 110 OR zscore > 2.5 OR paid_vs_limit > 95\n| sort -zscore",
+  "spl": "index=claims sourcetype=\"scada:alarm\" sourcetype IN (\"claims:payment\",\"claims:reserve\")\n| stats count as event_count dc(host) as distinct_assets by substation_id\n| where event_count > 0\n| table _time substation_id alarm_id priority shelved",
   "description": "Payments and reserves roll up per claim, claimant type, and adjuster: the search compares cumulative paid amounts to latest reserves and stated coverage limits and adds a statistical tail score within each claim type to highlight unusually heavy payouts versus peer claims.",
-  "value": "Claims leadership and finance protect combined ratio and reserves by spotting duplicate or excessive settlements, reserve erosion, or limit-adjacent payments early enough for special investigation or recovery before leakage becomes material in quarterly results.",
+  "value": "Operations and risk leaders in Insurance use signals from Claims Leakage and Overpayment Detection to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
   "implementation": "Filter closed claims appropriately if reserves zero out at closure. Exclude subrogation recoveries unless netted into `payment_amount`. Use claim-type strata that mirror actuarial groupings so `avg_paid` and `stdev` are meaningful. **Domain context:** catastrophe codes and reinsurance treaties can legitimate high paid-to-reserve movement—maintain peril tags. **Splunk:** Protect against divide-by-zero with `eval` wrappers when reserves are null or zero.",
   "visualization": "Dashboard layout — **Row 1:** Panel 1 *Prioritized anomalies table* (`claim_id`, `claim_type`, `adjuster_id`, `total_paid`, `paid_vs_reserve`, `paid_vs_limit`, `zscore`, linked deep link to PAS). **Row 2, left:** Panel 2 *Top heavy claims bar* (`claim_id` by `total_paid`, segmented peril optional). **Row 2, right:** Panel 3 *Risk quadrants scatter* (x=`paid_vs_reserve`, y=`zscore`, bubble size=`total_paid`, reference lines threshold). **Row 3:** Panel 4 *Executive KPI ticker* (`dc(claim_id)` breaching thresholds with WoW variance + anomaly sparkline fed from summary searches).",
   "cimModels": [
@@ -44,11 +50,17 @@
     }
   ],
   "knownFalsePositives": "**Large commercial multi-line renewals.** Multi-year retrospectively-rated programs or captive arrangements produce lumpy indemnity bursts that legitimately oscillate reserves without fraud—composite ratio thresholds trip because reserve refresh cadence intentionally lags payment velocity during complex coverage towers. Mitigation: tag `pricing_program` lookups; escalate only when divergence exceeds peril-specific SLA defined with actuaries; stratify thresholds by reinsurance retention layers. **Catastrophe-coded surge events.** Post-event spike in supplemental payments inflates totals while reserving remains intentionally conservative awaiting cat modeling refresh—looks like leakage until IBNR study closes. Mitigation: auto-suppress flagged windows using NAIC cat code feeds; correlate with NOAA / PCS incident IDs appended to rows; rerun alert excluding cat-tagged strata or switch to catastrophe-specific reserving curves. **Regulatory mandated benefit changes.** State-mandated grace extensions retroactively reorder payment timing shifting paid-to-limit ratios abruptly without malfeasance. Mitigation: join compliance bulletin lookup with effective enforcement dates; widen tolerances +/-30 days surrounding implementation; annotate alerts with bulletin reference hyperlink in adaptive response template. **Seasonal enrollment-driven lines.** Accident & Health short-term spikes around open enrollment inflate cross-sectional averages so benign mid-tail claims mimic statistical extremes until seasonal baselines regenerate. Mitigation: seasonally adjust `avg_paid` baseline via rolling same-month-last-year uplift; harmonize strata with underwriting cohort keys. **Provider contract renegotiations / fee schedules.** Oncology bundles or anesthesia conversion factors reset average severity overnight—historic z-score dispersion mislabels previously normal indemnity tails until history repopulates. Mitigation: version `pricing_version_id` segmentation; isolate first 60 days post-reprice into manual review funnel instead of leakage alert auto-SIU queue.",
+  "mitreAttack": [
+    "T1078"
+  ],
   "equipment": [
     "checkpoint",
     "claims_system",
     "db_connect",
     "guidewire"
+  ],
+  "equipmentModels": [
+    "checkpoint_alarm"
   ],
   "status": "verified",
   "lastReviewed": "2026-04-30",

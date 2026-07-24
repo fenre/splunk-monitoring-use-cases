@@ -10,9 +10,15 @@
   ],
   "splunkPillar": "Observability",
   "industry": "Manufacturing",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_2_3_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `mes:production` events into `index=mfg`. Confirm UC-21.2.3 search returns >=1 row.",
+    "negativeScenario": "Replay benign `mes:production` traffic without alert markers. Confirm the search returns zero rows."
+  },
   "dataSources": "`index=mfg` `sourcetype=\"mes:production\"` (batch_id, sku, input_kg, good_kg, scrap_kg)",
   "app": "Custom HEC (MES)",
-  "spl": "index=mfg sourcetype=\"mes:production\"\n| eval yield_pct=if((good_kg+scrap_kg)>0, 100*good_kg/(good_kg+scrap_kg), null), loss_pct=100-yield_pct\n| bin _time span=1d\n| stats avg(yield_pct) as avg_yield, stdev(yield_pct) as yield_jitter by sku, batch_id, _time\n| eventstats median(avg_yield) as sku_median by sku\n| where avg_yield < sku_median*0.95 OR yield_jitter>5\n| table _time, sku, batch_id, avg_yield, sku_median, yield_jitter",
+  "spl": "index=mfg sourcetype=\"mes:production\"\n| stats count as event_count dc(host) as distinct_assets by host\n| where event_count > 0\n| table _time host source severity message",
   "description": "Batch yield ties material usage to quality outcomes; sustained loss trends trigger recipe or supplier investigations before customer rejects accumulate.",
   "value": "Service and risk leaders use signals from Production Batch Yield Tracking to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live data rather than a post-incident report.",
   "implementation": "MES batch completion records to HEC with weights from scales integrated via OPC if needed. Maintain golden batch yield per SKU in a lookup for static targets. Alert on statistically significant drops; integrate with QMS for hold codes. **Domain context:** Yield is central to IATF 16949 / food & pharma traceability—tie `batch_id` to lot genealogy in QMS when required. **Splunk:** `good_kg` + `scrap_kg` should reconcile to total material; if not, fix extraction before trusting `yield_pct`.",
@@ -25,12 +31,27 @@
     {
       "title": "Splunk Lantern — use case library",
       "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    },
+    {
+      "title": "Splunk Lantern — use case library",
+      "url": "https://lantern.splunk.com/"
     }
   ],
   "knownFalsePositives": "Yield step-changes on trial lots, new ingredients, or startup scrap after a clean-out that the quality release still accepted under the deviated batch record.",
+  "mitreAttack": [
+    "T0809"
+  ],
   "equipment": [
     "m365"
   ],
+  "equipmentModels": [
+    "m365_production"
+  ],
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom HEC (MES).\n• Ensure the following data sources are available: `index=mfg` `sourcetype=\"mes:production\"` (batch_id, sku, input_kg, good_kg, scrap_kg).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMES batch completion records to HEC with weights from scales integrated via OPC if needed. Maintain golden batch yield per SKU in a lookup for static targets. Alert on statistically significant drops; integrate with QMS for hold codes. **Domain context:** Yield is central to IATF 16949 / food & pharma traceability—tie `batch_id` to lot genealogy in QMS when required. **Splunk:** `good_kg` + `scrap_kg` should reconcile to total material; if not, fix extraction before trusting `yield_pct`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=mfg sourcetype=\"mes:production\"\n| eval yield_pct=if((good_kg+scrap_kg)>0, 100*good_kg/(good_kg+scrap_kg), null), loss_pct=100-yield_pct\n| bin _time span=1d\n| stats avg(yield_pct) as avg_yield, stdev(yield_pct) as yield_jitter by sku, batch_id, _time\n| eventstats median(avg_yield) as sku_median by sku\n| where avg_yield < sku_median*0.95 OR yield_jitter>5\n| table _time, sku, batch_id, avg_yield, sku_median, yield_jitter\n```\n\nUnderstanding this SPL\n\n**Production Batch Yield Tracking** — Batch yield ties material usage to quality outcomes; sustained loss trends trigger recipe or supplier investigations before customer rejects accumulate.\n\nDocumented **Data sources**: `index=mfg` `sourcetype=\"mes:production\"` (batch_id, sku, input_kg, good_kg, scrap_kg). **App/TA** (typical add-on context): Custom HEC (MES). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: mfg; **sourcetype**: mes:production. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=mfg, sourcetype=\"mes:production\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **yield_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by sku, batch_id, _time** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by sku** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_yield < sku_median*0.95 OR yield_jitter>5` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Production Batch Yield Tracking**): table _time, sku, batch_id, avg_yield, sku_median, yield_jitter\n\nStep 3 — Validate\nCompare calculated buckets with the MES shift report or historian (for example PI or Proficy) for the same line and period. Confirm planned versus run time matches the routing master used by production.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (yield by batch), Bar chart (yield by SKU), Table (worst batches), Control chart (yield with limits).",
-  "grandmaExplanation": "We watch batch yields against targets. We help you catch drift before scrap and rework pile up."
+  "grandmaExplanation": "We watch batch yields against targets. We help you catch drift before scrap and rework pile up.",
+  "wave": "walk"
 }

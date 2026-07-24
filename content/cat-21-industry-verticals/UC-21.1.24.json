@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.1.24",
+  "title": "DERMS grid-services dispatch latency",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Energy and Utilities",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_1_24_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `derms:event` events matching `latency_ms>500 OR delay_sec>60` into `index=energy`. Confirm UC-21.1.24 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `derms:event` traffic without `latency_ms>500 OR delay_sec>60` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=energy` `sourcetype=derms:event`",
+  "app": "Splunk OT Intelligence (Splunkbase 5180), OT Security Add-on (Splunkbase 5151)",
+  "spl": "index=energy sourcetype=\"derms:event\" latency_ms>500 OR delay_sec>60\n| stats count as event_count dc(host) as distinct_assets by resource_id\n| where event_count > 0\n| table _time resource_id event_type curtailment_mw",
+  "description": "Monitors derms grid-services dispatch latency using `derms:event` telemetry in `index=energy` to surface operational risk before it impacts energy and utilities service delivery.",
+  "value": "Operations and risk leaders in Energy and Utilities use signals from DERMS grid-services dispatch latency to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
+  "implementation": "Ingest `derms:event` events via HEC or Edge Hub into `index=energy`. Normalize field extractions in props/transforms for the Energy and Utilities feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.",
+  "visualization": "Timechart by host/asset, single-value KPI, table of top offenders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk OT Intelligence",
+      "url": "https://splunkbase.splunk.com/app/5180"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "securityDomain": "industry",
+  "equipment": [
+    "edge_hub",
+    "scada",
+    "smartgrid"
+  ],
+  "equipmentModels": [
+    "scada_event"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=energy`.\n• Install and configure: Splunk OT Intelligence (Splunkbase 5180), OT Security Add-on (Splunkbase 5151).\n• Ensure `derms:event` events are flowing (prerequisite UC: 21.1.1 when applicable).\n• Map `energy` and field extractions per `docs/guides/industry-verticals.md`.\n\nStep 1 — Configure data collection\nIngest `derms:event` events via HEC or Edge Hub into `index=energy`. Normalize field extractions in props/transforms for the Energy and Utilities feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.\nExpected sourcetype: `derms:event`. Validate with:\n```spl\nindex=energy sourcetype=\"derms:event\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=energy sourcetype=\"derms:event\" latency_ms>500 OR delay_sec>60\n| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts\n```\n\nUnderstanding this SPL\nThe search scopes `derms:event` in `index=energy` and applies `latency_ms>500 OR delay_sec>60` to surface `DERMS grid-services dispatch latency`. Tune time range and alert threshold to your operational baseline; exclude planned maintenance via asset/schedule lookup.\n\nStep 3 — Validate\nCompare result counts to the source system UI (SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console, etc.) for the same time range. Spot-check `_time` and asset fields.\n\nStep 4 — Operationalize and troubleshoot\nSave as `21_1_24_alert` with appropriate severity. Dashboard: Timechart by host/asset, single-value KPI, table of top offenders..\nFailure modes: (1) empty results — verify HEC/Edge Hub input and index routing; (2) duplicate events — check forwarder acknowledgment; (3) missing fields — review props/transforms; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch energy and utilities systems for signs of derms grid-services dispatch latency so your team can act early instead of learning about problems from customers or regulators.",
+  "prerequisiteUseCases": [
+    "UC-21.1.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 5180,
+      "name": "Splunk OT Intelligence",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "21.8.39",
+  "title": "IPDR data session volume spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "industry": "Telecommunications Operations",
+  "exclusions": "Exclude planned maintenance windows, DR exercises, vendor pack updates, and seasonal demand patterns via asset/schedule lookup.",
+  "evidence": "Saved search `21_8_39_evidence` archived to restricted audit index.",
+  "controlTest": {
+    "positiveScenario": "Replay sample `telco:ipdr` events matching `*` into `index=telco`. Confirm UC-21.8.39 search returns >=1 row and alert fires.",
+    "negativeScenario": "Replay benign `telco:ipdr` traffic without `*` markers. Confirm the search returns zero rows and alert does not fire."
+  },
+  "dataSources": "`index=telco` `sourcetype=telco:ipdr`",
+  "app": "Custom HEC/syslog inputs from OSS/BSS and network elements",
+  "spl": "index=telco sourcetype=\"telco:ipdr\"\n| stats count as event_count dc(host) as distinct_assets by subscriber_id\n| where event_count > 0\n| table _time subscriber_id session_volume_mb anomaly_score",
+  "description": "Monitors ipdr data session volume spike using `telco:ipdr` telemetry in `index=telco` to surface operational risk before it impacts telecommunications operations service delivery.",
+  "value": "Operations and risk leaders in Telecommunications Operations use signals from IPDR data session volume spike to move crews, budget, and customer or regulator communications while the situation is still controllable, so the organization steers from live telemetry rather than a post-incident report.",
+  "implementation": "Ingest `telco:ipdr` events via HEC or Edge Hub into `index=telco`. Normalize field extractions in props/transforms for the Telecommunications Operations feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.",
+  "visualization": "Timechart by host/asset, single-value KPI, table of top offenders.",
+  "cimModels": [
+    "N/A"
+  ],
+  "references": [
+    {
+      "title": "Splunk OT Intelligence",
+      "url": "https://splunkbase.splunk.com/app/5180"
+    },
+    {
+      "title": "Splunk Lantern — Industry use cases",
+      "url": "https://lantern.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Planned maintenance windows, vendor pack updates, DR exercises, and seasonal demand patterns excluded via asset/schedule lookup.",
+  "mitreAttack": [
+    "T1078"
+  ],
+  "securityDomain": "industry",
+  "equipment": [
+    "5g",
+    "edge_hub",
+    "syslog",
+    "telecom"
+  ],
+  "equipmentModels": [
+    "telecom_ipdr"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with permission to search `index=telco`.\n• Install and configure: Custom HEC/syslog inputs from OSS/BSS and network elements.\n• Ensure `telco:ipdr` events are flowing (prerequisite UC: 21.8.1 when applicable).\n• Map `telco` and field extractions per `docs/guides/industry-verticals.md`.\n\nStep 1 — Configure data collection\nIngest `telco:ipdr` events via HEC or Edge Hub into `index=telco`. Normalize field extractions in props/transforms for the Telecommunications Operations feed. Save as a scheduled search or real-time alert; tune thresholds using a 14-day baseline.\nExpected sourcetype: `telco:ipdr`. Validate with:\n```spl\nindex=telco sourcetype=\"telco:ipdr\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=telco sourcetype=\"telco:ipdr\"\n| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts\n```\n\nUnderstanding this SPL\nThe search scopes `telco:ipdr` in `index=telco` and applies `*` to surface `IPDR data session volume spike`. Tune time range and alert threshold to your operational baseline; exclude planned maintenance via asset/schedule lookup.\n\nStep 3 — Validate\nCompare result counts to the source system UI (SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console, etc.) for the same time range. Spot-check `_time` and asset fields.\n\nStep 4 — Operationalize and troubleshoot\nSave as `21_8_39_alert` with appropriate severity. Dashboard: Timechart by host/asset, single-value KPI, table of top offenders..\nFailure modes: (1) empty results — verify HEC/Edge Hub input and index routing; (2) duplicate events — check forwarder acknowledgment; (3) missing fields — review props/transforms; (4) alert fatigue — add CMDB/allow-list exclusions documented in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch telecommunications operations systems for signs of ipdr data session volume spike so your team can act early instead of learning about problems from customers or regulators.",
+  "prerequisiteUseCases": [
+    "UC-21.8.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 5180,
+      "name": "Splunk OT Intelligence",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}
