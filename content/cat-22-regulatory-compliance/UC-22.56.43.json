@@ -2,18 +2,19 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.56.43",
   "title": "TSA-SD Pipeline supply-chain and third-party cybersecurity risk register monitoring",
-  "criticality": "high",
-  "difficulty": "intermediate",
+  "criticality": "critical",
+  "difficulty": "advanced",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Performance",
+    "Security"
   ],
   "splunkPillar": "Security",
-  "industry": "Pipeline + Rail",
-  "owner": "CISO",
+  "industry": "Pipeline + Rail + Aviation",
+  "owner": "Procurement",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.56.43` archived to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-P-2021-02C-s7\"`.",
+  "exclusions": "Excludes documented vendor sessions in `tsa_pipeline_supply_chain_lookup` with valid start/end timestamps. Excludes break-glass vendor access logged in PAM.",
+  "evidence": "Saved search `UC-22.56.43` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-P-2021-02C-s7\"`.",
   "compliance": [
     {
       "regulation": "tsa-surface",
@@ -21,61 +22,72 @@
       "clause": "TSA-SD-P-2021-02C-s7",
       "mode": "satisfies",
       "assurance": "partial",
-      "assurance_rationale": "Operationalises observable elements of TSA-SD-P-2021-02C-s7. Marked partial where legal attestation or manual TSA filing remains outside Splunk.",
-      "controlObjective": "Demonstrates ongoing compliance with TSA-SD-P-2021-02C-s7 via measurable operational evidence.",
-      "evidenceArtifact": "Saved search UC-22.56.43, dashboard panel, and quarterly export filed in the TSA CSAS package.",
+      "assurance_rationale": "TSA SDs across modes converge on a vendor remote-access surveillance expectation. 'Partial' because some vendors use VDI/bastion patterns that this UC cannot fully see without auxiliary instrumentation.",
+      "controlObjective": "Proves every vendor remote-access session into a TSA-regulated environment is approved, time-bound, and recorded.",
+      "evidenceArtifact": "Saved search, `TSA Vendor Remote-Access Health` dashboard, PAM session-recording library.",
       "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-P-2021-02C-s7",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for TSA-SD-P-2021-02C-s7. The saved search UC-22.56.43 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.56.43 MUST NOT produce actionable rows."
+    "positiveScenario": "Open vendor session through Palo Alto GlobalProtect to a TSA-regulated jump-host without `tsa_vendor_session_id`. UC-22.56.43 MUST flag within 4 hours.",
+    "negativeScenario": "Open the same session with `tsa_vendor_session_id` pinned to a PAM approval. UC-22.56.43 MUST NOT escalate."
   },
-  "dataSources": "KV Store `tsa_pipeline_supply_chain_lookup`; ServiceNow GRC tasks (`index=itsm sourcetype=snow:task`); Splunk audit archive (`index=audit_evidence`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup tsa_pipeline_supply_chain_lookup\n| eval status = case(isnull(vendor_risk_status) OR vendor_risk_status!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table * status",
-  "description": "Surfaces non-compliant rows in `tsa_pipeline_supply_chain_lookup` for TSA Surface clause TSA-SD-P-2021-02C-s7.",
-  "value": "TSA Surface enforcement for TSA-SD-P-2021-02C-s7 requires demonstrable, current evidence—not static policy PDFs.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.56.43 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for TSA-SD-P-2021-02C-s7.",
-  "visualization": "(Panel 1) Compliance status summary for TSA-SD-P-2021-02C-s7. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "Palo Alto GlobalProtect (`pan:globalprotect`). Cisco AnyConnect (`cisco:anyconnect`). CyberArk PSM sessions (`cyberark:epv:audit`). BeyondTrust Privileged Remote Access (`beyondtrust:bra:event`). TSA vendor approval register (KV Store `tsa_pipeline_supply_chain_lookup`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Palo Alto Networks (Splunkbase 2757), Splunk Add-on for Cisco AnyConnect (Splunkbase 2008), Splunk Add-on for CyberArk (Splunkbase 4242).",
+  "spl": "(sourcetype=pan:globalprotect OR sourcetype=cisco:anyconnect OR sourcetype=beyondtrust:bra:event) action IN (\"login\",\"start\",\"connected\")\n| lookup tsa_pipeline_supply_chain_lookup user AS user vendor_id AS vendor_id OUTPUT tsa_vendor_session_id approved_from approved_until destination_zone\n| eval session_status = case(\n    isnotnull(tsa_vendor_session_id) AND approved_from <= _time AND approved_until > _time, \"approved\",\n    isnotnull(tsa_vendor_session_id) AND approved_until < _time, \"expired\",\n    1=1, \"unapproved\")\n| where session_status IN (\"unapproved\",\"expired\")\n| stats count as sessions values(destination_zone) as destination_zone values(session_status) as session_status by user vendor_id src_ip\n| table user vendor_id src_ip destination_zone session_status sessions",
+  "description": "Reconciles vendor remote-access flows with the TSA vendor approval register; flags unapproved/expired sessions into TSA-regulated zones.",
+  "value": "Vendor remote access is a leading predicate to OT compromise (Solar Winds, Kaseya, CDK). This UC produces the evidence package for the vendor-access dimension of TSA SDs.",
+  "implementation": "(1) Populate `tsa_pipeline_supply_chain_lookup` from PAM / change-control. (2) Schedule UC-22.56.43 every 4 hours. (3) Build the `TSA Vendor Remote-Access Health` dashboard.",
+  "visualization": "(Panel 1) Unapproved/expired sessions by vendor. (Panel 2) Top-10 destination zones touched. (Panel 3) Approved-window utilization. (Panel 4) Session-recording coverage.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Network_Sessions",
+    "Authentication"
   ],
   "references": [
     {
-      "title": "Authoritative source — tsa-surface TSA-SD-P-2021-02C-s7",
-      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+      "title": "TSA SD-1542-21-02 §3.2 (third-party access)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-1542-21-02.pdf"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "TSA SD Pipeline-2021-02D §3.2 (third-party access)",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "CISA Insights — Risk Considerations for MSPs",
+      "url": "https://www.cisa.gov/news-events/cybersecurity-advisories/aa22-131a"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Emergency vendor access** — break-glass vendor sessions logged in PAM with retroactive approval. Suppression: PAM PSM records auto-populate `tsa_pipeline_supply_chain_lookup` with `retroactive=true`.\n2. **Service-account vendor**: long-running vendor service accounts; classify in lookup with `account_type=vendor_service`.\n\n**Suppression mechanism**: KV Store `tsa_pipeline_supply_chain_lookup` and `tsa_22_56_43_exceptions`.",
   "mitreAttack": [
-    "T1078"
+    "T1133",
+    "T1190",
+    "T0822"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "user",
+    "vendor_id",
+    "destination_zone",
+    "session_status"
   ],
   "equipment": [
-    "servicenow",
+    "beyondtrust",
+    "cisco",
+    "cisco-anyconnect",
+    "cyberark",
+    "palo-alto",
+    "paloalto",
     "splunk-es"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "BeyondTrust Privileged Remote Access 24.x",
+    "Cisco AnyConnect Secure Mobility 5.x",
+    "CyberArk PAM 13.x (PSM)",
+    "Palo Alto GlobalProtect 10.x",
+    "Splunk ES 7.x",
+    "paloalto_globalprotect",
+    "paloalto_pan_firewall"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +95,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.56.43` and `clause=TSA-SD-P-2021-02C-s7`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on TSA-SD Pipeline supply-chain and third-party cybersecurity risk register monitoring so auditors can see we are meeting the rule TSA-SD-P-2021-02C-s7 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk ES + add-ons.\n- PAM/PSM session recording enabled for all vendor sessions.\n- KV Store `tsa_pipeline_supply_chain_lookup`.\n\n## Step 1 — Define vendor session register\n\n```ini\n[tsa_pipeline_supply_chain_lookup]\nfield.user = string\nfield.vendor_id = string\nfield.tsa_vendor_session_id = string\nfield.approved_from = number\nfield.approved_until = number\nfield.destination_zone = string\nfield.approver = string\nfield.change_id = string\nfield.retroactive = string\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.43: TSA Vendor Remote Access Surveillance]\ncron_schedule = 27 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.43,reg=TSA-Surface,clause=TSA-SD-multi-vendor-remote\nalert.severity = 5\n```\n\n## Step 3 — Runbooks\n\n**Unapproved vendor session into AIRSIDE_OT / PIPELINE_OT / RAIL_OT** (owner: CC, severity P1):\n1. Within 30 min: terminate session via PAM.\n2. Within 4 hours: investigate vendor-side compromise.\n3. Within 24 hours: post-mortem; reassess vendor risk.\n\n## Step 4 — Troubleshooting\n\n- **VDI / bastion bypass**: ensure VDI session telemetry feeds the UC; otherwise the bastion appears as the user.\n- **Service-account vendor**: distinguish from interactive vendor in lookup.\n\n**TSA-specific failure modes**:\n- **MSP / outsourced ops**: outsourced CC operations create concentrated risk; ensure outsourced personnel are registered.\n- **Hardware vendor on-site access**: on-site vendor visits may bypass remote-access controls; pair with physical-access UCs.",
+  "grandmaExplanation": "Outside companies (vendors) sometimes need to connect to our pipeline, train, or airport computers. We make sure every connection is approved in advance and we record what they do.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,10 +111,28 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 2757,
+      "name": "Splunk Add-on for Palo Alto Networks",
+      "url": "https://splunkbase.splunk.com/app/2757",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 2008,
+      "name": "Splunk Add-on for Cisco AnyConnect",
+      "url": "https://splunkbase.splunk.com/app/2008",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 4242,
+      "name": "Splunk Add-on for CyberArk",
+      "url": "https://splunkbase.splunk.com/app/4242",
+      "role": "data-source",
+      "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.56.1"
-  ]
+  "wave": "walk"
 }

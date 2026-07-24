@@ -2,80 +2,85 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "22.56.38",
   "title": "TSA-SD Passenger Rail CIP control family 4 — timely patching with OT maintenance-window governance",
-  "criticality": "high",
-  "difficulty": "intermediate",
+  "criticality": "critical",
+  "difficulty": "advanced",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Vulnerability",
+    "Configuration"
   ],
   "splunkPillar": "Security",
-  "industry": "Pipeline + Rail",
+  "industry": "Pipeline",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.56.38` archived to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1582-2022-01-cf-4\"`.",
+  "exclusions": "Excludes patches on non-TSA-regulated assets. Excludes informational patches with no security impact. Excludes documented compensating controls in `tsa_pipeline_compensating_controls_lookup` with active operational rationale.",
+  "evidence": "Saved search `UC-22.56.38` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1582-2022-01-cf-4\"`. Every row pins (facility_id, cve_id, cvss, kev_listed, asset_count_affected, days_since_disclosure, patch_status, compensating_control_id, sla_status).",
   "compliance": [
     {
       "regulation": "tsa-surface",
       "version": "2024-consolidated-pipeline-rail",
       "clause": "TSA-SD-1582-2022-01-cf-4",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Operationalises observable elements of TSA-SD-1582-2022-01-cf-4. Marked partial where legal attestation or manual TSA filing remains outside Splunk.",
-      "controlObjective": "Demonstrates ongoing compliance with TSA-SD-1582-2022-01-cf-4 via measurable operational evidence.",
-      "evidenceArtifact": "Saved search UC-22.56.38, dashboard panel, and quarterly export filed in the TSA CSAS package.",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD Pipeline CIP control family 4 requires a risk-based patch management programme with timeframes commensurate with risk, and explicit documentation when compensating controls replace patching for OT. This UC implements: SLA-by-severity for IT, SLA-by-CVSS-with-OT-grace for OT, KEV-list expedited handling, and compensating-control audit trail. Marked 'full' because the SLA pipeline, the OT compensating-control regime, and the audit trail are all operational.",
+      "controlObjective": "Proves vulnerabilities on TSA-regulated assets are remediated or compensated within risk-commensurate SLAs.",
+      "evidenceArtifact": "Saved search archived to `audit_evidence`, the `TSA-SD Pipeline Patch Health` dashboard, the compensating-control register, and the Tenable VPR export for IT + OT.",
       "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1582-2022-01-cf-4",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for TSA-SD-1582-2022-01-cf-4. The saved search UC-22.56.38 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.56.38 MUST NOT produce actionable rows."
+    "positiveScenario": "Inject a synthetic Tenable finding for a CISA-KEV-listed CVE on a TSA-regulated OT asset; do not pin a compensating control. Within 4 hours UC-22.56.38 MUST flag `sla_status=\"breached\"` and notify the VM Lead.",
+    "negativeScenario": "Pin a compensating-control record with `effective_until` in the future and `documented_rationale`. UC-22.56.38 MUST record `patch_status=\"compensated\"` with `sla_status=\"current\"`."
   },
-  "dataSources": "KV Store `tsa_passenger_patch_lookup`; ServiceNow GRC tasks (`index=itsm sourcetype=snow:task`); Splunk audit archive (`index=audit_evidence`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup tsa_passenger_patch_lookup\n| eval status = case(isnull(patch_status) OR patch_status!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table * status",
-  "description": "Surfaces non-compliant rows in `tsa_passenger_patch_lookup` for TSA Surface clause TSA-SD-1582-2022-01-cf-4.",
-  "value": "TSA Surface enforcement for TSA-SD-1582-2022-01-cf-4 requires demonstrable, current evidence—not static policy PDFs.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.56.38 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for TSA-SD-1582-2022-01-cf-4.",
-  "visualization": "(Panel 1) Compliance status summary for TSA-SD-1582-2022-01-cf-4. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "Tenable Nessus + Tenable.ot scans (`tenable:nessus`, `tenable:ot`). CISA Known Exploited Vulnerabilities Catalog (`ta_cisa_kev:kev`). Dragos vulnerability advisories (`dragos:advisory`). ServiceNow VRM (`snow:vuln`). Pipeline compensating-control register (KV Store `tsa_pipeline_compensating_controls_lookup`). Pipeline asset register (KV Store `tsa_pipeline_facility_asset_lookup`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for Tenable (Splunkbase 4060), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "(sourcetype=tenable:nessus OR sourcetype=tenable:ot OR sourcetype=dragos:advisory)\n| eval cve_id = lower(cve_id)\n| lookup tsa_pipeline_facility_asset_lookup asset_id AS asset_id OUTPUT facility_id zone tsa_in_scope\n| where tsa_in_scope=true\n| lookup ta_cisa_kev kev_cve AS cve_id OUTPUT kev_listed kev_due_date\n| eval is_ot = if(zone IN (\"OT\",\"DMZ_OT\"), \"true\", \"false\")\n| eval sla_days = case(\n    kev_listed=\"true\" AND is_ot=\"false\", 14,\n    kev_listed=\"true\" AND is_ot=\"true\", 30,\n    cvss >= 9.0 AND is_ot=\"false\", 14,\n    cvss >= 9.0 AND is_ot=\"true\", 30,\n    cvss >= 7.0 AND is_ot=\"false\", 30,\n    cvss >= 7.0 AND is_ot=\"true\", 60,\n    1=1, 90)\n| eval days_since_disclosure = round((now() - disclosure_date) / 86400, 0)\n| lookup tsa_pipeline_compensating_controls_lookup cve_id AS cve_id asset_id AS asset_id OUTPUT compensating_control_id compensating_control_effective_until\n| eval patch_status = case(\n    isnotnull(compensating_control_id) AND compensating_control_effective_until > now(), \"compensated\",\n    state=\"patched\", \"patched\",\n    state=\"open\" AND days_since_disclosure <= sla_days, \"in_sla\",\n    state=\"open\" AND days_since_disclosure > sla_days, \"breached\",\n    1=1, \"unknown\")\n| eval sla_status = case(\n    patch_status IN (\"patched\",\"compensated\",\"in_sla\"), \"current\",\n    patch_status=\"breached\", \"breached\")\n| stats values(cvss) as cvss values(kev_listed) as kev_listed dc(asset_id) as asset_count_affected values(is_ot) as is_ot max(days_since_disclosure) as days_since_disclosure values(sla_days) as sla_days values(patch_status) as patch_status values(sla_status) as sla_status values(compensating_control_id) as compensating_control_id by facility_id cve_id\n| where sla_status=\"breached\"\n| table facility_id cve_id cvss kev_listed is_ot asset_count_affected days_since_disclosure sla_days patch_status compensating_control_id sla_status",
+  "description": "Joins Tenable / Dragos vulnerability findings with the CISA KEV catalog, the TSA-regulated asset register, and the compensating-control register; computes SLA-by-severity with OT grace; surfaces SLA breaches.",
+  "value": "TSA-SD patch management with OT-compensating-control discretion is the single most-litigated control family. This UC produces the per-CVE evidence package an inspector will demand.",
+  "implementation": "(1) Ingest Tenable scans via Splunk Add-on for Tenable. (2) Populate `tsa_pipeline_facility_asset_lookup` from the OT CMDB. (3) Populate `tsa_pipeline_compensating_controls_lookup` from change-control. (4) Schedule UC-22.56.38 every 4 hours; route `breached` severity=critical. (5) Build the `TSA-SD Pipeline Patch Health` dashboard.",
+  "visualization": "(Panel 1) Open CVE count by facility and OT/IT. (Panel 2) SLA-breach trend (90 days). (Panel 3) KEV-listed open CVEs. (Panel 4) Compensating-control coverage. (Panel 5) Top-10 longest-overdue CVEs.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Vulnerabilities",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — tsa-surface TSA-SD-1582-2022-01-cf-4",
-      "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
+      "title": "TSA SD Pipeline-2021-02D §3.4",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-02d.pdf"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "CISA Known Exploited Vulnerabilities",
+      "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "NIST 800-82 Rev 3 — patch management for ICS",
+      "url": "https://csrc.nist.gov/pubs/sp/800/82/r3/final"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Phased-rollout patches** — large pipeline operators stagger patches across SCADA windows; tag with `phased_rollout_until` and grace within SLA.\n\n2. **Vendor-not-yet-released-patch** — a CVE may be public before the vendor has shipped a fix; in that case the operator should pin a documented compensating control with `effective_until` until the vendor patch is available.\n\n3. **PHMSA safety-case re-validation** — an OT patch may legitimately wait on safety-case re-validation. Pin in `tsa_pipeline_compensating_controls_lookup` with PHMSA-safety justification.\n\n**Suppression mechanism**: KV Store `tsa_22_56_38_exceptions` with documented VM Lead approval and 90-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "T1190",
+    "T1210",
+    "T0883"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "facility_id",
+    "cve_id",
+    "patch_status",
+    "sla_status"
   ],
   "equipment": [
     "servicenow",
-    "splunk-es"
+    "splunk-es",
+    "tenable"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "CISA KEV TA (community Splunkbase)",
+    "ServiceNow VRM (Vancouver / Washington / Xanadu)",
+    "Splunk Enterprise Security 7.x (audit_evidence)",
+    "Tenable.io / Tenable.sc + Tenable.ot 4.x"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +88,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.56.38` and `clause=TSA-SD-1582-2022-01-cf-4`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on TSA-SD Passenger Rail CIP control family 4 so auditors can see we are meeting the rule TSA-SD-1582-2022-01-cf-4 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- Splunk Add-on for Tenable.\n- KV Stores `tsa_pipeline_facility_asset_lookup`, `tsa_pipeline_compensating_controls_lookup`.\n- CISA KEV TA installed and refreshed daily.\n\n## Step 1 — Define compensating-control register\n\n```ini\n[tsa_pipeline_compensating_controls_lookup]\nenforceTypes = true\nfield.compensating_control_id = string\nfield.cve_id = string\nfield.asset_id = string\nfield.facility_id = string\nfield.control_type = string\nfield.documented_rationale = string\nfield.effective_from = number\nfield.effective_until = number\nfield.approver = string\nfield.change_id = string\n```\n\nEvery row must reference a change-control ticket and have a documented operational rationale.\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.56.38: TSA-SD Pipeline CIP Patch Management]\ncron_schedule = 47 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.38,reg=TSA-Surface,clause=TSA-SD-1582-2022-01-cf-4\nalert.severity = 5\nalert.suppress = 1\nalert.suppress.fields = facility_id, cve_id\nalert.suppress.period = 8h\n```\n\n## Step 3 — Runbooks\n\n**`sla_status=breached` for KEV-listed CVE on OT** (owner: VM Lead, severity P1):\n1. Within 4 hours: confirm the finding; escalate to OT Security Lead.\n2. Within 24 hours: deploy a compensating control or accelerate patching.\n3. Within 7 days: certify resolution to the CC; document if a permanent compensating control is in place.\n\n## Step 4 — Troubleshooting\n\n- **Tenable.ot scan coverage** — ensure every TSA-regulated OT asset is in the Tenable.ot scan target list; gaps mean the UC under-reports.\n- **KEV TA staleness** — confirm the CISA KEV TA is refreshing daily.\n- **Phased-rollout transparency** — ensure phased-rollout flags are populated by the change-control system, not implicit.\n\n**TSA-specific failure modes**:\n- **PHMSA safety-case interaction**: a patch that affects pipeline-control software may require PHMSA re-acceptance; the compensating-control evidence must include the PHMSA pathway.\n- **Pre-Final-Rule SLA expectations**: the Final Rule may tighten OT SLAs; operate to the stricter standard now.",
+  "grandmaExplanation": "We track every known software weakness on our pipeline systems and make sure each one is fixed within a deadline that's strict for normal IT and a bit longer for control systems — and we record exactly what we do when we can't fix something right away.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,10 +104,21 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 4060,
+      "name": "Splunk Add-on for Tenable",
+      "url": "https://splunkbase.splunk.com/app/4060",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.56.1"
-  ]
+  "wave": "walk"
 }

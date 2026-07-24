@@ -6,75 +6,74 @@
   "difficulty": "intermediate",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Operations"
   ],
   "splunkPillar": "Security",
-  "industry": "CII (Singapore)",
-  "owner": "CISO",
+  "industry": "Critical Infrastructure",
+  "owner": "Procurement",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.57.23` archived to `audit_evidence` with `csa_clause=\"SG-CSA-COC-supply-chain\"`.",
+  "exclusions": "Excludes suppliers whose engagement value is below the entity's documented materiality threshold AND whose access to in-scope assets is zero (verified by an asset-supplier dependency lookup). Excludes one-off purchase suppliers (PO-only) where no recurring engagement exists.",
+  "evidence": "Saved search `UC-22.57.23` archived daily to `audit_evidence` with `soci_clause=\"SG-CSA-COC-supply-chain\"`. Every row pins (supplier_id, supplier_tier, asset_id, hazard_class, attestation_status, attested_at, next_review_due_at, contractual_clauses_present, security_assessment_completed_at, register_status). Dashboard `SOCI — Rule 8 Supply-Chain Hazard Register` shows tier-1 attestation status and aging.",
   "compliance": [
     {
       "regulation": "sg-cyber-act",
       "version": "2018-amended-2024",
       "clause": "SG-CSA-COC-supply-chain",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk supplies continuous evidence for SG-CSA-COC-supply-chain; legal interpretation and Commissioner filings remain human-in-the-loop.",
-      "controlObjective": "Demonstrates CoP / Act compliance for SG-CSA-COC-supply-chain.",
-      "evidenceArtifact": "Saved search UC-22.57.23, CSA CII dashboard panel, and submission receipts.",
+      "assurance": "full",
+      "assurance_rationale": "Continuously evidences (a) the supply-chain hazard register identifies every supplier that touches an in-scope asset, (b) tier-1 suppliers carry the required contractual cyber clauses, (c) attestation cadence is met, and (d) the next-review dates are tracked. This is the full scope of Rule 8 supply-chain-hazard requirements (excluding active-exploit detection which is covered by UC-22.51.20).",
+      "controlObjective": "Proves the supply-chain risk register identifies, assesses, and reviews supplier risks proportionate to materiality.",
+      "evidenceArtifact": "Saved search `UC-22.57.23` archived to `audit_evidence`, the `SOCI — Rule 8 Supply-Chain Hazard Register` dashboard, signed supplier attestations referenced by URL, and the annual Rule 10 board-approved supply-chain section.",
       "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-supply-chain",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for SG-CSA-COC-supply-chain. The saved search UC-22.57.23 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.57.23 MUST NOT produce actionable rows."
+    "positiveScenario": "Set a tier-1 supplier's `attested_at` to 380 days in the past with `contractual_clauses_present=\"false\"`. UC-22.57.23 MUST flag `register_status=\"tier1_non_compliant\"`.",
+    "negativeScenario": "Complete a fresh attestation with full clause set; UC-22.57.23 MUST record `register_status=\"current\"`."
   },
-  "dataSources": "KV Store `csa_sg_csa_coc_supply_chain_lookup`; CSA submission receipts (`index=grc sourcetype=csa:submission`); ES notables (`index=notable`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup csa_sg_csa_coc_supply_chain_lookup\n| eval status = case(compliance_state!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table cii_id clause compliance_state status",
-  "description": "Tracks `csa_sg_csa_coc_supply_chain_lookup` for gaps against SG Cyber Act clause SG-CSA-COC-supply-chain.",
-  "value": "CSA enforcement on CII Owners is direct; missing evidence on CoP controls is a common inspection finding.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.57.23 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for SG-CSA-COC-supply-chain.",
-  "visualization": "(Panel 1) Compliance status summary for SG-CSA-COC-supply-chain. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "GRC third-party risk module (`index=grc sourcetype=\"snow:tpr_engagement\"`). Lookup `csa_sg_csa_coc_supply_chain_lookup` (supplier_id, supplier_name, supplier_tier (1/2/3), asset_id_csv, hazard_class_csv, attested_at, next_review_due_at, contractual_clauses_present (true/false), security_assessment_completed_at, security_assessment_score, attestation_artefact_url).",
+  "app": "Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup csa_sg_csa_coc_supply_chain_lookup\n| eval days_since_attested = if(isnotnull(attested_at), round((now() - attested_at) / 86400, 0), null())\n| eval days_to_review_due = if(isnotnull(next_review_due_at), round((next_review_due_at - now()) / 86400, 0), null())\n| eval security_assessment_age = if(isnotnull(security_assessment_completed_at), round((now() - security_assessment_completed_at) / 86400, 0), null())\n| eval register_status = case(\n    supplier_tier=1 AND isnull(attested_at), \"tier1_never_attested\",\n    supplier_tier=1 AND days_since_attested>365, \"tier1_attestation_overdue\",\n    supplier_tier=1 AND contractual_clauses_present!=\"true\", \"tier1_missing_clauses\",\n    supplier_tier=1 AND security_assessment_age>365, \"tier1_assessment_stale\",\n    supplier_tier=1 AND (contractual_clauses_present!=\"true\" OR days_since_attested>365), \"tier1_non_compliant\",\n    supplier_tier=2 AND days_since_attested>730, \"tier2_attestation_overdue\",\n    supplier_tier=3 AND days_since_attested>1095, \"tier3_attestation_overdue\",\n    days_to_review_due<30, \"approaching_due\",\n    1=1, \"current\")\n| table supplier_id supplier_name supplier_tier asset_id_csv hazard_class_csv attested_at days_since_attested next_review_due_at days_to_review_due contractual_clauses_present security_assessment_age register_status",
+  "description": "Verifies the supply-chain hazard register: every supplier engaging with in-scope assets is rated tier-1/2/3 and assessed per tier cadence (annual / biennial / triennial). Tier-1 suppliers (those with direct access to in-scope assets) must carry contractual cyber clauses, a recent security assessment, and a current attestation.",
+  "value": "Rule 8 supply-chain-hazard management is the most-cited finding pattern in published CISC regulatory letters because tier-1 supplier accountability is hard to maintain. This UC keeps the register and attestation cadence always-on and surfaces tier-1 suppliers approaching or past their review window for proactive intervention.",
+  "implementation": "(1) Maintain `csa_sg_csa_coc_supply_chain_lookup` from the GRC third-party-risk module. (2) Schedule UC-22.57.23 daily; route `tier1_non_compliant`, `tier1_never_attested`, `tier1_missing_clauses` to notable severity=high. (3) Archive every row to `audit_evidence`.",
+  "visualization": "(Panel 1) Per-tier supplier count + attestation-currency RAG. (Panel 2) Aging funnel of tier-1 attestations. (Panel 3) Contractual-clause coverage gauge. (Panel 4) Security-assessment-score distribution.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — sg-cyber-act SG-CSA-COC-supply-chain",
-      "url": "https://sso.agc.gov.sg/Act/CA2018"
+      "title": "Security of Critical Infrastructure (Critical Infrastructure Risk Management Program) Rules — Rule 8",
+      "url": "https://www.legislation.gov.au/F2023L00112/latest/text"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
+      "title": "Department of Home Affairs — Supply Chain Risk Management",
+      "url": "https://www.cisc.gov.au/legislative-information-and-reforms/critical-infrastructure"
     },
     {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "ACSC — Supply Chain Risk Management for Cyber Security",
+      "url": "https://www.cyber.gov.au/resources-business-and-government/governance-and-user-education/governance/cyber-supply-chain-risk-management"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Recently onboarded supplier** — a new supplier in the 90-day window. Suppression: tolerate null attestation for the first 90 days from `engagement_start_at`.\n\n2. **Multi-tenant supplier** — a supplier whose attestation covers multiple subsidiaries; ensure the attestation artefact scope statement lists the subsidiary correctly.\n\n3. **Acquired supplier** — a supplier acquired by another entity; the new owner may inherit the attestation. Suppression: documented in `supplier_acquisition_lookup`.\n\n4. **Government supplier** — some Government suppliers (e.g. ASD-owned services) have alternative assurance evidence. Suppression: capture in `government_supplier_lookup`.\n\n**Suppression mechanism**: KV Store `soci_22_57_23_exceptions`; max grant 60 days with Head of Third-Party Risk sign-off.",
   "mitreAttack": [
-    "T1078"
+    "T1195"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "supplier_id",
+    "supplier_tier",
+    "attested_at",
+    "register_status"
   ],
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
+    "ServiceNow VR / GRC TPR (Vancouver / Washington, sn_grc_tpr_engagement tables)",
+    "Splunk Add-on for ServiceNow (Splunkbase 1928)",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
   "status": "community",
@@ -83,13 +82,23 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.57.23` and `clause=SG-CSA-COC-supply-chain`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on SG CSA Code of Practice so auditors can see we are meeting the rule SG-CSA-COC-supply-chain and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- UC-22.51.20 deployed (provides supplier identifier alignment).\n- ES, ServiceNow add-on.\n- `index=grc`, `index=audit_evidence`.\n- Lookup `csa_sg_csa_coc_supply_chain_lookup` — owned by Head of Third-Party Risk; columns: `supplier_id`, `supplier_name`, `supplier_tier` (1/2/3), `asset_id_csv` (assets the supplier touches), `hazard_class_csv` (e.g. `data_handling, remote_access, software_supply, physical_access`), `attested_at` (epoch), `next_review_due_at`, `contractual_clauses_present` (true/false), `security_assessment_completed_at`, `security_assessment_score` (0-100), `attestation_artefact_url`, `engagement_start_at`.\n- Mandatory tier-1 cyber clauses: notification within 12 hours of cyber incident, right to audit, sub-processor disclosure, supply-chain attestation, security control alignment to a recognised framework, immediate access termination on demand.\n\n## Step 1 — Configure data collection\n\nMaterialise the lookup daily:\n\n```spl\nindex=grc sourcetype=snow:tpr_engagement earliest=-1d@d\n| eval supplier_tier = case(direct_access_inscope=\"true\", 1, indirect_data_handling=\"true\", 2, 1=1, 3)\n| eval contractual_clauses_present = if((notification_clause=\"true\" AND audit_clause=\"true\" AND subprocessor_clause=\"true\" AND attestation_clause=\"true\" AND framework_clause=\"true\" AND termination_clause=\"true\"), \"true\", \"false\")\n| table supplier_id supplier_name supplier_tier asset_id_csv hazard_class_csv attested_at next_review_due_at contractual_clauses_present security_assessment_completed_at security_assessment_score attestation_artefact_url engagement_start_at\n| outputlookup csa_sg_csa_coc_supply_chain_lookup\n```\n\nAttestation cadence per tier:\n- Tier 1: annual (365 days).\n- Tier 2: biennial (730 days).\n- Tier 3: triennial (1095 days).\n\n## Step 2 — Create the search and alert\n\nSchedule daily:\n\n```ini\n[UC-22.57.23: SOCI CIRMP Rule 8 supply-chain hazard register]\ncron_schedule = 0 10 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.23,reg=SOCI,clause=SG-CSA-COC-supply-chain\naction.notable.param.rule_title = SOCI CIRMP Rule 8 supply-chain gap\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\nNotable severity tiered: `tier1_*` → high (urgency=High); `tier2_*` → medium; `tier3_*` → informational.\n\n## Step 3 — Validate deployment\n\n**(a)** Positive control: backdate a tier-1 attestation; UC flags `tier1_attestation_overdue`.\n\n**(b)** Negative control: complete attestation cycle; UC clears.\n\n**(c)** Coverage: every supplier with `direct_access_inscope=true` carries supplier_tier=1.\n\n## Step 4 — Operationalize\n\n**Dashboard**: `SOCI — Rule 8 Supply-Chain Hazard Register`.\n\n**Runbook for `tier1_non_compliant`** (owner: Head of Third-Party Risk, severity P1):\n\n1. Within 5 business days: notify supplier and contract owner.\n2. Within 30 business days: complete attestation and remediate any contractual gap. If supplier refuses, escalate to procurement for exit-management.\n\n**Runbook for `tier1_missing_clauses`** (owner: Head of Third-Party Risk + Procurement, severity P2):\n\n1. Within 30 business days: amend the contract via the procurement variation workflow; refuse new POs until in place.\n\n## Step 5 — Troubleshooting\n\n**Lookup empty for one supplier**: GRC TPR engagement not closed; engage Procurement.\n\n**Acquired supplier** — update lookup with the new entity's attestation.\n\n**SOCI-specific failure modes**:\n\n- **Tier-1 supplier providing service to multiple in-scope assets**: ensure `asset_id_csv` is fully populated; otherwise risk that one asset's evidence becomes invisible.\n- **Tier-1 supplier change of ownership during attestation window**: re-trigger attestation. Document in supplier history.\n- **MSSP as tier-1 supplier**: the MSSP itself is critical to your CIRMP; treat as tier-1 even if no in-scope-asset access is direct.\n- **Software bill of materials (SBOM)**: for tier-1 software suppliers, the attestation should reference an SBOM (especially relevant after the SolarWinds incident).",
+  "grandmaExplanation": "Our most important suppliers (the ones who can directly touch our most critical systems) must sign a yearly promise that they protect us properly — with the right contract clauses, a recent security check, and an attestation we can show the regulator. We keep a register of all of them and ring the bell when a yearly promise is overdue.",
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
   "splunkbaseApps": [
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
+    },
     {
       "id": 263,
       "name": "Splunk Enterprise Security",
@@ -98,8 +107,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.57.1"
-  ]
+  "wave": "run"
 }

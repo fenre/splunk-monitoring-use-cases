@@ -6,76 +6,72 @@
   "difficulty": "intermediate",
   "monitoringType": [
     "Compliance",
+    "Resilience",
     "Governance"
   ],
   "splunkPillar": "Security",
-  "industry": "CII (Singapore)",
+  "industry": "CII",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.57.24` archived to `audit_evidence` with `csa_clause=\"SG-CSA-COC-business-continuity\"`.",
+  "exclusions": "Excludes exercises that do not exercise the CSA incident-response plan.",
+  "evidence": "Saved search `UC-22.57.24` archived daily to `audit_evidence` with `csa_clause=\"SG-CSA-COC-business-continuity\"`.",
   "compliance": [
     {
       "regulation": "sg-cyber-act",
       "version": "2018-amended-2024",
       "clause": "SG-CSA-COC-business-continuity",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk supplies continuous evidence for SG-CSA-COC-business-continuity; legal interpretation and Commissioner filings remain human-in-the-loop.",
-      "controlObjective": "Demonstrates CoP / Act compliance for SG-CSA-COC-business-continuity.",
-      "evidenceArtifact": "Saved search UC-22.57.24, CSA CII dashboard panel, and submission receipts.",
+      "assurance": "full",
+      "assurance_rationale": "§16 requires annual cyber exercise (CSA Exercise Cyber Star or equivalent). This UC tracks exercise frequency, after-action, corrective actions.",
+      "controlObjective": "Proves annual exercise was conducted and corrective actions are tracked.",
+      "evidenceArtifact": "Saved search, `CSA Cyber Exercise Ledger` dashboard, after-action report, CSA Cyber Star participation evidence.",
       "obligationRef": "sg-cyber-act@2018-amended-2024#SG-CSA-COC-business-continuity",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for SG-CSA-COC-business-continuity. The saved search UC-22.57.24 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.57.24 MUST NOT produce actionable rows."
+    "positiveScenario": "Set `last_exercise_date` to 400 days ago. UC-22.57.24 MUST flag.",
+    "negativeScenario": "Exercise within 365 days with after-action + corrective actions closed. UC-22.57.24 MUST NOT escalate."
   },
-  "dataSources": "KV Store `csa_sg_csa_coc_business_continuity_lookup`; CSA submission receipts (`index=grc sourcetype=csa:submission`); ES notables (`index=notable`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup csa_sg_csa_coc_business_continuity_lookup\n| eval status = case(compliance_state!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table cii_id clause compliance_state status",
-  "description": "Tracks `csa_sg_csa_coc_business_continuity_lookup` for gaps against SG Cyber Act clause SG-CSA-COC-business-continuity.",
-  "value": "CSA enforcement on CII Owners is direct; missing evidence on CoP controls is a common inspection finding.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.57.24 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for SG-CSA-COC-business-continuity.",
-  "visualization": "(Panel 1) Compliance status summary for SG-CSA-COC-business-continuity. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `csa_sg_csa_coc_business_continuity_lookup` (cii_id, last_exercise_date, exercise_type, exercise_lead, after_action_doc_url, ca_open_count, ca_overdue_count, csa_exercise_star_participation).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928).",
+  "spl": "| inputlookup csa_sg_csa_coc_business_continuity_lookup\n| eval days_since_exercise = round((now() - last_exercise_date) / 86400, 0)\n| join type=left cii_id [search index=itsm sourcetype=\"snow:ir_ca\" csa_cii_id=* | stats count as ca_open_count count(eval(ca_due_date < now() AND state=\"open\")) as ca_overdue_count by csa_cii_id | rename csa_cii_id as cii_id]\n| eval exercise_status = case(\n    days_since_exercise > 365, \"overdue\",\n    days_since_exercise > 335, \"due_soon\",\n    isnull(after_action_doc_url), \"after_action_missing\",\n    ca_overdue_count > 0, \"corrective_actions_overdue\",\n    1=1, \"current\")\n| table cii_id last_exercise_date days_since_exercise exercise_type csa_exercise_star_participation after_action_doc_url ca_open_count ca_overdue_count exercise_status",
+  "description": "Tracks annual exercise currency, after-action evidence, corrective-action closure, and CSA Exercise Cyber Star participation.",
+  "value": "CSA Commissioner expects annual exercise. Cyber Star participation is the gold standard.",
+  "implementation": "(1) Populate `csa_sg_csa_coc_business_continuity_lookup` after each exercise. (2) Schedule UC-22.57.24 daily. (3) Build `CSA Cyber Exercise Ledger` dashboard.",
+  "visualization": "(Panel 1) Exercise status by CII. (Panel 2) Days-since-exercise. (Panel 3) Cyber Star participation. (Panel 4) Open corrective actions.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Inventory",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — sg-cyber-act SG-CSA-COC-business-continuity",
-      "url": "https://sso.agc.gov.sg/Act/CA2018"
+      "title": "Cybersecurity Act 2018 §16",
+      "url": "https://sso.agc.gov.sg/Act/CA2018?ProvIds=pr16-"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
-    },
-    {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "CSA Exercise Cyber Star",
+      "url": "https://www.csa.gov.sg/our-programmes/national-cybersecurity-strategy/exercise-cyber-star"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Cross-sector exercise**: a CSA cross-sector exercise may count for all participating CIIs; pin in lookup.\n\n**Suppression mechanism**: KV Store `csa_22_57_24_exceptions`.",
   "mitreAttack": [
-    "T1078"
+    "N/A (exercise governance)"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "cii_id",
+    "last_exercise_date",
+    "after_action_doc_url",
+    "exercise_status"
   ],
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "ServiceNow SIR",
+    "Splunk ES 7.x"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +79,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.57.24` and `clause=SG-CSA-COC-business-continuity`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on SG CSA Code of Practice so auditors can see we are meeting the rule SG-CSA-COC-business-continuity and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\nSimilar to UC-22.56.7.\n\n## Step 1 — Exercise register\n\n```ini\n[csa_sg_csa_coc_business_continuity_lookup]\nfield.cii_id = string\nfield.last_exercise_date = number\nfield.exercise_type = string\nfield.exercise_lead = string\nfield.after_action_doc_url = string\nfield.csa_exercise_star_participation = string\nfield.csa_notified_at = number\n```\n\n## Step 2 — Schedule\n\n```ini\n[UC-22.57.24: CSA Cyber Exercise Ledger]\ncron_schedule = 53 12 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.24,reg=SG-Cyber-Act,clause=CSA-CII-s16\nalert.severity = 3\n```\n\n## Step 3 — Runbooks\n\n**`exercise_status=overdue`**: schedule exercise within 60 days; produce after-action within 90.\n\n**SG-specific failure modes**:\n- **CSA Exercise Cyber Star coordination**: typically every 2 years; participation should be prioritised when offered.\n- **Sector-specific exercises**: MAS BCP / IDA TT-CERT exercises may also count if scope covers CSA.",
+  "grandmaExplanation": "Once a year, every important Singapore system must practice handling a cyber crisis — preferably together with the national-level exercise. We track who did it and whether they've closed every follow-up task.",
+  "prerequisiteUseCases": [
+    "UC-22.57.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,10 +95,14 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "data-source",
+      "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.57.1"
-  ]
+  "wave": "crawl"
 }

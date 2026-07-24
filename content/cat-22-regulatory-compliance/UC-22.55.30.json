@@ -3,79 +3,76 @@
   "id": "22.55.30",
   "title": "CLC/TS 50701 maintenance-laptop cybersecurity baseline compliance",
   "criticality": "high",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
     "Compliance",
-    "Governance"
+    "Configuration"
   ],
   "splunkPillar": "Security",
-  "industry": "Rail",
+  "industry": "Transportation",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.55.30` archived to `audit_evidence` with `rail_clause=\"CLC-TS-50701-c12-2\"`.",
+  "exclusions": "Excludes patches to formally decommissioned assets. Excludes purely cosmetic patches with no safety relevance. Excludes patches deployed during commissioning (those follow new-build acceptance, not patch-management).",
+  "evidence": "Saved search `UC-22.55.30` archived every 6 hours to `audit_evidence` with `clc_clause=\"CLC-TS-50701-c12-2\"`. Every row pins (patch_id, asset_id, patch_vendor_release_at, safety_review_signed_at, safety_review_signed_by, change_window_id, patch_deployed_at, patch_status). Dashboard `CLC/TS 50701 — Patch with Safety Coordination` shows patch posture.",
   "compliance": [
     {
       "regulation": "clc-ts-50701",
       "version": "2021-with-iec63452-alignment",
       "clause": "CLC-TS-50701-c12-2",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk evidences technical controls for CLC-TS-50701-c12-2; safety-case sign-off remains with the RAMS owner.",
-      "controlObjective": "Demonstrates monitoring evidence for CLC-TS-50701-c12-2.",
-      "evidenceArtifact": "Saved search UC-22.55.30 and rail cybersecurity dashboard.",
+      "assurance": "full",
+      "assurance_rationale": "Clause 8.2 requires patch management coordinated with the safety case under EN 50126/8/9. Patches to safety-significant systems must be reviewed against the safety case before deployment. UC-22.55.30 instruments the safety-review gate.",
+      "controlObjective": "Proves every patch to a safety-significant asset is reviewed against the safety case, signed by the Head of Safety, deployed within an approved change window, and verified post-deployment.",
+      "evidenceArtifact": "Saved search `UC-22.55.30` archived to `audit_evidence`, the `CLC/TS 50701 — Patch with Safety Coordination` dashboard, and the safety-review document.",
       "obligationRef": "clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-c12-2",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for CLC-TS-50701-c12-2. The saved search UC-22.55.30 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.55.30 MUST NOT produce actionable rows."
+    "positiveScenario": "Mark a patch as deployed (`patch_deployed_at=now`) on a safety-significant asset without `safety_review_signed_at` set. UC-22.55.30 MUST flag `patch_status=\"safety_review_missing\"` immediately.",
+    "negativeScenario": "Sign safety review, deploy within change window, verify post-deployment; UC-22.55.30 MUST record `patch_status=\"compliant\"`."
   },
-  "dataSources": "KV Store `rail50701_2_lookup`; rail OT IDS (`index=ot`); maintenance CMDB (`snow:cmdb_ci`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup rail50701_2_lookup\n| eval status = case(conformance!=\"pass\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table system_id conformance status",
-  "description": "Tracks rail cybersecurity conformance for CLC-TS-50701-c12-2.",
-  "value": "Rail operators under CLC/TS 50701 must evidence CLC-TS-50701-c12-2 during ENISA-aligned audits.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.55.30 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for CLC-TS-50701-c12-2.",
-  "visualization": "(Panel 1) Compliance status summary for CLC-TS-50701-c12-2. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `rail50701_c12_2_lookup`. KV Store `rail_change_window_lookup`. ServiceNow Change Management (`snow:change_request`). Cross-reference to `rail_asset_inventory_lookup` (UC-22.55.3).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk SOAR (Splunkbase 4413), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup rail50701_c12_2_lookup\n| where patch_status_in_register=\"deployed\" OR patch_status_in_register=\"in_progress\"\n| lookup rail_asset_inventory_lookup asset_id OUTPUT asset_safety_level\n| eval safety_significant = if(asset_safety_level IN (\"SIL-1\",\"SIL-2\",\"SIL-3\",\"SIL-4\"), 1, 0)\n| eval patch_status = case(\n    isnotnull(patch_deployed_at) AND safety_significant=1 AND isnull(safety_review_signed_at), \"safety_review_missing\",\n    isnotnull(patch_deployed_at) AND isnull(change_window_id), \"no_change_window\",\n    isnotnull(patch_deployed_at) AND isnull(post_deployment_verified_at), \"post_deploy_unverified\",\n    isnotnull(patch_deployed_at) AND isnotnull(safety_review_signed_at) AND isnotnull(change_window_id) AND isnotnull(post_deployment_verified_at), \"compliant\",\n    isnull(patch_deployed_at) AND patch_due_at < now() AND safety_significant=1 AND isnotnull(safety_review_signed_at), \"deploy_ready\",\n    1=1, \"in_progress\")\n| where patch_status IN (\"safety_review_missing\",\"no_change_window\",\"post_deploy_unverified\")\n| table patch_id asset_id asset_safety_level patch_vendor_release_at safety_review_signed_at safety_review_signed_by change_window_id patch_deployed_at post_deployment_verified_at patch_status",
+  "description": "Verifies every safety-significant-asset patch has a safety review and is deployed within an approved change window with post-verification.",
+  "value": "Patching safety-significant rail systems without safety-case review is a clause-8.2 violation and can introduce safety risks. This UC enforces the gate.",
+  "implementation": "(1) Maintain `rail50701_c12_2_lookup`. (2) Head of Safety signs each safety review in ServiceNow GRC. (3) Engineering deploys in approved change window. (4) Schedule UC-22.55.30 every 6 hours.",
+  "visualization": "(Panel 1) Patch posture by asset class. (Panel 2) Safety-review queue. (Panel 3) Change-window calendar. (Panel 4) Post-deploy verification.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Alerts",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — clc-ts-50701 CLC-TS-50701-c12-2",
-      "url": "https://www.cenelec.eu/"
+      "title": "EN 50126:2017 — Railway applications - RAMS",
+      "url": "https://www.cenelec.eu/dyn/www/f?p=104:110:0::::FSP_PROJECT,FSP_LANG_ID:62049,25"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
-    },
-    {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "CLC/TS 50701:2021 clause 8.2",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Emergency patch** — emergency safety-significant patch may have expedited review with documented post-hoc full review. Suppression: `patch_status_override=emergency_expedited` with 14-day post-deploy full-review SLA.\n\n**Suppression mechanism**: KV Store `clc_22_55_30_exceptions` with documented Head-of-Safety approval and 14-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "N/A (patch-deployment governance)"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "patch_id",
+    "asset_id",
+    "safety_review_signed_at",
+    "patch_status"
   ],
   "equipment": [
     "servicenow",
-    "splunk-es"
+    "splunk-es",
+    "splunk-soar"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "ServiceNow Change Management",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary index)",
+    "Splunk SOAR 6.x (Splunkbase 4413, rail-patch-safety-gate playbook)"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +80,16 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
-    "Splunk Enterprise Security"
+    "Splunk Enterprise Security",
+    "Splunk SOAR"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.55.30` and `clause=CLC-TS-50701-c12-2`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on CLC/TS 50701 maintenance-laptop cybersecurity baseline compliance so auditors can see we are meeting the rule CLC-TS-50701-c12-2 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `rail50701_c12_2_lookup`.\n\n## Step 1 — Patch register collection\n\n```ini\n[rail50701_c12_2_lookup]\nenforceTypes = true\nfield.patch_id = string\nfield.asset_id = string\nfield.patch_vendor_release_at = number\nfield.safety_review_signed_at = number\nfield.safety_review_signed_by = string\nfield.change_window_id = string\nfield.patch_deployed_at = number\nfield.post_deployment_verified_at = number\nfield.patch_status_in_register = string\n```\n\n## Step 2 — Safety-review gate\n\nSOAR `rail-patch-safety-gate` blocks deployment until `safety_review_signed_at` is set for safety-significant assets.\n\n## Step 3 — Search and alert\n\n```ini\n[UC-22.55.30: CLC/TS 50701 Patch + Safety]\ncron_schedule = 0 */6 * * *\ndispatch.earliest_time = -90d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.55.30,reg=CLC-TS-50701,clause=CLC-TS-50701-c12-2\naction.notable.param.rule_title = Rail safety-significant patch without safety review\naction.notable.param.security_domain = audit\naction.notable.param.severity = critical\nalert.severity = 5\n```\n\n## Step 4 — Operationalize\n\n**Runbook for `safety_review_missing`** (owner: Head of Safety, severity P1): immediately rollback or run expedited review.\n\n## Step 5 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Inter-system patch dependencies**: a patch to one signal system may require coordinated patching of adjacent systems.\n- **Notified Body review of patch process**: NB inspects patch records.\n- **Vendor patch cycles**: many rail vendors batch patches quarterly; tracking via `patch_due_at`.",
+  "grandmaExplanation": "When we install a software update on signal boxes or train brains, the head of safety must check it doesn't make trains less safe. We track every update; if anyone tries to install without that safety check, the alarm rings loudly.",
+  "prerequisiteUseCases": [
+    "UC-22.55.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,10 +97,21 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 4413,
+      "name": "Splunk SOAR",
+      "url": "https://splunkbase.splunk.com/app/4413",
+      "role": "premium",
+      "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.55.1"
-  ]
+  "wave": "run"
 }

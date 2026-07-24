@@ -9,73 +9,75 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "industry": "Pipeline + Rail",
+  "industry": "Pipeline",
   "owner": "CISO",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.56.29` archived to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1580-82-2022-01-s3\"`.",
+  "exclusions": "Excludes operations cybersecurity roles that are not the formally designated TSA Cybersecurity Coordinator. Excludes generic on-call rotations for SOC analysts (CC is a named statutory designate, not a rotation). Excludes employees on long-term leave even if they remain on the org chart.",
+  "evidence": "Saved search `UC-22.56.29` archived every 4 hours to `audit_evidence` with `tsa_sd_clause=\"TSA-SD-1580-82-2022-01-s3\"`. Every row pins (cc_name, cc_role, cc_phone, cc_email, cc_ssi_eligibility, cc_us_citizen, cc_assignment_effective_from, alternate_name, alternate_phone, alternate_email, last_tsa_notification, days_since_change, designation_doc_url, coverage_24x7_pct).",
   "compliance": [
     {
       "regulation": "tsa-surface",
       "version": "2024-consolidated-pipeline-rail",
       "clause": "TSA-SD-1580-82-2022-01-s3",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Operationalises observable elements of TSA-SD-1580-82-2022-01-s3. Marked partial where legal attestation or manual TSA filing remains outside Splunk.",
-      "controlObjective": "Demonstrates ongoing compliance with TSA-SD-1580-82-2022-01-s3 via measurable operational evidence.",
-      "evidenceArtifact": "Saved search UC-22.56.29, dashboard panel, and quarterly export filed in the TSA CSAS package.",
+      "assurance": "full",
+      "assurance_rationale": "TSA-SD-Pipeline-2021-01 §3 requires designation of a US-citizen, SSI-cleared, 24×7-reachable Cybersecurity Coordinator and Alternate, with 7-day-notice-of-change to TSA. This UC verifies all four facets: (a) named designation, (b) US-citizen + SSI status, (c) 24×7 reachability, (d) timely TSA notification when the roster changes. Marked 'full' because all four obligations are operationalised.",
+      "controlObjective": "Proves the TSA Cybersecurity Coordinator and Alternate are designated, eligible, reachable, and that TSA has been notified of every change within 7 days.",
+      "evidenceArtifact": "Saved search `UC-22.56.29` archived to `audit_evidence`, the `TSA-SD CC Roster Health` dashboard, signed CC designation memorandum filed with TSA, and SSI-eligibility records from HR.",
       "obligationRef": "tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-1580-82-2022-01-s3",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for TSA-SD-1580-82-2022-01-s3. The saved search UC-22.56.29 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.56.29 MUST NOT produce actionable rows."
+    "positiveScenario": "Set `cc_us_citizen=false` for the currently-designated CC in `tsa_freight_cc_roster_lookup`. UC-22.56.29 MUST flag `eligibility_status=\"failed\"` within 4 hours and route a severity=critical notable to the Chief Compliance Officer.",
+    "negativeScenario": "Restore `cc_us_citizen=true`, set `cc_ssi_eligibility=current`, `cc_assignment_effective_from` within the last 12 months, `alternate_name` populated, and `last_tsa_notification` within 7 days of last roster change. UC-22.56.29 MUST record `roster_status=current` and MUST NOT alert."
   },
-  "dataSources": "KV Store `tsa_freight_cc_roster_lookup`; ServiceNow GRC tasks (`index=itsm sourcetype=snow:task`); Splunk audit archive (`index=audit_evidence`).",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup tsa_freight_cc_roster_lookup\n| eval status = case(isnull(roster_status) OR roster_status!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table * status",
-  "description": "Surfaces non-compliant rows in `tsa_freight_cc_roster_lookup` for TSA Surface clause TSA-SD-1580-82-2022-01-s3.",
-  "value": "TSA Surface enforcement for TSA-SD-1580-82-2022-01-s3 requires demonstrable, current evidence—not static policy PDFs.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.56.29 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for TSA-SD-1580-82-2022-01-s3.",
-  "visualization": "(Panel 1) Compliance status summary for TSA-SD-1580-82-2022-01-s3. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `tsa_freight_cc_roster_lookup` (cc_name, cc_role, cc_phone, cc_email, cc_us_citizen, cc_ssi_eligibility, cc_ssi_expiry, cc_assignment_effective_from, alternate_name, alternate_phone, alternate_email, alternate_us_citizen, alternate_ssi_eligibility, alternate_ssi_expiry, last_tsa_notification, designation_doc_url). Workday HRIS feed for US-citizen + employment-status cross-check (`workday:worker:audit`). PagerDuty + ServiceNow on-call coverage telemetry (`pagerduty:on_call`, `snow:incident_oncall`). SharePoint TSA-correspondence audit (`o365:management` filtered to `tsa-cyber@<corp>`).",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup tsa_freight_cc_roster_lookup\n| eval now_ts = now()\n| eval days_since_change = round((now_ts - cc_assignment_effective_from) / 86400, 0)\n| eval days_since_tsa_notification = round((now_ts - last_tsa_notification) / 86400, 0)\n| eval cc_ssi_days_to_expiry = round((cc_ssi_expiry - now_ts) / 86400, 0)\n| eval eligibility_status = case(\n    cc_us_citizen != true OR alternate_us_citizen != true, \"failed\",\n    cc_ssi_eligibility != \"current\" OR alternate_ssi_eligibility != \"current\", \"failed\",\n    cc_ssi_days_to_expiry < 90, \"expiring_ssi\",\n    isnull(cc_name) OR isnull(alternate_name), \"incomplete_roster\",\n    1=1, \"passed\")\n| eval notification_status = case(\n    days_since_change <= 7 AND days_since_tsa_notification <= 7, \"on_time\",\n    days_since_change > 7 AND days_since_tsa_notification > days_since_change, \"missed_7d_notice\",\n    1=1, \"current\")\n| eval roster_status = if(eligibility_status=\"passed\" AND notification_status IN (\"on_time\",\"current\"), \"current\", \"action_required\")\n| table cc_name cc_role cc_phone cc_email cc_us_citizen cc_ssi_eligibility cc_ssi_days_to_expiry alternate_name alternate_phone alternate_email alternate_us_citizen alternate_ssi_eligibility last_tsa_notification days_since_change days_since_tsa_notification eligibility_status notification_status roster_status designation_doc_url",
+  "description": "Cross-references the CC roster with HR citizenship/SSI evidence and TSA notification correspondence to surface (a) ineligible designees, (b) SSI clearance expiring within 90 days, (c) incomplete rosters (CC or Alternate missing), and (d) roster changes that were not notified to TSA within the 7-day SLA.",
+  "value": "If a covered cyber incident occurs and the CC is unreachable, US-citizen requirements fail, or SSI has expired, the operator cannot accept SSI-marked threat-intel from TSA, cannot represent the operator in the post-incident TSA call, and is exposed to enforcement. This UC ensures the designate-and-notify chain is always current.",
+  "implementation": "(1) Populate `tsa_freight_cc_roster_lookup` from HR / SharePoint records. (2) Wire Workday → HEC for an authoritative employment-status feed. (3) Schedule UC-22.56.29 every 4 hours; route `eligibility_status=failed` to severity=critical. (4) Build the `TSA-SD CC Roster Health` dashboard.",
+  "visualization": "(Panel 1) Roster status table colour-coded by status. (Panel 2) SSI expiry timeline. (Panel 3) Coverage map: 24×7 reachability heat-map. (Panel 4) TSA notification audit trail. (Panel 5) Alternate-active days (days CC was unavailable and Alternate stepped in).",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Inventory",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — tsa-surface TSA-SD-1580-82-2022-01-s3",
+      "title": "TSA Security Directive SD-1580-82-2022-01 §3",
+      "url": "https://www.tsa.gov/sites/default/files/sd-pipeline-2021-01b.pdf"
+    },
+    {
+      "title": "TSA Cybersecurity Coordinator FAQ",
       "url": "https://www.tsa.gov/news/press/releases/2024/06/07/tsa-reissues-cybersecurity-requirements-pipeline-industry"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
-    },
-    {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "Sensitive Security Information — 49 CFR §1520",
+      "url": "https://www.ecfr.gov/current/title-49/subtitle-B/chapter-XII/subchapter-A/part-1520"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **SSI re-investigation cycle** — TSA SSI eligibility is periodically re-investigated; during the renewal window the field may show `under_review`. Suppression: a 60-day grace window during SSI renewal.\n\n2. **Promotion to executive role** — a CC may be promoted out of the role; the redesignation must happen before the promotion is effective. Suppression: pin the planned redesignation in `tsa_22_56_29_planned_changes`.\n\n3. **Mid-merger uncertainty** — during an M&A close, the acquiring entity's CC may not yet be empowered for the acquired pipeline. Suppression: a 30-day post-close grace window with documented interim coverage.\n\n**Suppression mechanism**: KV Store `tsa_22_56_29_exceptions` with documented CCO approval and 60-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "N/A (governance designation)"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "cc_name",
+    "cc_us_citizen",
+    "cc_ssi_eligibility",
+    "alternate_name"
   ],
   "equipment": [
+    "pagerduty",
     "servicenow",
+    "sharepoint",
     "splunk-es"
   ],
   "equipmentModels": [
-    "Splunk Enterprise Security 7.x (Splunkbase 263)"
+    "PagerDuty + ServiceNow on-call telemetry",
+    "Splunk Enterprise Security 7.x (Splunkbase 263, audit_evidence summary + notable framework)",
+    "Workday HRIS"
   ],
   "status": "community",
   "lastReviewed": "2026-07-24",
@@ -83,12 +85,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.56.29` and `clause=TSA-SD-1580-82-2022-01-s3`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on TSA-SD Freight Rail Cybersecurity Coordinator designation so auditors can see we are meeting the rule TSA-SD-1580-82-2022-01-s3 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store collection `tsa_freight_cc_roster_lookup`.\n- Workday HRIS feed via HEC.\n- ES notable framework.\n\n## Step 1 — Define the roster collection\n\n```ini\n[tsa_freight_cc_roster_lookup]\nenforceTypes = true\nfield.cc_name = string\nfield.cc_role = string\nfield.cc_phone = string\nfield.cc_email = string\nfield.cc_us_citizen = bool\nfield.cc_ssi_eligibility = string\nfield.cc_ssi_expiry = number\nfield.cc_assignment_effective_from = number\nfield.alternate_name = string\nfield.alternate_phone = string\nfield.alternate_email = string\nfield.alternate_us_citizen = bool\nfield.alternate_ssi_eligibility = string\nfield.alternate_ssi_expiry = number\nfield.last_tsa_notification = number\nfield.designation_doc_url = string\n```\n\n## Step 2 — Wire the Workday feed\n\nA daily Python job pulls Workday Worker data for the CC + Alternate and HECs employment-status / citizenship + SSI-clearance to Splunk. The KV Store row is updated only when the source-of-truth changes.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.29: TSA-SD Freight Rail CC + Alternate Roster Health]\ncron_schedule = 13 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.29,reg=TSA-Surface,clause=TSA-SD-1580-82-2022-01-s3\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD CC Roster Health`**: roster status, SSI expiry timeline, 24×7 reachability heat-map, TSA notification trail, Alternate-active days.\n\n**Runbook for `eligibility_status=failed`** (owner: CCO, severity P1):\n1. Within 1 business hour: identify a qualified replacement.\n2. Within 4 business hours: file the replacement designation with TSA.\n3. Within 24 hours: HR-process the new designate and update the roster.\n\n## Step 5 — Troubleshooting\n\n- **SSI renewal lag**: TSA SSI re-investigations can take 6–12 weeks; plan ahead.\n- **Citizenship-status changes**: rare but must be tracked (e.g. a CC takes dual citizenship).\n- **Designation memorandum lag**: TSA wants the signed memo on file; ensure the SharePoint evidence-vault link is current.",
+  "grandmaExplanation": "Our pipeline has a designated cyber contact for the US government — a named person plus a backup, who must be reachable around the clock and have the right security clearance. We watch the roster so the contact is always valid and the regulator is always told within 7 days when it changes.",
+  "prerequisiteUseCases": [
+    "UC-22.56.1"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -98,8 +103,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "prerequisiteUseCases": [
-    "UC-22.56.1"
-  ]
+  "wave": "walk"
 }

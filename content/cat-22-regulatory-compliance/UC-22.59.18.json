@@ -9,72 +9,67 @@
     "Governance"
   ],
   "splunkPillar": "Security",
-  "industry": "Critical Infrastructure",
-  "owner": "CISO",
+  "industry": "Transportation",
+  "owner": "Procurement",
   "controlFamily": "regulation-specific",
-  "exclusions": "Excludes assets explicitly out of regulatory scope. Excludes documented exception windows in the UC-specific suppression lookup.",
-  "evidence": "Saved search `UC-22.59.18` archived to `audit_evidence` with `clause=\"IMO-MSC-FAL-Circ-3-s3-2\"`.",
+  "exclusions": "Excludes suppliers below the materiality threshold (e.g., minor stationery suppliers). Excludes deliverables in pre-contract negotiation. Excludes formally retired supplier engagements.",
+  "evidence": "Saved search `UC-22.59.18` archived weekly to `audit_evidence` with `clc_clause=\"IMO-MSC-FAL-Circ-3-s3-2\"`. Every row pins (deliverable_id, supplier_id, deliverable_type, due_at, received_at, accepted_at, accepted_by, deliverable_status). Dashboard `CLC/TS 50701 — Supplier Deliverables` shows posture.",
   "compliance": [
     {
       "regulation": "imo-msc-428-98",
       "version": "2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27",
       "clause": "IMO-MSC-FAL-Circ-3-s3-2",
       "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "Splunk operationalises observable elements of IMO-MSC-FAL-Circ-3-s3-2; legal filings remain outside scope.",
-      "controlObjective": "Demonstrates ongoing evidence for IMO-MSC-FAL-Circ-3-s3-2.",
-      "evidenceArtifact": "Saved search UC-22.59.18 and compliance dashboard export.",
+      "assurance": "full",
+      "assurance_rationale": "Clause 9.1 requires supplier cybersecurity obligations to be defined and enforced. Typical deliverables: SBOM, vulnerability bulletins, patch release schedule, security-event sharing, ISA-Secure certification, security-incident notification within X hours.",
+      "controlObjective": "Proves every contracted supplier deliverable is received, accepted, and tracked.",
+      "evidenceArtifact": "Saved search `UC-22.59.18` archived to `audit_evidence`, the `CLC/TS 50701 — Supplier Deliverables` dashboard, and per-deliverable receipt.",
       "obligationRef": "imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#IMO-MSC-FAL-Circ-3-s3-2",
       "requires_sme_review": true,
       "provenance": "maintainer"
     }
   ],
   "controlTest": {
-    "positiveScenario": "Set a synthetic non-compliant state in the governing lookup for IMO-MSC-FAL-Circ-3-s3-2. The saved search UC-22.59.18 MUST surface an actionable row within one schedule interval.",
-    "negativeScenario": "Restore compliant values in the lookup. UC-22.59.18 MUST NOT produce actionable rows."
+    "positiveScenario": "Set `due_at` for a deliverable to 30 days ago with no `received_at`. UC-22.59.18 MUST flag `deliverable_status=\"deliverable_overdue\"`.",
+    "negativeScenario": "Receive and accept deliverable; UC-22.59.18 MUST record `deliverable_status=\"accepted\"`."
   },
-  "dataSources": "KV Store `imo_supply_chain_lookup`; GRC evidence index (`index=grc`); Splunk `_audit` retention metrics.",
-  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Common Information Model Add-on (Splunkbase 1621), Splunk Add-on for ServiceNow (Splunkbase 1928).",
-  "spl": "| inputlookup imo_supply_chain_lookup\n| eval status = case(evidence_state!=\"current\", \"action_required\", 1=1, \"current\")\n| where status=\"action_required\"\n| table entity_id evidence_state status",
-  "description": "Monitors `imo_supply_chain_lookup` for compliance with IMO-MSC-FAL-Circ-3-s3-2.",
-  "value": "Regulators expect demonstrable, retained evidence for IMO-MSC-FAL-Circ-3-s3-2, not policy statements alone.",
-  "implementation": "(1) Populate lookups referenced in dataSources. (2) Schedule UC-22.59.18 per the control cadence. (3) Route actionable rows to ES notables and archive to audit_evidence. (4) Build the compliance dashboard panel for IMO-MSC-FAL-Circ-3-s3-2.",
-  "visualization": "(Panel 1) Compliance status summary for IMO-MSC-FAL-Circ-3-s3-2. (Panel 2) Open exceptions / overdue items. (Panel 3) 90-day trend. (Panel 4) Evidence export readiness.",
+  "dataSources": "KV Store `imo_supply_chain_lookup`. ServiceNow Vendor Risk Management module. Supplier portal HEC submissions.",
+  "app": "Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for ServiceNow (Splunkbase 1928), Splunk Common Information Model Add-on (Splunkbase 1621).",
+  "spl": "| inputlookup imo_supply_chain_lookup\n| where deliverable_status_in_register=\"open\"\n| eval now_ts = now()\n| eval days_overdue = if(due_at < now_ts AND isnull(received_at), round((now_ts - due_at) / 86400, 0), null())\n| eval deliverable_status = case(\n    isnotnull(accepted_at), \"accepted\",\n    isnotnull(received_at) AND isnull(accepted_at), \"received_pending_acceptance\",\n    isnull(received_at) AND due_at < now_ts, \"deliverable_overdue\",\n    isnull(received_at), \"awaiting_supplier\",\n    1=1, \"in_progress\")\n| where deliverable_status IN (\"deliverable_overdue\", \"received_pending_acceptance\")\n| table deliverable_id supplier_id deliverable_type due_at received_at accepted_at accepted_by days_overdue deliverable_status",
+  "description": "Tracks supplier deliverables (SBOM, patch schedule, vuln bulletins) against contract SLAs.",
+  "value": "Supply-chain risk is amplified in rail by long product lifecycles. This UC ensures contract enforcement is operationalised.",
+  "implementation": "(1) Maintain `imo_supply_chain_lookup` from contracts. (2) ServiceNow VRM workflow for receipt/acceptance. (3) Schedule UC-22.59.18 weekly Monday 06:00.",
+  "visualization": "(Panel 1) Deliverable posture per supplier. (Panel 2) Overdue queue. (Panel 3) Acceptance latency.",
   "cimModels": [
-    "Change",
-    "Inventory"
+    "Alerts",
+    "Change"
   ],
   "references": [
     {
-      "title": "Authoritative source — imo-msc-428-98 IMO-MSC-FAL-Circ-3-s3-2",
-      "url": "https://www.imo.org/"
+      "title": "CLC/TS 50701:2021 clause 9.1",
+      "url": "https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_ORG_ID,FSP_PROJECT:1258376,73987"
     },
     {
-      "title": "Splunk Enterprise Security",
-      "url": "https://splunkbase.splunk.com/app/263"
-    },
-    {
-      "title": "Splunk Common Information Model Add-on",
-      "url": "https://splunkbase.splunk.com/app/1621"
-    },
-    {
-      "title": "Splunk Add-on for ServiceNow",
-      "url": "https://splunkbase.splunk.com/app/1928"
+      "title": "ISA Secure",
+      "url": "https://www.isasecure.org/"
     }
   ],
-  "knownFalsePositives": "1. **Planned maintenance window** — documented change windows in the exception lookup suppress benign activity during approved work.\n\n2. **Pen-test / red-team activity** — engagements carrying an agreed rules-of-engagement marker must be excluded via `pentest_window_lookup`.\n\n3. **Vendor remote-access sessions** — authorised vendor PAM sessions cross-reference `vendor_session_lookup` before alerting.\n\n4. **Commissioning / factory acceptance** — temporary engineering states are pinned in the exception register with a 30-day maximum grant.\n\n**Suppression mechanism**: KV Store `<uc_id>_exceptions` with documented control-owner approval and time-bound expiry.",
+  "knownFalsePositives": "1. **Supplier negotiating extension** — documented contract amendment. Suppression: `deliverable_status_override=amendment_in_review` with 30-day grant.\n\n**Suppression mechanism**: KV Store `clc_22_59_18_exceptions` with documented Supply-Chain-Lead approval and 60-day maximum grant.",
   "mitreAttack": [
-    "T1078"
+    "T1195"
   ],
   "requiredFields": [
-    "status",
-    "last_reviewed_at"
+    "deliverable_id",
+    "supplier_id",
+    "deliverable_type",
+    "deliverable_status"
   ],
   "equipment": [
     "servicenow",
     "splunk-es"
   ],
   "equipmentModels": [
+    "ServiceNow Vendor Risk Management",
     "Splunk Enterprise Security 7.x (Splunkbase 263)"
   ],
   "status": "community",
@@ -83,12 +78,15 @@
     "9.2+",
     "Cloud"
   ],
-  "reviewer": "Compliance SME Panel",
+  "reviewer": "Compliance SME Panel (exemplar-adapted; pending verification)",
   "premiumApps": [
     "Splunk Enterprise Security"
   ],
-  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise 9.2+ or Splunk Cloud with Enterprise Security (Splunkbase 263).\n- Splunk Common Information Model Add-on (Splunkbase 1621).\n- Splunk Add-on for ServiceNow (Splunkbase 1928) when ITSM or CMDB evidence is referenced.\n- Dedicated `index=audit_evidence` with at least a seven-year retention policy for regulatory artefacts.\n- RBAC: compliance-analyst role with read on source indexes and write on `audit_evidence`.\n\n## Step 1 — Configure data collection\n\nPopulate the KV Store / lookup named in `dataSources` from the authoritative GRC or operational source of record. Validate ingest with a 24-hour `timechart count` on each sourcetype before enabling the scheduled search.\n\n## Step 2 — Create the search and alert\n\nSchedule the saved search on the cadence documented in `implementation`. Route `action_required` or equivalent status values to an ES notable with severity mapped to business impact. Archive every result row to `audit_evidence` using a summary-index action with markers `uc=22.59.18` and `clause=IMO-MSC-FAL-Circ-3-s3-2`.\n\n## Step 3 — Validate deployment\n\n**(a)** Inject a synthetic non-compliant row into the lookup and confirm the search surfaces it within one schedule interval.\n\n**(b)** Restore compliant values and confirm the search returns zero actionable rows.\n\n**(c)** Export a CSV from the dashboard and verify column names match the `evidence` field contract.\n\n## Step 4 — Operationalize\n\nBuild the dashboard referenced in `visualization`. Integrate the runbook with the control owner named in `owner`. Review false-positive suppressions monthly.\n\n## Step 5 — Troubleshooting\n\n**Lookup drift** — reconcile weekly against the source system.\n\n**Silent search** — confirm modular inputs are enabled and license volume has headroom.\n\n**False-positive storm** — tune suppressions in the documented KV Store exception collection with time-bound grants.\n\n**Audit export gaps** — verify summary-index routing and retention on `audit_evidence`.\n\n**Cross-timezone timestamps** — normalise all `_time` fields to UTC before SLA math.\n\n**SOAR / ticket desync** — ensure bidirectional sync populates disposition fields used in the SPL filter.",
-  "grandmaExplanation": "We keep an eye on IMO MSC.428(98) stakeholder and supply-chain cybersecurity considerations evidence so auditors can see we are meeting the rule IMO-MSC-FAL-Circ-3-s3-2 and we get warned before we fall out of compliance.",
+  "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store `imo_supply_chain_lookup`.\n\n## Step 1 — Deliverable collection\n\n```ini\n[imo_supply_chain_lookup]\nenforceTypes = true\nfield.deliverable_id = string\nfield.supplier_id = string\nfield.deliverable_type = string\nfield.due_at = number\nfield.received_at = number\nfield.accepted_at = number\nfield.accepted_by = string\nfield.deliverable_status_in_register = string\n```\n\nDeliverable types include: SBOM, vulnerability bulletin, patch release schedule, security event sharing, ISA-Secure certification proof, security-incident notification SLA proof.\n\n## Step 2 — Search and alert\n\n```ini\n[UC-22.59.18: CLC/TS 50701 Supplier Deliverables]\ncron_schedule = 0 6 * * 1\ndispatch.earliest_time = -1y@y\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.59.18,reg=CLC-TS-50701,clause=IMO-MSC-FAL-Circ-3-s3-2\naction.notable.param.rule_title = Rail supplier deliverable overdue or pending\naction.notable.param.security_domain = audit\naction.notable.param.severity = high\nalert.severity = 4\n```\n\n## Step 3 — Operationalize\n\n**Runbook for `deliverable_overdue`** (owner: Procurement Cybersecurity Lead, severity P2): contact supplier; document remediation; escalate if no response.\n\n## Step 4 — Troubleshooting\n\n**CLC/TS 50701-specific failure modes**:\n\n- **Long-cycle rail vendors**: rail vendors often slow to deliver SBOMs; require contractual commitment.\n- **Vendor-of-vendor visibility**: sub-suppliers may have separate obligations; tracked via flow-down clauses.",
+  "grandmaExplanation": "Every cyber-supplier (signal-box maker, train-brain maker, radio maker) promised certain things in their contracts — a list of components in their products, a fast warning if they find a bug. We keep a list of every promise; if a supplier misses a deadline, we contact them.",
+  "prerequisiteUseCases": [
+    "UC-22.55.9"
+  ],
   "splunkbaseApps": [
     {
       "id": 263,
@@ -96,7 +94,14 @@
       "url": "https://splunkbase.splunk.com/app/263",
       "role": "premium",
       "requiresSmeReview": true
+    },
+    {
+      "id": 1928,
+      "name": "Splunk Add-on for ServiceNow",
+      "url": "https://splunkbase.splunk.com/app/1928",
+      "role": "optional",
+      "requiresSmeReview": false
     }
   ],
-  "wave": "walk"
+  "wave": "run"
 }

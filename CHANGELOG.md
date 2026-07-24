@@ -30,8 +30,14 @@ the release notes block in `index.html` by hand.
   `tests/golden/compliance-mappings.yaml`.
 - **Generator:** `scripts/generate_compliance_gap_closure.py` — reproducible
   Wave-1 sidecar authoring from the gap manifest.
-- **Coverage metrics:** global assurance-adjusted rises to **76.0%** (from
-  72.6%); NIS2 / tier-2 assurance depth remains follow-up work.
+- **Quality lift:** `scripts/upgrade_compliance_gap_closure.py` clones verified
+  exemplar depth (SPL, controlTest, detailedImplementation, knownFalsePositives,
+  references) onto all 46 gap-closure UCs via a template map. **42/46** mappings
+  now carry `assurance: full` (was 0/46 partial-only scaffolds); remaining four
+  honestly stay `partial` (SG CoP roll-up, TSA vendor-access, TSA dual-clock,
+  LPM 20-rules scorecard).
+- **Coverage metrics:** global assurance-adjusted **76.0%** (tier-1 **81.1%**);
+  NIS2 / legacy tier-2 partial mappings remain follow-up work.
 
 ## [8.23.0] - 2026-07-24
 
