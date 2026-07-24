@@ -213,14 +213,20 @@ function buildSidebar() {
     var isOpen = expandedSidebarGroups.has(g);
     html += '<div class="sb-group"><button type="button" class="sb-group-hd' + (isOpen ? ' open' : '') + '" onclick="toggleSidebarGroup(\'' + g + '\')">' + si('chevronRight') + '<span>' + esc(SIDEBAR_GROUP_LABELS[g] || g) + '</span><span class="c-sidebar-count">' + groupCount + '</span></button>';
     html += '<div class="sb-group-bd' + (isOpen ? ' open' : '') + '">';
+    var singleCatGroup = ids.length === 1;
     ids.forEach(function(catId) {
       var cat = DATA.find(function(d) { return d.i === catId; });
       if (!cat) return;
       var count = hasFilter ? (filtByCat[cat.i] || 0) : cat.s.reduce(function(a, s) { return a + s.u.length; }, 0);
       var meta = CAT_META[cat.i] || {};
       var active = currentCat === cat.i ? ' active' : '';
-      html += '<div class="c-sidebar-item depth' + active + '" tabindex="0" role="button" onclick="selectCat(' + cat.i + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();selectCat(' + cat.i + ')}">' + si(meta.icon || 'globe') + '<span>' + esc(cat.n) + '</span><span class="c-sidebar-count">' + count + '</span></div>';
-      html += '<div class="sb-subcats' + (currentCat === cat.i ? ' open' : '') + '">';
+      if (!singleCatGroup) {
+        html += '<div class="c-sidebar-item depth' + active + '" tabindex="0" role="button" onclick="selectCat(' + cat.i + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();selectCat(' + cat.i + ')}">' + si(meta.icon || 'globe') + '<span>' + esc(cat.n) + '</span><span class="c-sidebar-count">' + count + '</span></div>';
+      }
+      // Single-category groups (e.g. Fun Stuff → cat-25) skip the redundant
+      // category row and show subcategories as soon as the group is open.
+      var subcatsOpen = currentCat === cat.i || (isOpen && singleCatGroup);
+      html += '<div class="sb-subcats' + (subcatsOpen ? ' open' : '') + '">';
       cat.s.forEach(function(sc) {
         var scn = hasFilter ? (filtBySubcat[sc.i] || 0) : sc.u.length;
         if (hasFilter && scn === 0) return;
