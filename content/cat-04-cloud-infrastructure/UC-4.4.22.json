@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Cross-Cloud Identity Federation Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_cross_cloud_identity_federation_monitoring` (UC-4.4.22), SOC dashboard panel \"Operations — Cross-Cloud Identity Federation Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.4.22 positive (Cross, Cloud, Identity, Federation, Monitoring): ingest synthetic events into `index=aws` sourcetype='aws:cloudtrail' where `count` grouped by `cloud`, `user`, `_time` satisfies detection threshold for 'Cross-Cloud Identity Federation Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.4.22 negative (Federation Monitoring): ingest benign `aws` / `aws:cloudtrail` events where `cloud`, `user`, `_time` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cross-Cloud Identity Federation Monitoring'."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `(  eventName=\"AssumeRoleWithSAML\")` into `index=aws`. Confirm UC-4.4.22 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `(  eventName=\"AssumeRoleWithSAML\")`. Confirm UC-4.4.22 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "(index=aws sourcetype=\"aws:cloudtrail\" eventName=\"AssumeRoleWithSAML\")\n OR (index=azure sourcetype=\"mscs:azure:audit\" identity.claims.http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier=)\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.methodName=\"google.iam.admin.v1.IAM.SignBlob\")\n| eval cloud=case(isnotnull(index) AND index=\"aws\",\"aws\", index=\"azure\",\"azure\", index=\"gcp\",\"gcp\",1=1,\"unknown\")\n| bin _time span=1h\n| stats count by cloud, user, _time\n| sort -count",
-  "description": "Detects UC-4.4.22 — Cross, Cloud, Identity, Federation, Monitoring — using `index=aws` sourcetype `aws:cloudtrail`, grouped by `cloud`, `user`, `_time`. Outputs `count` each `1h`; alert when configured threshold. Primary focus: Federation Monitoring. Purpose-built for 'Cross-Cloud Identity Federation Monitoring' in Operations workflows.",
-  "value": "Operators running UC-4.4.22 on `aws:cloudtrail` feeds shorten triage for Federation Monitoring tied to 'Cross-Cloud Identity Federation Monitoring', lowering operational risk and delayed incident response.",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" (  eventName=\"AssumeRoleWithSAML\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.22_cross_cloud_identity_fed_22\"\n| sort -_time",
+  "description": "UC-4.4.22 — Cross-Cloud Identity Federation Monitoring: queries multi-cloud (AWS/Azure/GCP) `aws:cloudtrail` for `AssumeRoleWithSAML` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), `AssumeRoleWithSAML` activity for 'Cross-Cloud Identity Federation Monitoring' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.4.22 drives high-priority security alerting before customer-impacting drift.",
   "implementation": "Normalize federated principal fields into a common `user` or `subject` via `eval`/`lookup`. Ingest IdP logs (Okta, Entra ID) via HEC if available and join on session ID. Alert on unusual federation volume, new IdP thumbprint, or cross-cloud sessions within minutes for the same user.",
   "visualization": "Table (cloud, user, count), Timeline (federation events), Sankey or chord (IdP to cloud role).",
   "cimModels": [
@@ -29,53 +27,47 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/1876"
     },
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
       "title": "Splunk_TA_google-cloudplatform",
-      "url": "https://splunkbase.splunk.com/app/3088",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3088"
     },
     {
       "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.4.22)** — Planned work for 'Cross-Cloud Identity Federation Monitoring' shifts `count` over `span=1h` while `cloud`, `user`, `_time` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `user` without crossing configured threshold for UC-4.4.22. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cloud`, `user`, `_time`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.4.22 on `cloud` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cloud`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Our own break-glass and automation accounts show up the same as anyone else, and a delete or write during a change window is expected. We allowlist the roles that do routine maintenance and we link alerts to approved changes before we call an incident.",
   "mitreAttack": [
     "T1078.004",
     "T1580"
   ],
+  "securityDomain": "cloud",
   "equipment": [
     "aws",
     "azure",
-    "gcp",
-    "m365",
-    "okta"
+    "gcp"
   ],
   "equipmentModels": [
-    "aws_generic",
-    "azure_generic",
-    "gcp_generic"
+    "aws_cloudtrail"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform` with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nNormalize federated principal fields into a common `user` or `subject` via `eval`/`lookup`. Ingest IdP logs (Okta, Entra ID) via HEC if available and join on session ID. Alert on unusual federation volume, new IdP thumbprint, or cross-cloud sessions within minutes for the same user.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" (  eventName=\"AssumeRoleWithSAML\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.22_cross_cloud_identity_fed_22\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=aws` to detect cross-cloud identity federation monitoring. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_22_alert` with severity aligned to `high` criticality. Dashboard: Table (cloud, user, count), Timeline (federation events), Sankey or chord (IdP to cloud role)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cross-cloud identity federation monitoring so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNormalize federated principal fields into a common `user` or `subject` via `eval`/`lookup`. Ingest IdP logs (Okta, Entra ID) via HEC if available and join on session ID. Alert on unusual federation volume, new IdP thumbprint, or cross-cloud sessions within minutes for the same user.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\n(index=aws sourcetype=\"aws:cloudtrail\" eventName=\"AssumeRoleWithSAML\")\n OR (index=azure sourcetype=\"mscs:azure:audit\" identity.claims.http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier=)\n OR (index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.methodName=\"google.iam.admin.v1.IAM.SignBlob\")\n| eval cloud=case(isnotnull(index) AND index=\"aws\",\"aws\", index=\"azure\",\"azure\", index=\"gcp\",\"gcp\",1=1,\"unknown\")\n| bin _time span=1h\n| stats count by cloud, user, _time\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Cross-Cloud Identity Federation Monitoring** — Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.\n\nDocumented **Data sources**: `sourcetype=aws:cloudtrail` (AssumeRoleWithSAML, federation), `sourcetype=mscs:azure:audit` (federated sign-ins), `sourcetype=google:gcp:pubsub:message` (SAML/OIDC audit). **App/TA** (typical add-on context): `Splunk_TA_aws`, `Splunk_TA_microsoft-cloudservices`, `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:cloudtrail, mscs:azure:audit, google:gcp:pubsub:message. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:cloudtrail\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Discretizes time or numeric ranges with `bin`/`bucket`.\n• `stats` rolls up events into metrics; results are split **by cloud, user, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Cross-Cloud Identity Federation Monitoring** — Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (cloud, user, count), Timeline (federation events), Sankey or chord (IdP to cloud role).",
-  "grandmaExplanation": "Federation misconfiguration or token abuse spans IdPs and cloud consoles; unified visibility reduces blind spots for lateral movement across AWS, Azure, and GCP.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

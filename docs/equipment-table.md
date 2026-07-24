@@ -88,8 +88,8 @@ Use cases that mention any of the **tas** strings in their narrative will then g
 
 The table below summarises the structured equipment footprint across the catalogue as of the last generator run. Counts come from `/api/v1/equipment/index.json` — regenerate to refresh.
 
-- **105 equipment slugs** registered (see `EQUIPMENT` in `tools/build/enrichment.py`).
-- **66 model compounds** (`equipmentId_modelId`) registered across hardware, network, and security product families.
+- **107 equipment slugs** registered (see `EQUIPMENT` in `tools/build/enrichment.py`), including **OCI** (`oci`) and **Alibaba Cloud** (`alibaba`) added for the cat-04 cloud expansion.
+- **68 model compounds** (`equipmentId_modelId`) registered across hardware, network, and security product families (includes `oci_cloud_guard` and `oci_functions`).
 - **~5,257 use cases** (~71% of the **7,364**-UC catalogue) carry at least one equipment tag *(re-run the generator and endpoint export for exact counts).*
 - **941 of 1,287 cat-22 regulatory UCs** (73%) carry equipment tags — up from 65% before sidecar-first resolution closed the false-negative gap described above.
 - **509 cat-22 UCs now carry two or more equipment tags**, versus ~137 pre-fix, closing the cross-equipment correlation gap that auditors hit when filtering on combinations like "Azure AD + Palo Alto GlobalProtect".

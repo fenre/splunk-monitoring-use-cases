@@ -8,17 +8,15 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Multi-Cloud Cost Dashboard' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_multi_cloud_cost_dashboard` (UC-4.4.3), SOC dashboard panel \"Operations — Multi-Cloud Cost Dashboard\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.4.3 positive (Multi, Cloud, Cost, Dashboard): ingest synthetic events into `index=aws` sourcetype='aws:billing' where `sum` grouped by `cloud` satisfies detection threshold for 'Multi-Cloud Cost Dashboard'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.4.3 negative (Cost Dashboard): ingest benign `aws` / `aws:billing` events where `cloud` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Multi-Cloud Cost Dashboard'."
+    "positiveScenario": "Replay sample `aws:billing` events with `OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"` into `index=aws`. Confirm UC-4.4.3 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:billing` traffic without `OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"`. Confirm UC-4.4.3 returns zero rows and the alert does not fire."
   },
-  "dataSources": "AWS CUR, Azure Cost Management, GCP Billing export Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "Combined cloud TAs, billing data — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval cost=coalesce(BlendedCost, CostInBillingCurrency, cost)\n| timechart span=1d sum(cost) by cloud",
-  "description": "Detects UC-4.4.3 — Multi, Cloud, Cost, Dashboard — using `index=aws` sourcetype `aws:billing`, grouped by `cloud`. Outputs `sum` each `1d`; alert when configured threshold. Primary focus: Cost Dashboard. Purpose-built for 'Multi-Cloud Cost Dashboard' in Operations workflows.",
-  "value": "UC-4.4.3 accelerates insight into Cost Dashboard ('Multi-Cloud Cost Dashboard') by tracking `activity` on `aws:billing` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "dataSources": "`index=aws` sourcetype=`aws:billing` collected via Combined cloud TAs, billing data; validate ingest with `| stats count by sourcetype`.",
+  "app": "Combined cloud TAs, billing data",
+  "spl": "index=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.3_multi_cloud_cost_dashboa_3\"\n| sort -_time",
+  "description": "UC-4.4.3 — Multi-Cloud Cost Dashboard: queries Microsoft Azure `aws:billing` for search criteria `OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, cost anomalies and waste patterns for 'Multi-Cloud Cost Dashboard' erode FinOps guardrails and often reveal compromised accounts mining resources or forgotten idle infrastructure. UC-4.4.3 drives medium-priority performance alerting before customer-impacting drift.",
   "implementation": "Ingest billing data from each provider. Normalize cost fields. Create a unified dashboard with consistent time-grain (daily). Break down by team using tagging from each provider.",
   "visualization": "Stacked area chart (daily cost by cloud), Table (cost by service), Pie chart (cost distribution).",
   "cimModels": [
@@ -27,38 +25,29 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "url": "https://lantern.splunk.com/"
     },
     {
-      "title": "Splunkbase app 1876",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.4.3)** — Planned work for 'Multi-Cloud Cost Dashboard' shifts `sum` over `span=1d` while `cloud` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing`** — Scheduled automation elevates `cloud` without crossing configured threshold for UC-4.4.3. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cloud`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing`** — First 48h baseline for UC-4.4.3 on `cloud` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cloud`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Cloud billing and cost files often arrive a day or more late, include credits and refunds, and use tags that do not line up with app names, so a spike is not always a real overrun. We narrow alerts to sustained trends and we exclude test or sandbox projects when we can.",
+  "securityDomain": "cloud",
   "equipment": [
     "azure"
   ],
   "equipmentModels": [
-    "azure_generic"
+    "azure_billing"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Combined cloud TAs, billing data with the modular input for `aws:billing`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nIngest billing data from each provider. Normalize cost fields. Create a unified dashboard with consistent time-grain (daily). Break down by team using tagging from each provider.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:billing\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.3_multi_cloud_cost_dashboa_3\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:billing` in `index=aws` to detect multi-cloud cost dashboard. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_3_alert` with severity aligned to `medium` criticality. Dashboard: Stacked area chart (daily cost by cloud), Table (cost by service), Pie chart (cost distribution)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Combined cloud TAs, billing data and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of multi-cloud cost dashboard so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Combined cloud TAs, billing data.\n• Ensure the following data sources are available: AWS CUR, Azure Cost Management, GCP Billing export.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest billing data from each provider. Normalize cost fields. Create a unified dashboard with consistent time-grain (daily). Break down by team using tagging from each provider.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:billing\" OR index=azure sourcetype=\"azure:costmanagement\" OR index=gcp sourcetype=\"gcp:billing\"\n| eval cloud=case(index=\"aws\",\"AWS\", index=\"azure\",\"Azure\", index=\"gcp\",\"GCP\")\n| eval cost=coalesce(BlendedCost, CostInBillingCurrency, cost)\n| timechart span=1d sum(cost) by cloud\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud Cost Dashboard** — Unified cost visibility across cloud providers enables budgeting, chargeback, and optimization decisions from a single pane of glass.\n\nDocumented **Data sources**: AWS CUR, Azure Cost Management, GCP Billing export. **App/TA** (typical add-on context): Combined cloud TAs, billing data. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws, azure, gcp; **sourcetype**: aws:billing, azure:costmanagement, gcp:billing. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, index=azure, index=gcp, sourcetype=\"aws:billing\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **cost** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=1d** buckets with a separate series **by cloud** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked area chart (daily cost by cloud), Table (cost by service), Pie chart (cost distribution).",
-  "grandmaExplanation": "Unified cost visibility across cloud providers enables budgeting, chargeback, and optimization decisions from a single pane of glass.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

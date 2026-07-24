@@ -1,0 +1,74 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.5.21",
+  "title": "Azure Functions Cold Start Latency",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `azure:monitor:resource` events with `operationName=\"Microsoft.*Start Latency\"` into `index=azure`. Confirm UC-4.5.21 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:resource` traffic without `operationName=\"Microsoft.*Start Latency\"`. Confirm UC-4.5.21 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:resource` collected via Provider serverless monitoring via cloud TA; validate ingest with `| stats count by sourcetype`.",
+  "app": "Provider serverless monitoring via cloud TA",
+  "spl": "index=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*Start Latency\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.5.21_azure_functions_cold_sta_21\"\n| sort -_time",
+  "description": "UC-4.5.21 — Azure Functions Cold Start Latency: queries Microsoft Azure `azure:monitor:resource` for `Microsoft.*Start Latency` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, `Microsoft.*Start Latency` activity for 'Azure Functions Cold Start Latency' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.5.21 drives high-priority performance alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:resource.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.aws.amazon.com/lambda/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure"
+  ],
+  "equipmentModels": [
+    "azure_metrics"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Provider serverless monitoring via cloud TA with the modular input for `azure:monitor:resource`.\n• Prerequisite crawl UC(s): UC-4.5.16.\n• Confirm field extractions in `props.conf` for `ResourceId` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:resource.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*Start Latency\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.5.21_azure_functions_cold_sta_21\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:resource` in `index=azure` to detect azure functions cold start latency. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Metrics explorer for the same 24-hour window. Confirm row counts and `ResourceId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_5_21_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Provider serverless monitoring via cloud TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure functions cold start latency so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.5.16"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

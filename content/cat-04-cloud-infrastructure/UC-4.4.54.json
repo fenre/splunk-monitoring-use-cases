@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.54",
+  "title": "Azure Resource Tag Missing Owner",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `azure:monitor:activity` events with `eventName=\"TagResources\" OR eventName=\"UntagResource\"` into `index=azure`. Confirm UC-4.4.54 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:activity` traffic without `eventName=\"TagResources\" OR eventName=\"UntagResource\"`. Confirm UC-4.4.54 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:activity` collected via Splunk cloud TA for Azure; validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk cloud TA for Azure",
+  "spl": "index=azure sourcetype=\"azure:monitor:activity\" eventName=\"TagResources\" OR eventName=\"UntagResource\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.4.54_azure_resource_tag_missi_54\"\n| sort -_time",
+  "description": "UC-4.4.54 — Azure Resource Tag Missing Owner: queries Microsoft Azure `azure:monitor:activity` for `TagResources`, `UntagResource` and returns actor, resource, and region context for configuration review and change validation.",
+  "value": "On Microsoft Azure, missing governance tags for 'Azure Resource Tag Missing Owner' break cost allocation, environment scoping, and incident routing—delaying containment when resources cannot be classified quickly. UC-4.4.54 drives high-priority configuration alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure"
+  ],
+  "equipmentModels": [
+    "azure_activity_log"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk cloud TA for Azure with the modular input for `azure:monitor:activity`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `operationName` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" eventName=\"TagResources\" OR eventName=\"UntagResource\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.4.54_azure_resource_tag_missi_54\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:activity` in `index=azure` to detect azure resource tag missing owner. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Activity Log blade for the same 24-hour window. Confirm row counts and `operationName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_54_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk cloud TA for Azure and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure resource tag missing owner so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

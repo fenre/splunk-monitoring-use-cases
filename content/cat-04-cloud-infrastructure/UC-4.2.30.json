@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'NSG Flow Log Threat Hunting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_nsg_flow_log_threat_hunting` (UC-4.2.30), SOC dashboard panel \"Operations — NSG Flow Log Threat Hunting\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.30 positive (NSG, Flow, Log, Threat, Hunting): ingest synthetic events into `index=azure` sourcetype='mscs:azure:nsgflow' where `total_bytes`, `unique_sources` grouped by `dest`, `dest_port_s`, `rule` satisfies `unique_sources` > 50, or `total_bytes` > 1000000000 for 'NSG Flow Log Threat Hunting'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.30 negative (Threat Hunting): ingest benign `azure` / `mscs:azure:nsgflow` events where `dest`, `dest_port_s`, `rule` stays below `unique_sources` > 50, or `total_bytes` > 1000000000, or exclude the test entity via `ops_exception_register.csv`. Variant 13 confirms zero alert rows for 'NSG Flow Log Threat Hunting'."
+    "positiveScenario": "Replay sample `mscs:azure:nsgflow` events with `flowDirection=\"In\" macAddress=*` into `index=azure`. Confirm UC-4.2.30 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `mscs:azure:nsgflow` traffic without `flowDirection=\"In\" macAddress=*`. Confirm UC-4.2.30 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"mscs:azure:nsgflow\" flowDirection=\"In\" macAddress=*\n| stats sum(bytes) as total_bytes, dc(src) as unique_sources by dest, dest_port_s, rule\n| where unique_sources > 50 OR total_bytes > 1000000000\n| sort -total_bytes",
-  "description": "Monitors UC-4.2.30 — NSG, Flow, Log, Threat, Hunting — using `index=azure` sourcetype `mscs:azure:nsgflow`, grouped by `dest`, `dest_port_s`, `rule`. Outputs `total_bytes`, `unique_sources` each `the scheduled window`; alert when `unique_sources` > 50, or `total_bytes` > 1000000000. Primary focus: Threat Hunting. Purpose-built for 'NSG Flow Log Threat Hunting' in Operations workflows.",
-  "value": "UC-4.2.30 gives Operations teams earlier visibility into Threat Hunting through `mscs:azure:nsgflow` feeds, lowering operational risk and delayed incident response.",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:nsgflow` collected via `Splunk_TA_microsoft-cloudservices`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:nsgflow\" flowDirection=\"In\" macAddress=*\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.30_nsg_flow_log_threat_hunt_30\"\n| sort -_time",
+  "description": "UC-4.2.30 — NSG Flow Log Threat Hunting: queries Microsoft Azure `mscs:azure:nsgflow` for search criteria `flowDirection=\"In\" macAddress=*` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Microsoft Azure, 'NSG Flow Log Threat Hunting' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.2.30 drives high-priority security alerting before customer-impacting drift.",
   "implementation": "Ingest NSG Flow Logs to Event Hub and Splunk. Enrich IPs with threat intel and CMDB. Alert on denied burst to sensitive subnets or new rare port pairs. Retention per compliance.",
   "visualization": "Sankey or chord (src→dest), Table (top talkers), Map (geo of external IPs).",
   "cimModels": [
@@ -27,44 +25,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
       "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.30)** — Planned work for 'NSG Flow Log Threat Hunting' shifts `total_bytes`, `unique_sources` over `span=1h` while `dest`, `dest_port_s`, `rule` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `mscs:azure:nsgflow`** — Scheduled automation elevates `dest_port_s` without crossing `unique_sources` > 50 for UC-4.2.30. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `dest`, `dest_port_s`, `rule`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:nsgflow`** — First 48h baseline for UC-4.2.30 on `dest` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `dest`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1580",
     "T1526"
   ],
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_nsgflow"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` with the modular input for `mscs:azure:nsgflow`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nIngest NSG Flow Logs to Event Hub and Splunk. Enrich IPs with threat intel and CMDB. Alert on denied burst to sensitive subnets or new rare port pairs. Retention per compliance.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflow\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflow\" flowDirection=\"In\" macAddress=*\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.30_nsg_flow_log_threat_hunt_30\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:nsgflow` in `index=azure` to detect nsg flow log threat hunting. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_30_alert` with severity aligned to `high` criticality. Dashboard: Sankey or chord (src→dest), Table (top talkers), Map (geo of external IPs)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of nsg flow log threat hunting so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest NSG Flow Logs to Event Hub and Splunk. Enrich IPs with threat intel and CMDB. Alert on denied burst to sensitive subnets or new rare port pairs. Retention per compliance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflow\" flowDirection=\"In\" macAddress=*\n| stats sum(bytes) as total_bytes, dc(src) as unique_sources by dest, dest_port_s, rule\n| where unique_sources > 50 OR total_bytes > 1000000000\n| sort -total_bytes\n```\n\nUnderstanding this SPL\n\n**NSG Flow Log Threat Hunting** — NSG flow logs reveal lateral movement, denied probes, and unexpected east-west volume; baselining flows speeds incident triage beyond simple allow/deny counts.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:nsgflow` or Event Hub JSON (flow records). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:nsgflow. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:nsgflow\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by dest, dest_port_s, rule** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where unique_sources > 50 OR total_bytes > 1000000000` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Sankey or chord (src→dest), Table (top talkers), Map (geo of external IPs).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=mscs:azure:nsgflow into azure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dest, dest_port_s, rule, total_bytes`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "NSG flow logs reveal lateral movement, denied probes, and unexpected east-west volume; baselining flows speeds incident triage beyond simple allow/deny counts.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

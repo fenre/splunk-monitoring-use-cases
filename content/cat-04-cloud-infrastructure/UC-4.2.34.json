@@ -9,17 +9,15 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'AKS Diagnostics and Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_aks_diagnostics_and_errors` (UC-4.2.34), SOC dashboard panel \"Operations — AKS Diagnostics and Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.34 positive (AKS, Diagnostics, and, Errors): ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `count` grouped by `objectRef.resource`, `verb`, `responseStatus.code` satisfies detection threshold for 'AKS Diagnostics and Errors'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.34 negative (and Errors): ingest benign `azure` / `mscs:azure:diagnostics` events where `objectRef.resource`, `verb`, `responseStatus.code` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 4 confirms zero alert rows for 'AKS Diagnostics and Errors'."
+    "positiveScenario": "Replay sample `mscs:azure:diagnostics` events with `category=\"kube-audit\" \"responseStatus.code\">=400` into `index=azure`. Confirm UC-4.2.34 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `mscs:azure:diagnostics` traffic without `category=\"kube-audit\" \"responseStatus.code\">=400`. Confirm UC-4.2.34 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=mscs:azure:diagnostics` (kube-audit, container logs), Azure Monitor for containers Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" category=\"kube-audit\" \"responseStatus.code\">=400\n| stats count by objectRef.resource, verb, responseStatus.code\n| sort -count",
-  "description": "Monitors risk tied to AKS, Diagnostics, and, Errors through UC-4.2.34 on `index=azure` sourcetype `mscs:azure:diagnostics`. Summarises `count` grouped by `objectRef.resource`, `verb`, `responseStatus.code` across `the scheduled window` before applying configured threshold. Operators tune 'AKS Diagnostics and Errors' using UC-4.2.34 runbook steps.",
-  "value": "Tracking `activity` via UC-4.2.34 on `mscs:azure:diagnostics` feeds improves response to 'AKS Diagnostics and Errors' and reduces operational risk and delayed incident response.",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" category=\"kube-audit\" \"responseStatus.code\">=400\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.34_aks_diagnostics_and_erro_34\"\n| sort -_time",
+  "description": "UC-4.2.34 — AKS Diagnostics and Errors: queries Microsoft Azure `mscs:azure:diagnostics` for search criteria `category=\"kube-audit\" \"responseStatus.code\">=400` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Microsoft Azure, detecting 'AKS Diagnostics and Errors' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.34 drives high-priority security alerting before customer-impacting drift.",
   "implementation": "Enable AKS diagnostic categories for audit and container logs. Ingest to Splunk. Alert on elevated 5xx from API server or repeated ImagePullBackOff patterns. Dashboard by namespace and deployment.",
   "visualization": "Table (resource, code, count), Timeline (audit errors), Bar chart (namespace).",
   "cimModels": [
@@ -28,44 +26,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.34)** — Planned work for 'AKS Diagnostics and Errors' shifts `count` over `span=1h` while `objectRef.resource`, `verb`, `responseStatus.code` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:diagnostics`** — Scheduled automation elevates `verb` without crossing configured threshold for UC-4.2.34. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `objectRef.resource`, `verb`, `responseStatus.code`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for UC-4.2.34 on `objectRef.resource` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `objectRef.resource`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1613",
     "T1609"
   ],
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_diagnostics"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` with the modular input for `mscs:azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable AKS diagnostic categories for audit and container logs. Ingest to Splunk. Alert on elevated 5xx from API server or repeated ImagePullBackOff patterns. Dashboard by namespace and deployment.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" category=\"kube-audit\" \"responseStatus.code\">=400\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.34_aks_diagnostics_and_erro_34\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:diagnostics` in `index=azure` to detect aks diagnostics and errors. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_34_alert` with severity aligned to `high` criticality. Dashboard: Table (resource, code, count), Timeline (audit errors), Bar chart (namespace)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aks diagnostics and errors so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:diagnostics` (kube-audit, container logs), Azure Monitor for containers.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable AKS diagnostic categories for audit and container logs. Ingest to Splunk. Alert on elevated 5xx from API server or repeated ImagePullBackOff patterns. Dashboard by namespace and deployment.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" category=\"kube-audit\" \"responseStatus.code\">=400\n| stats count by objectRef.resource, verb, responseStatus.code\n| sort -count\n```\n\nUnderstanding this SPL\n\n**AKS Diagnostics and Errors** — Control plane and node problems surface as API errors, failed mounts, and ImagePullBackOff; centralized errors shorten MTTR.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:diagnostics` (kube-audit, container logs), Azure Monitor for containers. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by objectRef.resource, verb, responseStatus.code** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (resource, code, count), Timeline (audit errors), Bar chart (namespace).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=mscs:azure:diagnostics into azure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`objectRef.resource, responseStatus.code, verb`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "Control plane and node problems surface as errors, failed mounts, and ImagePullBackOff; centralized errors shorten MTTR.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

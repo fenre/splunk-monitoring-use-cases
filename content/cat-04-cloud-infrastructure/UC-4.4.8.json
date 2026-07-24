@@ -8,17 +8,15 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Cloud Spend by Tag or Project (Chargeback)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_cloud_spend_by_tag_or_project_chargeback` (UC-4.4.8), SOC dashboard panel \"Operations — Cloud Spend by Tag or Project (Chargeback)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.4.8 positive (Cloud, Spend, Tag, Project, (Chargeback)): ingest synthetic events into `index=aws` sourcetype='aws:billing' where `cost` grouped by `tag_key`, `tag_value` satisfies detection threshold for 'Cloud Spend by Tag or Project (Chargeback)'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.4.8 negative (Project (Chargeback)): ingest benign `aws` / `aws:billing` events where `tag_key`, `tag_value` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'Cloud Spend by Tag or Project (Chargeback)'."
+    "positiveScenario": "Replay sample `aws:billing` events with `matching activity` into `index=aws`. Confirm UC-4.4.8 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:billing` traffic without `matching activity`. Confirm UC-4.4.8 returns zero rows and the alert does not fire."
   },
-  "dataSources": "AWS CUR (with tag allocation), Azure Cost Management (by tag/resource group), GCP Billing (by project/labels) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:billing\"\n| spath path=resourceTags output=tags\n| mvexpand tags limit=500\n| rex field=tags \"^(?<tag_key>[^:]+):(?<tag_value>.+)$\"\n| stats sum(BlendedCost) as cost by tag_key tag_value\n| where tag_key=\"Owner\" OR tag_key=\"Team\"\n| sort -cost",
-  "description": "Monitors UC-4.4.8 — Cloud, Spend, Tag, Project, (Chargeback) — using `index=aws` sourcetype `aws:billing`, grouped by `tag_key`, `tag_value`. Outputs `cost` each `the scheduled window`; alert when configured threshold. Primary focus: Project (Chargeback). Purpose-built for 'Cloud Spend by Tag or Project (Chargeback)' in Operations workflows.",
-  "value": "Operators running UC-4.4.8 on `aws:billing` feeds shorten triage for Project (Chargeback) tied to 'Cloud Spend by Tag or Project (Chargeback)', lowering operational risk and delayed incident response.",
+  "dataSources": "`index=aws` sourcetype=`aws:billing` collected via Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export; validate ingest with `| stats count by sourcetype`.",
+  "app": "Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export",
+  "spl": "index=aws sourcetype=\"aws:billing\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.8_cloud_spend_by_tag_or_pr_8\"\n| sort -_time",
+  "description": "UC-4.4.8 — Cloud Spend by Tag or Project (Chargeback): queries Microsoft Azure `aws:billing` for configured audit predicates and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, missing governance tags for 'Cloud Spend by Tag or Project (Chargeback)' break cost allocation, environment scoping, and incident routing—delaying containment when resources cannot be classified quickly. UC-4.4.8 drives medium-priority performance alerting before customer-impacting drift.",
   "implementation": "Ingest billing data with tag/project dimensions. Normalize tag keys (e.g. Owner, Team, Environment). Dashboard cost by tag/project and trend. Set budget alerts per tag/project. Reconcile with actual invoices.",
   "visualization": "Stacked bar (cost by tag value), Table (tag, cost, % of total), Line chart (cost trend by team).",
   "cimModels": [
@@ -27,40 +25,30 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "url": "https://lantern.splunk.com/"
     },
     {
-      "title": "Splunkbase app 1876",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.4.8)** — Planned work for 'Cloud Spend by Tag or Project (Chargeback)' shifts `cost` over `span=1h` while `tag_key`, `tag_value` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:billing`** — Scheduled automation elevates `tag_value` without crossing configured threshold for UC-4.4.8. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `tag_key`, `tag_value`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:billing`** — First 48h baseline for UC-4.4.8 on `tag_key` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `tag_key`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Cloud billing and cost files often arrive a day or more late, include credits and refunds, and use tags that do not line up with app names, so a spike is not always a real overrun. We narrow alerts to sustained trends and we exclude test or sandbox projects when we can.",
+  "securityDomain": "cloud",
   "equipment": [
     "azure",
     "gcp"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "gcp_generic"
+    "azure_billing"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export with the modular input for `aws:billing`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nIngest billing data with tag/project dimensions. Normalize tag keys (e.g. Owner, Team, Environment). Dashboard cost by tag/project and trend. Set budget alerts per tag/project. Reconcile with actual invoices.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:billing\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:billing\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.8_cloud_spend_by_tag_or_pr_8\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:billing` in `index=aws` to detect cloud spend by tag or project (chargeback). Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_8_alert` with severity aligned to `medium` criticality. Dashboard: Stacked bar (cost by tag value), Table (tag, cost, % of total), Line chart (cost trend by team)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud spend by tag or project (chargeback) so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export.\n• Ensure the following data sources are available: AWS CUR (with tag allocation), Azure Cost Management (by tag/resource group), GCP Billing (by project/labels).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest billing data with tag/project dimensions. Normalize tag keys (e.g. Owner, Team, Environment). Dashboard cost by tag/project and trend. Set budget alerts per tag/project. Reconcile with actual invoices.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:billing\"\n| spath path=resourceTags output=tags\n| mvexpand tags limit=500\n| rex field=tags \"^(?<tag_key>[^:]+):(?<tag_value>.+)$\"\n| stats sum(BlendedCost) as cost by tag_key tag_value\n| where tag_key=\"Owner\" OR tag_key=\"Team\"\n| sort -cost\n```\n\nUnderstanding this SPL\n\n**Cloud Spend by Tag or Project (Chargeback)** — Allocating cost by tag (AWS/Azure) or project/label (GCP) enables chargeback and showback. Supports budget accountability and optimization by team.\n\nDocumented **Data sources**: AWS CUR (with tag allocation), Azure Cost Management (by tag/resource group), GCP Billing (by project/labels). **App/TA** (typical add-on context): Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:billing. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:billing\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by tag_key tag_value** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where tag_key=\"Owner\" OR tag_key=\"Team\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Stacked bar (cost by tag value), Table (tag, cost, % of total), Line chart (cost trend by team).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Combined cloud TAs, CUR, Azure Cost Management export, GCP Billing export — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:billing into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`tag_key, tag_value`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "Allocating cost by tag (AWS/Azure) or project/label (GCP) enables chargeback and showback.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

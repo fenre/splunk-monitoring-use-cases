@@ -8,17 +8,15 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Logic App Run Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_logic_app_run_failures` (UC-4.2.38), SOC dashboard panel \"Operations — Logic App Run Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.38 positive (Logic, App, Run, Failures): ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `count` grouped by `resource_name_s`, `code_s`, `error_s` satisfies detection threshold for 'Logic App Run Failures'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.38 negative (Run Failures): ingest benign `azure` / `mscs:azure:diagnostics` events where `resource_name_s`, `code_s`, `error_s` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Logic App Run Failures'."
+    "positiveScenario": "Replay sample `mscs:azure:diagnostics` events with `resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"` into `index=azure`. Confirm UC-4.2.38 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `mscs:azure:diagnostics` traffic without `resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"`. Confirm UC-4.2.38 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=mscs:azure:diagnostics` (WorkflowRuntime), Logic App run history export Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"\n| stats count by resource_name_s, code_s, error_s\n| sort -count",
-  "description": "Alerts on UC-4.2.38 for Logic, App, Run, Failures over `index=azure` sourcetype `mscs:azure:diagnostics` with thresholds configured threshold. Groups `count` by `resource_name_s`, `code_s`, `error_s` each `the scheduled window`. Centered on Run Failures indicators. Supports repeatable operations triage for 'Logic App Run Failures'.",
-  "value": "For 'Logic App Run Failures', UC-4.2.38 converts `activity` on `mscs:azure:diagnostics` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.38_logic_app_run_failures_38\"\n| sort -_time",
+  "description": "UC-4.2.38 — Logic App Run Failures: queries Microsoft Azure `mscs:azure:diagnostics` for search criteria `resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"` and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Logic App Run Failures' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.38 drives medium-priority availability alerting before customer-impacting drift.",
   "implementation": "Enable Logic App workflow diagnostics. Ingest run status and error codes. Alert on any failed production workflow or retry exhaustion. Replay failed runs from operations team process.",
   "visualization": "Table (workflow, error), Timeline (failures), Single value (failed runs / hour).",
   "cimModels": [
@@ -27,40 +25,37 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.38)** — Planned work for 'Logic App Run Failures' shifts `count` over `span=1h` while `resource_name_s`, `code_s`, `error_s` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:diagnostics`** — Scheduled automation elevates `code_s` without crossing configured threshold for UC-4.2.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource_name_s`, `code_s`, `error_s`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for UC-4.2.38 on `resource_name_s` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource_name_s`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_diagnostics"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` with the modular input for `mscs:azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable Logic App workflow diagnostics. Ingest run status and error codes. Alert on any failed production workflow or retry exhaustion. Replay failed runs from operations team process.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.38_logic_app_run_failures_38\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:diagnostics` in `index=azure` to detect logic app run failures. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_38_alert` with severity aligned to `medium` criticality. Dashboard: Table (workflow, error), Timeline (failures), Single value (failed runs / hour)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of logic app run failures so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:diagnostics` (WorkflowRuntime), Logic App run history export.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Logic App workflow diagnostics. Ingest run status and error codes. Alert on any failed production workflow or retry exhaustion. Replay failed runs from operations team process.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" resourceType=\"Microsoft.Logic/workflows\" status_s=\"Failed\"\n| stats count by resource_name_s, code_s, error_s\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Logic App Run Failures** — Integration workflows power automation; failed runs leave tickets, data, and approvals stuck.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:diagnostics` (WorkflowRuntime), Logic App run history export. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:diagnostics, Microsoft.Logic/workflows. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by resource_name_s, code_s, error_s** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (workflow, error), Timeline (failures), Single value (failed runs / hour).",
-  "grandmaExplanation": "Integration workflows power automation; failed runs leave tickets, data, and approvals stuck.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

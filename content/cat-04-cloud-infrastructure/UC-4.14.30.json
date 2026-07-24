@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.14.30",
+  "title": "Object Storage Access from Backup bucket unexpected writer",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Fraud"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:s3:accesslogs` events with `bucket=\"*-backup*\" operation=REST.PUT.OBJECT` into `index=aws`. Confirm UC-4.14.30 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:s3:accesslogs` traffic without `bucket=\"*-backup*\" operation=REST.PUT.OBJECT`. Confirm UC-4.14.30 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:s3:accesslogs` collected via Splunk Add-on for AWS; validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS",
+  "spl": "index=aws sourcetype=\"aws:s3:accesslogs\" bucket=\"*-backup*\" operation=REST.PUT.OBJECT | stats dc(clientIP) AS writers by bucket\n| eval uc_marker=\"UC-4.14.30_object_storage_access_fr_30\"\n| sort -_time",
+  "description": "UC-4.14.30 — Object Storage Access from Backup bucket unexpected writer: queries AWS `aws:s3:accesslogs` for scenario 'Object Storage Access from Backup bucket unexpected writer' (bucket=\"*-backup*\" operation=REST.PUT.OBJECT...) and returns actor, resource, and region context for security review and change validation.",
+  "value": "New writers to backup buckets may inject poisoned restore points before ransomware. UC-4.14.30 operationalizes this as a high-priority security alert on AWS audit and edge telemetry.",
+  "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:s3:accesslogs.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_s3"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS with the modular input for `aws:s3:accesslogs`.\n• Prerequisite crawl UC(s): UC-4.14.1.\n• Confirm field extractions in `props.conf` for `bucket` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:s3:accesslogs.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\" bucket=\"*-backup*\" operation=REST.PUT.OBJECT | stats dc(clientIP) AS writers by bucket\n| eval uc_marker=\"UC-4.14.30_object_storage_access_fr_30\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:s3:accesslogs` in `index=aws` to detect object storage access from backup bucket unexpected writer. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon S3 console Server access logging for the same 24-hour window. Confirm row counts and `bucket` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_14_30_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of object storage access from backup bucket unexpected writer so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.14.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

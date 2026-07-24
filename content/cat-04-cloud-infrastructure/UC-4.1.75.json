@@ -8,17 +8,15 @@
     "Availability"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'AWS Backup Job Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_aws_backup_job_status` (UC-4.1.75), SOC dashboard panel \"Operations — AWS Backup Job Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.1.75 positive (AWS, Backup, Job, Status): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `count` grouped by `detail.backupVaultArn`, `detail.resourceArn` satisfies `failed` > 0 for 'AWS Backup Job Status'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.1.75 negative (Job Status): ingest benign `aws` / `aws:cloudwatch:events` events where `detail.backupVaultArn`, `detail.resourceArn` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 9 confirms zero alert rows for 'AWS Backup Job Status'."
+    "positiveScenario": "Replay sample `aws:cloudwatch:events` events with `detail-type=\"Backup Job State Change\"` into `index=aws`. Confirm UC-4.1.75 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudwatch:events` traffic without `detail-type=\"Backup Job State Change\"`. Confirm UC-4.1.75 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| eval ok=if(detail.state=\"COMPLETED\",1,0)\n| stats count(eval(ok=0)) as failed, count as total by detail.backupVaultArn, detail.resourceArn\n| where failed>0",
-  "description": "Detects UC-4.1.75 — AWS, Backup, Job, Status — using `index=aws` sourcetype `aws:cloudwatch:events`, grouped by `detail.backupVaultArn`, `detail.resourceArn`. Outputs `count` each `the scheduled window`; alert when `failed` > 0. Primary focus: Job Status. Purpose-built for 'AWS Backup Job Status' in Operations workflows.",
-  "value": "Operators running UC-4.1.75 on `aws:cloudwatch:events` feeds shorten triage for Job Status tied to 'AWS Backup Job Status', lowering operational risk and delayed incident response.",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch:events` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| table _time detail-type source detail.eventName\n| eval uc_marker=\"UC-4.1.75_aws_backup_job_status_75\"\n| sort -_time",
+  "description": "UC-4.1.75 — AWS Backup Job Status: queries AWS `aws:cloudwatch:events` for search criteria `detail-type=\"Backup Job State Change\"` and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On AWS, detecting 'AWS Backup Job Status' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.1.75 drives critical-priority availability alerting before customer-impacting drift.",
   "implementation": "Parse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.",
   "visualization": "Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h).",
   "cimModels": [
@@ -29,40 +27,37 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/1876"
     },
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.75)** — Planned work for 'AWS Backup Job Status' shifts `count` over `span=1h` while `detail.backupVaultArn`, `detail.resourceArn` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `detail.resourceArn` without crossing `failed` > 0 for UC-4.1.75. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `detail.backupVaultArn`, `detail.resourceArn`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for UC-4.1.75 on `detail.backupVaultArn` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `detail.backupVaultArn`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics; compare with the change window.",
+  "securityDomain": "cloud",
   "equipment": [
-    "aws",
-    "hashicorp",
-    "m365"
+    "aws"
   ],
   "equipmentModels": [
-    "hashicorp_vault"
+    "aws_cloudwatch"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws` with the modular input for `aws:cloudwatch:events`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `detail-type` and related actor fields.\n\nStep 1 — Configure data collection\nParse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| table _time detail-type source detail.eventName\n| eval uc_marker=\"UC-4.1.75_aws_backup_job_status_75\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch:events` in `index=aws` to detect aws backup job status. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `detail-type` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_75_alert` with severity aligned to `critical` criticality. Dashboard: Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aws backup job status so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: `sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse job states COMPLETED, FAILED, EXPIRED. Alert on FAILED. Track partial completion for large resources. Cross-check with UC-4.4.29 restore drills for end-to-end assurance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Backup Job State Change\"\n| eval ok=if(detail.state=\"COMPLETED\",1,0)\n| stats count(eval(ok=0)) as failed, count as total by detail.backupVaultArn, detail.resourceArn\n| where failed>0\n```\n\nUnderstanding this SPL\n\n**AWS Backup Job Status** — Centralized backup vault jobs must complete on schedule; failed jobs leave RPO gaps across EC2, EFS, and databases.\n\nDocumented **Data sources**: `sourcetype=aws:cloudwatch:events` (Backup Job State Change), Backup notifications. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by detail.backupVaultArn, detail.resourceArn** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where failed>0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (vault, resource, status), Timeline (job outcomes), Single value (failed jobs 24h).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch:events into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`detail.backupVaultArn, detail.resourceArn, failed, ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on aws backup job status. The key performance numbers the cloud already exposes so the team can plan capacity and notice problems before user-visible outages. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

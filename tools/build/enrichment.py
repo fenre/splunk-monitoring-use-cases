@@ -235,6 +235,40 @@ EQUIPMENT = [
         "label": "Google Cloud Platform (GCP)",
         "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"],
     },
+    {
+        "id": "oci",
+        "label": "Oracle Cloud Infrastructure (OCI)",
+        "tas": [
+            "Splunk_TA_oracle-cloud-infrastructure",
+            "Oracle Cloud Infrastructure",
+            "OCI",
+            "oci:audit",
+            "oci:log",
+        ],
+        "models": [
+            {
+                "id": "cloud_guard",
+                "label": "OCI Cloud Guard",
+                "tas": ["Cloud Guard", "oci:cloudguard"],
+            },
+            {
+                "id": "functions",
+                "label": "OCI Functions",
+                "tas": ["OCI Functions", "oci:functions"],
+            },
+        ],
+    },
+    {
+        "id": "alibaba",
+        "label": "Alibaba Cloud",
+        "tas": [
+            "Splunk_TA_alibaba-cloud",
+            "Alibaba Cloud",
+            "ActionTrail",
+            "alibaba:actiontrail",
+            "alibaba:sls",
+        ],
+    },
     # ── Containers & Orchestration ─────────────────────────────────────────
     {
         "id": "kubernetes",

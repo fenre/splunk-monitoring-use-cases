@@ -9,17 +9,15 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'GCS Bucket Policy Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_gcs_bucket_policy_changes` (UC-4.3.38), SOC dashboard panel \"Operations — GCS Bucket Policy Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.3.38 positive (GCS, Bucket, Policy, Changes): ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `count` grouped by `entity` satisfies detection threshold for 'GCS Bucket Policy Changes'. Validate filter `bindings.members=\"allUsers\" OR bindings.members=\"allAuthenti`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.3.38 negative (Policy Changes): ingest benign `gcp` / `google:gcp:pubsub:message` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'GCS Bucket Policy Changes'."
+    "positiveScenario": "Replay sample `google:gcp:pubsub:message` events with `protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"` into `index=gcp`. Confirm UC-4.3.38 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `google:gcp:pubsub:message` traffic without `protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"`. Confirm UC-4.3.38 returns zero rows and the alert does not fire."
   },
-  "dataSources": "Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
-  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"\n| spath path=protoPayload.serviceData.policy.bindings{}\n| mvexpand protoPayload.serviceData.policy.bindings{} limit=500\n| search bindings.members=\"allUsers\" OR bindings.members=\"allAuthenticatedUsers\"\n| table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role",
-  "description": "Detects when Policy Changes criteria fire for 'GCS Bucket Policy Changes' (UC-4.3.38) in `index=gcp` sourcetype `google:gcp:pubsub:message`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. SPL signature: filter `bindings.members=\"allUsers\" OR bindings.members=\"allAuthenti`. Eliminates manual hunting for UC-4.3.38 conditions.",
-  "value": "UC-4.3.38 helps teams contain GCS, Bucket, Policy, Changes scenarios and reduce operational risk and delayed incident response before incidents compound.",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:pubsub:message` collected via `Splunk_TA_google-cloudplatform`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.38_gcs_bucket_policy_change_38\"\n| sort -_time",
+  "description": "UC-4.3.38 — GCS Bucket Policy Changes: queries Google Cloud `google:gcp:pubsub:message` for `storage.buckets.setIamPermissions` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Google Cloud, `storage.buckets.setIamPermissions` activity for 'GCS Bucket Policy Changes' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.3.38 drives critical-priority security alerting before customer-impacting drift.",
   "implementation": "Alert on any allUsers/allAuthenticatedUsers binding or removal of org constraints. Weekly review of bucket-level IAM diffs. Integrate with SCC public bucket findings.",
   "visualization": "Table (bucket, principal, role), Timeline (IAM changes), Single value (public buckets).",
   "cimModels": [
@@ -28,42 +26,41 @@
   "references": [
     {
       "title": "Splunk_TA_google-cloudplatform",
-      "url": "https://splunkbase.splunk.com/app/3088",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3088"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-4.3.38)** — Planned work for 'GCS Bucket Policy Changes' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `bindings.members=\"allUsers\" OR bindings.members=\"allAuthenti`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.3.38. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for UC-4.3.38 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1530",
     "T1619"
   ],
+  "securityDomain": "cloud",
   "equipment": [
     "gcp"
   ],
   "equipmentModels": [
-    "gcp_generic"
+    "gcp_pubsub"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure `Splunk_TA_google-cloudplatform` with the modular input for `google:gcp:pubsub:message`.\n• Prerequisite crawl UC(s): UC-4.3.41.\n• Confirm field extractions in `props.conf` for `messageId` and related actor fields.\n\nStep 1 — Configure data collection\nAlert on any allUsers/allAuthenticatedUsers binding or removal of org constraints. Weekly review of bucket-level IAM diffs. Integrate with SCC public bucket findings.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.38_gcs_bucket_policy_change_38\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:pubsub:message` in `index=gcp` to detect gcs bucket policy changes. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `messageId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_38_alert` with severity aligned to `critical` criticality. Dashboard: Table (bucket, principal, role), Timeline (IAM changes), Single value (public buckets)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_google-cloudplatform` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcs bucket policy changes so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.3.41"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAlert on any allUsers/allAuthenticatedUsers binding or removal of org constraints. Weekly review of bucket-level IAM diffs. Integrate with SCC public bucket findings.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"storage.googleapis.com\" protoPayload.methodName=\"storage.buckets.setIamPermissions\"\n| spath path=protoPayload.serviceData.policy.bindings{}\n| mvexpand protoPayload.serviceData.policy.bindings{} limit=500\n| search bindings.members=\"allUsers\" OR bindings.members=\"allAuthenticatedUsers\"\n| table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role\n```\n\nUnderstanding this SPL\n\n**GCS Bucket Policy Changes** — Public buckets and IAM relaxations are common breach paths; real-time detection limits exposure window.\n\nDocumented **Data sources**: Admin Activity `sourcetype=google:gcp:pubsub:message` (storage.setIamPermissions, bucket updates). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts structured paths (JSON/XML) with `spath`.\n• Expands multivalue fields with `mvexpand` — use `limit=` to cap row explosion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **GCS Bucket Policy Changes**): table _time protoPayload.authenticationInfo.principalEmail resource.labels.bucket_name bindings.role\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (bucket, principal, role), Timeline (IAM changes), Single value (public buckets).",
-  "grandmaExplanation": "Public buckets and access control relaxations are common breach paths; real-time detection limits exposure window.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3088,
+      "name": "Splunk Add-on for Google Cloud Platform",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

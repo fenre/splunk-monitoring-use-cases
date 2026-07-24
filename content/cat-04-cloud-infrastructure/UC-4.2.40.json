@@ -8,17 +8,15 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Azure Backup Job Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_azure_backup_job_health` (UC-4.2.40), SOC dashboard panel \"Operations — Azure Backup Job Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.40 positive (Azure, Backup, Job, Health): ingest synthetic events into `index=azure` sourcetype='mscs:azure:diagnostics' where `count` grouped by `BackupItemName` satisfies `failed` > 0 for 'Azure Backup Job Health'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.40 negative (Job Health): ingest benign `azure` / `mscs:azure:diagnostics` events where `BackupItemName` stays below `failed` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Azure Backup Job Health'."
+    "positiveScenario": "Replay sample `mscs:azure:diagnostics` events with `Category=\"AzureBackupReport\" OperationName=\"Backup\"` into `index=azure`. Confirm UC-4.2.40 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `mscs:azure:diagnostics` traffic without `Category=\"AzureBackupReport\" OperationName=\"Backup\"`. Confirm UC-4.2.40 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=mscs:azure:diagnostics` Category=\"AzureBackupReport\" or Recovery Services job events Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Backup\"\n| eval ok=if(match(JobStatus,\"(?i)completed\"),1,0)\n| stats count(eval(ok=0)) as failed, count as total by BackupItemName\n| where failed>0\n| sort -failed",
-  "description": "Identifies UC-4.2.40 — Azure, Backup, Job, Health — using `index=azure` sourcetype `mscs:azure:diagnostics`, grouped by `BackupItemName`. Outputs `count` each `the scheduled window`; alert when `failed` > 0. Primary focus: Job Health. Purpose-built for 'Azure Backup Job Health' in Operations workflows.",
-  "value": "UC-4.2.40 operationalises 'Azure Backup Job Health' against `mscs:azure:diagnostics` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Backup\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.40_azure_backup_job_health_40\"\n| sort -_time",
+  "description": "UC-4.2.40 — Azure Backup Job Health: queries Microsoft Azure `mscs:azure:diagnostics` for search criteria `Category=\"AzureBackupReport\" OperationName=\"Backup\"` and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Azure Backup Job Health' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.40 drives critical-priority availability alerting before customer-impacting drift.",
   "implementation": "Parse backup job JSON from diagnostic stream. Alert on Failed, CompletedWithWarnings patterns, or missing job in expected window (lookup per item). Test restores quarterly (see UC-4.4.29).",
   "visualization": "Table (item, status), Timeline (job outcomes), Single value (failed jobs 24h).",
   "cimModels": [
@@ -27,40 +25,37 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.40)** — Planned work for 'Azure Backup Job Health' shifts `count` over `span=1h` while `BackupItemName` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:diagnostics`** — Scheduled automation elevates `ok` without crossing `failed` > 0 for UC-4.2.40. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `BackupItemName`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:diagnostics`** — First 48h baseline for UC-4.2.40 on `BackupItemName` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `BackupItemName`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_diagnostics"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` with the modular input for `mscs:azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nParse backup job JSON from diagnostic stream. Alert on Failed, CompletedWithWarnings patterns, or missing job in expected window (lookup per item). Test restores quarterly (see UC-4.4.29).\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Backup\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.40_azure_backup_job_health_40\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:diagnostics` in `index=azure` to detect azure backup job health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_40_alert` with severity aligned to `critical` criticality. Dashboard: Table (item, status), Timeline (job outcomes), Single value (failed jobs 24h)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure backup job health so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:diagnostics` Category=\"AzureBackupReport\" or Recovery Services job events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse backup job JSON from diagnostic stream. Alert on Failed, CompletedWithWarnings patterns, or missing job in expected window (lookup per item). Test restores quarterly (see UC-4.4.29).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:diagnostics\" Category=\"AzureBackupReport\" OperationName=\"Backup\"\n| eval ok=if(match(JobStatus,\"(?i)completed\"),1,0)\n| stats count(eval(ok=0)) as failed, count as total by BackupItemName\n| where failed>0\n| sort -failed\n```\n\nUnderstanding this SPL\n\n**Azure Backup Job Health** — Failed or missed backup jobs leave restore gaps; operational health must be tracked per protected item.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:diagnostics` Category=\"AzureBackupReport\" or Recovery Services job events. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ok** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by BackupItemName** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where failed>0` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (item, status), Timeline (job outcomes), Single value (failed jobs 24h).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=mscs:azure:diagnostics into azure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`BackupItemName, failed, ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "Failed or missed backup jobs leave restore gaps; operational health must be tracked per protected item.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

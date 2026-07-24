@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.10.15",
+  "title": "Azure CSPM Stale Admin Credential",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `azure:monitor:activity` events with `Title=\"*credential*\" OR Title=\"*password*\"` into `index=azure`. Confirm UC-4.10.15 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:activity` traffic without `Title=\"*credential*\" OR Title=\"*password*\"`. Confirm UC-4.10.15 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:activity` collected via Cloud posture integration via provider TA; validate ingest with `| stats count by sourcetype`.",
+  "app": "Cloud posture integration via provider TA",
+  "spl": "index=azure sourcetype=\"azure:monitor:activity\" Title=\"*credential*\" OR Title=\"*password*\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.10.15_azure_cspm_stale_admin_c_15\"\n| sort -_time",
+  "description": "UC-4.10.15 — Azure CSPM Stale Admin Credential: queries Microsoft Azure `azure:monitor:activity` for search criteria `Title=\"*credential*\" OR Title=\"*password*\"` and returns actor, resource, and region context for compliance review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Azure CSPM Stale Admin Credential' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.10.15 drives high-priority compliance alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.aws.amazon.com/securityhub/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure"
+  ],
+  "equipmentModels": [
+    "azure_activity_log"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Cloud posture integration via provider TA with the modular input for `azure:monitor:activity`.\n• Prerequisite crawl UC(s): UC-4.10.1.\n• Confirm field extractions in `props.conf` for `operationName` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=azure sourcetype=azure:monitor:activity.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:activity\" Title=\"*credential*\" OR Title=\"*password*\"\n| table _time operationName caller resourceId resultType\n| eval uc_marker=\"UC-4.10.15_azure_cspm_stale_admin_c_15\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:activity` in `index=azure` to detect azure cspm stale admin credential. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Activity Log blade for the same 24-hour window. Confirm row counts and `operationName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_10_15_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud posture integration via provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure cspm stale admin credential so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.10.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

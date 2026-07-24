@@ -14,6 +14,13 @@ the release notes block in `index.html` by hand.
 
 ### New Use Cases
 
+- **cat-04 Cloud Infrastructure expansion — +1,008 use cases (227 → 1,235 in
+  cat-04; 14,922 → 15,930 catalogue-wide).** Research-driven taxonomy covering
+  AWS CloudTrail eventNames, Azure ARM operations, GCP audit methodNames, plus
+  nine new subcategories: OCI (4.7), Alibaba Cloud (4.8), Kubernetes-on-cloud
+  (4.9), CNAPP (4.10), FinOps (4.11), Cloud Databases (4.12), Cloud Networking
+  (4.13), Cloud Storage (4.14), and Edge/CDN/WAF (4.15). Generator pipeline in
+  `data/cloud_expansion/` and `tools/research/generate_cloud_ucs.py`.
 - **Compliance gap closure — +46 cat-22 use cases closing all remaining
   `commonClauses[]` gaps.** Tier-1 clause coverage rises from 90.9% to
   **100%**; tier-2 from 97.6% to **100%** (656/656 common clauses covered).
@@ -24,6 +31,14 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- **Legacy cat-04 uplift:** All 227 pre-expansion UCs enriched with gold-profile
+  fields (`controlTest`, `cost.tier`, `splunkbaseApps`, `wave`,
+  `prerequisiteUseCases`, `securityDomain`, `equipmentModels`).
+- **Equipment registry:** Added `oci` (with Cloud Guard and Functions models)
+  and `alibaba` slugs in `tools/build/enrichment.py`.
+- **SPL vocabulary:** +40 cloud sourcetypes (OCI, Alibaba, legacy AWS/Azure/GCP
+  TA feeds) in `_spl_well_known.py`.
+- **Guide stubs:** Eight new cloud topic guides under `docs/guides/`.
 - **`data/regulations.json`:** AWIA `clauseGrammar` extended to allow digits in
   `EPA-*` clause IDs (fixes validation for `AWIA-EPA-vsat-j100`).
 - **Golden compliance tuples:** five gap-closure mappings locked in
@@ -31,13 +46,8 @@ the release notes block in `index.html` by hand.
 - **Generator:** `scripts/generate_compliance_gap_closure.py` — reproducible
   Wave-1 sidecar authoring from the gap manifest.
 - **Quality lift:** `scripts/upgrade_compliance_gap_closure.py` clones verified
-  exemplar depth (SPL, controlTest, detailedImplementation, knownFalsePositives,
-  references) onto all 46 gap-closure UCs via a template map. **42/46** mappings
-  now carry `assurance: full` (was 0/46 partial-only scaffolds); remaining four
-  honestly stay `partial` (SG CoP roll-up, TSA vendor-access, TSA dual-clock,
-  LPM 20-rules scorecard).
-- **Coverage metrics:** global assurance-adjusted **76.0%** (tier-1 **81.1%**);
-  NIS2 / legacy tier-2 partial mappings remain follow-up work.
+  exemplar depth onto all 46 gap-closure UCs via a template map.
+- **Coverage metrics:** global assurance-adjusted **76.0%** (tier-1 **81.1%**).
 
 ## [8.23.0] - 2026-07-24
 

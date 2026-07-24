@@ -1,0 +1,65 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.100",
+  "title": "Azure App Service HTTP 5xx Rate",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Performance",
+    "Availability"
+  ],
+  "splunkPillar": "Observability",
+  "controlTest": {
+    "positiveScenario": "Replay sample `azure:monitor:resource` events with `operationName=\"Microsoft.*5xx Rate\"` into `index=azure`. Confirm UC-4.2.100 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:resource` traffic without `operationName=\"Microsoft.*5xx Rate\"`. Confirm UC-4.2.100 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:resource` collected via Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)",
+  "spl": "index=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*5xx Rate\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.2.100_azure_app_service_http_5_100\"\n| sort -_time",
+  "description": "UC-4.2.100 — Azure App Service HTTP 5xx Rate: queries Microsoft Azure `azure:monitor:resource` for `Microsoft.*5xx Rate` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, `Microsoft.*5xx Rate` activity for 'Azure App Service HTTP 5xx Rate' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.2.100 drives medium-priority performance alerting before customer-impacting drift.",
+  "implementation": "Enable Azure Monitor metrics/diagnostics export to Event Hub; map metrics in Microsoft Cloud Services add-on.",
+  "visualization": "Timechart, single-value SLA breach, top resources table.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "Azure Monitor metrics",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/metrics-charts"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure"
+  ],
+  "equipmentModels": [
+    "azure_metrics"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) with the modular input for `azure:monitor:resource`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `ResourceId` and related actor fields.\n\nStep 1 — Configure data collection\nEnable Azure Monitor metrics/diagnostics export to Event Hub; map metrics in Microsoft Cloud Services add-on.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" operationName=\"Microsoft.*5xx Rate\"\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.2.100_azure_app_service_http_5_100\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:resource` in `index=azure` to detect azure app service http 5xx rate. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Metrics explorer for the same 24-hour window. Confirm row counts and `ResourceId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_100_alert` with severity aligned to `medium` criticality. Dashboard: Timechart, single-value SLA breach, top resources table..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure app service http 5xx rate so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

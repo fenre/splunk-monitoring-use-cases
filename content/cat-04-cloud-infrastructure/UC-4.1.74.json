@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'IAM Access Analyzer Findings' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_iam_access_analyzer_findings` (UC-4.1.74), SOC dashboard panel \"Operations — IAM Access Analyzer Findings\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.1.74 positive (IAM, Access, Analyzer, Findings): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch:events' where `count` grouped by `detail.resourceType`, `detail.principal.awsAccountId`, `detail.isPublic` satisfies detection threshold for 'IAM Access Analyzer Findings'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.1.74 negative (Analyzer Findings): ingest benign `aws` / `aws:cloudwatch:events` events where `detail.resourceType`, `detail.principal.awsAccountId`, `detail.isPublic` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'IAM Access Analyzer Findings'."
+    "positiveScenario": "Replay sample `aws:cloudwatch:events` events with `detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"` into `index=aws`. Confirm UC-4.1.74 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudwatch:events` traffic without `detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"`. Confirm UC-4.1.74 returns zero rows and the alert does not fire."
   },
-  "dataSources": "Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| stats count by detail.resourceType, detail.principal.awsAccountId, detail.isPublic\n| sort -count",
-  "description": "Surfaces UC-4.1.74 for IAM, Access, Analyzer, Findings over `index=aws` sourcetype `aws:cloudwatch:events` with thresholds configured threshold. Groups `count` by `detail.resourceType`, `detail.principal.awsAccountId`, `detail.isPublic` each `the scheduled window`. Centered on Analyzer Findings indicators. Supports repeatable operations triage for 'IAM Access Analyzer Findings'.",
-  "value": "For 'IAM Access Analyzer Findings', UC-4.1.74 converts `activity` on `aws:cloudwatch:events` feeds into actionable rows and reduces operational risk and delayed incident response.",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch:events` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| table _time detail-type source detail.eventName\n| eval uc_marker=\"UC-4.1.74_iam_access_analyzer_find_74\"\n| sort -_time",
+  "description": "UC-4.1.74 — IAM Access Analyzer Findings: queries AWS `aws:cloudwatch:events` for search criteria `detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On AWS, detecting 'IAM Access Analyzer Findings' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.1.74 drives medium-priority security alerting before customer-impacting drift.",
   "implementation": "Enable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.",
   "visualization": "Table (resource type, account, public), Bar chart (findings by type), Single value (active findings).",
   "cimModels": [
@@ -29,42 +27,41 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/1876"
     },
     {
-      "title": "CIM: Alerts",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Alerts",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.74)** — Planned work for 'IAM Access Analyzer Findings' shifts `count` over `span=1h` while `detail.resourceType`, `detail.principal.awsAccountId`, `detail.isPublic` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudwatch:events`** — Scheduled automation elevates `detail.principal.awsAccountId` without crossing configured threshold for UC-4.1.74. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `detail.resourceType`, `detail.principal.awsAccountId`, `detail.isPublic`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch:events`** — First 48h baseline for UC-4.1.74 on `detail.resourceType` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `detail.resourceType`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Intentional public buckets or roles for a static site, partner data exchange, or test account that the policy still documents.",
   "mitreAttack": [
     "T1087.004",
     "T1580"
   ],
+  "securityDomain": "cloud",
   "equipment": [
     "aws"
   ],
   "equipmentModels": [
-    "aws_generic"
+    "aws_cloudwatch"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws` with the modular input for `aws:cloudwatch:events`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `detail-type` and related actor fields.\n\nStep 1 — Configure data collection\nEnable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| table _time detail-type source detail.eventName\n| eval uc_marker=\"UC-4.1.74_iam_access_analyzer_find_74\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch:events` in `index=aws` to detect iam access analyzer findings. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `detail-type` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_74_alert` with severity aligned to `medium` criticality. Dashboard: Table (resource type, account, public), Bar chart (findings by type), Single value (active findings)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of iam access analyzer findings so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable organization-wide analyzer. Send findings to EventBridge and Splunk. Auto-remediate public S3 where policy allows or ticket owners. Weekly review of new external access paths.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch:events\" detail-type=\"Access Analyzer Finding\" detail.status=\"ACTIVE\"\n| stats count by detail.resourceType, detail.principal.awsAccountId, detail.isPublic\n| sort -count\n```\n\nUnderstanding this SPL\n\n**IAM Access Analyzer Findings** — Access Analyzer identifies unintended external access to S3, IAM roles, KMS keys, and other resources—reducing public exposure risk.\n\nDocumented **Data sources**: Access Analyzer findings export (EventBridge, Security Hub), `sourcetype=aws:cloudwatch:events`. **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by detail.resourceType, detail.principal.awsAccountId, detail.isPublic** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (resource type, account, public), Bar chart (findings by type), Single value (active findings).",
-  "grandmaExplanation": "We keep an eye on iam access analyzer findings. Unexpected paths for data or access that the analyzer found so the team can close them before a stranger stumbles in. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

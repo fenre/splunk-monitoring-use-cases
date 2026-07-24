@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.13.7",
+  "title": "Cloud Network DNS Query Volume Spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:route53` events with `matching activity` into `index=aws`. Confirm UC-4.13.7 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:route53` traffic without `matching activity`. Confirm UC-4.13.7 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:route53` collected via Cloud networking logs via provider TA; validate ingest with `| stats count by sourcetype`.",
+  "app": "Cloud networking logs via provider TA",
+  "spl": "index=aws sourcetype=\"aws:route53\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.13.7_cloud_network_dns_query_7\"\n| sort -_time",
+  "description": "UC-4.13.7 — Cloud Network DNS Query Volume Spike: queries multi-cloud (AWS/Azure/GCP) `aws:route53` for configured audit predicates and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), 'Cloud Network DNS Query Volume Spike' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.13.7 drives high-priority availability alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:route53.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.aws.amazon.com/vpc/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp"
+  ],
+  "equipmentModels": [
+    "aws_route53"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Cloud networking logs via provider TA with the modular input for `aws:route53`.\n• Prerequisite crawl UC(s): UC-4.13.1.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:route53.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:route53\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:route53\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.13.7_cloud_network_dns_query_7\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:route53` in `index=aws` to detect cloud network dns query volume spike. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_13_7_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud networking logs via provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud network dns query volume spike so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.13.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

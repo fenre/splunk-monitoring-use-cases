@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'VPC Service Controls Perimeter Violations' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_vpc_service_controls_perimeter_violations` (UC-4.3.23), SOC dashboard panel \"Operations — VPC Service Controls Perimeter Violations\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.3.23 positive (VPC, Service, Controls, Perimeter, Violations): ingest synthetic events into `index=gcp` sourcetype='google:gcp:pubsub:message' where `count` grouped by `entity` satisfies detection threshold for 'VPC Service Controls Perimeter Violations'. Validate filter `\"violation\" OR \"perimeter\"`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.3.23 negative (Perimeter Violations): ingest benign `gcp` / `google:gcp:pubsub:message` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 7 confirms zero alert rows for 'VPC Service Controls Perimeter Violations'."
+    "positiveScenario": "Replay sample `google:gcp:pubsub:message` events with `protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"` into `index=gcp`. Confirm UC-4.3.23 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `google:gcp:pubsub:message` traffic without `protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"`. Confirm UC-4.3.23 returns zero rows and the alert does not fire."
   },
-  "dataSources": "Access Context Manager / VPC SC audit logs (perimeter violation events) Collected via Splunk Add-on for Google Cloud Platform (Splunkbase 3084) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)",
-  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| search \"violation\" OR \"perimeter\"\n| table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n| sort -_time",
-  "description": "Alerts on UC-4.3.23 — VPC, Service, Controls, Perimeter, Violations — using `index=gcp` sourcetype `google:gcp:pubsub:message`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes filter `\"violation\" OR \"perimeter\"`. Purpose-built for 'VPC Service Controls Perimeter Violations' in Operations workflows.",
-  "value": "UC-4.3.23 operationalises 'VPC Service Controls Perimeter Violations' against `google:gcp:pubsub:message` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:pubsub:message` collected via `Splunk_TA_google-cloudplatform`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_google-cloudplatform`",
+  "spl": "index=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.23_vpc_service_controls_per_23\"\n| sort -_time",
+  "description": "UC-4.3.23 — VPC Service Controls Perimeter Violations: queries Google Cloud `google:gcp:pubsub:message` for search criteria `protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Google Cloud, 'VPC Service Controls Perimeter Violations' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.3.23 drives critical-priority security alerting before customer-impacting drift.",
   "implementation": "Enable VPC SC violation logging. Forward to Pub/Sub and Splunk. Alert on every violation. Correlate with principal, source IP, and resource. Use for perimeter tuning and incident response.",
   "visualization": "Table (principal, resource, violation), Timeline (violations), Map (source IPs).",
   "cimModels": [
@@ -27,41 +25,40 @@
   "references": [
     {
       "title": "Splunk_TA_google-cloudplatform",
-      "url": "https://splunkbase.splunk.com/app/3088",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3088"
     },
     {
-      "title": "Splunkbase app 3084",
-      "url": "https://splunkbase.splunk.com/app/3084",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://cloud.google.com/docs"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `gcp` (UC-4.3.23)** — Planned work for 'VPC Service Controls Perimeter Violations' shifts `count` over `span=1h` while `host` remains in-scope. Applies filter `\"violation\" OR \"perimeter\"`. Cross-check CMDB CHG.\n\n2. **Batch `count` on `google:gcp:pubsub:message`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.3.23. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `gcp` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `google:gcp:pubsub:message`** — First 48h baseline for UC-4.3.23 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1562.007"
   ],
+  "securityDomain": "cloud",
   "equipment": [
     "gcp"
   ],
   "equipmentModels": [
-    "gcp_generic"
+    "gcp_pubsub"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure `Splunk_TA_google-cloudplatform` with the modular input for `google:gcp:pubsub:message`.\n• Prerequisite crawl UC(s): UC-4.3.41.\n• Confirm field extractions in `props.conf` for `messageId` and related actor fields.\n\nStep 1 — Configure data collection\nEnable VPC SC violation logging. Forward to Pub/Sub and Splunk. Alert on every violation. Correlate with principal, source IP, and resource. Use for perimeter tuning and incident response.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| table _time messageId publishTime attributes\n| eval uc_marker=\"UC-4.3.23_vpc_service_controls_per_23\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:pubsub:message` in `index=gcp` to detect vpc service controls perimeter violations. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `messageId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_23_alert` with severity aligned to `critical` criticality. Dashboard: Table (principal, resource, violation), Timeline (violations), Map (source IPs)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_google-cloudplatform` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of vpc service controls perimeter violations so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.3.41"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_google-cloudplatform`.\n• Ensure the following data sources are available: Access Context Manager / VPC SC audit logs (perimeter violation events).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable VPC SC violation logging. Forward to Pub/Sub and Splunk. Alert on every violation. Correlate with principal, source IP, and resource. Use for perimeter tuning and incident response.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=gcp sourcetype=\"google:gcp:pubsub:message\" protoPayload.serviceName=\"accesscontextmanager.googleapis.com\"\n| search \"violation\" OR \"perimeter\"\n| table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**VPC Service Controls Perimeter Violations** — VPC Service Controls enforce network perimeter. Violations indicate data exfiltration attempts or misconfigured access. Critical for data perimeter security.\n\nDocumented **Data sources**: Access Context Manager / VPC SC audit logs (perimeter violation events). **App/TA** (typical add-on context): `Splunk_TA_google-cloudplatform`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: gcp; **sourcetype**: google:gcp:pubsub:message. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=gcp, sourcetype=\"google:gcp:pubsub:message\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• Pipeline stage (see **VPC Service Controls Perimeter Violations**): table _time protoPayload.authenticationInfo.principalEmail protoPayload.requestMetadata.callerIp resource\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (principal, resource, violation), Timeline (violations), Map (source IPs).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_google-cloudplatform` — Splunk Add-on for Google Cloud Platform (Splunkbase 3084)). Enable the modular input or HEC token that writes sourcetype=google:gcp:pubsub:message into gcp. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "VPC Service Controls enforce network perimeter.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3088,
+      "name": "Splunk Add-on for Google Cloud Platform",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

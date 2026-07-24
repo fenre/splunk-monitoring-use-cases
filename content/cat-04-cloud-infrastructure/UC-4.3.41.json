@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.3.41",
+  "title": "GCP Cloud Audit Log Baseline Ingestion and Health",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Audit",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "controlTest": {
+    "positiveScenario": "Replay sample `google:gcp:audit` events with `matching activity` into `index=gcp`. Confirm UC-4.3.41 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `google:gcp:audit` traffic without `matching activity`. Confirm UC-4.3.41 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:audit` collected via Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)",
+  "spl": "index=gcp sourcetype=\"google:gcp:audit\"\n| table _time protoPayload.methodName protoPayload.authenticationInfo.principalEmail resourceName\n| eval uc_marker=\"UC-4.3.41_gcp_cloud_audit_log_base_41\"\n| sort -_time",
+  "description": "UC-4.3.41 — GCP Cloud Audit Log Baseline Ingestion and Health: queries Google Cloud `google:gcp:audit` for configured audit predicates and returns actor, resource, and region context for audit review and change validation.",
+  "value": "On Google Cloud, detecting 'GCP Cloud Audit Log Baseline Ingestion and Health' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.3.41 drives critical-priority audit alerting before customer-impacting drift.",
+  "implementation": "Create Pub/Sub sink for audit logs; configure Splunk GCP add-on subscription input.",
+  "visualization": "Single value events 24h, project coverage, ingestion lag.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Google Cloud Platform",
+      "url": "https://splunkbase.splunk.com/app/3088"
+    },
+    {
+      "title": "Cloud Logging audit overview",
+      "url": "https://cloud.google.com/logging/docs/audit"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "gcp"
+  ],
+  "equipmentModels": [
+    "gcp_audit_log"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088) with the modular input for `google:gcp:audit`.\n• Prerequisite crawl UC(s): none.\n• Confirm field extractions in `props.conf` for `protoPayload.methodName` and related actor fields.\n\nStep 1 — Configure data collection\nCreate Pub/Sub sink for audit logs; configure Splunk GCP add-on subscription input.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:audit\"\n| table _time protoPayload.methodName protoPayload.authenticationInfo.principalEmail resourceName\n| eval uc_marker=\"UC-4.3.41_gcp_cloud_audit_log_base_41\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:audit` in `index=gcp` to detect gcp cloud audit log baseline ingestion and health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the GCP Logs Explorer console for the same 24-hour window. Confirm row counts and `protoPayload.methodName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_3_41_alert` with severity aligned to `critical` criticality. Dashboard: Single value events 24h, project coverage, ingestion lag..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp cloud audit log baseline ingestion and health so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3088,
+      "name": "Splunk Add-on for Google Cloud Platform",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
+}

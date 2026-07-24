@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.12.12",
+  "title": "Managed PostgreSQL Backup Failure",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Reliability",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `eventName=\"*Backup*\" OR errorCode=\"*\"` into `index=aws`. Confirm UC-4.12.12 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `eventName=\"*Backup*\" OR errorCode=\"*\"`. Confirm UC-4.12.12 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via Cloud provider TA; validate ingest with `| stats count by sourcetype`.",
+  "app": "Cloud provider TA",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" eventName=\"*Backup*\" OR errorCode=\"*\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.12.12_managed_postgresql_backu_12\"\n| sort -_time",
+  "description": "UC-4.12.12 — Managed PostgreSQL Backup Failure: queries multi-cloud (AWS/Azure/GCP) `aws:cloudtrail` for `*Backup*` and returns actor, resource, and region context for reliability review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), `*Backup*` activity for 'Managed PostgreSQL Backup Failure' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.12.12 drives high-priority reliability alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudtrail.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.aws.amazon.com/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws",
+    "azure",
+    "gcp"
+  ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Cloud provider TA with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.12.1.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=aws sourcetype=aws:cloudtrail.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" eventName=\"*Backup*\" OR errorCode=\"*\"\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.12.12_managed_postgresql_backu_12\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=aws` to detect managed postgresql backup failure. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_12_12_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Cloud provider TA and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of managed postgresql backup failure so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.12.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

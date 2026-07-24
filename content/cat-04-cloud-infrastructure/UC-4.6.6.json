@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'CloudTrail/Activity Log Event Volume Trending' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_cloudtrail_activity_log_event_volume_trending` (UC-4.6.6), SOC dashboard panel \"Operations — CloudTrail/Activity Log Event Volume Trending\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.6.6 positive (CloudTrail, Activity, Log, Event, Volume): ingest synthetic events into `index=cloud` sourcetype='aws:cloudtrail' where `count` grouped by `entity` satisfies detection threshold for 'CloudTrail/Activity Log Event Volume Trending'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.6.6 negative (Volume Trending): ingest benign `cloud` / `aws:cloudtrail` events where `entity` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'CloudTrail/Activity Log Event Volume Trending'."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `readOnly=false` into `index=cloud`. Confirm UC-4.6.6 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `readOnly=false`. Confirm UC-4.6.6 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`index=cloud sourcetype=aws:cloudtrail`; `sourcetype=azure:monitor:activity` Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Add-on for AWS, Azure Activity Log add-on — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=cloud sourcetype=\"aws:cloudtrail\" readOnly=false\n| timechart span=1d count as mgmt_events\n| trendline sma7(mgmt_events) as event_trend\n| predict mgmt_events as predicted algorithm=LLP future_timespan=14",
-  "description": "Detects UC-4.6.6 — CloudTrail, Activity, Log, Event, Volume — using `index=cloud` sourcetype `aws:cloudtrail`, grouped by `entity`. Outputs `count` each `1d`; alert when configured threshold. Primary focus: Volume Trending. Purpose-built for 'CloudTrail/Activity Log Event Volume Trending' in Operations workflows.",
-  "value": "UC-4.6.6 accelerates insight into Volume Trending ('CloudTrail/Activity Log Event Volume Trending') by tracking `activity` on `aws:cloudtrail` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "dataSources": "`index=cloud` sourcetype=`aws:cloudtrail` collected via Splunk Add-on for AWS, Azure Activity Log add-on; validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS, Azure Activity Log add-on",
+  "spl": "index=cloud sourcetype=\"aws:cloudtrail\" readOnly=false\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.6.6_cloudtrail_activity_log_6\"\n| sort -_time",
+  "description": "UC-4.6.6 — CloudTrail/Activity Log Event Volume Trending: queries multi-cloud (AWS/Azure/GCP) `aws:cloudtrail` for search criteria `readOnly=false` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), detecting 'CloudTrail/Activity Log Event Volume Trending' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.6.6 drives medium-priority security alerting before customer-impacting drift.",
   "implementation": "Filter to non-read-only events for management actions. For multi-cloud, use union or a combined index with sourcetype in the by clause. Chart 90 days with daily span. Alert on statistical outliers exceeding 3x baseline. Ensure CloudTrail is multi-region and organization trails where applicable so the trend is complete. For Azure, include Activity Log management category events.",
   "visualization": "Line chart (daily management events with 7-day SMA, 90 days), anomaly overlay, 14-day forecast.",
   "cimModels": [
@@ -29,40 +27,30 @@
   "references": [
     {
       "title": "Splunk Add-on for AWS",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/1876"
     },
     {
       "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.6.6)** — Planned work for 'CloudTrail/Activity Log Event Volume Trending' shifts `count` over `span=1d` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:cloudtrail`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.6.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudtrail`** — First 48h baseline for UC-4.6.6 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Our own break-glass and automation accounts show up the same as anyone else, and a delete or write during a change window is expected. We allowlist the roles that do routine maintenance and we link alerts to approved changes before we call an incident.",
+  "securityDomain": "cloud",
   "equipment": [
     "aws",
     "azure"
   ],
   "equipmentModels": [
-    "aws_generic",
-    "azure_generic"
+    "aws_cloudtrail"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure Splunk Add-on for AWS, Azure Activity Log add-on with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.6.7.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nFilter to non-read-only events for management actions. For multi-cloud, use union or a combined index with sourcetype in the by clause. Chart 90 days with daily span. Alert on statistical outliers exceeding 3x baseline. Ensure CloudTrail is multi-region and organization trails where applicable so the trend is complete. For Azure, include Activity Log management category events.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"aws:cloudtrail\" readOnly=false\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.6.6_cloudtrail_activity_log_6\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=cloud` to detect cloudtrail/activity log event volume trending. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_6_6_alert` with severity aligned to `medium` criticality. Dashboard: Line chart (daily management events with 7-day SMA, 90 days), anomaly overlay, 14-day forecast..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS, Azure Activity Log add-on and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloudtrail/activity log event volume trending so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.6.7"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for AWS, Azure Activity Log add-on.\n• Ensure the following data sources are available: `index=cloud sourcetype=aws:cloudtrail`; `sourcetype=azure:monitor:activity`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nFilter to non-read-only events for management actions. For multi-cloud, use union or a combined index with sourcetype in the by clause. Chart 90 days with daily span. Alert on statistical outliers exceeding 3x baseline. Ensure CloudTrail is multi-region and organization trails where applicable so the trend is complete. For Azure, include Activity Log management category events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"aws:cloudtrail\" readOnly=false\n| timechart span=1d count as mgmt_events\n| trendline sma7(mgmt_events) as event_trend\n| predict mgmt_events as predicted algorithm=LLP future_timespan=14\n```\n\nUnderstanding this SPL\n\n**CloudTrail/Activity Log Event Volume Trending** — Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk API use. Baselines help spot anomalies without reading every event.\n\nDocumented **Data sources**: `index=cloud sourcetype=aws:cloudtrail`; `sourcetype=azure:monitor:activity`. **App/TA** (typical add-on context): Splunk Add-on for AWS, Azure Activity Log add-on. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: aws:cloudtrail. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"aws:cloudtrail\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1d** buckets — ideal for trending and alerting on this use case.\n• Pipeline stage (see **CloudTrail/Activity Log Event Volume Trending**): trendline sma7(mgmt_events) as event_trend\n• Pipeline stage (see **CloudTrail/Activity Log Event Volume Trending**): predict mgmt_events as predicted algorithm=LLP future_timespan=14\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.object_category All_Changes.action span=1h\n| sort -count\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**CloudTrail/Activity Log Event Volume Trending** — Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk API use.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Change` data model (`All_Changes` dataset)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (daily management events with 7-day SMA, 90 days), anomaly overlay, 14-day forecast.",
-  "grandmaExplanation": "Management event volume over 90 days highlights automation changes, new integrations, or possible abuse such as enumeration or bulk use.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

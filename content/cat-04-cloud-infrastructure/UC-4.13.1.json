@@ -1,0 +1,63 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.13.1",
+  "title": "Cloud Network Flow Baseline",
+  "criticality": "critical",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Audit",
+    "Operations"
+  ],
+  "splunkPillar": "Platform",
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:vpcflow` events with `matching activity` into `index=aws`. Confirm UC-4.13.1 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:vpcflow` traffic without `matching activity`. Confirm UC-4.13.1 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:vpcflow` collected via Splunk Add-on for AWS (Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS (Splunkbase 1876)",
+  "spl": "index=aws sourcetype=\"aws:vpcflow\"\n| table _time src dest src_port dest_port action bytes\n| eval uc_marker=\"UC-4.13.1_cloud_network_flow_basel_1\"\n| sort -_time",
+  "description": "UC-4.13.1 — Cloud Network Flow Baseline: queries AWS `aws:vpcflow` for configured audit predicates and returns actor, resource, and region context for audit review and change validation.",
+  "value": "On AWS, 'Cloud Network Flow Baseline' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.13.1 drives critical-priority audit alerting before customer-impacting drift.",
+  "implementation": "Enable aws:vpcflow ingestion via the appropriate Splunk TA into index=aws.",
+  "visualization": "Ingestion health single value and lag chart.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor logging documentation",
+      "url": "https://docs.aws.amazon.com/vpc/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_vpcflow"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (Splunkbase 1876) with the modular input for `aws:vpcflow`.\n• Prerequisite crawl UC(s): none.\n• Confirm field extractions in `props.conf` for `src` and related actor fields.\n\nStep 1 — Configure data collection\nEnable aws:vpcflow ingestion via the appropriate Splunk TA into index=aws.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:vpcflow\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:vpcflow\"\n| table _time src dest src_port dest_port action bytes\n| eval uc_marker=\"UC-4.13.1_cloud_network_flow_basel_1\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:vpcflow` in `index=aws` to detect cloud network flow baseline. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon VPC console Flow logs for the same 24-hour window. Confirm row counts and `src` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_13_1_alert` with severity aligned to `critical` criticality. Dashboard: Ingestion health single value and lag chart..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of cloud network flow baseline so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "crawl"
+}

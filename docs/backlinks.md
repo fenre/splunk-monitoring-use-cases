@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_235 pages indexed; 131 have at least one inbound link; 434 unique source→target edges._
+_243 pages indexed; 132 have at least one inbound link; 443 unique source→target edges._
 
 ---
 
@@ -553,6 +553,10 @@ _No inbound links yet._
 - [`docs/guides/splunk-observability-cloud.md`](guides/splunk-observability-cloud.md)
 - [`docs/guides/third-party-monitoring.md`](guides/third-party-monitoring.md)
 
+## `docs/guides/alibaba-cloud.md`
+
+_No inbound links yet._
+
 ## `docs/guides/api-gateways.md`
 
 - [`docs/guides/ai-llm-observability.md`](guides/ai-llm-observability.md)
@@ -578,6 +582,8 @@ _No inbound links yet._
 ## `docs/guides/aws.md`
 
 - [`docs/guides/ai-llm-observability.md`](guides/ai-llm-observability.md)
+- [`docs/guides/cloud-finops.md`](guides/cloud-finops.md)
+- [`docs/guides/cloud-security-posture.md`](guides/cloud-security-posture.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](guides/datacenter-fabric-sdn.md)
 - [`docs/guides/datagen-top10-use-cases.md`](guides/datagen-top10-use-cases.md)
 - [`docs/guides/dns-dhcp.md`](guides/dns-dhcp.md)
@@ -587,6 +593,7 @@ _No inbound links yet._
 - [`docs/guides/firewalls.md`](guides/firewalls.md)
 - [`docs/guides/gcp.md`](guides/gcp.md)
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
+- [`docs/guides/oci.md`](guides/oci.md)
 - [`docs/guides/relational-databases.md`](guides/relational-databases.md)
 - [`docs/guides/storage-backup.md`](guides/storage-backup.md)
 
@@ -594,6 +601,7 @@ _No inbound links yet._
 
 - [`docs/guides/active-directory-entra-id.md`](guides/active-directory-entra-id.md)
 - [`docs/guides/ai-llm-observability.md`](guides/ai-llm-observability.md)
+- [`docs/guides/cloud-security-posture.md`](guides/cloud-security-posture.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](guides/datacenter-fabric-sdn.md)
 - [`docs/guides/dns-dhcp.md`](guides/dns-dhcp.md)
 - [`docs/guides/edr.md`](guides/edr.md)
@@ -602,6 +610,7 @@ _No inbound links yet._
 - [`docs/guides/firewalls.md`](guides/firewalls.md)
 - [`docs/guides/gcp.md`](guides/gcp.md)
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
+- [`docs/guides/oci.md`](guides/oci.md)
 - [`docs/guides/relational-databases.md`](guides/relational-databases.md)
 - [`docs/guides/storage-backup.md`](guides/storage-backup.md)
 
@@ -642,7 +651,31 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/guides/cloud-databases.md`
+
+_No inbound links yet._
+
+## `docs/guides/cloud-edge-cdn-waf.md`
+
+_No inbound links yet._
+
+## `docs/guides/cloud-finops.md`
+
+_No inbound links yet._
+
 ## `docs/guides/cloud-monitoring.md`
+
+_No inbound links yet._
+
+## `docs/guides/cloud-networking.md`
+
+_No inbound links yet._
+
+## `docs/guides/cloud-security-posture.md`
+
+_No inbound links yet._
+
+## `docs/guides/cloud-storage.md`
 
 _No inbound links yet._
 
@@ -735,12 +768,14 @@ _No inbound links yet._
 ## `docs/guides/gcp.md`
 
 - [`docs/guides/ai-llm-observability.md`](guides/ai-llm-observability.md)
+- [`docs/guides/cloud-security-posture.md`](guides/cloud-security-posture.md)
 - [`docs/guides/datacenter-fabric-sdn.md`](guides/datacenter-fabric-sdn.md)
 - [`docs/guides/dns-dhcp.md`](guides/dns-dhcp.md)
 - [`docs/guides/edr.md`](guides/edr.md)
 - [`docs/guides/finops-cost-capacity.md`](guides/finops-cost-capacity.md)
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
 - [`docs/guides/message-queues.md`](guides/message-queues.md)
+- [`docs/guides/oci.md`](guides/oci.md)
 - [`docs/guides/relational-databases.md`](guides/relational-databases.md)
 - [`docs/guides/storage-backup.md`](guides/storage-backup.md)
 
@@ -799,7 +834,8 @@ _No inbound links yet._
 
 ## `docs/guides/multi-cloud-serverless.md`
 
-_No inbound links yet._
+- [`docs/guides/alibaba-cloud.md`](guides/alibaba-cloud.md)
+- [`docs/guides/oci.md`](guides/oci.md)
 
 ## `docs/guides/network-flow.md`
 
@@ -817,6 +853,10 @@ _No inbound links yet._
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
 
 ## `docs/guides/observability-tooling-grafana-fluentd.md`
+
+_No inbound links yet._
+
+## `docs/guides/oci.md`
 
 _No inbound links yet._
 

@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.9.18",
+  "title": "Kubernetes Secret Mounted in Default Namespace",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Availability"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `kube:audit` events with `matching activity` into `index=kube`. Confirm UC-4.9.18 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `kube:audit` traffic without `matching activity`. Confirm UC-4.9.18 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=kube` sourcetype=`kube:audit` collected via Splunk Connect for Kubernetes; validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Connect for Kubernetes",
+  "spl": "index=kube sourcetype=\"kube:audit\"\n| table _time user.username verb objectRef.resource objectRef.name\n| eval uc_marker=\"UC-4.9.18_kubernetes_secret_mounte_18\"\n| sort -_time",
+  "description": "UC-4.9.18 — Kubernetes Secret Mounted in Default Namespace: queries Kubernetes `kube:audit` for configured audit predicates and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Kubernetes, detecting 'Kubernetes Secret Mounted in Default Namespace' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.9.18 drives high-priority security alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=kube sourcetype=kube:audit.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Connect for Kubernetes",
+      "url": "https://splunkbase.splunk.com/app/4467"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "kubernetes"
+  ],
+  "equipmentModels": [
+    "kubernetes_k8s"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=kube`.\n• Install and configure Splunk Connect for Kubernetes with the modular input for `kube:audit`.\n• Prerequisite crawl UC(s): UC-4.9.1.\n• Confirm field extractions in `props.conf` for `user.username` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=kube sourcetype=kube:audit.\nValidate ingest before alerting:\n```spl\nindex=kube sourcetype=\"kube:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=kube sourcetype=\"kube:audit\"\n| table _time user.username verb objectRef.resource objectRef.name\n| eval uc_marker=\"UC-4.9.18_kubernetes_secret_mounte_18\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `kube:audit` in `index=kube` to detect kubernetes secret mounted in default namespace. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Kubernetes audit dashboard for the same 24-hour window. Confirm row counts and `user.username` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_9_18_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Connect for Kubernetes and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of kubernetes secret mounted in default namespace so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.9.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 4467,
+      "name": "Splunk Connect for Kubernetes",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

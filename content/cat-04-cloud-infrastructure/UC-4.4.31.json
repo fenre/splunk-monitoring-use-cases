@@ -9,17 +9,15 @@
     "Compliance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Multi-Cloud Certificate Expiry Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_multi_cloud_certificate_expiry_tracking` (UC-4.4.31), SOC dashboard panel \"Operations — Multi-Cloud Certificate Expiry Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.4.31 positive (Multi, Cloud, Certificate, Expiry, Tracking): ingest synthetic events into `index=cloud` sourcetype='aws:acm:inventory' where `count` grouped by `entity` satisfies `days_left` < 30, or `days_left` >= 0 for 'Multi-Cloud Certificate Expiry Tracking'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.4.31 negative (Expiry Tracking): ingest benign `cloud` / `aws:acm:inventory` events where `entity` stays below `days_left` < 30, or `days_left` >= 0, or exclude the test entity via `ops_exception_register.csv`. Variant 8 confirms zero alert rows for 'Multi-Cloud Certificate Expiry Tracking'."
+    "positiveScenario": "Replay sample `aws:acm:inventory` events with `( OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")` into `index=cloud`. Confirm UC-4.4.31 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:acm:inventory` traffic without `( OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")`. Confirm UC-4.4.31 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=aws:acm:inventory`, `sourcetype=mscs:azure:metrics` / cert inventory, `sourcetype=google:gcp:pubsub:message` (certificatemanager) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "ACM/Key Vault/Certificate Manager exports, optional certstream — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=cloud (sourcetype=\"aws:acm:inventory\" OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")\n| eval not_after_epoch=coalesce(strptime(expiry, \"%Y-%m-%dT%H:%M:%SZ\"), strptime(expiry, \"%Y-%m-%dT%H:%M:%S%z\"), strptime(notAfter, \"%Y-%m-%dT%H:%M:%S\"))\n| eval days_left=round((not_after_epoch-now())/86400,0)\n| eval provider=case(sourcetype=\"aws:acm:inventory\",\"aws\", sourcetype=\"azure:keyvault:certs\",\"azure\", sourcetype=\"google:gcp:pubsub:message\",\"gcp\",1=1,\"unknown\")\n| where days_left < 30 AND days_left >= 0\n| table cert_name, provider, expiry, days_left\n| sort days_left",
-  "description": "Identifies UC-4.4.31 — Multi, Cloud, Certificate, Expiry, Tracking — using `index=cloud` sourcetype `aws:acm:inventory`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `days_left` < 30, or `days_left` >= 0. Primary focus: Expiry Tracking. Purpose-built for 'Multi-Cloud Certificate Expiry Tracking' in Operations workflows.",
-  "value": "UC-4.4.31 accelerates insight into Expiry Tracking ('Multi-Cloud Certificate Expiry Tracking') by tracking `activity` on `aws:acm:inventory` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
+  "dataSources": "`index=cloud` sourcetype=`aws:acm:inventory` collected via ACM/Key Vault/Certificate Manager exports, optional certstream; validate ingest with `| stats count by sourcetype`.",
+  "app": "ACM/Key Vault/Certificate Manager exports, optional certstream",
+  "spl": "index=cloud sourcetype=\"aws:acm:inventory\" ( OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.31_multi_cloud_certificate_31\"\n| sort -_time",
+  "description": "UC-4.4.31 — Multi-Cloud Certificate Expiry Tracking: queries Microsoft Azure `aws:acm:inventory` for search criteria `( OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Multi-Cloud Certificate Expiry Tracking' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.4.31 drives critical-priority security alerting before customer-impacting drift.",
   "implementation": "Nightly inventory jobs push cert metadata via HEC. Escalate at 30, 14, and 7 days. Include private CAs and cloud-managed certs for load balancers and API gateways.",
   "visualization": "Table (cert, provider, days left), Timeline (expiry dates), Single value (next expiry).",
   "cimModels": [
@@ -28,45 +26,32 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "url": "https://lantern.splunk.com/"
     },
     {
-      "title": "Splunkbase app 1876",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.4.31)** — Planned work for 'Multi-Cloud Certificate Expiry Tracking' shifts `count` over `span=1h` while `host` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:acm:inventory`** — Scheduled automation elevates `not_after_epoch` without crossing `days_left` < 30 for UC-4.4.31. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `host`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:acm:inventory`** — First 48h baseline for UC-4.4.31 on `host` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `host`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1580"
   ],
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "cert_pki",
-    "hashicorp"
+    "azure"
   ],
   "equipmentModels": [
-    "cert_pki_aws_acm",
-    "cert_pki_azure_keyvault_cert",
-    "hashicorp_vault"
+    "azure_inventory"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure ACM/Key Vault/Certificate Manager exports, optional certstream with the modular input for `aws:acm:inventory`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nNightly inventory jobs push cert metadata via HEC. Escalate at 30, 14, and 7 days. Include private CAs and cloud-managed certs for load balancers and API gateways.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"aws:acm:inventory\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"aws:acm:inventory\" ( OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.4.31_multi_cloud_certificate_31\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:acm:inventory` in `index=cloud` to detect multi-cloud certificate expiry tracking. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_31_alert` with severity aligned to `critical` criticality. Dashboard: Table (cert, provider, days left), Timeline (expiry dates), Single value (next expiry)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade ACM/Key Vault/Certificate Manager exports, optional certstream and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of multi-cloud certificate expiry tracking so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: ACM/Key Vault/Certificate Manager exports, optional certstream.\n• Ensure the following data sources are available: `sourcetype=aws:acm:inventory`, `sourcetype=mscs:azure:metrics` / cert inventory, `sourcetype=google:gcp:pubsub:message` (certificatemanager).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nNightly inventory jobs push cert metadata via HEC. Escalate at 30, 14, and 7 days. Include private CAs and cloud-managed certs for load balancers and API gateways.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud (sourcetype=\"aws:acm:inventory\" OR sourcetype=\"azure:keyvault:certs\" OR sourcetype=\"google:gcp:pubsub:message\")\n| eval not_after_epoch=coalesce(strptime(expiry, \"%Y-%m-%dT%H:%M:%SZ\"), strptime(expiry, \"%Y-%m-%dT%H:%M:%S%z\"), strptime(notAfter, \"%Y-%m-%dT%H:%M:%S\"))\n| eval days_left=round((not_after_epoch-now())/86400,0)\n| eval provider=case(sourcetype=\"aws:acm:inventory\",\"aws\", sourcetype=\"azure:keyvault:certs\",\"azure\", sourcetype=\"google:gcp:pubsub:message\",\"gcp\",1=1,\"unknown\")\n| where days_left < 30 AND days_left >= 0\n| table cert_name, provider, expiry, days_left\n| sort days_left\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud Certificate Expiry Tracking** — Expired certs break TLS for APIs and VPNs across regions; a unified expiry calendar prevents outages.\n\nDocumented **Data sources**: `sourcetype=aws:acm:inventory`, `sourcetype=mscs:azure:metrics` / cert inventory, `sourcetype=google:gcp:pubsub:message` (certificatemanager). **App/TA** (typical add-on context): ACM/Key Vault/Certificate Manager exports, optional certstream. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: aws:acm:inventory, azure:keyvault:certs, google:gcp:pubsub:message. Those sourcetypes align with what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"aws:acm:inventory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **not_after_epoch** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **days_left** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **provider** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where days_left < 30 AND days_left >= 0` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Multi-Cloud Certificate Expiry Tracking**): table cert_name, provider, expiry, days_left\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (cert, provider, days left), Timeline (expiry dates), Single value (next expiry).",
-  "grandmaExplanation": "Expired certs break secure connections for and VPNs across regions; a unified expiry calendar prevents outages.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

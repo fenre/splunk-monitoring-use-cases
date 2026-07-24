@@ -9,17 +9,15 @@
     "Fault"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Azure API Management (APIM) Health' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_azure_api_management_apim_health` (UC-4.2.51), SOC dashboard panel \"Operations — Azure API Management (APIM) Health\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.51 positive (Azure, API, Management, (APIM), Health): ingest synthetic events into `index=cloud` sourcetype='azure:diagnostics' where `errors`, `avg_latency_ms` grouped by `apiId` satisfies `responseCode` >= 500, `error_pct` > 5, or `avg_latency_ms` > 2000 for 'Azure API Management (APIM) Health'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.51 negative ((APIM) Health): ingest benign `cloud` / `azure:diagnostics` events where `apiId` stays below `responseCode` >= 500, `error_pct` > 5, or `avg_latency_ms` > 2000, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Azure API Management (APIM) Health'."
+    "positiveScenario": "Replay sample `azure:diagnostics` events with `Category=\"GatewayLogs\"` into `index=cloud`. Confirm UC-4.2.51 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:diagnostics` traffic without `Category=\"GatewayLogs\"`. Confirm UC-4.2.51 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=azure:monitor:metric` (Microsoft.ApiManagement/service), `sourcetype=azure:diagnostics` (GatewayLogs) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=cloud sourcetype=\"azure:diagnostics\" Category=\"GatewayLogs\"\n| eval is_error=if(responseCode>=500,1,0)\n| timechart span=5m count as requests, sum(is_error) as errors, avg(totalTime) as avg_latency_ms by apiId\n| eval error_pct=round(100*errors/requests,2)\n| where error_pct > 5 OR avg_latency_ms > 2000",
-  "description": "Monitors UC-4.2.51 — Azure, API, Management, (APIM), Health — using `index=cloud` sourcetype `azure:diagnostics`, grouped by `apiId`. Outputs `errors`, `avg_latency_ms` each `5m`; alert when `responseCode` >= 500, `error_pct` > 5, or `avg_latency_ms` > 2000. Primary focus: (APIM) Health. Purpose-built for 'Azure API Management (APIM) Health' in Operations workflows.",
-  "value": "UC-4.2.51 operationalises 'Azure API Management (APIM) Health' against `azure:diagnostics` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "dataSources": "`index=cloud` sourcetype=`azure:diagnostics` collected via `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics); validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics)",
+  "spl": "index=cloud sourcetype=\"azure:diagnostics\" Category=\"GatewayLogs\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.51_azure_api_management_api_51\"\n| sort -_time",
+  "description": "UC-4.2.51 — Azure API Management (APIM) Health: queries Microsoft Azure `azure:diagnostics` for search criteria `Category=\"GatewayLogs\"` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Azure API Management (APIM) Health' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.51 drives high-priority performance alerting before customer-impacting drift.",
   "implementation": "Enable diagnostics on APIM to send GatewayLogs via Event Hub to Splunk. Collect metrics for `Requests`, `BackendDuration`, `OverallDuration`, `FailedRequests`, and `UnauthorizedRequests`. Alert on backend error rate spikes, latency exceeding SLA thresholds, and capacity exhaustion (approaching unit limits). Track API-level usage patterns for capacity planning.",
   "visualization": "Line chart (request rate and error rate by API), Gauge (latency vs. SLA), Table (top errors by API and operation).",
   "cimModels": [
@@ -30,40 +28,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
       "title": "CIM: Web",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.2.51)** — Planned work for 'Azure API Management (APIM) Health' shifts `errors`, `avg_latency_ms` over `span=5m` while `apiId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `azure:diagnostics`** — Scheduled automation elevates `is_error` without crossing `responseCode` >= 500 for UC-4.2.51. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `apiId`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:diagnostics`** — First 48h baseline for UC-4.2.51 on `apiId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `apiId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_diagnostics"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics) with the modular input for `azure:diagnostics`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable diagnostics on APIM to send GatewayLogs via Event Hub to Splunk. Collect metrics for `Requests`, `BackendDuration`, `OverallDuration`, `FailedRequests`, and `UnauthorizedRequests`. Alert on backend error rate spikes, latency exceeding SLA thresholds, and capacity exhaustion (approaching unit limits). Track API-level usage patterns for capacity planning.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"GatewayLogs\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.51_azure_api_management_api_51\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:diagnostics` in `index=cloud` to detect azure api management (apim) health. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_51_alert` with severity aligned to `high` criticality. Dashboard: Line chart (request rate and error rate by API), Gauge (latency vs. SLA), Table (top errors by API and operation)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure api management (apim) health so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics).\n• Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.ApiManagement/service), `sourcetype=azure:diagnostics` (GatewayLogs).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable diagnostics on APIM to send GatewayLogs via Event Hub to Splunk. Collect metrics for `Requests`, `BackendDuration`, `OverallDuration`, `FailedRequests`, and `UnauthorizedRequests`. Alert on backend error rate spikes, latency exceeding SLA thresholds, and capacity exhaustion (approaching unit limits). Track API-level usage patterns for capacity planning.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:diagnostics\" Category=\"GatewayLogs\"\n| eval is_error=if(responseCode>=500,1,0)\n| timechart span=5m count as requests, sum(is_error) as errors, avg(totalTime) as avg_latency_ms by apiId\n| eval error_pct=round(100*errors/requests,2)\n| where error_pct > 5 OR avg_latency_ms > 2000\n```\n\nUnderstanding this SPL\n\n**Azure API Management (APIM) Health** — APIM is the gateway for API-first architectures. Backend errors, high latency, and rate limit breaches directly impact API consumers and downstream applications.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.ApiManagement/service), `sourcetype=azure:diagnostics` (GatewayLogs). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics/diagnostics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:diagnostics. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:diagnostics\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **is_error** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by apiId** — ideal for trending and alerting on this use case.\n• `eval` defines or adjusts **error_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where error_pct > 5 OR avg_latency_ms > 2000` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.cpu_load_percent) as agg_value\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=5m\n| sort - agg_value\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Azure API Management (APIM) Health** — APIM is the gateway for API-first architectures.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Performance` data model (CPU child datasets)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (request rate and error rate by API), Gauge (latency vs. SLA), Table (top errors by API and operation).",
-  "grandmaExplanation": "APIM is the gateway -first architectures.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

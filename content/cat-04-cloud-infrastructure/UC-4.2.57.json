@@ -8,17 +8,15 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Azure Managed Disk Performance Throttling' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_azure_managed_disk_performance_throttling` (UC-4.2.57), SOC dashboard panel \"Operations — Azure Managed Disk Performance Throttling\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.57 positive (Azure, Managed, Disk, Performance, Throttling): ingest synthetic events into `index=cloud` sourcetype='azure:monitor:metric' where `value` grouped by `metric_name`, `resource_name` satisfies detection threshold for 'Azure Managed Disk Performance Throttling'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.57 negative (Performance Throttling): ingest benign `cloud` / `azure:monitor:metric` events where `metric_name`, `resource_name` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 15 confirms zero alert rows for 'Azure Managed Disk Performance Throttling'."
+    "positiveScenario": "Replay sample `azure:monitor:metric` events with `resource_type=\"microsoft.compute/disks\"` into `index=cloud`. Confirm UC-4.2.57 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:metric` traffic without `resource_type=\"microsoft.compute/disks\"`. Confirm UC-4.2.57 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=azure:monitor:metric` (Microsoft.Compute/disks) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.compute/disks\"\n| where metric_name IN (\"DiskIOPSReadWrite\",\"DiskMBpsReadWrite\",\"BurstIOCreditsConsumedPercentage\")\n| timechart span=5m avg(average) as value by metric_name, resource_name",
-  "description": "Surfaces UC-4.2.57 — Azure, Managed, Disk, Performance, Throttling — using `index=cloud` sourcetype `azure:monitor:metric`, grouped by `metric_name`, `resource_name`. Outputs `value` each `5m`; alert when configured threshold. Primary focus: Performance Throttling. Purpose-built for 'Azure Managed Disk Performance Throttling' in Operations workflows.",
-  "value": "UC-4.2.57 operationalises 'Azure Managed Disk Performance Throttling' against `azure:monitor:metric` feeds so operators reduce operational risk and delayed incident response without manual correlation.",
+  "dataSources": "`index=cloud` sourcetype=`azure:monitor:metric` collected via `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics); validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)",
+  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.compute/disks\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.57_azure_managed_disk_perfo_57\"\n| sort -_time",
+  "description": "UC-4.2.57 — Azure Managed Disk Performance Throttling: queries Microsoft Azure `azure:monitor:metric` for search criteria `resource_type=\"microsoft.compute/disks\"` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Azure Managed Disk Performance Throttling' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.57 drives high-priority performance alerting before customer-impacting drift.",
   "implementation": "Collect Azure Monitor metrics for managed disks. Monitor `Composite Disk Read/Write IOPS` against the disk SKU IOPS limit and `Composite Disk Read/Write Bytes/sec` against the throughput limit. For burstable disks, track `BurstIOCreditsConsumedPercentage` — when credits exhaust, performance drops to baseline. Alert when consumption exceeds 90% of provisioned capacity sustained over 15 minutes.",
   "visualization": "Gauge (IOPS vs. limit), Line chart (throughput and burst credits), Table (disks hitting limits).",
   "cimModels": [
@@ -29,40 +27,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
       "title": "Splunk Add-on for Google Cloud Platform",
-      "url": "https://splunkbase.splunk.com/app/3088",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3088"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.2.57)** — Planned work for 'Azure Managed Disk Performance Throttling' shifts `value` over `span=5m` while `metric_name`, `resource_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `azure:monitor:metric`** — Scheduled automation elevates `resource_name` without crossing configured threshold for UC-4.2.57. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `metric_name`, `resource_name`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:monitor:metric`** — First 48h baseline for UC-4.2.57 on `metric_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `metric_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Short spikes at deploy time, autoscale thrash, or a noisy neighbor on shared hosts can look bad for a few minutes. We require the condition to last across several intervals or clear on its own before we wake someone.",
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_metric"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) with the modular input for `azure:monitor:metric`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nCollect Azure Monitor metrics for managed disks. Monitor `Composite Disk Read/Write IOPS` against the disk SKU IOPS limit and `Composite Disk Read/Write Bytes/sec` against the throughput limit. For burstable disks, track `BurstIOCreditsConsumedPercentage` — when credits exhaust, performance drops to baseline. Alert when consumption exceeds 90% of provisioned capacity sustained over 15 minutes.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.compute/disks\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.57_azure_managed_disk_perfo_57\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:metric` in `index=cloud` to detect azure managed disk performance throttling. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_57_alert` with severity aligned to `high` criticality. Dashboard: Gauge (IOPS vs. limit), Line chart (throughput and burst credits), Table (disks hitting limits)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure managed disk performance throttling so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics).\n• Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.Compute/disks).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Azure Monitor metrics for managed disks. Monitor `Composite Disk Read/Write IOPS` against the disk SKU IOPS limit and `Composite Disk Read/Write Bytes/sec` against the throughput limit. For burstable disks, track `BurstIOCreditsConsumedPercentage` — when credits exhaust, performance drops to baseline. Alert when consumption exceeds 90% of provisioned capacity sustained over 15 minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.compute/disks\"\n| where metric_name IN (\"DiskIOPSReadWrite\",\"DiskMBpsReadWrite\",\"BurstIOCreditsConsumedPercentage\")\n| timechart span=5m avg(average) as value by metric_name, resource_name\n```\n\nUnderstanding this SPL\n\n**Azure Managed Disk Performance Throttling** — Azure managed disks have IOPS and throughput caps based on tier and size. When VMs hit these limits, disk I/O is throttled, causing application slowdowns that are hard to diagnose without platform metrics.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Compute/disks). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:monitor:metric. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:monitor:metric\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where metric_name IN (\"DiskIOPSReadWrite\",\"DiskMBpsReadWrite\",\"BurstIOCreditsConsumedPercentage\")` — typically the threshold or rule expression for this monitoring goal.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by metric_name, resource_name** — ideal for trending and alerting on this use case.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host span=1h\n| sort 10 free_pct\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Azure Managed Disk Performance Throttling** — Azure managed disks have IOPS and throughput caps based on tier and size.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Gauge (IOPS vs. limit), Line chart (throughput and burst credits), Table (disks hitting limits).",
-  "grandmaExplanation": "Azure managed disks have IOPS and throughput caps based on tier and size.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

@@ -1,0 +1,76 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.149",
+  "title": "Security Hub Failed Controls",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "SI-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for SI-4 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:securityhub:findings` events with `Compliance.Status=FAILED OR RecordState=ACTIVE` into `index=aws`. Confirm UC-4.1.149 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:securityhub:findings` traffic without `Compliance.Status=FAILED OR RecordState=ACTIVE`. Confirm UC-4.1.149 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:securityhub:findings` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
+  "spl": "index=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time Finding.Title Finding.Severity.Label Finding.AwsAccountId\n| eval uc_marker=\"UC-4.1.149_security_hub_failed_cont_149\"\n| sort -_time",
+  "description": "UC-4.1.149 — Security Hub Failed Controls: queries AWS `aws:securityhub:findings` for search criteria `Compliance.Status=FAILED OR RecordState=ACTIVE` and returns actor, resource, and region context for compliance review and change validation.",
+  "value": "On AWS, detecting 'Security Hub Failed Controls' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.1.149 drives high-priority compliance alerting before customer-impacting drift.",
+  "implementation": "Enable securityhub integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:securityhub:findings`. Validate field extractions before alerting.",
+  "visualization": "Notable-style table, severity timeline, single-value open finding count.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "AWS securityhub documentation",
+      "url": "https://docs.aws.amazon.com/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1190"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_billing",
+    "aws_securityhub"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:securityhub:findings`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `Finding.Title` and related actor fields.\n\nStep 1 — Configure data collection\nEnable securityhub integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:securityhub:findings`. Validate field extractions before alerting.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:securityhub:findings\" Compliance.Status=FAILED OR RecordState=ACTIVE\n| table _time Finding.Title Finding.Severity.Label Finding.AwsAccountId\n| eval uc_marker=\"UC-4.1.149_security_hub_failed_cont_149\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:securityhub:findings` in `index=aws` to detect security hub failed controls. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS Security Hub console Findings for the same 24-hour window. Confirm row counts and `Finding.Title` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_149_alert` with severity aligned to `high` criticality. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of security hub failed controls so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

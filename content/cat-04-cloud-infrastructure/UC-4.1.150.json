@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.150",
+  "title": "AWS Config Non-Compliant Resources",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Compliance",
+    "Configuration"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "SI-4",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for SI-4 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:config:notification` events with `configurationItemStatus=ResourceDiscovered OR complianceType=NON_COMPLIANT` into `index=aws`. Confirm UC-4.1.150 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:config:notification` traffic without `configurationItemStatus=ResourceDiscovered OR complianceType=NON_COMPLIANT`. Confirm UC-4.1.150 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:config:notification` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
+  "spl": "index=aws sourcetype=\"aws:config:notification\" configurationItemStatus=ResourceDiscovered OR complianceType=NON_COMPLIANT\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.150_aws_config_non_compliant_150\"\n| sort -_time",
+  "description": "UC-4.1.150 — AWS Config Non-Compliant Resources: queries AWS `aws:config:notification` for search criteria `configurationItemStatus=ResourceDiscovered OR complianceType=NON_COMPLIANT` and returns actor, resource, and region context for compliance review and change validation.",
+  "value": "On AWS, detecting 'AWS Config Non-Compliant Resources' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.1.150 drives high-priority compliance alerting before customer-impacting drift.",
+  "implementation": "Enable config integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:config:notification`. Validate field extractions before alerting.",
+  "visualization": "Notable-style table, severity timeline, single-value open finding count.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "AWS config documentation",
+      "url": "https://docs.aws.amazon.com/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1190"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_config"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:config:notification`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable config integration in AWS and forward findings/logs via `Splunk_TA_aws` into `index=aws` with `sourcetype=aws:config:notification`. Validate field extractions before alerting.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:config:notification\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:config:notification\" configurationItemStatus=ResourceDiscovered OR complianceType=NON_COMPLIANT\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.1.150_aws_config_non_compliant_150\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:config:notification` in `index=aws` to detect aws config non-compliant resources. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_150_alert` with severity aligned to `high` criticality. Dashboard: Notable-style table, severity timeline, single-value open finding count..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aws config non-compliant resources so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

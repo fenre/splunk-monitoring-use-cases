@@ -9,17 +9,15 @@
     "Performance"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'NSG Flow Log Analysis' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_nsg_flow_log_analysis` (UC-4.2.4), SOC dashboard panel \"Operations — NSG Flow Log Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.4 positive (NSG, Flow, Log, Analysis): ingest synthetic events into `index=azure` sourcetype='mscs:azure:nsgflowlog' where `count` grouped by `src`, `dest`, `dest_port`, `protocol` satisfies detection threshold for 'NSG Flow Log Analysis'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.4 negative (Log Analysis): ingest benign `azure` / `mscs:azure:nsgflowlog` events where `src`, `dest`, `dest_port`, `protocol` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 12 confirms zero alert rows for 'NSG Flow Log Analysis'."
+    "positiveScenario": "Replay sample `mscs:azure:nsgflowlog` events with `flowState=\"D\"` into `index=azure`. Confirm UC-4.2.4 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `mscs:azure:nsgflowlog` traffic without `flowState=\"D\"`. Confirm UC-4.2.4 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=mscs:azure:nsgflowlog` Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=azure sourcetype=\"mscs:azure:nsgflowlog\" flowState=\"D\"\n| stats count by src, dest, dest_port, protocol\n| sort -count | head 20",
-  "description": "Alerts on UC-4.2.4 — NSG, Flow, Log, Analysis — using `index=azure` sourcetype `mscs:azure:nsgflowlog`, grouped by `src`, `dest`, `dest_port`, `protocol`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Log Analysis. Purpose-built for 'NSG Flow Log Analysis' in Operations workflows.",
-  "value": "Tracking `activity` via UC-4.2.4 on `mscs:azure:nsgflowlog` feeds improves response to 'NSG Flow Log Analysis' and reduces operational risk and delayed incident response.",
+  "dataSources": "`index=azure` sourcetype=`mscs:azure:nsgflowlog` collected via `Splunk_TA_microsoft-cloudservices`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices`",
+  "spl": "index=azure sourcetype=\"mscs:azure:nsgflowlog\" flowState=\"D\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.4_nsg_flow_log_analysis_4\"\n| sort -_time",
+  "description": "UC-4.2.4 — NSG Flow Log Analysis: queries Microsoft Azure `mscs:azure:nsgflowlog` for search criteria `flowState=\"D\"` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Microsoft Azure, 'NSG Flow Log Analysis' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.2.4 drives high-priority security alerting before customer-impacting drift.",
   "implementation": "Enable NSG Flow Logs (Version 2) on all NSGs. Send to a storage account. Ingest via Splunk_TA_microsoft-cloudservices. Create dashboards for denied traffic and top talkers.",
   "visualization": "Table (top denied flows), Sankey diagram, Timechart, Map.",
   "cimModels": [
@@ -28,44 +26,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://learn.microsoft.com/en-us/azure/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `azure` (UC-4.2.4)** — Planned work for 'NSG Flow Log Analysis' shifts `count` over `span=1h` while `src`, `dest`, `dest_port`, `protocol` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `mscs:azure:nsgflowlog`** — Scheduled automation elevates `dest` without crossing configured threshold for UC-4.2.4. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `src`, `dest`, `dest_port`, `protocol`** — Health checks in `azure` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `mscs:azure:nsgflowlog`** — First 48h baseline for UC-4.2.4 on `src` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `src`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "This pattern can surge during change windows, in sandboxes, and when a platform is in maintenance, so we line alerts up with the calendar and take a second look before we call it an incident.",
   "mitreAttack": [
     "T1580",
     "T1526"
   ],
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_nsgflowlog"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` with the modular input for `mscs:azure:nsgflowlog`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable NSG Flow Logs (Version 2) on all NSGs. Send to a storage account. Ingest via Splunk_TA_microsoft-cloudservices. Create dashboards for denied traffic and top talkers.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflowlog\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflowlog\" flowState=\"D\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.4_nsg_flow_log_analysis_4\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `mscs:azure:nsgflowlog` in `index=azure` to detect nsg flow log analysis. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_4_alert` with severity aligned to `high` criticality. Dashboard: Table (top denied flows), Sankey diagram, Timechart, Map..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of nsg flow log analysis so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices`.\n• Ensure the following data sources are available: `sourcetype=mscs:azure:nsgflowlog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable NSG Flow Logs (Version 2) on all NSGs. Send to a storage account. Ingest via Splunk_TA_microsoft-cloudservices. Create dashboards for denied traffic and top talkers.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=azure sourcetype=\"mscs:azure:nsgflowlog\" flowState=\"D\"\n| stats count by src, dest, dest_port, protocol\n| sort -count | head 20\n```\n\nUnderstanding this SPL\n\n**NSG Flow Log Analysis** — NSG Flow Logs provide Azure network-level visibility. Detects blocked traffic, anomalous patterns, and lateral movement within VNets.\n\nDocumented **Data sources**: `sourcetype=mscs:azure:nsgflowlog`. **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: azure; **sourcetype**: mscs:azure:nsgflowlog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=azure, sourcetype=\"mscs:azure:nsgflowlog\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by src, dest, dest_port, protocol** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Limits the number of rows with `head`.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (top denied flows), Sankey diagram, Timechart, Map.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=mscs:azure:nsgflowlog into azure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dest, dest_port, protocol, src`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "NSG Flow Logs provide Azure network-level visibility.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

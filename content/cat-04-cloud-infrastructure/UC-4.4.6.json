@@ -8,17 +8,15 @@
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Multi-Cloud Security Posture (CSPM) Findings' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_multi_cloud_security_posture_cspm_findings` (UC-4.4.6), SOC dashboard panel \"Operations — Multi-Cloud Security Posture (CSPM) Findings\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.4.6 positive (Multi, Cloud, Security, Posture, (CSPM)): ingest synthetic events into `index=security` sourcetype='aws:securityhub' where `count` grouped by `cloud`, `severity`, `finding_type` satisfies detection threshold for 'Multi-Cloud Security Posture (CSPM) Findings'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.4.6 negative ((CSPM) Findings): ingest benign `security` / `aws:securityhub` events where `cloud`, `severity`, `finding_type` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 14 confirms zero alert rows for 'Multi-Cloud Security Posture (CSPM) Findings'."
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `(sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)` into `index=security`. Confirm UC-4.4.6 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `(sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)`. Confirm UC-4.4.6 returns zero rows and the alert does not fire."
   },
-  "dataSources": "AWS Security Hub, Azure Defender/Security Center, GCP Security Command Center, or third-party CSPM API Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz) — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=security (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)\n| eval cloud=case(like(sourcetype, \"aws%\"), \"AWS\", like(sourcetype, \"azure%\"), \"Azure\", like(sourcetype, \"gcp%\"), \"GCP\", true(), \"Other\")\n| eval severity=coalesce(severity, Severity, 'finding.severity')\n| where severity=\"CRITICAL\" OR severity=\"HIGH\"\n| stats count by cloud, severity, finding_type\n| sort -count",
-  "description": "Identifies UC-4.4.6 — Multi, Cloud, Security, Posture, (CSPM) — using `index=security` sourcetype `aws:securityhub`, grouped by `cloud`, `severity`, `finding_type`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: (CSPM) Findings. Purpose-built for 'Multi-Cloud Security Posture (CSPM) Findings' in Operations workflows.",
-  "value": "Alerting on Multi, Cloud, Security, Posture, (CSPM) through UC-4.4.6 reduces operational risk and delayed incident response by surfacing `activity` early.",
+  "dataSources": "`index=security` sourcetype=`aws:cloudtrail` collected via Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz)",
+  "spl": "index=security sourcetype=\"aws:cloudtrail\" (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.6_multi_cloud_security_pos_6\"\n| sort -_time",
+  "description": "UC-4.4.6 — Multi-Cloud Security Posture (CSPM) Findings: queries multi-cloud (AWS/Azure/GCP) `aws:cloudtrail` for search criteria `(sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On multi-cloud (AWS/Azure/GCP), detecting 'Multi-Cloud Security Posture (CSPM) Findings' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.4.6 drives high-priority security alerting before customer-impacting drift.",
   "implementation": "Ingest Security Hub, Defender for Cloud, and SCC findings into a common index. Normalize severity and finding type. Alert on new critical/high. Dashboard open findings by cloud, severity, and category (e.g. encryption, networking).",
   "visualization": "Table (cloud, severity, type, count), Bar chart (findings by cloud), Trend line (findings over time).",
   "cimModels": [
@@ -27,46 +25,34 @@
   "references": [
     {
       "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "url": "https://lantern.splunk.com/"
     },
     {
-      "title": "Splunkbase app 1876",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Palo Alto Networks documentation",
-      "url": "https://docs.paloaltonetworks.com/",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `security` (UC-4.4.6)** — Planned work for 'Multi-Cloud Security Posture (CSPM) Findings' shifts `count` over `span=1h` while `cloud`, `severity`, `finding_type` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `aws:securityhub`** — Scheduled automation elevates `severity` without crossing configured threshold for UC-4.4.6. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `cloud`, `severity`, `finding_type`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:securityhub`** — First 48h baseline for UC-4.4.6 on `cloud` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `cloud`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "A fresh scanner run or a vendor re-rate can resurface a finding we already know about. We deduplicate on resource and time and we only escalate when the exposure is new or the severity stepped up.",
   "mitreAttack": [
     "T1580",
     "T1526"
   ],
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "defender",
-    "m365",
-    "nutanix",
-    "paloalto"
+    "aws",
+    "azure"
   ],
   "equipmentModels": [
-    "paloalto_prisma"
+    "aws_cloudtrail"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=security`.\n• Install and configure Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz) with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nIngest Security Hub, Defender for Cloud, and SCC findings into a common index. Normalize severity and finding type. Alert on new critical/high. Dashboard open findings by cloud, severity, and category (e.g. encryption, networking).\nValidate ingest before alerting:\n```spl\nindex=security sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=security sourcetype=\"aws:cloudtrail\" (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.4.6_multi_cloud_security_pos_6\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=security` to detect multi-cloud security posture (cspm) findings. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_6_alert` with severity aligned to `high` criticality. Dashboard: Table (cloud, severity, type, count), Bar chart (findings by cloud), Trend line (findings over time)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of multi-cloud security posture (cspm) findings so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz).\n• Ensure the following data sources are available: AWS Security Hub, Azure Defender/Security Center, GCP Security Command Center, or third-party CSPM API.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nIngest Security Hub, Defender for Cloud, and SCC findings into a common index. Normalize severity and finding type. Alert on new critical/high. Dashboard open findings by cloud, severity, and category (e.g. encryption, networking).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=security (sourcetype=aws:securityhub OR sourcetype=azure:defender OR sourcetype=gcp:scc)\n| eval cloud=case(like(sourcetype, \"aws%\"), \"AWS\", like(sourcetype, \"azure%\"), \"Azure\", like(sourcetype, \"gcp%\"), \"GCP\", true(), \"Other\")\n| eval severity=coalesce(severity, Severity, 'finding.severity')\n| where severity=\"CRITICAL\" OR severity=\"HIGH\"\n| stats count by cloud, severity, finding_type\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Multi-Cloud Security Posture (CSPM) Findings** — CSPM tools (or native Security Hub, Defender, SCC) produce findings across clouds. Centralizing in Splunk enables unified prioritization and remediation tracking.\n\nDocumented **Data sources**: AWS Security Hub, Azure Defender/Security Center, GCP Security Command Center, or third-party CSPM API. **App/TA** (typical add-on context): Splunk TAs for each cloud, or CSPM product integration (e.g. Prisma Cloud, Wiz). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: security; **sourcetype**: aws:securityhub, azure:defender, gcp:scc. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=security, sourcetype=aws:securityhub. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **cloud** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where severity=\"CRITICAL\" OR severity=\"HIGH\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by cloud, severity, finding_type** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (cloud, severity, type, count), Bar chart (findings by cloud), Trend line (findings over time).",
-  "grandmaExplanation": "CSPM tools (or native Security Hub, Defender, SCC) produce findings across clouds.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }

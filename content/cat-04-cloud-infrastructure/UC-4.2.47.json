@@ -8,17 +8,15 @@
     "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Azure VPN Gateway Tunnel Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_azure_vpn_gateway_tunnel_status` (UC-4.2.47), SOC dashboard panel \"Operations — Azure VPN Gateway Tunnel Status\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.2.47 positive (Azure, VPN, Gateway, Tunnel, Status): ingest synthetic events into `index=cloud` sourcetype='azure:monitor:metric' where `avg_bandwidth` grouped by `resource_name` satisfies `avg_bandwidth` < 1 for 'Azure VPN Gateway Tunnel Status'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.2.47 negative (Tunnel Status): ingest benign `cloud` / `azure:monitor:metric` events where `resource_name` stays below `avg_bandwidth` < 1, or exclude the test entity via `ops_exception_register.csv`. Variant 11 confirms zero alert rows for 'Azure VPN Gateway Tunnel Status'."
+    "positiveScenario": "Replay sample `azure:monitor:metric` events with `resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"` into `index=cloud`. Confirm UC-4.2.47 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:metric` traffic without `resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"`. Confirm UC-4.2.47 returns zero rows and the alert does not fire."
   },
-  "dataSources": "`sourcetype=azure:monitor:metric` (Microsoft.Network/vpnGateways) Collected via Splunk Add-on for Microsoft Azure (Splunkbase 3110) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)",
-  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"\n| timechart span=5m avg(average) as avg_bandwidth by resource_name\n| where avg_bandwidth < 1",
-  "description": "Surfaces UC-4.2.47 — Azure, VPN, Gateway, Tunnel, Status — using `index=cloud` sourcetype `azure:monitor:metric`, grouped by `resource_name`. Outputs `avg_bandwidth` each `5m`; alert when `avg_bandwidth` < 1. Primary focus: Tunnel Status. Purpose-built for 'Azure VPN Gateway Tunnel Status' in Operations workflows.",
-  "value": "UC-4.2.47 helps teams contain Azure, VPN, Gateway, Tunnel, Status scenarios and reduce operational risk and delayed incident response before incidents compound.",
+  "dataSources": "`index=cloud` sourcetype=`azure:monitor:metric` collected via `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics); validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics)",
+  "spl": "index=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.47_azure_vpn_gateway_tunnel_47\"\n| sort -_time",
+  "description": "UC-4.2.47 — Azure VPN Gateway Tunnel Status: queries Microsoft Azure `azure:monitor:metric` for search criteria `resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metr` and returns actor, resource, and region context for availability review and change validation.",
+  "value": "On Microsoft Azure, detecting 'Azure VPN Gateway Tunnel Status' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.2.47 drives critical-priority availability alerting before customer-impacting drift.",
   "implementation": "Collect Azure Monitor metrics for VPN Gateway resources. Monitor `TunnelAverageBandwidth` (drops to zero when tunnel is down), `TunnelEgressBytes`, `TunnelIngressBytes`, and `BGPPeerStatus`. Alert when tunnel bandwidth drops to zero or BGP peer status changes. Correlate with Azure Service Health events for planned maintenance.",
   "visualization": "Line chart (tunnel bandwidth over time), Single value (tunnel status up/down), Table (tunnels with status).",
   "cimModels": [
@@ -29,40 +27,41 @@
   "references": [
     {
       "title": "Splunk_TA_microsoft-cloudservices",
-      "url": "https://splunkbase.splunk.com/app/3110",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/3110"
     },
     {
       "title": "CIM: Network Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic"
     },
     {
       "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `cloud` (UC-4.2.47)** — Planned work for 'Azure VPN Gateway Tunnel Status' shifts `avg_bandwidth` over `span=5m` while `resource_name` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `avg` on `azure:monitor:metric`** — Scheduled automation elevates `src` without crossing `avg_bandwidth` < 1 for UC-4.2.47. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `resource_name`** — Health checks in `cloud` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `azure:monitor:metric`** — First 48h baseline for UC-4.2.47 on `resource_name` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `resource_name`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Short spikes at deploy time, autoscale thrash, or a noisy neighbor on shared hosts can look bad for a few minutes. We require the condition to last across several intervals or clear on its own before we wake someone.",
+  "securityDomain": "cloud",
   "equipment": [
-    "azure",
-    "m365"
+    "azure"
   ],
   "equipmentModels": [
-    "azure_generic",
-    "m365_generic"
+    "azure_metric"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=cloud`.\n• Install and configure `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) with the modular input for `azure:monitor:metric`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nCollect Azure Monitor metrics for VPN Gateway resources. Monitor `TunnelAverageBandwidth` (drops to zero when tunnel is down), `TunnelEgressBytes`, `TunnelIngressBytes`, and `BGPPeerStatus`. Alert when tunnel bandwidth drops to zero or BGP peer status changes. Correlate with Azure Service Health events for planned maintenance.\nValidate ingest before alerting:\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"\n| table _time userIdentity.arn eventName sourceIPAddress\n| eval uc_marker=\"UC-4.2.47_azure_vpn_gateway_tunnel_47\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:metric` in `index=cloud` to detect azure vpn gateway tunnel status. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the provider cloud console audit view for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_47_alert` with severity aligned to `critical` criticality. Dashboard: Line chart (tunnel bandwidth over time), Single value (tunnel status up/down), Table (tunnels with status)..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure vpn gateway tunnel status so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics).\n• Ensure the following data sources are available: `sourcetype=azure:monitor:metric` (Microsoft.Network/vpnGateways).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect Azure Monitor metrics for VPN Gateway resources. Monitor `TunnelAverageBandwidth` (drops to zero when tunnel is down), `TunnelEgressBytes`, `TunnelIngressBytes`, and `BGPPeerStatus`. Alert when tunnel bandwidth drops to zero or BGP peer status changes. Correlate with Azure Service Health events for planned maintenance.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=cloud sourcetype=\"azure:monitor:metric\" resource_type=\"microsoft.network/vpngateways\" metric_name=\"TunnelAverageBandwidth\" OR metric_name=\"TunnelEgressBytes\"\n| timechart span=5m avg(average) as avg_bandwidth by resource_name\n| where avg_bandwidth < 1\n```\n\nUnderstanding this SPL\n\n**Azure VPN Gateway Tunnel Status** — VPN gateway tunnel drops break hybrid connectivity between Azure and on-premises networks. Nearly every enterprise Azure customer relies on site-to-site VPN; tunnel status is a fundamental availability signal.\n\nDocumented **Data sources**: `sourcetype=azure:monitor:metric` (Microsoft.Network/vpnGateways). **App/TA** (typical add-on context): `Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: cloud; **sourcetype**: azure:monitor:metric. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=cloud, sourcetype=\"azure:monitor:metric\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by resource_name** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where avg_bandwidth < 1` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.storage_free_percent) as free_pct\n  from datamodel=Performance where nodename=Performance.Storage\n  by Performance.host span=1h\n| sort 10 free_pct\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Azure VPN Gateway Tunnel Status** — VPN gateway tunnel drops break hybrid connectivity between Azure and on-premises networks.\n\nIf you map cloud vendor fields into the CIM, this variant uses normalized names and `tstats` on accelerated models. The raw vendor search in Step 2 is still the first stop for troubleshooting.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the `Performance` data model (Storage node)—enable that model in Data Models and the CIM add-on, or the search may return no rows.\n\n• Uses `sort` to rank results; add `head` to limit the table.\n\nEnable Data Model Acceleration (and the right field aliases) for the models or datasets above; otherwise `tstats` may not find summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (tunnel bandwidth over time), Single value (tunnel status up/down), Table (tunnels with status).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_microsoft-cloudservices` (Azure Monitor metrics) — Splunk Add-on for Microsoft Azure (Splunkbase 3110)). Enable the modular input or HEC token that writes sourcetype=azure:monitor:metric into cloud. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avg_bandwidth, resource_name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "Remote access gateway tunnel drops break hybrid connectivity between Azure and on-premises networks.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

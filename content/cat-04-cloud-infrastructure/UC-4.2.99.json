@@ -1,0 +1,65 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.2.99",
+  "title": "Azure NSG Flow Log Denied Traffic Spike",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Network"
+  ],
+  "splunkPillar": "Security",
+  "controlTest": {
+    "positiveScenario": "Replay sample `azure:monitor:resource` events with `flowStatus=D OR flowStatus=Deny` into `index=azure`. Confirm UC-4.2.99 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `azure:monitor:resource` traffic without `flowStatus=D OR flowStatus=Deny`. Confirm UC-4.2.99 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=azure` sourcetype=`azure:monitor:resource` collected via Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110)",
+  "spl": "index=azure sourcetype=\"azure:monitor:resource\" flowStatus=D OR flowStatus=Deny\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.2.99_azure_nsg_flow_log_denie_99\"\n| sort -_time",
+  "description": "UC-4.2.99 — Azure NSG Flow Log Denied Traffic Spike: queries Microsoft Azure `azure:monitor:resource` for search criteria `flowStatus=D OR flowStatus=Deny` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On Microsoft Azure, 'Azure NSG Flow Log Denied Traffic Spike' highlights abnormal network flow patterns—reconnaissance, lateral movement, or blocked exfiltration that perimeter tools may not correlate across cloud segments. UC-4.2.99 drives high-priority security alerting before customer-impacting drift.",
+  "implementation": "Enable NSG flow logs to Storage/Event Hub; ingest via Microsoft Cloud Services add-on.",
+  "visualization": "Top dest ports, source IP heatmap, timechart of denies.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Microsoft Cloud Services",
+      "url": "https://splunkbase.splunk.com/app/3110"
+    },
+    {
+      "title": "NSG flow logs",
+      "url": "https://learn.microsoft.com/en-us/azure/network-watcher/network-watcher-nsg-flow-logging-overview"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1046"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "azure"
+  ],
+  "equipmentModels": [
+    "azure_metrics"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=azure`.\n• Install and configure Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) with the modular input for `azure:monitor:resource`.\n• Prerequisite crawl UC(s): UC-4.2.58.\n• Confirm field extractions in `props.conf` for `ResourceId` and related actor fields.\n\nStep 1 — Configure data collection\nEnable NSG flow logs to Storage/Event Hub; ingest via Microsoft Cloud Services add-on.\nValidate ingest before alerting:\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=azure sourcetype=\"azure:monitor:resource\" flowStatus=D OR flowStatus=Deny\n| table _time ResourceId metricName total average\n| eval uc_marker=\"UC-4.2.99_azure_nsg_flow_log_denie_99\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `azure:monitor:resource` in `index=azure` to detect azure nsg flow log denied traffic spike. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Azure portal Metrics explorer for the same 24-hour window. Confirm row counts and `ResourceId` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_2_99_alert` with severity aligned to `high` criticality. Dashboard: Top dest ports, source IP heatmap, timechart of denies..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for Microsoft Cloud Services (`Splunk_TA_microsoft-cloudservices`, Splunkbase 3110) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of azure nsg flow log denied traffic spike so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.2.58"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 3110,
+      "name": "Splunk Add-on for Microsoft Cloud Services",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

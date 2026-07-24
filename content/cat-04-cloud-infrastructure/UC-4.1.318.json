@@ -1,0 +1,79 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.1.318",
+  "title": "AWS CloudTrail S3 bucket listing",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `aws:cloudtrail` events with `(eventName=\"ListBuckets\")` into `index=aws`. Confirm UC-4.1.318 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudtrail` traffic without `(eventName=\"ListBuckets\")`. Confirm UC-4.1.318 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=aws` sourcetype=`aws:cloudtrail` collected via Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876); validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876)",
+  "spl": "index=aws sourcetype=\"aws:cloudtrail\" (eventName=\"ListBuckets\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.1.318_aws_cloudtrail_s3_bucket_318\"\n| sort -_time",
+  "description": "UC-4.1.318 — AWS CloudTrail S3 bucket listing: queries AWS `aws:cloudtrail` for `ListBuckets` and returns actor, resource, and region context for security review and change validation.",
+  "value": "On AWS, `ListBuckets` activity for 'AWS CloudTrail S3 bucket listing' is a high-signal control-plane change that should match approved change records and privileged-access monitoring. UC-4.1.318 drives medium-priority security alerting before customer-impacting drift.",
+  "implementation": "Enable organization-wide CloudTrail with management and data events for cloudtrail. Configure `Splunk_TA_aws` CloudTrail S3 or CloudWatch Logs input into `index=aws`. Save as a real-time alert on matching `ListBuckets` events; tune exclusions via saved lookup for break-glass roles.",
+  "visualization": "Events list (critical alert), Timeline by eventName, Table of actor and resource.",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where All_Changes.action=*\n  by All_Changes.user All_Changes.action All_Changes.object span=1h\n| sort -count",
+  "dataModelAcceleration": "Enable acceleration for Change after TA field mappings are verified.",
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "AWS CloudTrail event reference",
+      "url": "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference.html"
+    }
+  ],
+  "knownFalsePositives": "Planned change windows registered in CMDB; automation roles used by CI/CD pipelines with documented service accounts; sandbox accounts excluded via `aws:accountId` lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "aws"
+  ],
+  "equipmentModels": [
+    "aws_cloudtrail"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": true
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) with the modular input for `aws:cloudtrail`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields.\n\nStep 1 — Configure data collection\nEnable organization-wide CloudTrail with management and data events for cloudtrail. Configure `Splunk_TA_aws` CloudTrail S3 or CloudWatch Logs input into `index=aws`. Save as a real-time alert on matching `ListBuckets` events; tune exclusions via saved lookup for break-glass roles.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudtrail\" (eventName=\"ListBuckets\")\n| table _time userIdentity.arn eventName sourceIPAddress awsRegion\n| eval uc_marker=\"UC-4.1.318_aws_cloudtrail_s3_bucket_318\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudtrail` in `index=aws` to detect aws cloudtrail s3 bucket listing. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the AWS CloudTrail console Event history for the same 24-hour window. Confirm row counts and `userIdentity.arn` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_318_alert` with severity aligned to `medium` criticality. Dashboard: Events list (critical alert), Timeline by eventName, Table of actor and resource..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk Add-on for AWS (`Splunk_TA_aws`, Splunkbase 1876) and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of aws cloudtrail s3 bucket listing so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}

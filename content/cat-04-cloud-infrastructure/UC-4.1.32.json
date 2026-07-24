@@ -8,17 +8,15 @@
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'NAT Gateway Bytes Processed and Connection Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `operations_nat_gateway_bytes_processed_and_connection_track` (UC-4.1.32), SOC dashboard panel \"Operations — NAT Gateway Bytes Processed and Connection Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
-    "positiveScenario": "UC-4.1.32 positive (NAT, Gateway, Bytes, Processed, and): ingest synthetic events into `index=aws` sourcetype='aws:cloudwatch' where `bytes`, `connections` grouped by `NatGatewayId` satisfies detection threshold for 'NAT Gateway Bytes Processed and Connection Tracking'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-4.1.32 negative (Connection Tracking): ingest benign `aws` / `aws:cloudwatch` events where `NatGatewayId` stays below detection threshold, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'NAT Gateway Bytes Processed and Connection Tracking'."
+    "positiveScenario": "Replay sample `aws:cloudwatch` events with `namespace=\"AWS/NATGateway\"` into `index=aws`. Confirm UC-4.1.32 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `aws:cloudwatch` traffic without `namespace=\"AWS/NATGateway\"`. Confirm UC-4.1.32 returns zero rows and the alert does not fire."
   },
-  "dataSources": "CloudWatch NAT Gateway metrics (BytesOutToDestination, ActiveConnectionCount) Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
-  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/NATGateway\"\n| timechart span=1h sum(Sum) as bytes, avg(Average) as connections by NatGatewayId",
-  "description": "Identifies 'NAT Gateway Bytes Processed and Connection Tracking' patterns (UC-4.1.32) sourced from `index=aws` sourcetype `aws:cloudwatch`. Threshold bundle: configured threshold; aggregation grain: `NatGatewayId`; metrics: `bytes`, `connections`. Watch terms: NAT, Gateway, Bytes, Processed, and.",
-  "value": "UC-4.1.32 gives Operations teams earlier visibility into Connection Tracking through `aws:cloudwatch` feeds, lowering operational risk and delayed incident response.",
+  "dataSources": "`index=aws` sourcetype=`aws:cloudwatch` collected via `Splunk_TA_aws`; validate ingest with `| stats count by sourcetype`.",
+  "app": "`Splunk_TA_aws`",
+  "spl": "index=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/NATGateway\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.1.32_nat_gateway_bytes_proces_32\"\n| sort -_time",
+  "description": "UC-4.1.32 — NAT Gateway Bytes Processed and Connection Tracking: queries AWS `aws:cloudwatch` for search criteria `namespace=\"AWS/NATGateway\"` and returns actor, resource, and region context for performance review and change validation.",
+  "value": "On AWS, detecting 'NAT Gateway Bytes Processed and Connection Tracking' early shortens cloud incident response and produces defensible audit evidence for identity and change-management controls. UC-4.1.32 drives medium-priority performance alerting before customer-impacting drift.",
   "implementation": "Collect NAT Gateway metrics. Alert on sudden drop in BytesOutToDestination (possible outage) or spike in ActiveConnectionCount (possible connection exhaustion). Track data processed for cost.",
   "visualization": "Line chart (bytes, connections by NAT GW), Table (NAT GW, bytes today), Single value.",
   "cimModels": [
@@ -30,38 +28,37 @@
   "references": [
     {
       "title": "Splunk_TA_aws",
-      "url": "https://splunkbase.splunk.com/app/1876",
-      "retrieved": "2026-04-25"
+      "url": "https://splunkbase.splunk.com/app/1876"
     },
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Network_Traffic",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Traffic",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Vendor cloud documentation",
+      "url": "https://docs.aws.amazon.com/"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `aws` (UC-4.1.32)** — Planned work for 'NAT Gateway Bytes Processed and Connection Tracking' shifts `bytes`, `connections` over `span=1h` while `NatGatewayId` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `sum` on `aws:cloudwatch`** — Scheduled automation elevates `src` without crossing configured threshold for UC-4.1.32. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `NatGatewayId`** — Health checks in `aws` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `aws:cloudwatch`** — First 48h baseline for UC-4.1.32 on `NatGatewayId` is unstable; window via `ops_exception_register.csv`.\n\n**Suppression mechanism:** `ops_exception_register.csv` keyed on `NatGatewayId`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "Large data transfers, backups, and regional failovers you scheduled; one-off spikes during migration, not a silent exfil by default.",
+  "securityDomain": "cloud",
   "equipment": [
     "aws"
   ],
   "equipmentModels": [
-    "aws_generic"
+    "aws_cloudwatch"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate"
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=aws`.\n• Install and configure `Splunk_TA_aws` with the modular input for `aws:cloudwatch`.\n• Prerequisite crawl UC(s): UC-4.1.78.\n• Confirm field extractions in `props.conf` for `metric_name` and related actor fields.\n\nStep 1 — Configure data collection\nCollect NAT Gateway metrics. Alert on sudden drop in BytesOutToDestination (possible outage) or spike in ActiveConnectionCount (possible connection exhaustion). Track data processed for cost.\nValidate ingest before alerting:\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/NATGateway\"\n| table _time metric_name namespace unit average maximum\n| eval uc_marker=\"UC-4.1.32_nat_gateway_bytes_proces_32\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `aws:cloudwatch` in `index=aws` to detect nat gateway bytes processed and connection tracking. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the Amazon CloudWatch console Metrics for the same 24-hour window. Confirm row counts and `metric_name` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_1_32_alert` with severity aligned to `medium` criticality. Dashboard: Line chart (bytes, connections by NAT GW), Table (NAT GW, bytes today), Single value..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade `Splunk_TA_aws` and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of nat gateway bytes processed and connection tracking so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.1.78"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws`.\n• Ensure the following data sources are available: CloudWatch NAT Gateway metrics (BytesOutToDestination, ActiveConnectionCount).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect NAT Gateway metrics. Alert on sudden drop in BytesOutToDestination (possible outage) or spike in ActiveConnectionCount (possible connection exhaustion). Track data processed for cost.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:cloudwatch\" namespace=\"AWS/NATGateway\"\n| timechart span=1h sum(Sum) as bytes, avg(Average) as connections by NatGatewayId\n```\n\nUnderstanding this SPL\n\n**NAT Gateway Bytes Processed and Connection Tracking** — NAT Gateway is a single point of egress for private subnets. Monitoring bytes and connection count supports capacity and cost (data processed) planning.\n\nDocumented **Data sources**: CloudWatch NAT Gateway metrics (BytesOutToDestination, ActiveConnectionCount). **App/TA** (typical add-on context): `Splunk_TA_aws`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:cloudwatch. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:cloudwatch\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=1h** buckets with a separate series **by NatGatewayId** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (bytes, connections by NAT GW), Table (NAT GW, bytes today), Single value.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:cloudwatch into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`NatGatewayId`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on nat gateway bytes processed and connection tracking. How much is leaving the private network through the NAT and how many connections it carries, so a quiet cutover does not show up only as a ticket. We want the right people to notice in time, not only when a customer or an auditor stumbles on it first.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
 }

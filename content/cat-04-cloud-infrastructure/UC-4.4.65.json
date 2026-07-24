@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "4.4.65",
+  "title": "GCP Resource Tag Missing Environment",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Configuration",
+    "Governance"
+  ],
+  "splunkPillar": "Security",
+  "compliance": [
+    {
+      "regulation": "NIST-800-53",
+      "version": "Rev.5",
+      "clause": "AU-2",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Saved search evidence for AU-2 when alert outputs are archived."
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "Replay sample `google:gcp:audit` events with `eventName=\"TagResources\" OR eventName=\"UntagResource\"` into `index=gcp`. Confirm UC-4.4.65 returns >=1 row and the alert fires.",
+    "negativeScenario": "Replay benign `google:gcp:audit` traffic without `eventName=\"TagResources\" OR eventName=\"UntagResource\"`. Confirm UC-4.4.65 returns zero rows and the alert does not fire."
+  },
+  "dataSources": "`index=gcp` sourcetype=`google:gcp:audit` collected via Splunk cloud TA for GCP; validate ingest with `| stats count by sourcetype`.",
+  "app": "Splunk cloud TA for GCP",
+  "spl": "index=gcp sourcetype=\"google:gcp:audit\" eventName=\"TagResources\" OR eventName=\"UntagResource\"\n| table _time protoPayload.methodName protoPayload.authenticationInfo.principalEmail resourceName\n| eval uc_marker=\"UC-4.4.65_gcp_resource_tag_missing_65\"\n| sort -_time",
+  "description": "UC-4.4.65 — GCP Resource Tag Missing Environment: queries Google Cloud `google:gcp:audit` for `TagResources`, `UntagResource` and returns actor, resource, and region context for configuration review and change validation.",
+  "value": "On Google Cloud, missing governance tags for 'GCP Resource Tag Missing Environment' break cost allocation, environment scoping, and incident routing—delaying containment when resources cannot be classified quickly. UC-4.4.65 drives high-priority configuration alerting before customer-impacting drift.",
+  "implementation": "Configure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:audit.",
+  "visualization": "Dashboard panel, alert, and weekly compliance report.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for AWS",
+      "url": "https://splunkbase.splunk.com/app/1876"
+    },
+    {
+      "title": "Vendor documentation",
+      "url": "https://docs.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+  "mitreAttack": [
+    "T1078.004"
+  ],
+  "securityDomain": "cloud",
+  "equipment": [
+    "gcp"
+  ],
+  "equipmentModels": [
+    "gcp_audit_log"
+  ],
+  "status": "community",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "tstats_eligible": false
+  },
+  "detailedImplementation": "Prerequisites\n• Splunk Enterprise or Splunk Cloud with search access to `index=gcp`.\n• Install and configure Splunk cloud TA for GCP with the modular input for `google:gcp:audit`.\n• Prerequisite crawl UC(s): UC-4.4.33.\n• Confirm field extractions in `props.conf` for `protoPayload.methodName` and related actor fields.\n\nStep 1 — Configure data collection\nConfigure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:audit.\nValidate ingest before alerting:\n```spl\nindex=gcp sourcetype=\"google:gcp:audit\" | stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n```spl\nindex=gcp sourcetype=\"google:gcp:audit\" eventName=\"TagResources\" OR eventName=\"UntagResource\"\n| table _time protoPayload.methodName protoPayload.authenticationInfo.principalEmail resourceName\n| eval uc_marker=\"UC-4.4.65_gcp_resource_tag_missing_65\"\n| sort -_time\n```\n\nUnderstanding this SPL\nScopes `google:gcp:audit` in `index=gcp` to detect gcp resource tag missing environment. Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.\n\nStep 3 — Validate\nCompare to the GCP Logs Explorer console for the same 24-hour window. Confirm row counts and `protoPayload.methodName` values match the vendor console. Run `| fieldsummary` on a 1-hour sample to verify extractions.\n\nStep 4 — Operationalize and troubleshoot\nSave as `4_4_65_alert` with severity aligned to `high` criticality. Dashboard: Dashboard panel, alert, and weekly compliance report..\nFailure modes: (1) no events — verify modular input/API credentials and index routing; (2) empty actor fields — upgrade Splunk cloud TA for GCP and review alias mappings; (3) API throttling — reduce poll frequency or enable queue buffering; (4) alert fatigue — tune thresholds and document exclusions in knownFalsePositives.\n",
+  "grandmaExplanation": "We watch cloud logs for signs of gcp resource tag missing environment so your team catches problems in your online services before customers or auditors do.",
+  "prerequisiteUseCases": [
+    "UC-4.4.33"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 1876,
+      "name": "Splunk Add-on for AWS",
+      "role": "primary",
+      "requiresSmeReview": true
+    }
+  ],
+  "wave": "walk"
+}
