@@ -1625,6 +1625,7 @@ try{if(localStorage.getItem('cisco-ui-theme')==='dark')document.documentElement.
         <li><strong>+714 industry vertical use cases (cat-21 now 860 UCs).</strong> Four new subcategories: Financial Services (21.11), Public Sector (21.12), Education (21.13), and Contact Center (21.14).</li>
         <li><strong>cat-25 consolidated from 115 to 69 subcategories</strong> (6,431 UCs preserved). Plain-language view areas reduced from 108 to 72 via nineteen merge groups.</li>
         <li><strong>MCP payload cap raised to 16 MiB</strong> so <code>recommender/uc-thin.json</code> loads within the server guard at current catalogue scale.</li>
+        <li><strong>Fun Stuff toggle:</strong> footer checkbox to show or hide cat-25 personal/hobbyist content (sidebar, hero chip, search, and counts); preference saved in <code>localStorage</code>.</li>
         <li><strong>Link-check and regulatory change-watch fixes:</strong> PDPC URL repaired; uk-gdpr ETag drift finding cleared after review.</li>
       </ul>
     </div>
@@ -3999,6 +4000,30 @@ function linkifyRefs(s) {
 var currentBrowseMode = 'grid';
 try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
 
+var FUN_STUFF_STORAGE_KEY = 'uc-show-fun-stuff';
+var showFunStuff = true;
+try {
+  var _fs = localStorage.getItem(FUN_STUFF_STORAGE_KEY);
+  if (_fs === '0') showFunStuff = false;
+} catch (e) {}
+var pendingFunStuffNav = null;
+
+function personalCatIds() {
+  return CAT_GROUPS.personal || [];
+}
+function isPersonalCat(catId) {
+  return personalCatIds().indexOf(catId) !== -1;
+}
+function isFunStuffVisible() {
+  return showFunStuff;
+}
+function visibleCategories() {
+  return DATA.filter(function(c) { return showFunStuff || !isPersonalCat(c.i); });
+}
+function visibleSubcatCount() {
+  return visibleCategories().reduce(function(a, c) { return a + c.s.length; }, 0);
+}
+
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 var DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};
 var SIDEBAR_GROUP_LABELS = { infra:'Infrastructure', security:'Security', cloud:'Cloud & Containers', app:'Applications', industry:'Industry Verticals', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };
@@ -4190,6 +4215,9 @@ function getCatById(id) {
 
 function getFilteredUCs() {
   var result = allUCs;
+  if (!showFunStuff) {
+    result = result.filter(function(e) { return !isPersonalCat(e.cat.i); });
+  }
   if (inventorySelections.length > 0 && !selectedEquipmentId) {
     var invSet = new Set(inventorySelections);
     var invTopIds = new Set();
@@ -5222,6 +5250,15 @@ function _loadInventory() {
   } catch (e) { inventorySelections = []; }
 }
 
+function renderFunStuffHiddenNotice() {
+  if (!pendingFunStuffNav) return '';
+  var h = '<div class="fun-stuff-hidden-notice" role="status">';
+  h += '<p><strong>Fun Stuff is hidden.</strong> Enable it in the footer to browse personal and hobbyist monitoring use cases.</p>';
+  h += '<button type="button" class="inv-btn primary" onclick="enableFunStuffAndNavigate()">Show Fun Stuff</button>';
+  h += '</div>';
+  return h;
+}
+
 function updateFilterCountNum() {
   var el = document.getElementById('filter-count-num');
   if (el) el.textContent = getFilteredUCs().length.toLocaleString();
@@ -5256,6 +5293,7 @@ function buildSidebar() {
   var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
   var groupOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   groupOrder.forEach(function(g) {
+    if (g === 'personal' && !showFunStuff) return;
     var ids = CAT_GROUPS[g] || [];
     var groupCount = 0;
     ids.forEach(function(id) {
@@ -5316,13 +5354,15 @@ function renderOverview() {
     filtered = filtered.filter(function(e) { return hg.indexOf(e.cat.i) !== -1; });
   }
   currentDisplayedList = filtered;
-  var totalSubs = DATA.reduce(function(a, c) { return a + c.s.length; }, 0);
+  var visibleCats = visibleCategories();
+  var totalSubs = visibleSubcatCount();
   var quickWins = filtered.filter(function(e) { return e.uc.f === 'beginner' && (e.uc.c === 'critical' || e.uc.c === 'high'); }).length;
-  var intro = (SITE.heroIntro || '').replace('{useCases}', filtered.length).replace('{categories}', DATA.length);
+  var intro = (SITE.heroIntro || '').replace('{useCases}', filtered.length).replace('{categories}', visibleCats.length);
 
-  var html = '<div class="c-kpi-strip">';
+  var html = renderFunStuffHiddenNotice();
+  html += '<div class="c-kpi-strip">';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + filtered.length.toLocaleString() + '</div><div class="c-kpi-label">' + esc(SITE.statUseCases) + '</div></div>';
-  html += '<div class="c-kpi-card"><div class="c-kpi-num">' + DATA.length + '</div><div class="c-kpi-label">' + esc(SITE.statCategories) + '</div></div>';
+  html += '<div class="c-kpi-card"><div class="c-kpi-num">' + visibleCats.length + '</div><div class="c-kpi-label">' + esc(SITE.statCategories) + '</div></div>';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + totalSubs + '</div><div class="c-kpi-label">' + esc(SITE.statSubcategories) + '</div></div>';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + quickWins.toLocaleString() + '</div><div class="c-kpi-label">' + esc(SITE.statQuickWins) + '</div></div></div>';
 
@@ -5334,11 +5374,11 @@ function renderOverview() {
   var heroIcons = { infra:'servers', security:'shield', cloud:'cloudNodes', app:'cog', industry:'factory', compliance:'clipboard', business:'chart', personal:'heartPulse' };
   html += '<div class="hero-domains">';
   heroOrder.forEach(function(g) {
+    if (g === 'personal' && !showFunStuff) return;
     var ids = CAT_GROUPS[g] || [];
     var cnt = 0;
     ids.forEach(function(id) {
-      var c = DATA.find(function(d) { return d.i === id; });
-      if (c) cnt += c.s.reduce(function(a, s) { return a + s.u.length; }, 0);
+      cnt += filteredBase.filter(function(e) { return e.cat.i === id; }).length;
     });
     var cls = 'hero-chip' + (ovHeroGroupFilter === g ? ' active' : '');
     html += '<button type="button" class="' + cls + '" onclick="filterByHeroGroup(\'' + g + '\')">' + si(heroIcons[g] || 'list') + esc(heroLabels[g]) + '<span class="hd-count">' + cnt + '</span></button>';
@@ -5377,6 +5417,7 @@ function renderOverview() {
     var vcStructure = '';
     var vcGridIdx = 0;
     DATA.forEach(function(cat) {
+      if (!showFunStuff && isPersonalCat(cat.i)) return;
       var g = byCat[cat.i];
       if (!g || !g.entries.length) return;
       var gid = 'uc-vgrid-' + vcGridIdx++;
@@ -5400,7 +5441,7 @@ function renderOverview() {
       || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter || currentTrendFilter;
     var visibleSubs = hasAny ? Object.keys(filteredBySubcat).length : totalSubs;
     html += '<div class="ov-section"><h3 class="ov-h3">Subcategories — ' + visibleSubs + '</h3><div class="ov-subcat-list">';
-    DATA.forEach(function(cat) {
+    visibleCategories().forEach(function(cat) {
       cat.s.forEach(function(sc) {
         var key = cat.i + '.' + (sc.i != null ? sc.i : '');
         var subCount = hasAny ? (filteredBySubcat[key] || 0) : sc.u.length;
@@ -5447,7 +5488,7 @@ function renderOverview() {
     });
     html += '</div>';
   } else if (ovGroupFilter === 'quality') {
-    var qCats = DATA.map(function(cat) {
+    var qCats = visibleCategories().map(function(cat) {
       var deep = 0, solid = 0, basic = 0, stub = 0, dSum = 0, dN = 0, gapMap = {};
       cat.s.forEach(function(sc) {
         sc.u.forEach(function(u) {
@@ -5492,7 +5533,7 @@ function renderOverview() {
   } else {
     var heroCatIds = ovHeroGroupFilter ? CAT_GROUPS[ovHeroGroupFilter] : null;
     html += '<div class="c-cat-grid">';
-    DATA.forEach(function(cat) {
+    visibleCategories().forEach(function(cat) {
       if (heroCatIds && heroCatIds.indexOf(cat.i) === -1) return;
       var count = filtered.filter(function(e) { return e.cat.i === cat.i; }).length;
       var totalCount = cat.s.reduce(function(a, s) { return a + s.u.length; }, 0);
@@ -5683,6 +5724,10 @@ function renderSubcategoryView() {
 }
 
 function goToSubcat(catId, scId) {
+  if (isPersonalCat(catId) && !showFunStuff) {
+    blockFunStuffNavigation(catId, scId);
+    return;
+  }
   if (detailOpen) {
     currentCat = catId;
     currentSubcat = scId;
@@ -6239,10 +6284,14 @@ function switchDetailSubcat(catId, scId) {
 }
 
 function openUCById(id) {
+  var entry = ucIndex[id];
+  if (entry && isPersonalCat(entry.cat.i) && !showFunStuff) {
+    blockFunStuffNavigation(entry.cat.i, entry.sc.i, id);
+    return;
+  }
   panelUCList = currentDisplayedList.length ? currentDisplayedList : getFilteredUCs();
   var idx = panelUCList.findIndex(function(e) { return String(e.uc.i) === String(id); });
   if (idx < 0) {
-    var entry = ucIndex[id];
     if (!entry) return;
     panelUCList = allUCs;
     idx = entry.flatIdx;
@@ -6844,6 +6893,15 @@ function restoreFromHash() {
   var cm = h.match(/^cat-(\d+)(?:\/(.+))?$/);
   if (cm) {
     var catId = parseInt(cm[1], 10);
+    if (isPersonalCat(catId) && !showFunStuff) {
+      pendingFunStuffNav = { catId: catId, subId: cm[2] || null, ucId: null };
+      currentCat = null;
+      currentSubcat = null;
+      currentSearch = '';
+      document.getElementById('search-input').value = '';
+      reRender();
+      return;
+    }
     if (cm[2]) {
       currentCat = catId;
       currentSubcat = cm[2];
@@ -6859,6 +6917,16 @@ function restoreFromHash() {
   }
   var um = h.match(/^uc-([\d.]+)/);
   if (um) {
+    var ucEntry = ucIndex[um[1]];
+    if (ucEntry && isPersonalCat(ucEntry.cat.i) && !showFunStuff) {
+      pendingFunStuffNav = { catId: ucEntry.cat.i, subId: ucEntry.sc.i, ucId: um[1] };
+      currentCat = null;
+      currentSubcat = null;
+      currentSearch = '';
+      document.getElementById('search-input').value = '';
+      reRender();
+      return;
+    }
     openUCById(um[1]);
     buildSidebar();
     return;
@@ -6918,7 +6986,79 @@ function goHome() {
   updateHash(false);
 }
 
+function blockFunStuffNavigation(catId, subId, ucId) {
+  pendingFunStuffNav = { catId: catId, subId: subId || null, ucId: ucId || null };
+  currentCat = null;
+  currentSubcat = null;
+  catShowAllUCs = false;
+  if (detailOpen) closeDetail();
+  reRender();
+  return true;
+}
+
+function toggleFunStuff(on) {
+  showFunStuff = !!on;
+  document.body.classList.toggle('fun-stuff-hidden', !showFunStuff);
+  try { localStorage.setItem(FUN_STUFF_STORAGE_KEY, showFunStuff ? '1' : '0'); } catch (e) {}
+  var cb = document.getElementById('fun-stuff-toggle');
+  if (cb) {
+    cb.checked = showFunStuff;
+    cb.setAttribute('aria-pressed', String(showFunStuff));
+  }
+  if (!showFunStuff) {
+    if (ovHeroGroupFilter === 'personal') ovHeroGroupFilter = null;
+    if (currentCat != null && isPersonalCat(currentCat)) {
+      currentCat = null;
+      currentSubcat = null;
+      catShowAllUCs = false;
+      if (detailOpen) closeDetail();
+    }
+  } else {
+    pendingFunStuffNav = null;
+  }
+  reRender();
+}
+
+function enableFunStuffAndNavigate() {
+  var pending = pendingFunStuffNav;
+  pendingFunStuffNav = null;
+  showFunStuff = true;
+  document.body.classList.remove('fun-stuff-hidden');
+  try { localStorage.setItem(FUN_STUFF_STORAGE_KEY, '1'); } catch (e) {}
+  var cb = document.getElementById('fun-stuff-toggle');
+  if (cb) {
+    cb.checked = true;
+    cb.setAttribute('aria-pressed', 'true');
+  }
+  if (ovHeroGroupFilter === 'personal') ovHeroGroupFilter = null;
+  if (pending && pending.ucId) {
+    openUCById(pending.ucId);
+    return;
+  }
+  if (pending && pending.subId) {
+    currentCat = pending.catId;
+    currentSubcat = pending.subId;
+    catShowAllUCs = true;
+    currentSearch = '';
+    var siEl = document.getElementById('search-input');
+    if (siEl) siEl.value = '';
+    reRender();
+    updateHash(false);
+    setTimeout(function() { scrollToSubcat(pending.subId); }, 80);
+    return;
+  }
+  if (pending && pending.catId != null) {
+    selectCat(pending.catId);
+    return;
+  }
+  reRender();
+}
+
 function selectCat(id, skipHash) {
+  if (id != null && isPersonalCat(id) && !showFunStuff) {
+    blockFunStuffNavigation(id);
+    return;
+  }
   if (id == null) {
     if (detailOpen) closeDetail();
   } else if (detailOpen) {
@@ -6955,14 +7095,17 @@ function renderNonTechnicalOverview() {
   window.scrollTo(0, 0);
   var nt = window.NON_TECHNICAL || {};
   var main = document.getElementById('main');
-  var totalUCs = allUCs.length;
-  var totalSubs = DATA.reduce(function(a, c) { return a + c.s.length; }, 0);
-  var html = '<div class="nt-hero"><h2>Monitoring outcomes</h2><p>Plain-language view of what we watch across your environment.</p>';
-  html += '<div class="nt-stats"><div><strong>' + DATA.length + '</strong><span>Areas</span></div><div><strong>' + totalSubs + '</strong><span>Focus topics</span></div><div><strong>' + totalUCs.toLocaleString() + '</strong><span>Checks</span></div></div>';
+  var visible = getFilteredUCs();
+  var totalUCs = visible.length;
+  var cats = visibleCategories();
+  var totalSubs = visibleSubcatCount();
+  var html = renderFunStuffHiddenNotice();
+  html += '<div class="nt-hero"><h2>Monitoring outcomes</h2><p>Plain-language view of what we watch across your environment.</p>';
+  html += '<div class="nt-stats"><div><strong>' + cats.length + '</strong><span>Areas</span></div><div><strong>' + totalSubs + '</strong><span>Focus topics</span></div><div><strong>' + totalUCs.toLocaleString() + '</strong><span>Checks</span></div></div>';
   html += '<div style="margin-top:12px"><input type="text" id="nt-search" placeholder="Search outcomes\u2026" aria-label="Search outcomes" oninput="filterNTCards(this.value)" style="width:100%;max-width:400px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-subtle);font-size:14px;background:var(--bg-card);color:var(--text-primary)"></div>';
   html += '</div>';
   html += '<div class="c-cat-grid" id="nt-grid">';
-  DATA.forEach(function(cat) {
+  cats.forEach(function(cat) {
     var block = nt[String(cat.i)];
     if (!block) return;
     var text = (block.outcomes || []).join(' ') + ' ' + (block.areas || []).map(function(a) {
@@ -7004,6 +7147,10 @@ function ntResolveLink(relativePath) {
 }
 function renderNonTechnicalCategory(catId) {
   window.scrollTo(0, 0);
+  if (isPersonalCat(catId) && !showFunStuff) {
+    blockFunStuffNavigation(catId);
+    return;
+  }
   var cat = getCatById(catId);
   var block = (window.NON_TECHNICAL || {})[String(catId)];
   var main = document.getElementById('main');
@@ -7038,6 +7185,12 @@ function renderNonTechnicalCategory(catId) {
 }
 
 function reRender() {
+  if (currentCat != null && isPersonalCat(currentCat) && !showFunStuff) {
+    currentCat = null;
+    currentSubcat = null;
+    catShowAllUCs = false;
+    if (detailOpen) closeDetail();
+  }
   buildSidebar();
   if (nonTechnicalView) {
     if (currentCat == null) renderNonTechnicalOverview();
@@ -7315,6 +7468,14 @@ function initApp() {
   try {
     if (localStorage.getItem('cisco-ui-nontech') === '1') setNonTechnicalView(true);
   } catch (e4) {}
+  document.body.classList.toggle('fun-stuff-hidden', !showFunStuff);
+  try {
+    var fsToggle = document.getElementById('fun-stuff-toggle');
+    if (fsToggle) {
+      fsToggle.checked = showFunStuff;
+      fsToggle.setAttribute('aria-pressed', String(showFunStuff));
+    }
+  } catch (e5) {}
   document.getElementById('footer-author').textContent = SITE.siteAuthor ? 'Author: ' + SITE.siteAuthor : '';
   var fl = document.getElementById('footer-feedback');
   if (fl && SITE.siteRepoUrl) fl.href = SITE.siteRepoUrl;
