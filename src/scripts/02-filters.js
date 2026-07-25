@@ -17,6 +17,9 @@ function getCatById(id) {
 
 function getFilteredUCs() {
   var result = allUCs;
+  if (!showFunStuff) {
+    result = result.filter(function(e) { return !isPersonalCat(e.cat.i); });
+  }
   if (inventorySelections.length > 0 && !selectedEquipmentId) {
     var invSet = new Set(inventorySelections);
     var invTopIds = new Set();

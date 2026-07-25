@@ -131,6 +131,30 @@ function linkifyRefs(s) {
 var currentBrowseMode = 'grid';
 try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
 
+var FUN_STUFF_STORAGE_KEY = 'uc-show-fun-stuff';
+var showFunStuff = true;
+try {
+  var _fs = localStorage.getItem(FUN_STUFF_STORAGE_KEY);
+  if (_fs === '0') showFunStuff = false;
+} catch (e) {}
+var pendingFunStuffNav = null;
+
+function personalCatIds() {
+  return CAT_GROUPS.personal || [];
+}
+function isPersonalCat(catId) {
+  return personalCatIds().indexOf(catId) !== -1;
+}
+function isFunStuffVisible() {
+  return showFunStuff;
+}
+function visibleCategories() {
+  return DATA.filter(function(c) { return showFunStuff || !isPersonalCat(c.i); });
+}
+function visibleSubcatCount() {
+  return visibleCategories().reduce(function(a, c) { return a + c.s.length; }, 0);
+}
+
 var CRIT_ORDER = {critical:0, high:1, medium:2, low:3};
 var DIFF_ORDER = {beginner:0, intermediate:1, advanced:2, expert:3};
 var SIDEBAR_GROUP_LABELS = { infra:'Infrastructure', security:'Security', cloud:'Cloud & Containers', app:'Applications', industry:'Industry Verticals', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };

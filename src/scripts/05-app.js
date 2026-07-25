@@ -533,6 +533,15 @@ function restoreFromHash() {
   var cm = h.match(/^cat-(\d+)(?:\/(.+))?$/);
   if (cm) {
     var catId = parseInt(cm[1], 10);
+    if (isPersonalCat(catId) && !showFunStuff) {
+      pendingFunStuffNav = { catId: catId, subId: cm[2] || null, ucId: null };
+      currentCat = null;
+      currentSubcat = null;
+      currentSearch = '';
+      document.getElementById('search-input').value = '';
+      reRender();
+      return;
+    }
     if (cm[2]) {
       currentCat = catId;
       currentSubcat = cm[2];
@@ -548,6 +557,16 @@ function restoreFromHash() {
   }
   var um = h.match(/^uc-([\d.]+)/);
   if (um) {
+    var ucEntry = ucIndex[um[1]];
+    if (ucEntry && isPersonalCat(ucEntry.cat.i) && !showFunStuff) {
+      pendingFunStuffNav = { catId: ucEntry.cat.i, subId: ucEntry.sc.i, ucId: um[1] };
+      currentCat = null;
+      currentSubcat = null;
+      currentSearch = '';
+      document.getElementById('search-input').value = '';
+      reRender();
+      return;
+    }
     openUCById(um[1]);
     buildSidebar();
     return;
@@ -607,7 +626,80 @@ function goHome() {
   updateHash(false);
 }
 
+function blockFunStuffNavigation(catId, subId, ucId) {
+  pendingFunStuffNav = { catId: catId, subId: subId || null, ucId: ucId || null };
+  currentCat = null;
+  currentSubcat = null;
+  catShowAllUCs = false;
+  if (detailOpen) closeDetail();
+  reRender();
+  return true;
+}
+
+function toggleFunStuff(on) {
+  showFunStuff = !!on;
+  document.body.classList.toggle('fun-stuff-hidden', !showFunStuff);
+  try { localStorage.setItem(FUN_STUFF_STORAGE_KEY, showFunStuff ? '1' : '0'); } catch (e) {}
+  var cb = document.getElementById('fun-stuff-toggle');
+  if (cb) {
+    cb.checked = showFunStuff;
+    cb.setAttribute('aria-pressed', String(showFunStuff));
+  }
+  if (!showFunStuff) {
+    if (ovHeroGroupFilter === 'personal') ovHeroGroupFilter = null;
+    if (currentCat != null && isPersonalCat(currentCat)) {
+      pendingFunStuffNav = pendingFunStuffNav || { catId: currentCat, subId: currentSubcat, ucId: null };
+      currentCat = null;
+      currentSubcat = null;
+      catShowAllUCs = false;
+      if (detailOpen) closeDetail();
+    }
+  } else {
+    pendingFunStuffNav = null;
+  }
+  reRender();
+}
+
+function enableFunStuffAndNavigate() {
+  var pending = pendingFunStuffNav;
+  pendingFunStuffNav = null;
+  showFunStuff = true;
+  document.body.classList.remove('fun-stuff-hidden');
+  try { localStorage.setItem(FUN_STUFF_STORAGE_KEY, '1'); } catch (e) {}
+  var cb = document.getElementById('fun-stuff-toggle');
+  if (cb) {
+    cb.checked = true;
+    cb.setAttribute('aria-pressed', 'true');
+  }
+  if (ovHeroGroupFilter === 'personal') ovHeroGroupFilter = null;
+  if (pending && pending.ucId) {
+    openUCById(pending.ucId);
+    return;
+  }
+  if (pending && pending.subId) {
+    currentCat = pending.catId;
+    currentSubcat = pending.subId;
+    catShowAllUCs = true;
+    currentSearch = '';
+    var siEl = document.getElementById('search-input');
+    if (siEl) siEl.value = '';
+    reRender();
+    updateHash(false);
+    setTimeout(function() { scrollToSubcat(pending.subId); }, 80);
+    return;
+  }
+  if (pending && pending.catId != null) {
+    selectCat(pending.catId);
+    return;
+  }
+  reRender();
+}
+
 function selectCat(id, skipHash) {
+  if (id != null && isPersonalCat(id) && !showFunStuff) {
+    blockFunStuffNavigation(id);
+    return;
+  }
   if (id == null) {
     if (detailOpen) closeDetail();
   } else if (detailOpen) {
@@ -644,14 +736,17 @@ function renderNonTechnicalOverview() {
   window.scrollTo(0, 0);
   var nt = window.NON_TECHNICAL || {};
   var main = document.getElementById('main');
-  var totalUCs = allUCs.length;
-  var totalSubs = DATA.reduce(function(a, c) { return a + c.s.length; }, 0);
-  var html = '<div class="nt-hero"><h2>Monitoring outcomes</h2><p>Plain-language view of what we watch across your environment.</p>';
-  html += '<div class="nt-stats"><div><strong>' + DATA.length + '</strong><span>Areas</span></div><div><strong>' + totalSubs + '</strong><span>Focus topics</span></div><div><strong>' + totalUCs.toLocaleString() + '</strong><span>Checks</span></div></div>';
+  var visible = getFilteredUCs();
+  var totalUCs = visible.length;
+  var cats = visibleCategories();
+  var totalSubs = visibleSubcatCount();
+  var html = renderFunStuffHiddenNotice();
+  html += '<div class="nt-hero"><h2>Monitoring outcomes</h2><p>Plain-language view of what we watch across your environment.</p>';
+  html += '<div class="nt-stats"><div><strong>' + cats.length + '</strong><span>Areas</span></div><div><strong>' + totalSubs + '</strong><span>Focus topics</span></div><div><strong>' + totalUCs.toLocaleString() + '</strong><span>Checks</span></div></div>';
   html += '<div style="margin-top:12px"><input type="text" id="nt-search" placeholder="Search outcomes\u2026" aria-label="Search outcomes" oninput="filterNTCards(this.value)" style="width:100%;max-width:400px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-subtle);font-size:14px;background:var(--bg-card);color:var(--text-primary)"></div>';
   html += '</div>';
   html += '<div class="c-cat-grid" id="nt-grid">';
-  DATA.forEach(function(cat) {
+  cats.forEach(function(cat) {
     var block = nt[String(cat.i)];
     if (!block) return;
     var text = (block.outcomes || []).join(' ') + ' ' + (block.areas || []).map(function(a) {
@@ -693,6 +788,10 @@ function ntResolveLink(relativePath) {
 }
 function renderNonTechnicalCategory(catId) {
   window.scrollTo(0, 0);
+  if (isPersonalCat(catId) && !showFunStuff) {
+    blockFunStuffNavigation(catId);
+    return;
+  }
   var cat = getCatById(catId);
   var block = (window.NON_TECHNICAL || {})[String(catId)];
   var main = document.getElementById('main');
@@ -727,6 +826,13 @@ function renderNonTechnicalCategory(catId) {
 }
 
 function reRender() {
+  if (currentCat != null && isPersonalCat(currentCat) && !showFunStuff) {
+    pendingFunStuffNav = pendingFunStuffNav || { catId: currentCat, subId: currentSubcat, ucId: null };
+    currentCat = null;
+    currentSubcat = null;
+    catShowAllUCs = false;
+    if (detailOpen) closeDetail();
+  }
   buildSidebar();
   if (nonTechnicalView) {
     if (currentCat == null) renderNonTechnicalOverview();
@@ -1004,6 +1110,14 @@ function initApp() {
   try {
     if (localStorage.getItem('cisco-ui-nontech') === '1') setNonTechnicalView(true);
   } catch (e4) {}
+  document.body.classList.toggle('fun-stuff-hidden', !showFunStuff);
+  try {
+    var fsToggle = document.getElementById('fun-stuff-toggle');
+    if (fsToggle) {
+      fsToggle.checked = showFunStuff;
+      fsToggle.setAttribute('aria-pressed', String(showFunStuff));
+    }
+  } catch (e5) {}
   document.getElementById('footer-author').textContent = SITE.siteAuthor ? 'Author: ' + SITE.siteAuthor : '';
   var fl = document.getElementById('footer-feedback');
   if (fl && SITE.siteRepoUrl) fl.href = SITE.siteRepoUrl;

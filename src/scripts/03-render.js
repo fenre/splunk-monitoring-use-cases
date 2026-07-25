@@ -167,6 +167,15 @@ function _loadInventory() {
   } catch (e) { inventorySelections = []; }
 }
 
+function renderFunStuffHiddenNotice() {
+  if (!pendingFunStuffNav) return '';
+  var h = '<div class="fun-stuff-hidden-notice" role="status">';
+  h += '<p><strong>Fun Stuff is hidden.</strong> Enable it in the footer to browse personal and hobbyist monitoring use cases.</p>';
+  h += '<button type="button" class="inv-btn primary" onclick="enableFunStuffAndNavigate()">Show Fun Stuff</button>';
+  h += '</div>';
+  return h;
+}
+
 function updateFilterCountNum() {
   var el = document.getElementById('filter-count-num');
   if (el) el.textContent = getFilteredUCs().length.toLocaleString();
@@ -201,6 +210,7 @@ function buildSidebar() {
   var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
   var groupOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   groupOrder.forEach(function(g) {
+    if (g === 'personal' && !showFunStuff) return;
     var ids = CAT_GROUPS[g] || [];
     var groupCount = 0;
     ids.forEach(function(id) {
@@ -261,13 +271,15 @@ function renderOverview() {
     filtered = filtered.filter(function(e) { return hg.indexOf(e.cat.i) !== -1; });
   }
   currentDisplayedList = filtered;
-  var totalSubs = DATA.reduce(function(a, c) { return a + c.s.length; }, 0);
+  var visibleCats = visibleCategories();
+  var totalSubs = visibleSubcatCount();
   var quickWins = filtered.filter(function(e) { return e.uc.f === 'beginner' && (e.uc.c === 'critical' || e.uc.c === 'high'); }).length;
-  var intro = (SITE.heroIntro || '').replace('{useCases}', filtered.length).replace('{categories}', DATA.length);
+  var intro = (SITE.heroIntro || '').replace('{useCases}', filtered.length).replace('{categories}', visibleCats.length);
 
-  var html = '<div class="c-kpi-strip">';
+  var html = renderFunStuffHiddenNotice();
+  html += '<div class="c-kpi-strip">';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + filtered.length.toLocaleString() + '</div><div class="c-kpi-label">' + esc(SITE.statUseCases) + '</div></div>';
-  html += '<div class="c-kpi-card"><div class="c-kpi-num">' + DATA.length + '</div><div class="c-kpi-label">' + esc(SITE.statCategories) + '</div></div>';
+  html += '<div class="c-kpi-card"><div class="c-kpi-num">' + visibleCats.length + '</div><div class="c-kpi-label">' + esc(SITE.statCategories) + '</div></div>';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + totalSubs + '</div><div class="c-kpi-label">' + esc(SITE.statSubcategories) + '</div></div>';
   html += '<div class="c-kpi-card"><div class="c-kpi-num">' + quickWins.toLocaleString() + '</div><div class="c-kpi-label">' + esc(SITE.statQuickWins) + '</div></div></div>';
 
@@ -279,11 +291,11 @@ function renderOverview() {
   var heroIcons = { infra:'servers', security:'shield', cloud:'cloudNodes', app:'cog', industry:'factory', compliance:'clipboard', business:'chart', personal:'heartPulse' };
   html += '<div class="hero-domains">';
   heroOrder.forEach(function(g) {
+    if (g === 'personal' && !showFunStuff) return;
     var ids = CAT_GROUPS[g] || [];
     var cnt = 0;
     ids.forEach(function(id) {
-      var c = DATA.find(function(d) { return d.i === id; });
-      if (c) cnt += c.s.reduce(function(a, s) { return a + s.u.length; }, 0);
+      cnt += filteredBase.filter(function(e) { return e.cat.i === id; }).length;
     });
     var cls = 'hero-chip' + (ovHeroGroupFilter === g ? ' active' : '');
     html += '<button type="button" class="' + cls + '" onclick="filterByHeroGroup(\'' + g + '\')">' + si(heroIcons[g] || 'list') + esc(heroLabels[g]) + '<span class="hd-count">' + cnt + '</span></button>';
@@ -322,6 +334,7 @@ function renderOverview() {
     var vcStructure = '';
     var vcGridIdx = 0;
     DATA.forEach(function(cat) {
+      if (!showFunStuff && isPersonalCat(cat.i)) return;
       var g = byCat[cat.i];
       if (!g || !g.entries.length) return;
       var gid = 'uc-vgrid-' + vcGridIdx++;
@@ -345,7 +358,7 @@ function renderOverview() {
       || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter || currentTrendFilter;
     var visibleSubs = hasAny ? Object.keys(filteredBySubcat).length : totalSubs;
     html += '<div class="ov-section"><h3 class="ov-h3">Subcategories — ' + visibleSubs + '</h3><div class="ov-subcat-list">';
-    DATA.forEach(function(cat) {
+    visibleCategories().forEach(function(cat) {
       cat.s.forEach(function(sc) {
         var key = cat.i + '.' + (sc.i != null ? sc.i : '');
         var subCount = hasAny ? (filteredBySubcat[key] || 0) : sc.u.length;
@@ -392,7 +405,7 @@ function renderOverview() {
     });
     html += '</div>';
   } else if (ovGroupFilter === 'quality') {
-    var qCats = DATA.map(function(cat) {
+    var qCats = visibleCategories().map(function(cat) {
       var deep = 0, solid = 0, basic = 0, stub = 0, dSum = 0, dN = 0, gapMap = {};
       cat.s.forEach(function(sc) {
         sc.u.forEach(function(u) {
@@ -437,7 +450,7 @@ function renderOverview() {
   } else {
     var heroCatIds = ovHeroGroupFilter ? CAT_GROUPS[ovHeroGroupFilter] : null;
     html += '<div class="c-cat-grid">';
-    DATA.forEach(function(cat) {
+    visibleCategories().forEach(function(cat) {
       if (heroCatIds && heroCatIds.indexOf(cat.i) === -1) return;
       var count = filtered.filter(function(e) { return e.cat.i === cat.i; }).length;
       var totalCount = cat.s.reduce(function(a, s) { return a + s.u.length; }, 0);
@@ -628,6 +641,10 @@ function renderSubcategoryView() {
 }
 
 function goToSubcat(catId, scId) {
+  if (isPersonalCat(catId) && !showFunStuff) {
+    blockFunStuffNavigation(catId, scId);
+    return;
+  }
   if (detailOpen) {
     currentCat = catId;
     currentSubcat = scId;

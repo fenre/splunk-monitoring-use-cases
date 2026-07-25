@@ -430,10 +430,14 @@ function switchDetailSubcat(catId, scId) {
 }
 
 function openUCById(id) {
+  var entry = ucIndex[id];
+  if (entry && isPersonalCat(entry.cat.i) && !showFunStuff) {
+    blockFunStuffNavigation(entry.cat.i, entry.sc.i, id);
+    return;
+  }
   panelUCList = currentDisplayedList.length ? currentDisplayedList : getFilteredUCs();
   var idx = panelUCList.findIndex(function(e) { return String(e.uc.i) === String(id); });
   if (idx < 0) {
-    var entry = ucIndex[id];
     if (!entry) return;
     panelUCList = allUCs;
     idx = entry.flatIdx;
