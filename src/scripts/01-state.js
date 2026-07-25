@@ -132,10 +132,10 @@ var currentBrowseMode = 'grid';
 try { var _bm = localStorage.getItem('uc-browse-mode'); if (_bm === 'list' || _bm === 'grid') currentBrowseMode = _bm; } catch (e) {}
 
 var FUN_STUFF_STORAGE_KEY = 'uc-show-fun-stuff';
-var showFunStuff = true;
+var showFunStuff = false;
 try {
   var _fs = localStorage.getItem(FUN_STUFF_STORAGE_KEY);
-  if (_fs === '0') showFunStuff = false;
+  if (_fs === '1') showFunStuff = true;
 } catch (e) {}
 var pendingFunStuffNav = null;
 

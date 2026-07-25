@@ -26,8 +26,9 @@ the release notes block in `index.html` by hand.
 ### Changed
 
 - **Fun Stuff toggle:** Footer checkbox to show or hide cat-25 personal/hobbyist
-  content (sidebar group, hero chip, search, filters, and counts). Preference
-  persisted in `localStorage`; blocked deep links offer a one-click enable path.
+  content (sidebar group, hero chip, search, filters, and counts). **Hidden by
+  default**; opt-in persisted in `localStorage`; blocked deep links offer a
+  one-click enable path.
 - **Link-check (#75):** Fixed broken PDPC advisory URL in UC-22.57.13 (404 →
   May 2022 PDF). Added CI-timeout ignore patterns for
   `experienceleague.adobe.com`, `ipfabric.io`, `martinfowler.com`,
