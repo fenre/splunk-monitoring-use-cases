@@ -648,7 +648,6 @@ function toggleFunStuff(on) {
   if (!showFunStuff) {
     if (ovHeroGroupFilter === 'personal') ovHeroGroupFilter = null;
     if (currentCat != null && isPersonalCat(currentCat)) {
-      pendingFunStuffNav = pendingFunStuffNav || { catId: currentCat, subId: currentSubcat, ucId: null };
       currentCat = null;
       currentSubcat = null;
       catShowAllUCs = false;
@@ -827,7 +826,6 @@ function renderNonTechnicalCategory(catId) {
 
 function reRender() {
   if (currentCat != null && isPersonalCat(currentCat) && !showFunStuff) {
-    pendingFunStuffNav = pendingFunStuffNav || { catId: currentCat, subId: currentSubcat, ucId: null };
     currentCat = null;
     currentSubcat = null;
     catShowAllUCs = false;
