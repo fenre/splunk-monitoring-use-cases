@@ -1,67 +1,143 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.76",
-  "title": "AdminSDHolder Modification",
+  "title": "Active Directory AdminSDHolder Modification",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "advanced",
   "monitoringType": [
     "Security",
-    "Change"
+    "Change",
+    "Audit"
   ],
-  "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'AdminSDHolder Modification' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_adminsdholder_modification` (UC-1.2.76), SOC dashboard panel \"Linux — AdminSDHolder Modification\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "splunkPillar": "Security",
+  "exclusions": "Reports audited Event ID 5136 attribute changes to the exact per-domain object `CN=AdminSDHolder,CN=System,DC=...`. It does not prove the change was malicious, that an added ACE grants access, that SDProp propagated it, or that an account used the resulting permission. It excludes changes not covered by the object's SACL, object creation/deletion/move, changes logged only on an uncollected DC, direct compromise that evades 5136, modifications to protected accounts themselves, and domains absent from inventory. The SPL pairs old/new values only by Microsoft's `OpCorrelationID`; it does not parse SDDL into effective rights. Index, five-minute delay, and exception workflow are local choices. No ACL, account, SDProp interval, or directory object is changed automatically.",
+  "evidence": "After deployment, retain the `windows_ad_adminsdholder_modification` saved search and ACL; schedule/dispatch/alert history; result rows with domain, DC, object GUID/DN/class, attribute, old/new values, operation types, correlation ID, actor SID/domain/user/logon ID, record IDs, and source metadata; exact raw 5136 XML; effective Directory Service Changes audit policy; AdminSDHolder SACL and baseline security descriptor for every domain; expected-DC source health; PDC Emulator/SDProp configuration; approved change records; bounded exceptions; incident dispositions; and dated positive, negative, pair-correlation, source, DN-boundary, and SACL-coverage tests. This documentation-only review made no directory change and produced no runtime evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.76 positive (AdminSDHolder, Modification): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=5136 where `count` grouped by `entity` satisfies detection threshold for 'AdminSDHolder Modification'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.76 negative (AdminSDHolder Modification): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'AdminSDHolder Modification'."
+    "positiveScenario": "In an isolated index, ingest two XML Security 5136 events from `Computer=DC01.example` in the same closed bucket with `ObjectDN=CN=AdminSDHolder,CN=System,DC=example,DC=com`, `ObjectGUID={11111111-1111-1111-1111-111111111111}`, `ObjectClass=container`, `AttributeLDAPDisplayName=nTSecurityDescriptor`, the same nonempty `OpCorrelationID`, and actor `EXAMPLE\\labadmin`. Set the first `OperationType=%%14675`, `AttributeValue=O:OLD`, and EventRecordID 501; set the second `OperationType=%%14674`, `AttributeValue=O:NEW`, and EventRecordID 502. Expect one row preserving old/new values, both record IDs, and `change_priority=critical_acl_template_change`.",
+    "negativeScenario": "Expect zero rows for each isolated variant: Event ID 5136 on `CN=NotAdminSDHolder,CN=System,...`; `CN=AdminSDHolder,OU=Lab,...`; Event ID 5137; wrong source/type; empty correlation ID; and qualifying events in the newest excluded five minutes. A legitimate approved AdminSDHolder change must still produce a base row; test only post-result, exact, expiring notification suppression."
   },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 5136) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n  ObjectDN=\"*AdminSDHolder*\"\n| table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n| sort -_time",
-  "description": "Detects 'AdminSDHolder Modification' patterns (UC-1.2.76) sourced from `index=wineventlog` sourcetype `WinEventLog:Security`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Watch terms: AdminSDHolder, Modification.",
-  "value": "UC-1.2.76 gives Linux teams earlier visibility into AdminSDHolder Modification through `WinEventLog:Security` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Enable \"Audit Directory Service Changes\" on domain controllers. EventCode 5136=directory object modified. Filter for ObjectDN containing \"AdminSDHolder\". Any modification to this container is highly suspicious — it should only change via approved security hardening. The SDProp process propagates AdminSDHolder ACLs to all protected groups every 60 minutes. Alert immediately with critical priority.",
-  "visualization": "Table (modifications), Single value (count — target: 0), Alert with SOC escalation.",
-  "cimModels": [
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where (like(All_Changes.object,\"%AdminSDHolder%\") OR like(All_Changes.object,\"*CN=AdminSDHolder*\"))\n  by All_Changes.user All_Changes.dest span=1h\n| where count >= 1",
-  "dataModelAcceleration": "Enable acceleration for Change (All_Changes) with Directory Services 5136 events mapped to CIM (`object` = DN).",
-  "references": [
+  "dataSources": "Windows Security Event ID 5136 from every Active Directory domain controller, with **DS Access > Audit Directory Service Changes** Success auditing enabled and an explicit SACL on each domain's AdminSDHolder object that audits successful writes to required attributes, including `nTSecurityDescriptor`. Collect Security in XML using Splunk Add-on for Microsoft Windows (Splunkbase 742) into the local `wineventlog` index. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; fields include `Computer`, `EventRecordID`, subject identity/logon ID, `DSName`, `ObjectDN`, `ObjectGUID`, `ObjectClass`, `AttributeLDAPDisplayName`, `AttributeSyntaxOID`, `AttributeValue`, `OperationType`, `OpCorrelationID`, and `AppCorrelationID`.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for XML Security collection/extraction. Splunk Security Content supplies a directly relevant AdminSDHolder 5136 analytic. Enterprise Security is optional; no premium app is required.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'AdminSDHolder Modification'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=5136 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), actor=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), object_dn=trim(ObjectDN), attribute=trim(AttributeLDAPDisplayName), operation=trim(OperationType)\n| where event_code=5136 AND match(object_dn,\"(?i)^CN=AdminSDHolder,CN=System,DC=[^,=]+(?:,DC=[^,=]+)+$\") AND len(OpCorrelationID)>0 AND len(attribute)>0\n| stats min(_time) as first_time max(_time) as last_time values(eval(if(operation=\"%%14675\",AttributeValue,null()))) as old_values values(eval(if(operation=\"%%14674\",AttributeValue,null()))) as new_values values(operation) as operation_types values(EventRecordID) as event_record_ids values(ObjectGUID) as object_guids values(ObjectClass) as object_classes values(AttributeSyntaxOID) as attribute_syntax_oids values(SubjectUserSid) as actor_sids values(DSName) as directory_services values(source) as observed_sources values(sourcetype) as observed_sourcetypes by dest object_dn attribute OpCorrelationID actor SubjectLogonId\n| eval change_priority=if(lower(attribute)=\"ntsecuritydescriptor\",\"critical_acl_template_change\",\"adminsdholder_attribute_change\"), use_case=\"UC-1.2.76\"\n| table first_time last_time dest directory_services object_dn object_guids object_classes attribute attribute_syntax_oids old_values new_values operation_types OpCorrelationID actor actor_sids SubjectLogonId event_record_ids change_priority observed_sources observed_sourcetypes use_case\n| sort 0 -first_time dest attribute OpCorrelationID",
+  "description": "Returns one row per domain controller, AdminSDHolder object, attribute, actor, and 5136 operation correlation in a closed bucket. It pairs Microsoft value-deleted and value-added records, preserves old/new values and event identity, and marks security-descriptor changes as the highest review priority.",
+  "value": "AdminSDHolder is the permissions template that the PDC Emulator's SDProp process applies to protected accounts and groups. An unauthorized template ACL can repeatedly restore privileged access, so precise actor, before/after, domain, and correlation evidence enables rapid containment before propagation or use while avoiding unsupported effective-rights claims.",
+  "implementation": "Enable Directory Service Changes Success auditing on all DCs, configure and verify an AdminSDHolder SACL in every domain, collect Security as XML, and baseline the object GUID/security descriptor. Save the SPL as `windows_ad_adminsdholder_modification`, run every five minutes over the delayed closed bucket, and trigger on every result. Preserve all changes; prioritize `nTSecurityDescriptor`, decode SDDL with approved AD tooling, and require exact expiring post-result exceptions for planned hardening.",
+  "visualization": "Restricted dashboard `Active Directory — AdminSDHolder Integrity`: audit/SACL/DC coverage first; then changes by domain, actor, attribute, destination DC, and priority. Show old/new values, correlation ID, object GUID, record IDs, approved change, and exception state. Drill down to raw 5136 XML, same-time AD object/security descriptor, actor logon/process evidence, PDC Emulator and protected-object review, and later SDProp effects. Do not display a green state when a domain or DC is missing.",
+  "cimModels": [],
+  "schema": "Microsoft-Windows-Security-Auditing Event ID 5136 native XML fields",
+  "dataModelAcceleration": "No accelerated CIM substitute is claimed. A generic Change record does not reliably preserve exact distinguished name, attribute syntax/value, old/new operation pair, correlation ID, actor logon, and event record identity. Any summary must maintain those dimensions plus expected-DC/SACL completeness and pass raw 5136 parity tests.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "DSName",
+    "ObjectDN",
+    "ObjectGUID",
+    "ObjectClass",
+    "AttributeLDAPDisplayName",
+    "AttributeSyntaxOID",
+    "AttributeValue",
+    "OperationType",
+    "OpCorrelationID"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing: Event 5136 directory service object modified",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5136",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Advanced Audit Policy: Audit Directory Service Changes",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-directory-service-changes",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: protected accounts, AdminSDHolder, and SDProp",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/security-best-practices/appendix-c--protected-accounts-and-groups-in-active-directory",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: Windows AD AdminSDHolder ACL Modified",
+      "url": "https://research.splunk.com/endpoint/00d877c3-7b7b-443d-9562-6b231e2abab9/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content data source: Windows Security 5136",
+      "url": "https://research.splunk.com/sources/7ba3737e-231e-455d-824e-cd077749f835/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: WinEventLog XML configuration",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1098: Account Manipulation",
+      "url": "https://attack.mitre.org/techniques/T1098/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "Every row is a real audited modification; false positive means authorized or expected, not nonexistent.\n\n1. **Approved privileged-access hardening** — Identity/security engineers may deliberately change AdminSDHolder ACLs. Require a reviewed design, exact domain/attribute/ACE, before/after SDDL, actor, maintenance window, rollback, and validation across protected objects.\n\n2. **Forest/domain migration or delegation redesign** — A merger, tiering redesign, or recovery exercise can alter template ownership or permissions. Verify project/change record, affected domains, migration tool, operator, intended trustees/rights, and post-change protected-object review.\n\n3. **Break-glass disaster recovery** — Directory recovery may temporarily adjust permissions. Confirm declared incident, offline/isolated recovery procedure, named commander, exact timebox, evidence preservation, and mandatory restoration/review.\n\n4. **Authorized purple-team exercise** — AdminSDHolder persistence simulation should trigger. Preserve the result, tie it to engagement ID and exact ACE, and suppress only duplicate paging after detection.\n\n5. **SACL deployment/test** — Auditing changes or a controlled ACL round-trip in a lab/domain can create expected 5136 pairs. Match the audit-change ticket, target domain, actor, attribute, values, and immediate rollback.\n\n**Suppression mechanism:** apply lookup `windows_adminsdholder_exceptions.csv` after the base result, keyed by exact `object_dn,attribute,actor,OpCorrelationID` or an approved before/after hash, with owner, approver, ticket, inclusive start and exclusive expiry. Reject wildcard domains/actors, attribute-only rules, and open-ended entries. Preserve all base results and never suppress missing DC/SACL coverage, unpaired/malformed events, or unapproved value drift.",
+  "mitreAttack": [
+    "T1098",
+    "TA0003",
+    "TA0004"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Active Directory domain controllers for every governed on-premises domain. Each domain has its own AdminSDHolder object. Entra ID, AD LDS, Samba directories, managed directory services without native 5136/SACL access, and domains/DCs absent from collection require separate controls.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 5136, Directory Service Changes, AdminSDHolder/SDProp guidance, Splunk Security Content and the Windows add-on, and MITRE ATT&CK; audit/SACL deployment, XML fields, SPL, fixtures, SDDL interpretation, DC/domain coverage, alerting, exceptions, propagation, and response were specified but not executed or AD/Windows/Splunk/SOC-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 5136).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable \"Audit Directory Service Changes\" on domain controllers. EventCode 5136=directory object modified. Filter for ObjectDN containing \"AdminSDHolder\". Any modification to this container is highly suspicious — it should only change via approved security hardening. The SDProp process propagates AdminSDHolder ACLs to all protected groups every 60 minutes. Alert immediately with critical priority.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=5136\n  ObjectDN=\"*AdminSDHolder*\"\n| table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**AdminSDHolder Modification** — The AdminSDHolder container controls ACLs on all privileged AD groups. Modifying it grants persistent hidden admin access that survives permission resets.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 5136). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **AdminSDHolder Modification**): table _time, host, SubjectUserName, AttributeLDAPDisplayName, AttributeValue, OperationType\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (Directory Service Change 5136 in `Change`):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  where (like(All_Changes.object,\"%AdminSDHolder%\") OR like(All_Changes.object,\"*CN=AdminSDHolder*\"))\n  by All_Changes.user All_Changes.dest span=1h\n| where count >= 1\n```\n\nEnable **data model acceleration** on `Change` (All_Changes). The `ObjectDN` filter in the primary search is the clearest; align CIM `object` to that DN.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (modifications), Single value (count — target: 0), Alert with SOC escalation.",
-  "grandmaExplanation": "We alert when a hidden but powerful part of the directory that controls who stays an admin is changed, because that is a favorite trick for staying in charge without looking like a normal admin change.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The search is a narrow five-minute Event ID and exact-DN filter. Security-channel volume and broad Directory Service Changes SACL design drive ingest; AdminSDHolder results should be rare.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event ID 5136",
+      "AdminSDHolder SACL and audit-policy coverage"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact change contract\n\nAssign forest/domain, privileged-access, audit-policy, Splunk, SOC, and incident owners. Inventory every domain, domain controller, PDC Emulator, AdminSDHolder DN/GUID, protected group/account scope, baseline owner and security descriptor, and approved delegation. Microsoft places one AdminSDHolder container at `CN=AdminSDHolder,CN=System,DC=...` per domain. The PDC Emulator's SDProp process compares its permissions with protected accounts/groups every 60 minutes by default and resets mismatches. Do not change `AdminSDProtectFrequency` for monitoring.\n\nA 5136 proves an audited attribute value was added/deleted on the DC that processed the write. Microsoft typically emits value-deleted `%%14675` and value-added `%%14674` records with the same OpCorrelationID for a replacement. This search pairs them but reports single-sided operations too. It does not calculate effective permissions, inheritance, ACE order, trustee identity, or replication/propagation.\n\n## Step 1 — Enable auditing, SACL coverage, and XML collection\n\nEnable Success for **Advanced Audit Policy > DS Access > Audit Directory Service Changes** on all DCs and verify with `auditpol /get /subcategory:\"Directory Service Changes\"`. Policy alone is insufficient: configure an explicit SACL on each AdminSDHolder object for successful writes to the required attributes, especially `nTSecurityDescriptor`. Use least-noisy, reviewed audit entries and record their owner, scope, inheritance, and effective date. Protect SACL changes as monitored changes themselves.\n\nCollect `[WinEventLog://Security]` with `renderXml=true` into the local `wineventlog` index through a governed app. Current add-on XML uses `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Confirm all DCs, avoid direct/WEF duplicates, preserve original Computer, and measure latency.\n\nVerify fields with a fixed search for EventCode 5136 and compare EventRecordIDs in Event Viewer **Windows Logs > Security** on the DC that accepted a controlled lab change. Confirm DN, GUID, class, attribute, syntax, value, operation, correlation, and actor. Maintain domain/DC/SACL source health; no event cannot prove integrity when collection or SACL is absent.\n\n## Step 2 — Create and understand the saved search\n\nSave the sidecar SPL as `windows_ad_adminsdholder_modification`, schedule every five minutes, and trigger on every row. The delayed closed bucket reduces late-event misses; tune from measured latency. The regex anchors the exact AdminSDHolder/System/DC hierarchy, preventing names merely containing AdminSDHolder elsewhere.\n\nThe search normalizes destination and actor, requires 5136, exact DN structure, nonempty correlation and attribute, then groups only records sharing destination, object, attribute, correlation, actor, and logon. `stats` retains deleted values as old and added values as new, with record IDs and source evidence. An `nTSecurityDescriptor` change receives critical priority, but any other AdminSDHolder attribute remains reportable. Do not discard value-deleted events; they are needed for before-state reconstruction.\n\nFull SDDL parsing is deliberately outside the base SPL. Use AD-aware, version-controlled tooling and SID/GUID resolution to compare ACEs and effective rights. Splunk Security Content offers richer ACL parsing/lookups, but validate those lookup versions and unresolved SID behavior before adopting. No generic CIM replacement is claimed.\n\n## Step 3 — Validate pairing, SACLs, and directory behavior\n\nReplay the positive fixture with fixed bounds and assert one row, exact old/new values, both operations and record IDs, actor/logon, DN/GUID, source metadata, priority, and use-case ID. Test added-only and deleted-only values, multiple attributes under one correlation, multiple actors, and separate DCs; they must not merge. Test exact DN boundaries, case variation, Unicode values, large SDDL, empty AppCorrelationID, and earliest/latest behavior.\n\nRun every negative control. Remove or narrow the lab SACL and prove source health reports coverage loss rather than asserting no change. In an isolated AD lab, perform a reviewed reversible AdminSDHolder attribute/ACL change, compare raw 5136 XML with `Get-Acl AD:\\'CN=AdminSDHolder,CN=System,...'` or approved AD tooling, and roll back. Never alter production AdminSDHolder merely to test monitoring.\n\nRecord Windows/add-on/Splunk versions, policy/GPO, SACL/baseline hashes, DC, fixture, bounds, expected/actual rows, job ID, and operator. Keep draft until accountable AD and SOC owners approve runtime coverage, SDDL interpretation, alert delivery, recovery, and runbook.\n\n## Step 4 — Operationalize investigation and response\n\nBuild the restricted dashboard in `visualization`; AdminSDHolder SDDL and actor data are privileged. When a row fires: verify raw paired events and source/SACL health; confirm exact domain/object GUID and current descriptor; resolve actor SID/logon and originating administration process/source; compare old/new SDDL and trustee rights with baseline; verify ticket and independent approval; identify PDC Emulator and elapsed time relative to SDProp; inspect protected accounts/groups for propagated ACEs; correlate related directory changes and privileged authentication; and preserve evidence before remediation.\n\nIf unauthorized, use the organization's forest-recovery/identity incident process. Restore an approved descriptor only under AD change control, then find and remove propagated unauthorized permissions, rotate exposed credentials, investigate the actor/source, and validate replication. Do not automatically overwrite AdminSDHolder, delete an ACE, disable an account, trigger SDProp, seize PDC role, or restart AD DS from this alert.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No 5136 after a lab change:** verify Directory Service Changes Success and the AdminSDHolder SACL on the exact domain object; check the Security log on the DC that accepted the write.\n- **Only one operation appears:** additions/deletions can be single-sided, or the paired event may be late/missing. Search by OpCorrelationID across a wider diagnostic window and preserve uncertainty.\n- **AttributeValue is truncated/null:** inspect raw XML, event size/forwarding, add-on parsing, and SACL attribute scope. Do not infer an empty ACL.\n- **DN filter misses a domain:** verify canonical DN escaping and domain inventory. The detector intentionally rejects similarly named objects outside `CN=System`.\n- **Duplicate pairs:** check direct plus WEF paths using Computer/EventRecordID. Correct collection rather than arbitrary deduplication.\n- **Current ACL differs but no event exists:** determine whether it predates retention/auditing, came through an uncollected DC, or SACL coverage failed. Baseline drift and 5136 are complementary.\n- **SID/GUID cannot be resolved:** preserve raw SDDL and query authoritative AD at incident time; never drop an unknown trustee.\n- **Approved change keeps paging:** verify exact before/after and correlation, then use the bounded lookup. Do not allowlist the actor or domain broadly.\n- **SDProp did not propagate:** check PDC Emulator, protected-object membership/adminCount, replication, interval, and current ACL; this detector does not assert propagation.",
+  "grandmaExplanation": "We watch the special directory permissions blueprint used for the most powerful accounts. If someone changes that blueprint, we show exactly who did it and what changed before those permissions can spread.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
