@@ -5,62 +5,96 @@
   "criticality": "medium",
   "difficulty": "advanced",
   "monitoringType": [
+    "Anomaly",
+    "Capacity",
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'System Load Anomalies' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_system_load_anomalies` (UC-1.1.5), SOC dashboard panel \"Linux — System Load Anomalies\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects sustained host-level Linux load relative to configured logical CPU capacity. It does not measure CPU utilization, identify the responsible process, distinguish runnable work from uninterruptible I/O wait, monitor container or cgroup limits, or prove a regulatory control. The primary SPL does not apply maintenance exceptions automatically.",
+  "evidence": "When deployed, retain the `linux_system_load_anomalies_15m` saved-search definition, a versioned snapshot of `linux_load_capacity.csv`, alert history, and dashboard exports showing `_time`, `host`, `logical_cpus`, `ratio_threshold`, `min_load_ratio`, `avg_load_ratio`, and `current_load_ratio`.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.5 positive (System, Load, Anomalies): ingest synthetic events into `index=os` sourcetype='vmstat' where `count` grouped by `host` satisfies `load_ratio` > 1.5 for 'System Load Anomalies'. Validate lookup `server_inventory`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.5 negative (Load Anomalies): ingest benign `os` / `vmstat` events where `host` stays below `load_ratio` > 1.5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'System Load Anomalies'."
+    "positiveScenario": "In three consecutive closed five-minute buckets, index five one-minute `vmstat` events per bucket for `host=load-test-positive` with `loadAvg1mi=6.4`. Add `load-test-positive,4,1.5` to `linux_load_capacity.csv`. The search must return one row with `observed_buckets=3`, `complete_buckets=3`, `breach_buckets=3`, and each bucket's ratio equal to 1.6.",
+    "negativeScenario": "Index the same three-bucket sequence for `host=load-test-negative`, but use `loadAvg1mi=6.4` in two buckets and `loadAvg1mi=5.2` in the third; map the host to four logical CPUs and threshold 1.5. The search must return no row because one bucket's ratio is 1.3 and `breach_buckets` is only 2."
   },
-  "dataSources": "`sourcetype=vmstat` (includes `loadAvg1mi`) or custom `uptime` scripted input Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=vmstat host=*\n| stats latest(loadAvg1mi) as load1 by host\n| lookup server_inventory host OUTPUT cpu_count\n| eval load_ratio = round(load1 / cpu_count, 2)\n| where load_ratio > 1.5\n| sort -load_ratio\n| table host load1 cpu_count load_ratio",
-  "description": "Alerts on 'System Load Anomalies' patterns (UC-1.1.5) sourced from `index=os` sourcetype `vmstat`. Threshold bundle: `load_ratio` > 1.5; aggregation grain: `host`; metrics: `count`. Enrichment path: lookup `server_inventory`.",
-  "value": "UC-1.1.5 gives Linux teams earlier visibility into Load Anomalies through `vmstat` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "The `vmstat` sourcetype provides `loadAvg1mi` (1-minute load average). For CPU core count, use either the `hardware` sourcetype (`CPU_COUNT` field) or a server inventory lookup. Alternatively, create a custom `uptime` scripted input parsing all three load averages. Alert when load ratio exceeds 1.5 for 15+ minutes.",
-  "visualization": "Line chart (load1/5/15 over time), Table of high-load hosts with core count context.",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "`index=os sourcetype=vmstat source=vmstat` events from the `vmstat.sh` scripted input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Required event fields are `_time`, `host`, and the add-on field `loadAvg1mi`. The `os` index is a deployment choice. A local CSV lookup named `linux_load_capacity.csv` must supply `host`, numeric `logical_cpus`, and optional numeric `ratio_threshold`.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), deployed to Linux data-collection forwarders and to the Splunk tiers required for parsing and search-time knowledge.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_nix",
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'System Load Anomalies'. Correlate with apt/yum logs in the same `vmstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `load_ratio` > 1.5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=os sourcetype=vmstat host=* earliest=-20m@m latest=-5m@m\n| eval load1=tonumber(loadAvg1mi)\n| where isnotnull(load1)\n| bin _time span=5m\n| stats avg(load1) as load1 count as samples by _time host\n| lookup linux_load_capacity.csv host OUTPUT logical_cpus ratio_threshold\n| eval logical_cpus=tonumber(logical_cpus), ratio_threshold=coalesce(tonumber(ratio_threshold),1.5)\n| where isnotnull(logical_cpus) AND logical_cpus>0\n| eval load_ratio=load1/logical_cpus, breached=if(load_ratio>=ratio_threshold,1,0), bucket_complete=if(samples>=4,1,0)\n| stats count as observed_buckets sum(bucket_complete) as complete_buckets sum(breached) as breach_buckets min(samples) as min_samples min(load_ratio) as min_load_ratio avg(load_ratio) as avg_load_ratio latest(load_ratio) as current_load_ratio latest(load1) as current_load1 by host logical_cpus ratio_threshold\n| where observed_buckets=3 AND complete_buckets=3 AND breach_buckets=3\n| eval min_load_ratio=round(min_load_ratio,2), avg_load_ratio=round(avg_load_ratio,2), current_load_ratio=round(current_load_ratio,2), current_load1=round(current_load1,2)\n| sort 0 -avg_load_ratio",
+  "description": "Returns one row per Linux host when its one-minute load average, averaged within each of three consecutive five-minute buckets containing at least four samples, is at or above a host-specific ratio of logical CPUs in all three buckets. The default ratio is 1.5, so the alert represents 15 minutes of sustained runnable or uninterruptible work rather than a single sample.",
+  "value": "This signal gives Linux operators time to separate CPU contention from storage or kernel blocking, redistribute work, and correct stale capacity assignments before queueing becomes user-visible latency or an availability incident. Requiring three complete buckets suppresses short compilation and startup bursts.",
+  "implementation": "Deploy Splunkbase 833, enable its existing `vmstat.sh` event input at a 60-second interval, and verify `_time`, `host`, and numeric `loadAvg1mi` before saving the search. Create `linux_load_capacity.csv` from approved inventory with one row per host and current logical CPU count. Schedule the alert every five minutes on five-minute boundaries; tune the default 1.5 ratio by workload class and require all three closed buckets to breach.",
+  "visualization": "Use a table showing `host`, `logical_cpus`, `ratio_threshold`, `min_samples`, `min_load_ratio`, `avg_load_ratio`, and `current_load_ratio`, sorted by average ratio. Add a 24-hour line chart of `loadAvg1mi/logical_cpus` with the host's threshold overlaid, plus separate drilldowns to `sourcetype=cpu`, `sourcetype=iostat`, and `sourcetype=ps`; do not label load ratio as CPU percent.",
+  "cimModels": [
+    "Performance"
+  ],
+  "dataModelAcceleration": "The add-on maps `sourcetype=vmstat` to the Performance model, but CIM Performance 6.4 has no normalized Linux load-average field. Do not substitute `cpu_load_percent` or claim an equivalent accelerated `tstats` search; this detection must retain the source-specific `loadAvg1mi` field.",
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "About the Splunk Add-on for Unix and Linux",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Source types for the Splunk Add-on for Unix and Linux",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Enable data and scripted inputs for the Splunk Add-on for Unix and Linux",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Enabledataandscriptedinputs/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "UNIX and Linux vmstat logs: fields and source type",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/SPL2/ReduceLogSize/index_nix_vmstat_reduction/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk ITSI Operating System Module configurations",
+      "url": "https://help.splunk.com/en/splunk-it-service-intelligence/splunk-it-service-intelligence/reduce-time-to-insights/4.18/operating-system-os-module/operating-system-module-configurations",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux proc_loadavg(5)",
+      "url": "https://man7.org/linux/man-pages/man5/proc_loadavg.5.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Common Information Model: Performance",
+      "url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.4/data-models/performance",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: lookup",
+      "url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/search-commands/lookup",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "1. **Veeam, rsync, or database backup I/O** — Linux load includes tasks in uninterruptible disk-wait state, so a host can breach while aggregate CPU is not saturated. Compare the same window with `sourcetype=iostat`, `waitThreads`, and the backup schedule; suppress only the named backup window after confirming service latency is acceptable.\n\n2. **GCC, Maven, or Gradle build fan-out** — Approved parallel compilation can create more runnable jobs than logical CPUs. Confirm the process owner and build identifier in `sourcetype=ps`; move recurring builds to a worker pool or add an exact-host, time-bound exception rather than suppressing all compiler activity.\n\n3. **systemd package maintenance** — `apt-daily`, `dnf-automatic`, initramfs generation, and service restarts can sustain load during an approved patch window. Match the host and time to the change record and expire the exception when the maintenance window closes.\n\n4. **Kubernetes or Nomad batch placement on a shared host** — A planned batch wave can legitimately consume host capacity while application SLOs remain healthy. Correlate the host with the scheduler job and cgroup telemetry; tune or suppress the named job window, not the whole node.\n\n5. **Stale logical CPU inventory after VM resize** — A vCPU hot-add or hot-remove makes `linux_load_capacity.csv` calculate the wrong ratio. Compare `logical_cpus` with `lscpu -p=CPU,ONLINE` on the host and update the lookup before triage.\n\n**Suppression mechanism:** the primary SPL intentionally has no hidden allow-list. If local policy requires suppression, add a reviewed `linux_capacity_exceptions.csv` lookup keyed by exact `host`, `start_epoch`, and `end_epoch`, filter only rows active at search time, require an owner and reason, and reject wildcard or non-expiring entries.",
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`.\n• Ensure the following data sources are available: `sourcetype=vmstat` (includes `loadAvg1mi`) or custom `uptime` scripted input.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nThe `vmstat` sourcetype provides `loadAvg1mi` (1-minute load average). For CPU core count, use either the `hardware` sourcetype (`CPU_COUNT` field) or a server inventory lookup. Alternatively, create a custom `uptime` scripted input parsing all three load averages. Alert when load ratio exceeds 1.5 for 15+ minutes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=vmstat host=*\n| stats latest(loadAvg1mi) as load1 by host\n| lookup server_inventory host OUTPUT cpu_count\n| eval load_ratio = round(load1 / cpu_count, 2)\n| where load_ratio > 1.5\n| sort -load_ratio\n| table host load1 cpu_count load_ratio\n```\n\nUnderstanding this SPL\n\n**System Load Anomalies** — Load average exceeding CPU core count indicates process queuing. Useful as an early warning for runaway processes or unexpected workloads.\n\nDocumented **Data sources**: `sourcetype=vmstat` (includes `loadAvg1mi`) or custom `uptime` scripted input. **App/TA** (typical add-on context): `Splunk_TA_nix`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: vmstat. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Enriches events using `lookup` (lookup definition + optional OUTPUT fields).\n• `eval` defines or adjusts **load_ratio** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where load_ratio > 1.5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **System Load Anomalies**): table host load1 cpu_count load_ratio\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (load1/5/15 over time), Table of high-load hosts with core count context.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "Load average exceeding CPU core count indicates process queuing — so you find out before users do when something is slowing down or breaking.",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against Splunk and Linux primary sources; no runtime validation or SME sign-off",
+  "detailedImplementation": "## Prerequisites and signal semantics\n\nUse the supported Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Install it on each Linux Universal Forwarder that executes the input, on the search heads that need its knowledge objects, and on the parsing tier required by the deployment topology documented by Splunk. Confirm the chosen add-on release supports the platform and operating-system versions in use; test upgrades outside production because the Splunkbase listing warns that version 6.0 changed default indexes and configuration files.\n\nLinux load average is not CPU utilization. The kernel interface reports the average number of jobs runnable or waiting for disk I/O. Dividing `loadAvg1mi` by online logical CPUs makes hosts comparable, but a high ratio can represent CPU queueing, uninterruptible I/O wait, or both. The ratio threshold in this use case is an operational starting point, not a Linux or Splunk vendor default.\n\nCreate or confirm the event index used for operating-system data. The catalogue uses `index=os`; if the deployment uses another index, change the input and SPL together. Grant the Linux operations search role access to that index without granting broad administrator rights.\n\n## 1. Configure and verify collection\n\nIn the deployment app, copy only the existing `vmstat.sh` stanza from `Splunk_TA_nix/default/inputs.conf` into `Splunk_TA_nix/local/inputs.conf`. Do not copy the complete default file and do not create a replacement collector. Configure the supplied event input as follows, preserving the script path from the installed release:\n\n```ini\n[script://./bin/vmstat.sh]\ninterval = 60\nsourcetype = vmstat\nsource = vmstat\nindex = os\ndisabled = 0\n```\n\nDeploy the app and restart the forwarder as required by Splunk's documented input workflow. On a representative forwarder, inspect the effective stanza with `splunk btool inputs list --debug`; the local stanza must win and the script must be enabled. If collection fails, run the add-on's documented debug form from `Splunk_TA_nix/bin` and inspect `splunkd.log` for `ExecProcessor` permission or command errors.\n\nSearch `index=os sourcetype=vmstat source=vmstat earliest=-10m`. Confirm events arrive approximately every 60 seconds and that `_time`, `host`, and `loadAvg1mi` are present. Convert with `tonumber(loadAvg1mi)` and investigate nulls or the add-on's documented `?` placeholder. Compare the newest value with `/proc/loadavg` or `uptime` on the same host, allowing for collection and forwarding delay. This comparison verifies field semantics during deployment; it was not executed as part of this documentation review.\n\n## 2. Build the capacity lookup\n\nUpload `linux_load_capacity.csv` as a search-app lookup with columns `host,logical_cpus,ratio_threshold`. Use the exact Splunk `host` value as the key. `logical_cpus` is the count of online logical CPUs available to the host, not sockets, physical cores, Kubernetes requests, or a guessed cloud instance size. Populate it from an approved inventory and reconcile a sample against `lscpu -p=CPU,ONLINE`. Set `ratio_threshold` per workload class or leave it empty to use 1.5. After a VM resize, CPU hot-plug, or host rename, update the lookup before trusting the ratio.\n\nRun a completeness check before enabling alerts: compare distinct hosts seen in `sourcetype=vmstat` during the last day with the lookup. Missing, duplicate, zero, or nonnumeric `logical_cpus` values are data-quality failures. The primary search deliberately drops such rows instead of dividing by zero or assigning a misleading default CPU count.\n\n## 3. Save and schedule the search\n\nSave the catalogue SPL as `linux_system_load_anomalies_15m`. Schedule it with cron `*/5 * * * *` so it runs on five-minute boundaries. Its explicit window, `earliest=-20m@m latest=-5m@m`, excludes the still-forming current bucket and covers three closed five-minute buckets. Each bucket averages available one-minute samples; at least four samples are required so one delayed or missing event is tolerated without letting a single point represent five minutes. The final gate requires exactly three observed, complete, and breached buckets.\n\nThe default `ratio_threshold=1.5` means a bucket's average load is at least 150 percent of configured logical CPU count. Require operators to baseline web, database, build, and batch host classes before lowering or raising it. Do not reinterpret 1.5 as 150-percent CPU utilization. Trigger when result count is greater than zero, notify per result, and throttle by `host` for 30 minutes to avoid repeated notifications during one incident. Include all returned fields and a link to the host dashboard.\n\nDo not replace this SPL with a `tstats` query over `Performance.CPU`. The add-on documents `vmstat` as Performance-mapped, but CIM 6.4 defines `cpu_load_percent`, not a normalized Linux load-average field. CPU utilization and load average answer different questions.\n\n## 4. Validate search logic without claiming production execution\n\nFor the positive documentation test, create five one-minute events in each of three closed five-minute buckets for `load-test-positive`, set every `loadAvg1mi` to 6.4, and map the host to four logical CPUs with threshold 1.5. Each bucket ratio is 1.6; the final row must show three observed, three complete, and three breached buckets.\n\nFor the negative test, use 6.4 in two buckets and 5.2 in the third for another four-CPU host. The third ratio is 1.3, so no final row is permitted. Also test an absent lookup row, `logical_cpus=0`, and a bucket with only three samples; all must be omitted and reported by the separate completeness check. These controls were reviewed for logical consistency only. No event was indexed and no saved search was run during this editorial review.\n\n## 5. Dashboard, alert, and runbook\n\nBuild a table of current breaches and a 24-hour line chart of `loadAvg1mi/logical_cpus` with the configured threshold overlaid. Show `min_samples` so operators can assess collection completeness. Label the y-axis `load per logical CPU`, never `% CPU`. Add drilldowns for the same host and time window to `sourcetype=cpu` for utilization and I/O wait, `sourcetype=iostat` for device latency and queueing, and `sourcetype=ps` for process ownership.\n\nThe response runbook first confirms lookup freshness and compares `uptime` or `/proc/loadavg` with the indexed value. Next, determine whether CPU utilization is saturated. If utilization is low while load is high, inspect uninterruptible tasks and storage latency. If utilization is high, identify the runnable process owner and recent deployment or scheduler change. Operators may reschedule work, limit job concurrency, move a workload, or add capacity after owner approval. The alert must not automatically kill processes, reboot a host, or resize infrastructure.\n\nRetain the saved-search configuration, lookup revision, alert history, and dashboard export under the organization's operations-evidence policy. Those artifacts demonstrate configured monitoring and observed results; they do not establish regulatory compliance or production validation.\n\n## 6. Troubleshooting and safe suppression\n\nNo events usually means the add-on is absent, `vmstat.sh` remains disabled, the script lacks execution rights, routing uses another index, or the search role cannot read the index. Events with null `loadAvg1mi` require checking the complete header-and-data event, search-time knowledge deployment, and whether an ingest pipeline removed `loadAvg1mi`; Splunk's vmstat reduction template can explicitly remove that field. Missing results with healthy events usually indicate absent or invalid `linux_load_capacity.csv` rows, fewer than three complete buckets, fewer than four samples in a bucket, or a schedule not aligned to five-minute boundaries.\n\nFor approved maintenance, implement a separate `linux_capacity_exceptions.csv` lookup with exact host, start and end epochs, owner, and reason. Filter only active windows and preserve the original result in alert history. Never use a permanent wildcard exclusion. Review capacity and exception lookups quarterly and after every resize or hostname change.",
+  "grandmaExplanation": "We watch when a Linux server has had more work waiting than it can comfortably handle for fifteen minutes. That gives the team time to find whether the processor, storage, or a scheduled job is causing the slowdown.",
   "prerequisiteUseCases": [
-    "UC-1.1.2"
+    "UC-1.1.1"
   ],
-  "wave": "run"
+  "wave": "walk"
 }
