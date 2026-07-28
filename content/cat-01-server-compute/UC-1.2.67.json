@@ -1,66 +1,140 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.67",
-  "title": "Golden Ticket Detection (TGT Anomalies)",
-  "criticality": "critical",
-  "difficulty": "intermediate",
+  "title": "RC4-Encrypted Kerberos TGT Issuance",
+  "criticality": "high",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Audit",
+    "Configuration"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Golden Ticket Detection (TGT Anomalies)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_golden_ticket_detection_tgt_anomalies` (UC-1.2.67), SOC dashboard panel \"Linux — Golden Ticket Detection (TGT Anomalies)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports successful Microsoft-Windows-Security-Auditing Event ID 4768 records on domain controllers when `TicketEncryptionType` is `0x17` (decimal 23, RC4-HMAC). It does not prove a Golden Ticket, forged TGT, stolen krbtgt key, Kerberoasting, downgrade attack, password compromise, ticket lifetime, subsequent service access, or malicious intent. A forged offline TGT can be used without a new 4768, and Event 4768 does not expose the issued ticket lifetime. It excludes failures, non-RC4 ticket types, 4769 service tickets, and records missing DC identity, EventRecordID, account, or ticket type. The 15-minute interval, five-minute close delay, and any account/asset severity policy are local choices. Older/unpatched domain controllers may lack newer encryption-support fields; missing DC feeds, duplicate WEF/direct routes, late events, and schema drift are source-health conditions. This UC does not disable RC4, reset passwords, rotate krbtgt, change domain policy, or attest Kerberos hardening.",
+  "evidence": "Retain the version-controlled `windows_kerberos_rc4_tgt_issuance` search, ACL, schedule and result history; each result with DC/EventRecordID, account/domain/SID, client address/port, pre-authentication type, ticket options, status, ticket/session/pre-authentication encryption types, advertised and account/DC supported types when present, source metadata and index time; raw 4768 XML; effective Audit Kerberos Authentication Service policy; DC OS/update inventory and Security-source health; account key/password-age and encryption-support context; approved compatibility exceptions; alert delivery, remediation ownership and dated positive, negative, boundary, duplicate, delay, field-version and upgrade tests. This documentation review issued no ticket, ran no SPL, changed no account/policy, and produced no runtime evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.67 positive (Golden, Ticket, Detection, (TGT, Anomalies)): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4768 where `count` grouped by `TargetUserName`, `IpAddress` satisfies detection threshold for 'Golden Ticket Detection (TGT Anomalies)'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.67 negative ((TGT Anomalies)): ingest benign `wineventlog` / `WinEventLog:Security` events where `TargetUserName`, `IpAddress` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'Golden Ticket Detection (TGT Anomalies)'."
+    "positiveScenario": "In an isolated index under absolute closed bounds, ingest one XML Security Event 4768 with provider `Microsoft-Windows-Security-Auditing`, DC `dc-lab-01`, EventRecordID `67001`, Status `0x0`, TicketEncryptionType `0x17`, TargetDomainName `EXAMPLE.LOCAL`, TargetUserName `legacy-svc`, TargetSid `S-1-5-21-1-2-3-1101`, and IpAddress `::ffff:10.20.30.40`. Expect exactly one row with `ticket_encryption=rc4_hmac`, normalized `client_ip=10.20.30.40`, and all named identity/context fields. Repeat with numeric `23` and expect the same classification.",
+    "negativeScenario": "Expect zero rows for each isolated variant: TicketEncryptionType `0x11` or `0x12`; Status/FailureCode nonzero; EventCode 4769; provider mismatch; missing DC, EventRecordID, account, or encryption type; wrong source/source type; event in the newest excluded five minutes; and duplicate copies of the same DC/EventRecordID. Verify uppercase `0X17` and account/IP normalization. Expected-DC health must still report missing feeds, duplicates, unsupported field versions, and excessive delay."
   },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4768, 4769) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4768 TicketEncryptionType=0x17\n| stats count by TargetUserName, IpAddress",
-  "description": "Detects UC-1.2.67 — Golden, Ticket, Detection, (TGT, Anomalies) — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `TargetUserName`, `IpAddress`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: (TGT Anomalies). Purpose-built for 'Golden Ticket Detection (TGT Anomalies)' in Linux workflows.",
-  "value": "For 'Golden Ticket Detection (TGT Anomalies)', UC-1.2.67 converts `activity` on `WinEventLog:Security` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Golden tickets typically use RC4 encryption (0x17) with abnormally long lifetimes (default Kerberos max is 10 hours). EventCode 4768=TGT request, 4769=TGS request. Detect TGS requests referencing TGTs older than 10 hours, or TGT requests with RC4 in environments that enforce AES. Also monitor for EventCode 4769 with services accessed that the user normally doesn't touch. Requires KRBTGT password rotation as remediation.",
-  "visualization": "Table (anomalous ticket requests), Timeline, Single value (RC4 TGT count), Alert.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where (Authentication.signature=\"0x17\" OR Authentication.signature=\"23\")\n  by Authentication.user Authentication.src span=1h\n| where count > 0",
-  "dataModelAcceleration": "Enable acceleration for Authentication (Authentication dataset, Kerberos/TGT-tagged events).",
-  "references": [
+  "dataSources": "Native Windows Security Event ID 4768 from each Active Directory domain controller/KDC. Enable Success auditing for **Account Logon > Audit Kerberos Authentication Service** and collect Security as XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) to deployment-choice `index=wineventlog`, exact `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Required: `_time, _indextime, Computer|dest|host, EventCode|EventID, Provider_Name|ProviderName|SourceName, EventRecordID|RecordNumber, TargetUserName, TargetDomainName, TicketEncryptionType, Status|FailureCode`; preserve TargetSid, IpAddress, IpPort, TicketOptions, PreAuthType and newer session/pre-auth/account/DC/advertised encryption fields when present.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) for Security XML collection and field knowledge; a restricted local content app owns the raw analytic, DC source health, fixtures, dashboard and `windows_kerberos_rc4_tgt_exceptions.csv`.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `TargetUserName` metrics for 'Golden Ticket Detection (TGT Anomalies)'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `TargetUserName`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `TargetUserName` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `TargetUserName` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `TargetUserName`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4768 earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), provider=lower(trim(coalesce(Provider_Name,ProviderName,SourceName))), dc=lower(trim(coalesce(Computer,dest,host))), event_record_id=trim(tostring(coalesce(EventRecordID,RecordNumber))), target_user=lower(trim(TargetUserName)), target_domain=lower(trim(coalesce(TargetDomainName,\"unknown\"))), ticket_type_raw=lower(trim(tostring(TicketEncryptionType))), result_raw=lower(trim(tostring(coalesce(Status,FailureCode,\"0x0\")))), client_ip=lower(replace(trim(coalesce(IpAddress,\"unknown\")),\"^::ffff:\",\"\"))\n| eval ticket_type_decimal=case(ticket_type_raw=\"0x17\",23,match(ticket_type_raw,\"^23$\"),23,true(),tonumber(ticket_type_raw)), result_decimal=case(in(result_raw,\"0\",\"0x0\",\"0x00000000\"),0,true(),tonumber(result_raw))\n| where event_id=4768 AND provider=\"microsoft-windows-security-auditing\" AND result_decimal=0 AND ticket_type_decimal=23 AND len(dc)>0 AND len(event_record_id)>0 AND len(target_user)>0\n| stats count AS duplicate_count min(_time) AS event_time max(_indextime) AS last_indextime values(TargetSid) AS target_sids values(IpPort) AS client_ports values(TicketOptions) AS ticket_options values(PreAuthType) AS preauth_types values(SessionKeyEncryptionType) AS session_key_types values(PreAuthEncryptionType) AS preauth_encryption_types values(AccountSupportedEncryptionTypes) AS account_supported_types values(DCSupportedEncryptionTypes) AS dc_supported_types values(ClientAdvertizedEncryptionTypes) AS client_advertised_types values(source) AS observed_sources values(sourcetype) AS observed_sourcetypes by dc event_record_id target_domain target_user client_ip ticket_type_raw result_raw\n| where duplicate_count=1\n| eval ticket_encryption=\"rc4_hmac\", ticket_encryption_type_hex=\"0x17\", aggregation_window_minutes=15, close_delay_minutes=5, analytic_interpretation=\"successful RC4-HMAC TGT issuance; investigate compatibility or downgrade context; not proof of a Golden Ticket\", use_case=\"UC-1.2.67\"\n| table event_time dc event_record_id target_domain target_user target_sids client_ip client_ports ticket_encryption ticket_encryption_type_hex ticket_type_raw result_raw ticket_options preauth_types session_key_types preauth_encryption_types account_supported_types dc_supported_types client_advertised_types observed_sources observed_sourcetypes last_indextime aggregation_window_minutes close_delay_minutes analytic_interpretation use_case\n| sort 0 -event_time dc target_domain target_user",
+  "description": "Returns one unique domain-controller/EventRecordID row for every successful 4768 in a closed 15-minute interval whose issued TGT encryption type is RC4-HMAC (`0x17`/23). It preserves account, client and available encryption-capability context so teams can investigate legacy dependency or downgrade conditions without labelling the event a forged ticket.",
+  "value": "RC4 TGT issuance identifies accounts and clients that can obstruct Kerberos cryptographic hardening and may increase exposure to credential attacks. An exact inventory supports compatibility remediation, exception expiry and prioritized identity investigation while preserving the crucial distinction between weak ticket encryption and proof of ticket forgery.",
+  "implementation": "Enable Kerberos Authentication Service Success auditing on every DC, collect complete Security XML, and verify 4768 field versions. Save `windows_kerberos_rc4_tgt_issuance`, run every 15 minutes over the delayed slice, and alert on any unique RC4 result with identity/asset severity. Correlate account key age/support, client advertised types, DC policy, 4769, logons and endpoint activity; follow Microsoft's audit-and-remediate process rather than automatically rotating credentials or disabling RC4.",
+  "visualization": "Restricted `Windows — RC4 Kerberos TGT Issuance` dashboard: expected-DC, duplicate and field-version health first; RC4 TGTs by account, client, domain and DC; trend and exception-expiry panels; and a table matching SPL output. Drill down to raw 4768, account password/key age and supported encryption flags, client/DC OS and update state, related 4769/4624 activity, asset/identity criticality and remediation ticket. Label “RC4 issuance—not Golden Ticket proof.”",
+  "cimModels": [],
+  "schema": "Microsoft-Windows-Security-Auditing Event ID 4768 native XML",
+  "dataModelAcceleration": "Generic Authentication acceleration does not reliably preserve Event 4768 ticket encryption, status, DC/EventRecordID identity, pre-authentication and newer supported/advertised encryption fields. No `cimSpl` is claimed. A purpose-built summary may be used only after raw parity proves exact success, RC4, event-identity, closed-window and source-coverage semantics.",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "source",
+    "sourcetype",
+    "Computer",
+    "dest",
+    "host",
+    "EventCode",
+    "EventID",
+    "Provider_Name",
+    "ProviderName",
+    "SourceName",
+    "EventRecordID",
+    "RecordNumber",
+    "TargetUserName",
+    "TargetDomainName",
+    "TargetSid",
+    "TicketEncryptionType",
+    "Status",
+    "FailureCode",
+    "IpAddress",
+    "IpPort",
+    "TicketOptions",
+    "PreAuthType",
+    "SessionKeyEncryptionType",
+    "PreAuthEncryptionType",
+    "AccountSupportedEncryptionTypes",
+    "DCSupportedEncryptionTypes",
+    "ClientAdvertizedEncryptionTypes"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing Event 4768: TGT request fields and encryption types",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4768",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: detect and remediate RC4 usage in Kerberos",
+      "url": "https://learn.microsoft.com/en-us/windows-server/security/kerberos/detect-remediate-rc4-kerberos",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Audit Kerberos Authentication Service",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-kerberos-authentication-service",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1558.001: Golden Ticket behavior and data sources",
+      "url": "https://attack.mitre.org/techniques/T1558/001/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: XML collection configuration",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: source types and CIM",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is genuine successful RC4 TGT issuance; benign explanations are compatibility or approved transition states.\n\n1. **Legacy Windows, appliance, Java, Linux or MIT Kerberos client** — the client/account may lack usable AES keys or advertise only older types. Validate client build/library, account attributes, password/key generation date, advertised types and packet/lab evidence.\n2. **Service or computer account without AES keys** — an account created or last reset under legacy conditions can rely on RC4. Verify `msDS-SupportedEncryptionTypes`, password reset history, SPN/service owner, tested AES readiness and remediation plan.\n3. **Trust, cross-realm or third-party KDC dependency** — interoperability constraints may select RC4. Match trust/relation, realm, client, account, negotiated capabilities, vendor support and approved risk decision.\n4. **Unpatched or mixed-version domain controllers** — newer diagnostic fields may be absent and policy behavior can differ. Compare DC OS/update inventory, effective Kerberos policy and event schema before attributing cause.\n5. **Approved migration or compatibility test** — hardening teams may intentionally produce RC4 tickets to prove remaining dependencies. Match change/test ID, exact accounts/clients/DCs, UTC bounds and expected result; preserve evidence.\n6. **Duplicate direct plus WEF collection** — repeated DC/EventRecordID indicates routing error, not multiple TGTs. Repair authority and preserve the health finding.\n\n**Safe suppression:** apply lookup windows_kerberos_rc4_tgt_exceptions.csv after the base result. Require exact `target_domain,target_user`, optional exact client/DC constraints, exception ID, numeric inclusive `valid_from_epoch`, exclusive `valid_until_epoch`, owner, approver, remediation ticket, compatibility evidence and next review. Reject domain-wide, all-service-account or open-ended rules. Suppress notification only; retain RC4 results and never suppress DC/source/schema health.",
+  "mitreAttack": [],
+  "detectionType": "Policy",
+  "securityDomain": "identity",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Active Directory domain controllers/KDCs generating Security Event 4768 with complete XML fields. Entra-only identity, non-Windows KDC logs, DCs without the audit subcategory, and uncollected or incompatible event schemas require separate analytics.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only editorial review against primary Microsoft Event 4768, Kerberos auditing and RC4 remediation guidance, MITRE Golden Ticket semantics, and primary Splunk Windows XML documentation; audit coverage, field versions, SPL, fixtures, source health, dashboard, exceptions and remediation were specified but not executed or AD/Kerberos/Microsoft/Splunk-SME signed",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4768, 4769).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nGolden tickets typically use RC4 encryption (0x17) with abnormally long lifetimes (default Kerberos max is 10 hours). EventCode 4768=TGT request, 4769=TGS request. Detect TGS requests referencing TGTs older than 10 hours, or TGT requests with RC4 in environments that enforce AES. Also monitor for EventCode 4769 with services accessed that the user normally doesn't touch. Requires KRBTGT password rotation as remediation.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4768 TicketEncryptionType=0x17\n| stats count by TargetUserName, IpAddress\n```\n\nUnderstanding this SPL\n\n**Golden Ticket Detection (TGT Anomalies)** — Golden tickets are forged Kerberos TGTs that grant domain-wide access. Detecting anomalous TGT properties catches this catastrophic compromise.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4768, 4769). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by TargetUserName, IpAddress** so each row reflects one combination of those dimensions.\n\nOptional CIM / accelerated variant (maps `TicketEncryptionType=0x17` to `Authentication.signature` when Windows Security events are CIM-tagged):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where (Authentication.signature=\"0x17\" OR Authentication.signature=\"23\")\n  by Authentication.user Authentication.src span=1h\n| where count > 0\n```\n\nEnable **data model acceleration** on `Authentication`. If signatures are empty, keep the primary `WinEventLog:Security` search—field aliasing for `TicketEncryptionType` may be required.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (anomalous ticket requests), Timeline, Single value (RC4 TGT count), Alert.",
-  "grandmaExplanation": "We watch for strange Kerberos login-ticket patterns on Windows that can mean someone forged a 'golden ticket' and could act as anyone in the directory, so the team can respond while damage is still limited.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "low",
+    "search_load_notes": "4768 is generated on KDCs and can be high volume in large domains. The search uses index/source/Event ID predicates, scans one 15-minute slice and aggregates by DC record identity. Measure DC rate, WEF delay and retention.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "domain controller Security Event ID 4768"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Establish the Kerberos contract\n\nAssign AD/Kerberos, Windows audit, endpoint, Splunk collection/content, identity SOC, incident-response and exception owners. Inventory every writable/read-only DC with domain/site, OS build, cumulative update, KDC role, Security forwarding path, expected volume and enable/retire time. Restrict Security-event and account-attribute access through a least-privilege Splunk role.\n\nMicrosoft defines 4768 as a Kerberos authentication ticket (TGT) request event generated on the KDC. `TicketEncryptionType=0x17` means RC4-HMAC for the issued TGT; decimal 23 is equivalent. This analytic requires a success result. RC4 is a compatibility/hardening signal, not proof that a TGT was forged. An offline Golden Ticket can bypass a fresh 4768, and 4768 does not expose ticket lifetime. Do not advertise this as comprehensive T1558.001 coverage.\n\nNew supported/advertised/session/pre-authentication encryption fields depend on DC OS and updates. Inventory exact field presence before writing policy that relies on them. The primary row requires only native ticket type and success; optional fields explain why RC4 may have been selected.\n\n## Enable and collect complete Security XML\n\nEnable Success under `Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Audit Policies > Account Logon > Audit Kerberos Authentication Service`. Verify effective policy with `auditpol /get /subcategory:\"Kerberos Authentication Service\"` on each DC and detect policy drift.\n\nDeploy Splunk Add-on for Microsoft Windows from Splunkbase 742 and an XML Security input in `inputs.conf`. Route to local `index=wineventlog`; preserve `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, original DC Computer and EventRecordID. Size Security retention/forwarder queues and avoid dual direct/WEF authority.\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4768 earliest=-30m\n| table _time _indextime Computer EventRecordID Provider_Name TargetUserName TargetDomainName TargetSid Status FailureCode TicketEncryptionType IpAddress IpPort TicketOptions PreAuthType SessionKeyEncryptionType PreAuthEncryptionType AccountSupportedEncryptionTypes DCSupportedEncryptionTypes ClientAdvertizedEncryptionTypes\n| head 50\n```\n\nCompare raw XML to Event Viewer and Microsoft field documentation. Confirm whether success is exposed as Status or FailureCode in the installed extraction. Test 0x17 and decimal normalization, IPv4-mapped IPv6, local casing, machine accounts and missing optional fields.\n\n## Monitor source and schema health\n\nBuild expected-DC health for absent/stale Security events, missing 4768 baseline, excessive `_indextime-_time`, audit-policy drift, channel clear/full, forwarder/WEF backlog, unknown DC, missing provider/record/account/type/status, future timestamps, extraction changes and duplicate DC/EventRecordID. EventRecordID is channel-local and may reset after clear; DC and bounded time remain part of identity.\n\nTrack optional encryption-field population by DC OS/update. A blank field on an older schema is not evidence that an account lacks AES. Maintain a separate inventory for account password/key age, `msDS-SupportedEncryptionTypes`, client advertised types and DC policy; access it under AD change controls.\n\n## Save and interpret the analytic\n\nSave as `windows_kerberos_rc4_tgt_issuance`, schedule every 15 minutes, trigger when results exceed zero, and throttle by exact account/client according to response policy. The `earliest=-20m@m latest=-5m@m` slice closes one 15-minute window after five minutes for delivery. Measure p99 WEF delay and adjust without overlapping windows.\n\nThe SPL validates provider/ID, normalizes DC/account/domain/client, converts `0x17` or `23`, and requires a zero result. The first aggregation proves one DC/EventRecordID and retains native fields. Duplicate records are excluded from alert rows and raised by health. Every output is one successful RC4 TGT issuance—not one unique account and not an attack count.\n\nNo CIM query is claimed. A summary may optimize only after it preserves ticket type, result, native identity, optional capabilities and raw parity. Do not substitute a generic Authentication signature without proving mapping.\n\n## Test and operationalize\n\nReplay the positive 0x17 and decimal-23 fixtures and assert every output field. Run each negative independently: AES types, nonzero result, 4769, wrong provider/source, missing keys, newest delay, duplicates and boundaries. Test uppercase hex, IPv4/IPv6, machine/trust accounts, long names and DC field-version differences. Confirm source-health findings separately.\n\nIn an isolated AD lab, use a purpose-built legacy account/client configuration approved by the AD owner to request an RC4 TGT, then compare KDC XML, `klist`, account attributes and SPL. Restore the test account. Do not weaken production Kerberos merely to test. Measure event volume, runtime, dashboard ACLs, alert delivery and exception expiry.\n\nAnalysts verify raw success/type/identity and DC coverage, then inspect account privilege/key age/support, client advertised types and OS/library, DC policy/update, trust/cross-realm context, 4769/4624 activity, source endpoint behavior and approved hardening work. Route compatibility debt to the service owner and suspicious downgrade context to identity response. Never automatically disable RC4, reset a production service account or rotate krbtgt from this row.\n\nApply lookup windows_kerberos_rc4_tgt_exceptions.csv after aggregation. Preserve base results and source health. Review exceptions and RC4 counts weekly until migration closes.\n\n## Troubleshoot\n\n- No 4768: verify effective Kerberos Authentication Service audit, DC Security input, permissions, routing and retention.\n- `TicketEncryptionType` absent: compare raw XML, DC update/schema and add-on extraction; do not infer RC4 from PreAuthType.\n- Status field mismatch: inspect XML and normalize the actual success field; never treat failures as issued tickets.\n- Unexpected RC4: check account AES keys/password age, supported types, client advertised types, trust and KDC defaults before declaring downgrade.\n- Expected Golden Ticket absent: this rule is not a Golden Ticket detector; forged tickets may not request a new TGT.\n- Duplicate rows: repair direct/WEF authority using DC/EventRecordID.\n- Raw/CIM mismatch: keep raw XML authoritative until mapping, constraints and acceleration lag pass parity.",
+  "grandmaExplanation": "We flag when the Windows domain issues a login ticket using an older RC4 encryption method. That helps teams remove old compatibility needs, but the event alone does not mean someone forged a Golden Ticket.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }
