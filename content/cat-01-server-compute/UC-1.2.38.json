@@ -1,67 +1,144 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.38",
-  "title": "AD Object Deletion Monitoring",
+  "title": "Active Directory Object Deletions (Event 5141)",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
-  ],
-  "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'AD Object Deletion Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_ad_object_deletion_monitoring` (UC-1.2.38), SOC dashboard panel \"Linux — AD Object Deletion Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "controlTest": {
-    "positiveScenario": "UC-1.2.38 positive (Object, Deletion, Monitoring): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4726 where `count` grouped by `entity` satisfies detection threshold for 'AD Object Deletion Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.38 negative (Deletion Monitoring): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'AD Object Deletion Monitoring'."
-  },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4726, 4730, 4743, 5141) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\"\n  EventCode IN (4726, 4730, 4743, 5141)\n| eval object_type=case(EventCode=4726,\"User deleted\",EventCode=4730,\"Group deleted\",EventCode=4743,\"Computer deleted\",EventCode=5141,\"AD object deleted\")\n| table _time, host, object_type, SubjectUserName, TargetUserName, ObjectDN\n| sort -_time",
-  "description": "Detects UC-1.2.38 for Object, Deletion, Monitoring over `index=wineventlog` sourcetype `WinEventLog:Security` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on Deletion Monitoring indicators. Supports repeatable linux triage for 'AD Object Deletion Monitoring'.",
-  "value": "For 'AD Object Deletion Monitoring', UC-1.2.38 converts `activity` on `WinEventLog:Security` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Enable DS Object Access auditing on domain controllers. EventCode 5141 catches all AD object deletions including OUs. 4726/4730/4743 catch specific account/group/computer deletions. Alert on OU deletions immediately (mass impact). Track deletion volume per admin — spikes indicate accidental bulk operations or insider threats. Ensure AD Recycle Bin is enabled.",
-  "visualization": "Table (deleted objects), Timeline, Bar chart (deletions by admin), Single value (OU deletions — target: 0).",
-  "cimModels": [
-    "Change.All_Changes",
+    "Security",
+    "Audit",
     "Change"
   ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1h\n| where count>0",
-  "dataModelAcceleration": "Object deletion 47xx to `All_Changes`; align `object` with AD class fields when modeled.",
-  "references": [
+  "splunkPillar": "Security",
+  "exclusions": "This rule reports every collected Microsoft Security Event ID 5141, which records deletion of an Active Directory object covered by a matching Delete SACL. It does not cover objects outside SACL scope, audit-policy or collection gaps, local/non-AD accounts, Entra ID objects, object modifications/moves, failed delete attempts, or account-management events such as 4726/4730/4734/4743/4758. It does not deduplicate those companion events or prove the deletion was malicious, destructive, permanent, or successfully restored. Replicated delete behavior and recovery state require AD evidence. No ATT&CK technique, regulatory assurance, or runtime validation is inferred from a generic deletion.",
+  "evidence": "After deployment, retain the version-controlled `windows_ad_object_deletion_5141` saved search and ACL; schedule/job/alert history; each row with domain controller, subject SID/account/logon ID, directory name/type, object DN/GUID/class, raw TreeDelete, correlation IDs, EventRecordID, source, and source type; matching raw 5141 XML; effective Audit Directory Service Changes policy and Delete SACL coverage; AD Recycle Bin/backup and recovery evidence; dated controls; alert delivery; analyst disposition; approved change; and bounded exception. This documentation-only review generated no deletion, Windows event, search job, restoration, or production evidence.",
+  "controlTest": {
+    "positiveScenario": "In an isolated test index and fixed time range, replay one XML Security record with `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, `EventCode=5141`, `Computer=DC01.example`, `EventRecordID=38001`, `SubjectUserSid=S-1-5-21-100-200-300-1105`, `SubjectUserName=admin1`, `SubjectDomainName=EXAMPLE`, `SubjectLogonId=0x3801`, `DSName=example.com`, `DSType=%%14676`, `ObjectDN=OU=LabToDelete,DC=example,DC=com`, `ObjectGUID={38000000-0000-0000-0000-000000000001}`, `ObjectClass=organizationalUnit`, `TreeDelete=%%14679`, `OpCorrelationID={38000000-0000-0000-0000-000000000002}`, and `AppCorrelationID=-`. Expect exactly one row preserving every value and endpoint `dc01.example`. Documentation review checks logic only; no deletion or replay was performed.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: account deletion Event 4726; directory modification 5136; creation 5137; undelete 5138; move 5139; Event 5141 under System source; Classic source type; malformed event code; 5141 with empty endpoint; an event at or after the exclusive latest boundary; and an event outside the closed hour. Valid 5141 rows for classes `user`, `group`, and `groupPolicyContainer` must each return even when TreeDelete is blank, proving this base rule is not narrowed to one class or subtree mode."
+  },
+  "dataSources": "Microsoft-Windows-Security-Auditing Event ID 5141 from every Active Directory domain controller's Security channel, collected in XML by Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Security`. Required fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `DSName`, `DSType`, `ObjectDN`, `ObjectGUID`, `ObjectClass`, `TreeDelete`, `OpCorrelationID`, and `AppCorrelationID`. Success Audit Directory Service Changes plus Delete SACL coverage is required.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for Security XML collection and field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Splunk Enterprise Security is optional for asset/identity context.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'AD Object Deletion Monitoring'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=5141 earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), domain_controller=lower(trim(coalesce(dest,Computer,host))), subject_account=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), object_dn=trim(ObjectDN), object_guid=upper(trim(ObjectGUID)), object_class=lower(trim(ObjectClass)), tree_delete_raw=trim(TreeDelete)\n| where event_code=5141 AND len(domain_controller)>0\n| eval detection=\"Active Directory object deleted\"\n| table _time domain_controller subject_account SubjectUserSid SubjectLogonId DSName DSType object_dn object_guid object_class tree_delete_raw OpCorrelationID AppCorrelationID EventRecordID detection source sourcetype\n| sort 0 -_time domain_controller object_class object_dn",
+  "description": "Returns one row for every collected Active Directory Event 5141 in the delayed closed hour, at deleted-object event grain. Each row preserves the requesting subject token, directory, object DN/GUID/class, subtree-delete token, operation correlation, domain controller, and Windows record identity.",
+  "value": "Unexpected deletion of users, groups, computers, organizational units, policies, or service objects can remove access, break dependencies, weaken controls, or disrupt an enterprise. Immediate, attributable evidence helps owners validate the change, halt a bulk operation, recover objects correctly, and investigate malicious or accidental impact.",
+  "implementation": "Enable Success Audit Directory Service Changes and deploy risk-based Delete SACLs across each naming context, then collect Security XML from all domain controllers with Splunk Add-on for Microsoft Windows 10.0.1. Validate 5141 coverage and fields before saving `windows_ad_object_deletion_5141`. Run hourly over `-70m@m` to `-10m@m` and review every row; prioritize critical classes/DNs and tree deletes through post-search enrichment without hiding the base event.",
+  "visualization": "On a restricted directory-change dashboard, place domain-controller Security-source and Delete-SACL coverage first. Add counts by class, subject, naming context, and DC; a timeline; a tree-delete indicator; and a table with object DN/GUID/class, subject SID/account/logon ID, correlation ID, EventRecordID, owner, change ticket, recovery status, and disposition. Drill down to raw XML, same-correlation 5136-5139 records, account-management events, AD Recycle Bin state, GPO/file-system evidence, and authorized change details.",
+  "cimModels": [
+    "Change"
+  ],
+  "schema": "Microsoft Security Event 5141 native XML fields with optional high-level Splunk CIM Change normalization",
+  "dataModelAcceleration": "A deployment may normalize deletion events into Change, but no `cimSpl` is supplied because native ObjectDN, ObjectGUID, ObjectClass, TreeDelete, SubjectLogonId, OpCorrelationID, and EventRecordID are required. Generic Change.All_Changes can mix unrelated changes and cannot prove Delete-SACL coverage. If a CIM panel is added, filter exact event ID/action and prove fixed-window row/field parity and acceleration freshness against raw XML.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "DSName",
+    "DSType",
+    "ObjectDN",
+    "ObjectGUID",
+    "ObjectClass",
+    "TreeDelete",
+    "OpCorrelationID",
+    "AppCorrelationID"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing Event 5141: a directory service object was deleted",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5141",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Audit Directory Service Changes policy, SACL behavior, and event list",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-directory-service-changes",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft MS-ADTS tree-delete operation",
+      "url": "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/12616f59-c05d-4b4e-8026-2a65db152342",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: Active Directory Recycle Bin step-by-step guide",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/adac/active-directory-recycle-bin",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK Active Directory Object Deletion data component DC0068",
+      "url": "https://attack.mitre.org/datacomponents/DC0068/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content data source: Windows Security 5141",
+      "url": "https://research.splunk.com/sources/eafb35fa-f034-4be3-8508-d9173a73c0a1/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: Windows AD Short Lived Server Object",
+      "url": "https://research.splunk.com/endpoint/193769d3-1e33-43a9-970e-ad4a88256cdb/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a genuine audited deletion. “False positive” means the deletion is authorized or expected for the security workflow, not that it did not occur.\n\n1. **Approved user/computer deprovisioning** — HR offboarding, stale-device cleanup, or identity lifecycle automation can delete objects. Match immutable object GUID, lifecycle request, authoritative owner, workflow/job ID, subject/service SID, exact UTC window, retention hold, and recovery plan. Do not exempt all HR or automation accounts.\n\n2. **Group or organizational-unit restructuring** — AD engineering may delete empty groups/OUs during a governed redesign. Verify migration manifest, member/object count before deletion, delegated owner, replication completion, ticket, and rollback export. Tree-delete operations require heightened review even in a change window.\n\n3. **Group Policy retirement** — Removing a GPO deletes its directory `groupPolicyContainer` and may involve SYSVOL cleanup. Match GPO GUID/display-name inventory, policy owner, approval, unlink sequence, backups, DC replication, and file-system evidence. Do not suppress every deletion under `CN=Policies`.\n\n4. **Ephemeral lab, VDI, cluster, or application objects** — Automated environments may create and remove computer, service, DNS-integrated, or configuration objects. Confirm approved OU/naming-context, automation identity, object naming rule, job/run ID, expected lifetime, and source host. Use exact bounded lifecycle rules, not wildcard class suppression.\n\n5. **Domain migration, consolidation, or disaster-recovery exercise** — Bulk cleanup can create many 5141 events. Validate signed manifest of GUIDs/DNs/classes, operator, source tooling, rate, maintenance window, backups, and post-change reconciliation. Stop if observed objects exceed the manifest.\n\n6. **Purple-team destructive-impact or DCShadow test** — An approved simulation may delete users, policies, or short-lived server objects. Match engagement ID, target GUID/DN, operator, exact time, expected companion events, and restoration. Preserve first alerts as control evidence and investigate any out-of-scope object.\n\n**Safe suppression mechanism:** retain the base event. In a notification wrapper, use a governed `ad_object_deletion_exceptions` lookup keyed on exact ObjectGUID, object DN/class or approved manifest ID, immutable SubjectUserSid, operation/change ID, `valid_from_epoch`, `valid_until_epoch`, owner, and ticket. Suppress notification only when all required values match. Reject class-wide, OU-wide without manifests, administrator-only, tree-delete-wide, and open-ended entries. Review exceptions after directory topology, lifecycle tooling, or delegated-right changes.",
+  "mitreAttack": [
+    "N/A (a generic AD deletion event does not establish adversarial data destruction or account-access removal)"
+  ],
+  "detectionType": "Baseline",
+  "securityDomain": "identity",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Active Directory Domain Services controllers running Windows Server 2008 or later and generating Event 5141 for SACL-covered objects. Include all naming-context replicas in scope. WEF/WEC must preserve original Computer, EventRecordID, object/correlation fields, and event time while avoiding duplicate direct collection.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 5141, Directory Service Changes, tree-delete and Recycle Bin documentation, Splunk Add-on/Security Content, and MITRE data components; audit/SACL coverage, XML fixtures, deletions, SPL, restoration, alert delivery, CIM parity, suppression, and response not executed or AD/SOC SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4726, 4730, 4743, 5141).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable DS Object Access auditing on domain controllers. EventCode 5141 catches all AD object deletions including OUs. 4726/4730/4743 catch specific account/group/computer deletions. Alert on OU deletions immediately (mass impact). Track deletion volume per admin — spikes indicate accidental bulk operations or insider threats. Ensure AD Recycle Bin is enabled.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\"\n  EventCode IN (4726, 4730, 4743, 5141)\n| eval object_type=case(EventCode=4726,\"User deleted\",EventCode=4730,\"Group deleted\",EventCode=4743,\"Computer deleted\",EventCode=5141,\"AD object deleted\")\n| table _time, host, object_type, SubjectUserName, TargetUserName, ObjectDN\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**AD Object Deletion Monitoring** — Accidental or malicious deletion of AD objects (OUs, users, groups, computer accounts) can cause widespread service disruption. AD Recycle Bin has a limited window.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4726, 4730, 4743, 5141). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **object_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **AD Object Deletion Monitoring**): table _time, host, object_type, SubjectUserName, TargetUserName, ObjectDN\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (deleted objects), Timeline, Bar chart (deletions by admin), Single value (OU deletions — target: 0).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Security into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`object_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you know when an important user, group, or computer object was removed from the directory and who did it.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The hourly 5141 row-preserving search is narrow. Security XML ingest and the breadth of Delete SACL coverage drive cost; approved bulk cleanup can create bursts.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event ID 5141 from domain controllers",
+      "Active Directory Delete SACL coverage"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and coverage contract\n\nAssign AD forest/domain, audit policy, delegated administration, lifecycle, backup/recovery, Splunk collection, SOC, and exception owners. Inventory DCs, naming contexts, critical object GUIDs/DNs/classes, delegated delete rights, lifecycle automation, AD Recycle Bin status, and tested backups. Install `Splunk_TA_windows` 10.0.1 and test exact Windows/forwarder/add-on/Splunk versions.\n\nEnable Success **Audit Directory Service Changes** via controlled GPO. Event 5141 only appears when the deleted object has a matching Delete SACL, so define risk-based SACL inheritance for critical OUs, users, groups, computers, GPO containers, trusts, service/configuration objects, and other governed scope. Record security descriptors, inheritance, exclusions, expected event volume, owner, and rollback. The collector reads Security; the search role reads `index=wineventlog` and schedules the alert but cannot delete/restore AD objects or edit exceptions.\n\nOne collected 5141 is one reviewable deletion; there is no count threshold. TreeDelete is preserved as the raw message token because localized/rendered values must not be guessed. Priority enrichment can elevate critical GUIDs/classes, protected OUs, tree-delete values proven in the environment, bulk rates, or unapproved subjects after the base result.\n\n## Step 1 — Collect and verify Security XML\n\nConfigure a governed Security modular input in `inputs.conf` with `renderXml=true`, `index=wineventlog`, and documented checkpoint/start/filter settings. Validate effective configuration with `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, EventCode 5141, Computer, EventRecordID, subject token, DSName/DSType, ObjectDN/GUID/Class, TreeDelete, and correlation IDs against Event Viewer raw XML.\n\nBuild separate dashboards for DC source health and SACL coverage. Absence of 5141 is not proof that no deletion occurred. Test each governed class/OU in a disposable lab and reconcile object inventory to SACL scope. For WEF/WEC, preserve original Computer and event identity, measure `_indextime-_time`, and prevent direct-plus-collector duplicates.\n\n## Step 2 — Save and understand the analytic\n\nSave as `windows_ad_object_deletion_5141`; schedule hourly, such as minute 5. Embedded `earliest=-70m@m latest=-10m@m` creates one closed 60 minute window delayed 10 minutes. Shift both bounds together when measured p99 latency requires it.\n\nThe search restricts exact XML Security 5141, normalizes the domain controller, subject display, GUID case, class, and raw tree token, then reasserts numeric 5141 and nonempty endpoint. It keeps one row per source event and preserves SID/logon/correlation/EventRecordID evidence. It intentionally does not combine 4726/4730/4734/4743/4758, which can overlap only some classes and have different fields.\n\nNo lossless Change `tstats` replacement is claimed. If local normalization is useful, filter exact event ID and action, then prove row count and every native evidence field over fixed bounds and monitor acceleration lag.\n\n## Step 3 — Validate without risking production\n\nReplay the positive XML fixture with fixed event time and assert every field exactly. Run each negative separately, including related 5136-5139 and account events, wrong source/type, malformed code, empty endpoint, earliest inclusion, latest exclusion, and outside-window records. Test user/group/GPO classes and blank TreeDelete. Verify DN escaping, GUID braces/case, unresolved SIDs, and duplicate EventRecordID handling.\n\nIn an authorized isolated AD lab with Recycle Bin enabled, create a uniquely named test OU/object inside explicit test SACL scope, export its GUID/DN/attributes, delete it using a dedicated operator, observe 5141 in Event Viewer and Splunk, verify alert delivery, then restore it and validate attributes/access. Separately test a noncovered object to demonstrate the SACL blind spot and correct coverage—not by broadening production blindly.\n\nRecord GPO/SACL, object before-state, DC, subject SID, tool, versions, UTC bounds, fixture hash, expected/actual rows, search job, notification, restore evidence, and cleanup. Keep `status=draft` until owners accept coverage, field fidelity, boundaries, dashboard RBAC, triage/recovery, and exception behavior.\n\n## Step 4 — Triage, contain, and recover\n\nVerify raw XML and object/subject/correlation identity. Resolve ObjectGUID against deleted-object/recovery records and the pre-change inventory; parse DN safely and identify class, owner, dependencies, memberships, SPNs, linked policies, delegations, and downstream services. Correlate SubjectLogonId with 4624/process/PowerShell/management records and OpCorrelationID with adjacent directory changes. Match an approved ticket and exact manifest.\n\nIf unauthorized or erroneous, halt the responsible automation/change using owner procedures, preserve evidence, assess replication and dependent-service impact, and restore through tested AD Recycle Bin or authoritative backup methods. Verify object attributes, memberships, ACLs, links, SPNs, DNS/SYSVOL components, replication, and application recovery. If malicious, follow identity incident response and investigate privilege use and other object changes.\n\nDo not automatically recreate an object from DN, disable an administrator, isolate a DC, authoritatively restore, or roll back a directory from one event. A recreated object can receive a different SID and incomplete attributes; recovery requires AD expertise.\n\n## Step 5 — Troubleshoot\n\n- **No 5141 after lab delete:** verify Success audit policy, Delete SACL and inheritance on that object, DC Security log, XML input, forwarding, and index permissions.\n- **Some classes missing:** reconcile SACL scope/schema behavior and test each critical class; do not infer universal coverage.\n- **TreeDelete is numeric token:** retain raw value and compare Event Viewer/local message rendering before creating a governed lookup.\n- **Object cannot be found:** query deleted objects/Recycle Bin by ObjectGUID and use pre-change inventory; deletion changes the live directory view.\n- **Bulk burst:** compare exact approved manifest, subject/source, rate, and correlation IDs; stop or escalate out-of-manifest deletions.\n- **Duplicates or late data:** inspect WEF/direct routes, Computer/EventRecordID, clocks, queues, and `_indextime-_time`; repair topology or shift both time bounds.\n- **CIM differs:** compare exact constraints, mapping, acceleration range/freshness, and native fields; raw XML remains authoritative.",
+  "grandmaExplanation": "We show when something important—such as a user, group, computer, policy, or folder—was removed from the company directory. The team can check whether it was planned and recover it correctly before people or services lose access.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
