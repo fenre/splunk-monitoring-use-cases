@@ -3,50 +3,80 @@
   "id": "1.1.36",
   "title": "Multipath I/O Failover Events",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Availability"
+    "Availability",
+    "Fault",
+    "Resilience"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Multipath I/O Failover Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_multipath_i_o_failover_events` (UC-1.1.36), SOC dashboard panel \"Linux — Multipath I/O Failover Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Limited to Linux Device Mapper Multipath events emitted by `multipathd`; it does not cover Windows MPIO, Solaris MPxIO, array-side port alarms, native NVMe multipathing, or generic kernel SCSI errors without a `multipathd` transition. A path failure means redundancy was reduced and traffic may have moved to another usable path; this log-only search does not prove that application I/O failed, that every path to a LUN was lost, or that a recovered path is currently healthy. Recovery-only messages are retained for dashboards but deliberately do not alert. Planned SAN tests are operational exceptions only when matched to an approved change; they are not silently suppressed by this UC.",
+  "evidence": "When deployed, retain the dispatch/result artifact for saved search `linux_multipath_path_failure_events`, the matching raw `multipathd` records (including `_time`, `host`, `source`, path and map where present), and an incident-time `multipathd show paths raw format \"%d|%m|%t|%T|%o|%w\"` snapshot. Link approved maintenance tickets to suppressed alerts. This catalog entry neither creates an `audit_evidence` index nor claims that those artifacts already exist.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.36 positive (Multipath, Failover, Events): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `device` satisfies detection threshold for 'Multipath I/O Failover Events'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.36 negative (Failover Events): ingest benign `os` / `syslog` events where `host`, `device` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'Multipath I/O Failover Events'."
+    "positiveScenario": "In a non-production test index configured as the search's `index`, ingest a `sourcetype=syslog` event such as `Jul 28 09:00:00 san-test-01 multipathd[1234]: checker failed path 8:16 in map mpatha`. Run the search over that time and verify one row with `host=san-test-01`, `path=8:16`, `multipath_map=mpatha`, `event_state=failed`, `event_count=1`, and `severity=high`. Separately, an approved lab invocation of `multipathd fail path <test-path>` may be used only when the storage owner confirms redundant paths and rollback.",
+    "negativeScenario": "Ingest `san-test-01 multipathd[1234]: sdb: reinstated` and an unrelated application event containing `path failed`. The recovery-only event must be classified before the final filter but produce no alert row, and the unrelated event must fail the daemon/signature scope. Also verify that a `multipathd` informational line with none of the enumerated transition signatures produces no row. Do not disconnect a production SAN path to perform this test."
   },
-  "dataSources": "`sourcetype=syslog, multipathd logs` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
-  "spl": "index=os sourcetype=syslog \"multipathd\" \"failover\" OR \"path failed\" OR \"path recovered\"\n| stats count by host, device\n| timechart count by host",
-  "description": "Detects UC-1.1.36 — Multipath, Failover, Events — using `index=os` sourcetype `syslog`, grouped by `host`, `device`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Failover Events. Purpose-built for 'Multipath I/O Failover Events' in Linux workflows.",
-  "value": "UC-1.1.36 operationalises 'Multipath I/O Failover Events' against `syslog` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
-  "implementation": "Configure multipathd logging to syslog. Create alerts on any failover event. Include search to show path status before/after failover to help storage team troubleshoot.",
-  "visualization": "Timechart, Alert",
+  "dataSources": "Linux `multipathd` service messages written by journald/rsyslog to `/var/log/messages`, `/var/log/syslog`, or `/var/log/daemon.log`, monitored by a Universal Forwarder into `index=os` with `sourcetype=syslog`. Monitor exactly the local plaintext destination that contains the daemon records; journal-only hosts must first route/export the unit's records to a supported text or syslog input.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) on a Universal Forwarder for Linux log collection; no custom multipath add-on is required.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=os sourcetype=syslog earliest=-10m@m latest=@m (\"checker failed path\" OR \"reports path is down\" OR \"unusable path\" OR \"path offline\" OR \"no access to this device\" OR \"reinstate failed\" OR \"reinstated\" OR \"reports path is up\")\n| eval daemon=coalesce(process, appname, program)\n| where daemon=\"multipathd\" OR match(_raw, \"(?i)\\bmultipathd(?:\\[\\d+\\])?:\")\n| dedup host _time _raw\n| rex field=_raw \"(?i)checker failed path\\s+(?<path>\\S+)\\s+in map\\s+(?<multipath_map>\\S+)\"\n| rex field=_raw \"(?i)multipathd(?:\\[\\d+\\])?:\\s+(?<multipath_map_from_checker>[^:\\s]+):\\s+(?<path_from_checker>[A-Za-z0-9._-]+)\\s+-\\s+\\S+\\s+checker reports path is\"\n| rex field=_raw \"(?i)multipathd(?:\\[\\d+\\])?:\\s+(?<path_from_prefix>(?:\\d+:\\d+|[^:\\s]+)):\\s+\"\n| eval path=coalesce(path, path_from_checker, path_from_prefix, \"unknown\"), multipath_map=coalesce(multipath_map, multipath_map_from_checker, \"unknown\")\n| eval event_state=case(match(_raw, \"(?i)reinstate failed\"), \"reinstate_failed\", match(_raw, \"(?i)checker failed path|reports path is down|unusable path|path offline|no access to this device\"), \"failed\", match(_raw, \"(?i)reinstated|reports path is up\"), \"recovered\", true(), \"other\")\n| where event_state IN (\"failed\", \"reinstate_failed\")\n| stats count as event_count earliest(_time) as first_seen latest(_time) as last_seen values(source) as sources values(_raw) as sample_events by host path multipath_map event_state\n| eval duration_minutes=round((last_seen-first_seen)/60, 1), severity=if(event_state=\"reinstate_failed\" OR event_count>=3, \"critical\", \"high\")\n| sort 0 - last_seen\n| convert ctime(first_seen) ctime(last_seen)",
+  "description": "Detects Linux Device Mapper Multipath path-checker failures, unusable paths, and failed reinstatement attempts from `multipathd` syslog records. It extracts the path and multipath map when the daemon supplies them, preserves unknown values rather than inventing identifiers, and distinguishes failure from recovery signatures across common multipath-tools versions.",
+  "value": "A host can continue serving I/O after one storage path fails, so users may see no immediate symptom while redundancy has already been consumed. Alerting on the first failed path gives Linux and storage teams time to investigate an HBA, fabric, target port, or configuration problem before another path loss turns degraded access into an outage; repeated failures also expose path flapping.",
+  "implementation": "Forward the plaintext system log that receives `multipathd` unit messages as `sourcetype=syslog`, schedule the search every five minutes over a closed ten-minute window, and alert when it returns any row. Treat one failure as high priority and a failed reinstatement or three matching events in the window as critical; these are operational defaults, not vendor-prescribed thresholds. Verify current topology with `multipathd show paths` before changing storage.",
+  "visualization": "Alert table with host, path, multipath map, state, count, first/last seen, severity, and sample event; 24-hour timeline split by event state; single values for affected hosts and failed reinstatements. Use a separate recovery panel that omits the alerting filter.",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Red Hat Enterprise Linux 9 — Overview of Device Mapper Multipathing (including path status)",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/configuring_device_mapper_multipath/overview-of-device-mapper-multipathing_configuring-device-mapper-multipath",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunkbase app 833",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
+      "title": "Red Hat Enterprise Linux 9 — Managing multipathed volumes and multipathd commands",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/9/html/configuring_device_mapper_multipath/managing-multipathed-volumes_configuring-device-mapper-multipath",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "multipath-tools upstream — multipathd path failure and reinstatement handling",
+      "url": "https://github.com/opensvc/multipath-tools/blob/master/multipathd/main.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "multipath-tools upstream — checker state names and messages",
+      "url": "https://github.com/opensvc/multipath-tools/blob/master/libmultipath/checkers.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "multipathd(8) — commands, path format wildcards, and path states",
+      "url": "https://manpages.debian.org/unstable/multipath-tools/multipathd.8.en.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux",
+      "url": "https://help.splunk.com/en/data-management/integrate-data-with-add-ons/splunk-supported-add-ons/splunk-supported-add-ons/unix-and-linux",
+      "retrieved": "2026-07-28"
     },
     {
       "title": "Splunk inputs.conf reference",
       "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Unix and Linux (833)",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Multipath I/O Failover Events'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "Most matched failure records are genuine path-state transitions, even when service remains available. The principal non-actionable cases are: (1) an approved SAN, HBA, cable, or multipath failover test; correlate host, path, map, and event time with the change record, then suppress only for that bounded window; (2) an operator deliberately running `multipathd fail path` in a controlled lab or maintenance procedure; (3) replayed or duplicated syslog caused by overlapping file monitors or a forwarding loop—the SPL removes byte-identical host/time/raw copies, but altered timestamps can still inflate the count; and (4) synthetic control-test records sent to a production index without a test marker. A path that repeatedly changes down/up, a `reinstate failed` message, or a checker/configuration error that makes a path unusable is not a false positive merely because another path carried the I/O.",
   "equipment": [
     "linux",
     "syslog"
@@ -55,12 +85,21 @@
     "linux_generic",
     "syslog_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "mitreAttack": [
+    "N/A (Operational storage-path availability monitoring; no security technique is asserted.)"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, multipathd logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure multipathd logging to syslog. Create alerts on any failover event. Include search to show path status before/after failover to help storage team troubleshoot.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"multipathd\" \"failover\" OR \"path failed\" OR \"path recovered\"\n| stats count by host, device\n| timechart count by host\n```\n\nUnderstanding this SPL\n\n**Multipath I/O Failover Events** — Multipath failovers indicate storage path degradation requiring immediate investigation to prevent I/O loss.\n\nDocumented **Data sources**: `sourcetype=syslog, multipathd logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, device** so each row reflects one combination of those dimensions.\n• `timechart` plots the metric over time with a separate series **by host** — ideal for trending and alerting on this use case.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Alert",
-  "grandmaExplanation": "Multipath failovers indicate storage path degradation requiring immediate investigation to prevent I/O loss — so you find out before users do when something is slowing down or breaking.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "source",
+    "sourcetype",
+    "_raw"
+  ],
+  "status": "community",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "N/A",
+  "detailedImplementation": "Step 1 — Prerequisites and scope\n\nEnable Device Mapper Multipath on each in-scope Linux host and confirm `systemctl is-active multipathd` returns `active`. The Linux/storage operator needs permission to read the service journal and issue read-only `multipathd show` commands; the Splunk administrator needs permission to deploy a Universal Forwarder input, route events to `index=os`, create a scheduled search, and configure alert actions. Install the Splunk Add-on for Unix and Linux on the forwarder. No premium Splunk product or CIM acceleration is required. Before alerting, record the host's normal map/path inventory with `multipathd show paths raw format \"%d|%m|%t|%T|%o|%w\"`: `%d` is the path device, `%m` its map, `%t` the device-mapper state, `%T` the checker state, `%o` the online state, and `%w` the WWID. Device Mapper `active` is not the same field as checker `ready`; Red Hat documents `ready` and `ghost` as usable and `faulty`, `shaky`, timeout, removed, wild, unchecked, or delayed conditions as unavailable or not reinstated. This UC alerts from transitions in logs and uses the command only as the current-state corroboration point.\n\nStep 2 — Configure and verify collection\n\nFirst find the one plaintext file receiving `multipathd` records: compare `journalctl -u multipathd --since '-15 min'` with `/var/log/messages` (commonly RHEL-family), `/var/log/syslog`, or `/var/log/daemon.log` (distribution dependent). On a journal-only host, configure the site's supported journald-to-rsyslog/syslog route or another approved text export; a Universal Forwarder file monitor cannot read the binary journal directly. Do not monitor two files containing the same messages. In `$SPLUNK_HOME/etc/apps/Splunk_TA_nix/local/inputs.conf`, deploy only the applicable stanza, for example:\n\n```ini\n[monitor:///var/log/messages]\ndisabled = 0\nindex = os\nsourcetype = syslog\n```\n\nRestart the forwarder after changing `inputs.conf`. Confirm coverage with `index=os sourcetype=syslog earliest=-15m (process=multipathd OR appname=multipathd OR program=multipathd OR \"multipathd[\") | stats count min(_time) as first_seen max(_time) as last_seen values(source) as source by host`. Event volume should normally be low and transition-driven. If no recent event exists, compare a harmless service status/journal check; do not manufacture a path failure in production. If events are present in the file but absent from Splunk, check forwarder read permission, input precedence with `splunk btool inputs list --debug`, forwarding connectivity, and whether `index=os` exists and is searchable by the alert owner.\n\nStep 3 — Create the search and understand its states\n\nSave the documented SPL as `linux_multipath_path_failure_events`. Run every five minutes with the closed window `earliest=-10m@m latest=@m`; the overlap tolerates forwarding delay, so configure result throttling on `host,path,multipath_map,event_state` for 15 minutes to avoid duplicate pages. The base search uses parenthesized, known multipath-tools message fragments and then requires either a parsed daemon field or a raw syslog `multipathd[pid]:` prefix. This prevents an unrelated application's words from entering the result. The first `rex` handles upstream `checker failed path <major:minor> in map <alias>` records. The second handles current map-prefixed checker output such as `<map-or-WWID>: <device> - tur checker reports path is down`; the third handles older `<device>:` and `<major:minor>:` prefixes. Missing map/path values remain literal `unknown` because not every multipath-tools release includes both identifiers in every message.\n\n`event_state=failed` covers checker-down, checker-failed, offline, disconnected/no-access, and unusable-path transitions. `event_state=reinstate_failed` means multipathd attempted to return a path to service but could not. `event_state=recovered` covers `reinstated` or checker-up signatures and is intentionally removed by the alert filter; remove that filter only for the recovery timeline. One failed/unusable transition is a high-priority result because redundancy has changed. A failed reinstatement, or three matching records for the same host/path/map/state in ten minutes, is marked critical as a local flapping/escalation default. These thresholds are not supplied by multipath-tools and must be reconciled with path count, array design, polling interval, and on-call policy. The search does not claim all paths are down.\n\nStep 4 — Validate safely\n\nUse the positive and negative `controlTest` records in a non-production index (temporarily substitute that index in a copy of the saved search). Verify the positive record extracts `8:16` and `mpatha`; verify recovery-only and unrelated records return no alert rows. Also test a current-format record such as `multipathd[1234]: 3600testwwid: sdb - tur checker reports path is down` and require `multipath_map=3600testwwid`, `path=sdb`, and `event_state=failed`. Compare Splunk `_time` and `_raw` byte-for-byte with `journalctl -u multipathd` or the monitored file to detect timestamp errors, truncation, and duplicate ingestion. Confirm in the multipathd console (opened with `multipathd -k`) that the same path, map, device-mapper state, checker state, and online state agree with the Splunk result. With storage-owner approval on a redundant lab map, capture topology before and after `multipathd fail path <path>`, then reinstate the path and confirm both the failed and recovery records exist; do not use cable removal as a routine control test. After any test, require `multipathd show paths` to show the expected device-mapper, checker, and online states. A passing log test proves collection and search behavior, not end-to-end application I/O continuity.\n\nStep 5 — Operationalize, evidence, and troubleshoot\n\nRoute high results to Linux/storage operations with host, path, map, first/last seen, count, source, and raw sample. Route critical results to the storage incident path. The responder should immediately run the formatted `multipathd show paths` command, inspect `multipath -ll`, identify the WWID/map and remaining usable paths, correlate array and fabric alarms, and check the approved change calendar. Never reinstate a path solely to clear an alert; repair or validate the transport and follow the storage vendor's recovery procedure. Preserve the saved-search dispatch, raw records, command snapshot, incident identifier, and any maintenance approval as evidence.\n\nIf no `multipathd` events arrive while the monitored file contains them, inspect the forwarder input, file permissions, and routing queue before trusting the alert. If `path` or `multipath_map` is `unknown`, inspect the raw distribution-specific message before extending the extraction; do not infer a LUN from the host alone. If only recovery events appear, collection is working and the alert correctly stays quiet. If events duplicate, look for two monitored files, rsyslog forwarding loops, or index-time cloning. If logs report repeated down/up transitions, do not suppress them as noise: review the configured `polling_interval`, checker choice, and the `log_checker_err`/shaky-path controls with the storage owner. If the live command shows `failed`, `faulty`, `shaky`, `i/o timeout`, `delayed`, `offline`, or `dead` while no event was indexed, treat that as collection incompleteness and repair the source path before relying on this UC.",
+  "grandmaExplanation": "We warn when a server loses one of its routes to shared storage, giving the team time to fix the remaining safety net before another route fails and causes an outage.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
