@@ -1,68 +1,120 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.42",
-  "title": ".NET CLR Performance Monitoring",
+  "title": ".NET Framework CLR Sustained Garbage-Collection Time",
   "criticality": "medium",
   "difficulty": "intermediate",
   "monitoringType": [
     "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for '.NET CLR Performance Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_net_clr_performance_monitoring` (UC-1.2.42), SOC dashboard panel \"Linux — .NET CLR Performance Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This rule measures the Windows `.NET CLR Memory` counter `% Time in GC` for named .NET Framework process instances and reports an instance only when at least two five-minute buckets in one closed 15-minute window average above 20 percent. Twenty percent and two buckets are catalogue starting policies, not Microsoft limits. It excludes `_Global_`, `_Total_`, missing/invalid values, .NET (Core/5+) EventCounters, allocation rate, heap size, pause duration, exception rate, process CPU, response latency, and root-cause attribution. Instance names can be reused after process restart and must be mapped to application identity separately. No runtime, SLO, capacity, regulatory, or SME assurance is claimed.",
+  "evidence": "After deployment, retain the version-controlled `windows_dotnet_framework_gc_time` saved search and ACL; schedule/dispatch/alert history; each result with host, instance, high-bucket count, samples, average/maximum percentage, first/last bucket, and observed source types; matching raw perfmon samples; governed `inputs.conf`; host/process/application mapping; source-health results; positive and boundary-negative controls; threshold approval; analyst disposition; and any expiring notification exception. This documentation review collected no counter, ran no search, and generated no alert.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.42 positive (.NET, CLR, Performance, Monitoring): ingest synthetic events into `index=perfmon` sourcetype='Perfmon:dotNET_CLR_Memory' where `pct_gc` grouped by `host`, `instance` satisfies `pct_gc` > 20 for '.NET CLR Performance Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.42 negative (Performance Monitoring): ingest benign `perfmon` / `Perfmon:dotNET_CLR_Memory` events where `host`, `instance` stays below `pct_gc` > 20, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for '.NET CLR Performance Monitoring'."
+    "positiveScenario": "In an isolated index, add one `Perfmon:dotNET_CLR_Memory` sample per minute for `host=APP01`, `object=.NET CLR Memory`, `counter=% Time in GC`, `instance=OrdersService`, across three complete five-minute buckets. Set the first two buckets' numeric `Value` samples to 25 and the third to 10. Expect one row with `host=app01`, `instance=ordersservice`, `high_buckets=2`, `threshold_pct=20`, `bucket_span_minutes=5`, and `window_minutes=15`.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: only one bucket averaging 25 percent; three buckets averaging exactly 20 percent; two high buckets for `_Global_`; two high buckets for `_Total_`; samples whose counter is `# Gen 2 Collections`; invalid `Value=not-a-number`; and otherwise qualifying samples in the newest excluded five minutes. Also split high samples between two instances and confirm neither inherits the other's buckets."
   },
-  "dataSources": "`sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=perfmon sourcetype=\"Perfmon:dotNET_CLR_Memory\" counter=\"% Time in GC\" instance!=\"_Global_\"\n| timechart span=5m avg(Value) as pct_gc by host, instance\n| where pct_gc > 20",
-  "description": "Alerts on '.NET CLR Performance Monitoring' patterns (UC-1.2.42) sourced from `index=perfmon` sourcetype `Perfmon:dotNET_CLR_Memory`. Threshold bundle: `pct_gc` > 20; aggregation grain: `host`, `instance`; metrics: `pct_gc`. Watch terms: .NET, CLR, Performance, Monitoring.",
-  "value": "UC-1.2.42 gives Linux teams earlier visibility into Performance Monitoring through `Perfmon:dotNET_CLR_Memory` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Configure Perfmon inputs for `.NET CLR Memory` object: `% Time in GC`, `# Gen 2 Collections`, `Large Object Heap size`. Also monitor `.NET CLR Exceptions` → `# of Exceps Thrown / sec`. >20% time in GC indicates memory pressure in .NET apps. Frequent Gen 2 collections signal large object allocation issues. Target specific app pool instances (w3wp) for IIS applications.",
-  "visualization": "Line chart (GC time %), Bar chart (Gen 2 collections by app), Dual-axis (GC time + exceptions).",
-  "cimModels": [
-    "Performance.Memory",
-    "Performance.CPU",
-    "Performance"
-  ],
-  "cimSpl": "| tstats `summariesonly` avg(Performance.mem_used) as m\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where m>0",
-  "dataModelAcceleration": "Map `.NET CLR Memory` to `Performance.Memory` (and GC % as a derived stress signal).",
-  "references": [
+  "dataSources": "Local Windows Performance Monitor input for object `.NET CLR Memory` and counter `% Time in GC`, collected by Splunk's PDH-based perfmon input with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=perfmon`, `sourcetype=Perfmon:dotNET_CLR_Memory`. Required fields are `_time`, `host`, `object`, `counter`, `instance`, and numeric `Value`. The custom stanza/source type and index must be validated locally.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), reviewed at version 10.0.1, plus a Windows Universal Forwarder or Splunk Enterprise instance on each monitored host to run the local PDH perfmon input.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `perfmon`** — Package managers spike `host` metrics for '.NET CLR Performance Monitoring'. Correlate with apt/yum logs in the same `Perfmon:dotNET_CLR_Memory` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `Perfmon:dotNET_CLR_Memory`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `pct_gc` > 20.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=perfmon sourcetype=\"Perfmon:dotNET_CLR_Memory\" counter=\"% Time in GC\" earliest=-20m@m latest=-5m@m\n| eval host=lower(trim(host)), instance=lower(trim(instance)), gc_pct=tonumber(Value)\n| where len(host)>0 AND len(instance)>0 AND instance!=\"_global_\" AND instance!=\"_total_\" AND isnotnull(gc_pct) AND gc_pct>=0 AND gc_pct<=100\n| bin _time span=5m\n| stats avg(gc_pct) as bucket_avg_pct max(gc_pct) as bucket_max_pct count as bucket_samples values(object) as observed_objects values(sourcetype) as observed_sourcetypes by _time host instance\n| where bucket_avg_pct>20\n| stats count as high_buckets sum(bucket_samples) as samples avg(bucket_avg_pct) as avg_gc_pct max(bucket_max_pct) as max_gc_pct min(_time) as first_high_bucket max(_time) as last_high_bucket values(observed_objects) as observed_objects values(observed_sourcetypes) as observed_sourcetypes by host instance\n| where high_buckets>=2\n| eval threshold_pct=20, bucket_span_minutes=5, window_minutes=15, threshold_basis=\"local starting policy; validate against latency, CPU, allocation, and GC traces\"\n| convert ctime(first_high_bucket) ctime(last_high_bucket)\n| table host instance high_buckets samples avg_gc_pct max_gc_pct threshold_pct bucket_span_minutes window_minutes first_high_bucket last_high_bucket observed_objects observed_sourcetypes threshold_basis\n| sort 0 -avg_gc_pct host instance",
+  "description": "Reports a .NET Framework process instance when at least two five-minute buckets in the closed 15-minute evaluation window have an average `% Time in GC` above 20 percent. A row contains the host/instance grain, high-bucket and sample counts, average and maximum percentages, time bounds, and source identity used for application-performance triage.",
+  "value": "Sustained garbage-collection work can consume CPU and coincide with reduced throughput or longer response times even when host-level memory looks acceptable. Identifying the affected managed process gives application teams a focused starting point for correlating allocation pressure, full collections, deployment changes, and user-visible latency before indiscriminate server scaling.",
+  "implementation": "Create a custom local `[perfmon://dotNET_CLR_Memory]` input for `.NET CLR Memory`, `% Time in GC`, named instances, a 60-second interval, and deployment-local `perfmon` index; validate its emitted source type and fields. Save the SPL as `windows_dotnet_framework_gc_time`, run it every 15 minutes over a five-minute delayed closed interval, and trigger on any row. Treat 20 percent in two buckets as a tunable starting policy and correlate with process CPU, request latency, allocation, Gen 2/LOH evidence, and GC traces before acting.",
+  "visualization": "Provide a source-freshness panel, a single value of affected instances, a five-minute line chart of `bucket_avg_pct` with a 20-percent reference line, and a table of host, instance, high buckets, samples, average/maximum, and bounds. Drilldown should show raw `% Time in GC` samples plus process/app ownership and correlated CPU/latency; do not graph different instances as one host-wide average.",
+  "cimModels": [],
+  "schema": "Windows .NET Framework Performance Counter `.NET CLR Memory\\% Time in GC` collected through Splunk perfmon",
+  "dataModelAcceleration": "No CIM `tstats` substitute is asserted. Generic `Performance.Memory` fields do not guarantee process-instance identity or the `.NET CLR Memory\\% Time in GC` semantics. Use a metrics index only after validating metric names, dimensions, percentages, bucket parity, and the equivalent `mstats` search.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "object",
+    "counter",
+    "instance",
+    "Value",
+    "sourcetype"
+  ],
+  "references": [
+    {
+      "title": "Microsoft .NET Framework: Performance counters and `% Time in GC` semantics",
+      "url": "https://learn.microsoft.com/en-us/dotnet/framework/debug-trace-profile/performance-counters",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft .NET: Garbage collection and performance",
+      "url": "https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/performance",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft .NET: Large object heap monitoring and Gen 2 counter guidance",
+      "url": "https://learn.microsoft.com/en-us/dotnet/standard/garbage-collection/large-object-heap",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise: Monitor Windows performance through the PDH perfmon input",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.4/get-windows-data/monitor-windows-performance",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: perfmon inputs configuration",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: bin command and five-minute stats example",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/bin",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A row means the sampled counter crossed the local sustained policy, not that garbage collection caused an incident.\n\n1. **IIS application-pool recycle or service warm-up** — `w3wp` or a managed Windows service can allocate heavily while warming caches and compiling code. Confirm IIS recycle records/service start, deployment ID, request rate, process start time, and recovery within the approved window. Use an expiring host/instance/change exception only for duplicate paging.\n\n2. **Visual Studio, Azure DevOps, Jenkins, or Octopus deployment smoke/load test** — An approved test may intentionally create allocation pressure. Match pipeline/run ID, operator, target instance, synthetic traffic, UTC bounds, and expected latency. Preserve the result as performance-test evidence and suppress only its bounded notification.\n\n3. **SQL Server Reporting Services, SharePoint, or scheduled managed batch job** — Report rendering, indexing, or overnight calculation can drive predictable full collections. Verify scheduler/job ID, workload volume, application latency, and historical envelope; tune per application rather than allowlisting the whole host.\n\n4. **JetBrains dotMemory, PerfView, or another profiler/diagnostic session** — Instrumentation and a deliberately stressed reproduction can change timing and allocation. Confirm approved incident ticket, profiler process/session, owner, and end time. Apply a time-bound exception to the exact instance and keep raw samples.\n\n5. **Process-instance reuse after restart** — Windows counter instance names can be reused or suffixed, causing two different processes to appear under a familiar label. Correlate process ID/start time from a separate process feed before attribution; fix identity mapping instead of suppressing high GC.\n\n**Safe suppression:** use a post-result `windows_dotnet_gc_notification_exceptions.csv` lookup keyed by exact `host,instance,exception_id`, with application, owner, approver, reason, `valid_from_epoch`, and exclusive `valid_until_epoch`. Reject `_Global_`, wildcards, and open-ended exceptions. Never suppress merely because CPU is low; Microsoft notes the counter must be correlated and can be inaccurate with concurrent/background GC.",
+  "mitreAttack": [
+    "N/A (application performance monitoring; no ATT&CK behavior asserted)"
+  ],
+  "detectionType": "Static threshold",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Windows hosts running .NET Framework applications that expose `.NET CLR Memory` performance-counter instances. The counter contract does not automatically cover modern cross-platform .NET runtimes.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft .NET garbage-collection counter documentation and Splunk perfmon/add-on/search documentation; counter availability, instance identity, collection, SPL, controls, thresholds, alerting, dashboards, profiling, and remediation not executed or SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure Perfmon inputs for `.NET CLR Memory` object: `% Time in GC`, `# Gen 2 Collections`, `Large Object Heap size`. Also monitor `.NET CLR Exceptions` → `# of Exceps Thrown / sec`. >20% time in GC indicates memory pressure in .NET apps. Frequent Gen 2 collections signal large object allocation issues. Target specific app pool instances (w3wp) for IIS applications.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:dotNET_CLR_Memory\" counter=\"% Time in GC\" instance!=\"_Global_\"\n| timechart span=5m avg(Value) as pct_gc by host, instance\n| where pct_gc > 20\n```\n\nUnderstanding this SPL\n\n**.NET CLR Performance Monitoring** — .NET garbage collection pauses and high exception rates cause application latency and instability. CLR monitoring reveals issues invisible to external health checks.\n\nDocumented **Data sources**: `sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: perfmon; **sourcetype**: Perfmon:dotNET_CLR_Memory. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=perfmon, sourcetype=\"Perfmon:dotNET_CLR_Memory\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `timechart` plots the metric over time using **span=5m** buckets with a separate series **by host, instance** — ideal for trending and alerting on this use case.\n• Filters the current rows with `where pct_gc > 20` — typically the threshold or rule expression for this monitoring goal.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.mem_used) as m\n  from datamodel=Performance where nodename=Performance.Memory\n  by Performance.host span=5m\n| where m>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**.NET CLR Performance Monitoring** — .NET garbage collection pauses and high exception rates cause application latency and instability. CLR monitoring reveals issues invisible to external health checks.\n\nDocumented **Data sources**: `sourcetype=Perfmon:dotNET_CLR_Memory` (counters: % Time in GC, Gen 2 Collections). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` on the CIM data model in `cimModels` (see the accelerated SPL block). Enable that model in Data Model Acceleration.\n• The `where` and `by` clauses mirror the intent of the primary SPL; if tstats is empty, confirm field aliases in Splunk CIM and the Windows TA.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (GC time %), Bar chart (Gen 2 collections by app), Dual-axis (GC time + exceptions).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=Perfmon:dotNET_CLR_Memory into perfmon. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, instance, pct_gc`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We watch how much time the .NET part of a program spends in garbage collection, which can slow web and service apps on Windows even when the server CPU looks only moderately busy.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The search scans one custom counter at one-minute cadence over 15 closed minutes. Ingest grows with host and CLR-instance count; constrain counters and instances rather than collecting every perfmon object.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Windows `.NET CLR Memory` performance counter",
+      "Splunk PDH perfmon input"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and counter contract\n\nAssign application, Windows, Splunk collection, performance, and exception owners. Inventory the .NET Framework applications and the exact Windows performance-counter instances that represent them. Install the Windows Universal Forwarder or Splunk Enterprise locally because Splunk's `perfmon://` input uses the Windows Performance Data Helper API on the monitored machine. Deploy Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) and its search-time knowledge on the required tiers. The search role needs only read access to deployment-local `index=perfmon`; collection does not require application-admin or code-deployment rights.\n\nMicrosoft defines `% Time in GC` as the percentage of elapsed time spent in garbage collection since the last collection cycle. It updates only at the end of a collection, is not a rolling average, can repeat when no collection occurs, and may be inaccurate with concurrent/background GC. `_Global_` is not reliable for relevant cumulative CLR counters, so this rule excludes `_Global_` and `_Total_` and works per named instance. The 20-percent threshold is a local starting policy; Microsoft guidance requires correlation with process time and deeper evidence. Do not call it a Microsoft health limit.\n\n## Step 1 — Configure and verify the custom perfmon input\n\nCreate a deployment app and place a stanza in its `local/inputs.conf` after verifying the English object/counter names in PerfMon on the qualified OS/runtime:\n\n```ini\n[perfmon://dotNET_CLR_Memory]\nobject = .NET CLR Memory\ncounters = % Time in GC\ninstances = *\ninterval = 60\nmode = single\nuseEnglishOnly = true\nindex = perfmon\ndisabled = 0\n```\n\n`perfmon` and the resulting `Perfmon:dotNET_CLR_Memory` source type are deployment-local contracts; inspect actual events and pin the search only after validation. Splunk warns that object/counter names must exactly match the API. `mode=single` is selected so each sample has an explicit counter, instance, and value; if the deployment uses `multikv` or a metrics index, write and test a separate field contract. Limit `instances` when the application inventory is stable to control volume, but plan for suffix changes after restarts.\n\nVerify one sample per expected minute and instance:\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:dotNET_CLR_Memory\" earliest=-30m\n| where counter=\"% Time in GC\"\n| eval numeric_value=tonumber(Value)\n| stats count min(numeric_value) max(numeric_value) latest(_time) as last_seen by host object counter instance sourcetype\n| convert ctime(last_seen)\n```\n\nCompare fixed timestamps and values with Windows Performance Monitor on two hosts. Require numeric values from 0 through 100, correct host, exact object/counter, expected named instances, and an interval near 60 seconds. Build a separate freshness alert because missing samples cannot evaluate GC health. Correlate instance names to process ID/start time and application/service ownership using a governed process feed or inventory.\n\n## Step 2 — Save and schedule the sustained-threshold search\n\nSave as `windows_dotnet_framework_gc_time`, schedule every 15 minutes, and trigger when result count exceeds zero. The search evaluates `earliest=-20m@m latest=-5m@m`: three complete five-minute buckets with a five-minute ingestion delay. Measure `_indextime-_time`; adjust delay and lookback together if p99 latency exceeds five minutes. The latest bound is exclusive.\n\nThe SPL converts `Value` with `tonumber`, rejects nulls and impossible percentages, and excludes aggregate instances before bucketing. `stats avg(gc_pct)` intentionally summarizes the sampled last-observed counter over each five-minute bucket; it does not turn the counter into GC pause duration. Only buckets strictly greater than 20 pass, so exactly 20 is negative. A host/instance needs at least two qualifying buckets, meaning sustained evidence in at least 10 of 15 evaluated minutes. The result preserves sample counts so sparse collection is visible.\n\nDo not merge instances, average hosts, or alert on one maximum sample. Do not use `# Gen 2 Collections` as a gauge: Microsoft documents it as a cumulative count since process start, requiring deltas and restart handling. Add separate searches for allocation bytes/sec, Gen 2 deltas, LOH size, process CPU, request throughput, and latency if owners approve.\n\n## Step 3 — Validate boundaries and application identity\n\nRun the positive and each negative fixture separately with fixed bounds. Assert two qualifying buckets, strict `>20`, instance exclusions, invalid-value rejection, source type, output units, and exact row count. Test a process restart between buckets and verify that the inventory can distinguish old/new process identity even when the counter instance string repeats. Test sparse sampling: if a five-minute bucket has fewer than four of five expected one-minute samples, surface that collection-quality problem separately rather than trusting the average.\n\nIn a nonproduction application, create an approved allocation/load test and correlate `% Time in GC` with process `% Processor Time`, request latency/throughput, allocation rate, Gen 2 collections, LOH data, and a trace such as PerfView/dotnet-trace appropriate to runtime. Do not force production memory exhaustion. Record exact versions, stanza, interval, host/instance/process identity, load run, UTC bounds, expected/actual rows, search job ID, and analyst conclusion. Keep `status=draft` until human owners accept source coverage, identity, threshold replay, alert delivery, dashboard, and runbook.\n\n## Step 4 — Operationalize triage and evidence\n\nOn a result: verify source freshness and sample density; map instance to process/application; check restart/recycle/deployment and traffic; correlate process CPU and user latency; inspect allocation, Gen 2, LOH, exception, and memory counters; reproduce with an approved profiler/trace when necessary; and assign the application team. Scale or restart only under the service runbook. Do not automatically recycle IIS, kill the process, force `GC.Collect`, change GC mode, increase memory, or suppress the instance from this counter alone.\n\nUse the dashboard and evidence artifacts specified above. Review the threshold after runtime/OS/add-on upgrades, GC configuration changes, application releases, topology changes, or workload seasonality. A row can be actionable even without host CPU saturation; conversely a high stale counter with no collection may not describe current load. Preserve raw samples and correlated traces for resolved incidents.\n\n## Step 5 — Troubleshoot\n\n- **No source type:** confirm the local forwarder, active stanza, exact object/counter spelling, `disabled=0`, index existence, output routing, and `splunk-perfmon.exe` health.\n- **No named instances:** check that the .NET Framework process is running and exposes legacy CLR counters. Modern .NET may require EventCounters/System.Diagnostics.Metrics instead.\n- **Values repeat:** Microsoft documents last-observed behavior when no collection occurs. Correlate collection counters and traces; do not treat repeats as new pauses.\n- **Values exceed 100 or are text:** inspect mode/field extraction, localization, and raw sample. Repair parsing instead of widening the accepted range.\n- **Wrong app attribution:** resolve instance suffix and process start/PID. Do not rely on `w3wp` alone where multiple app pools exist.\n- **Expected row missing:** verify strict greater-than semantics, two separate five-minute buckets, closed-window bounds, instance exclusions, and sample timing.\n- **Too many rows after recycle:** identify warm-up and compare latency/traffic. Use a bounded change exception only if the behavior is approved and self-recovers.\n- **Search/ingest cost high:** restrict the custom input to required counter/instances and 60-second cadence; do not collect every CLR counter merely for this rule.",
+  "grandmaExplanation": "We watch whether a Windows program spends too much of several recent minutes cleaning up memory instead of doing useful work. That points the application team toward a possible cause of slowness, but they still check the program and user response times before changing anything.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
