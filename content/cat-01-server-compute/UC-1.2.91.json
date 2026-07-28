@@ -1,101 +1,125 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.91",
-  "title": "USB / Removable Device Auditing",
+  "title": "New External Device Recognition Audit",
   "criticality": "medium",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Compliance"
+    "Audit",
+    "Inventory",
+    "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'USB / Removable Device Auditing' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_usb_removable_device_auditing` (UC-1.2.91), SOC dashboard panel \"Linux — USB / Removable Device Auditing\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "compliance": [
+  "exclusions": "Reports Windows Security Event ID 6416, which Microsoft defines as a new external device recognized by the system. It is not limited to USB or storage: printers, redirected devices, biometrics, docks, and other Plug and Play classes can appear. The derived `usb_storage_or_portable` label requires a `USB\\` device-instance prefix plus `DiskDrive` or `WPD` class, but it does not prove removable media, mount, file access, copy, execution, exfiltration, policy violation, or malicious hardware. Event 6416 commonly records the computer account/SYSTEM rather than the person who inserted a device. Device enable/disable/policy events 6419-6424 and file/DLP/Defender Device Control evidence are separate. The local index is a deployment choice; no compliance or prevention assurance is claimed.",
+  "evidence": "Retain `windows_new_external_device_6416` definition, ACL, schedule and results; effective Audit PNP Activity policy; source-health coverage; every raw 6416 XML record with endpoint, subject, DeviceId, DeviceDescription, ClassId, ClassName, VendorIds, CompatibleIds, LocationInformation, EventRecordID and time; Device Manager or endpoint-management comparison; approved-device inventory revision; dated controls; analyst disposition; alert delivery; and bounded exceptions. This documentation-only review connected no device and generated no event, search, alert, or production evidence.",
+  "controlTest": {
+    "positiveScenario": "In an isolated index, ingest Security Event ID 6416 with `Computer=SERVER01`, `SubjectUserName=SERVER01$`, `DeviceId=USB\\\\VID_1234&PID_5678\\\\ABC001`, `DeviceDescription=Approved Lab USB Disk`, `ClassId={4D36E967-E325-11CE-BFC1-08002BE10318}`, `ClassName=DiskDrive`, `VendorIds=USBSTOR...`, `CompatibleIds=USBSTOR\\\\Disk`, `LocationInformation=Port_#0001.Hub_#0002`, and `EventRecordID=6416001`. Expect one row with `device_scope=usb_storage_or_portable`, preserving the machine subject without relabeling it as the human user.",
+    "negativeScenario": "Expect zero rows for Event ID 6419, 6416 from the System channel, and 6416 with empty endpoint or DeviceId. Separately, ingest a valid 6416 with `DeviceId=SWD\\\\PRINTENUM...` and `ClassName=PrintQueue`; expect one row classified `external_other`, not USB storage and not suppressed.",
+    "attackTechnique": "T1200"
+  },
+  "dataSources": "Windows Security XML Event ID 6416 under **Detailed Tracking > Audit PNP Activity**, collected with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Required Microsoft fields are `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `DeviceId`, `DeviceDescription`, `ClassId`, `ClassName`, `VendorIds`, `CompatibleIds`, and `LocationInformation`, plus `Computer`, `EventRecordID`, and event ID. DeviceId is the device instance path; compare it and class properties in Device Manager.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. Microsoft Defender for Endpoint Device Control or another DLP/device-control product is optional for enforcement and file-operation evidence.",
+  "splunkbaseApps": [
     {
-      "regulation": "asd-e8",
-      "version": "Nov 2023",
-      "clause": "E8.01",
-      "clauseUrl": "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "ASD Essential Eight E8.01 Application control — removable-device auditing is a companion control that supports application-control integrity for portable media.",
-      "controlObjective": "Evidence that ASD E8 E8.01 (Application control) is enforced — Splunk UC-1.2.91: USB / Removable Device Auditing.",
-      "evidenceArtifact": "Saved search 'UC-1.2.91' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "it-grundschutz",
-      "version": "2023 Edition",
-      "clause": "OPS.1.1.2",
-      "clauseUrl": "https://www.bsi.bund.de/EN/Themen/Unternehmen-und-Organisationen/Standards-und-Zertifizierung/IT-Grundschutz/it-grundschutz_node.html",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "BSI IT-Grundschutz 2023 OPS.1.1.2 Ordered ICT operation — removable-media audit is listed in the ordered-ICT-operation implementation safeguards.",
-      "controlObjective": "Evidence that IT-Grundschutz OPS.1.1.2 (Ordered ICT operation) is enforced — Splunk UC-1.2.91: USB / Removable Device Auditing.",
-      "evidenceArtifact": "Saved search 'UC-1.2.91' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "ASD E8",
-      "version": "Nov 2023",
-      "clause": "E8.01",
-      "clauseUrl": "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "ASD Essential Eight E8.01 Application control — removable-device auditing is a companion control that supports application-control integrity for portable media.",
-      "controlObjective": "Evidence that ASD E8 E8.01 is enforced — Splunk UC-1.2.91: USB / Removable Device Auditing.",
-      "evidenceArtifact": "Saved search 'UC-1.2.91' running on sourcetype WinEventLog:Security and supporting catalogue-defined data sources, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "controlTest": {
-    "positiveScenario": "UC-1.2.91 positive (USB, Removable, Device, Auditing): ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=6416 where `count` grouped by `host`, `DeviceId`, `DeviceDescription`, `DeviceClass` satisfies detection threshold for 'USB / Removable Device Auditing'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.91 negative (Device Auditing): ingest benign `wineventlog` / `target_sourcetype` events where `host`, `DeviceId`, `DeviceDescription`, `DeviceClass` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'USB / Removable Device Auditing'."
-  },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 6416), `sourcetype=WinEventLog:Microsoft-Windows-DriverFrameworks-UserMode/Operational` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog EventCode=6416\n| eval DeviceClass=coalesce(ClassName, \"Unknown\")\n| where DeviceClass=\"DiskDrive\" OR DeviceClass=\"WPD\" OR DeviceClass=\"USB\"\n| stats count by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time\n| sort -_time",
-  "description": "Identifies UC-1.2.91 — USB, Removable, Device, Auditing — using `index=wineventlog` sourcetype `configured sourcetype`, grouped by `host`, `DeviceId`, `DeviceDescription`, `DeviceClass`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Device Auditing. Purpose-built for 'USB / Removable Device Auditing' in Linux workflows.",
-  "value": "Tracking `activity` via UC-1.2.91 on UC-1.2.91 search results improves response to 'USB / Removable Device Auditing' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Enable Audit PnP Activity (EventCode 6416) via Advanced Audit Policy. Track USB mass storage, MTP devices, and portable drives. Correlate with file access events for full data movement picture. Alert on USB connections to servers or high-security workstations. Consider blocking USB storage via Group Policy on sensitive systems.",
-  "visualization": "Timeline (device connections over time), Table (device details), Alert on server USB connections.",
-  "cimModels": [
-    "Change"
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=6416 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), device_id=trim(DeviceId), device_description=trim(DeviceDescription), class_name=trim(ClassName), class_id=trim(ClassId), subject_user=trim(SubjectUserName), normalized_device_id=lower(device_id), normalized_class=lower(class_name)\n| where event_code=6416 AND len(endpoint)>0 AND len(device_id)>0\n| eval device_scope=case(match(normalized_device_id,\"^usb\\\\\\\\\") AND in(normalized_class,\"diskdrive\",\"wpd\"),\"usb_storage_or_portable\",match(normalized_device_id,\"^usb\\\\\\\\\"),\"usb_other\",true(),\"external_other\"), use_case=\"UC-1.2.91\"\n| table _time endpoint device_scope device_id device_description class_name class_id VendorIds CompatibleIds LocationInformation SubjectUserSid SubjectDomainName subject_user SubjectLogonId EventRecordID source sourcetype use_case\n| sort 0 -_time endpoint device_id",
+  "description": "Returns one row for each Security 6416 external-device recognition event and classifies it as USB storage/portable, other USB, or other external based only on the observed device instance path and class. The output preserves hardware metadata and the machine/security subject; it does not claim a human inserted media or moved files.",
+  "value": "A centralized external-device trail helps asset, security, and support teams explain new hardware, verify sensitive-server policy, and pivot into device-control or file evidence when portable media is involved. Keeping all 6416 classes visible prevents a brittle USB-only filter from silently discarding redirected printers, docks, and other legitimate sources of audit noise.",
+  "implementation": "Enable Success auditing for Audit PNP Activity on governed Windows systems, collect Security as XML, and validate 6416 fields against Device Manager. Save the SPL as `windows_new_external_device_6416`, schedule every five minutes over a closed delayed bucket, retain all classes, and notify only according to asset policy—for example any USB storage-class row on a server. Use separate device-control/DLP and object-access telemetry to prove blocking or file movement.",
+  "visualization": "Dashboard `Windows — External Device Audit`: Security-source and policy coverage first; new devices by scope/class; first-seen device IDs; sensitive-server USB rows; and a detail table with endpoint, description, device/class IDs, vendor/compatible IDs, location, subject, and EventRecordID. Drill down to raw XML, Device Manager/endpoint inventory, 6419-6424 policy events, device-control verdicts, logons, and file activity. Never label all 6416 events as removable storage.",
+  "cimModels": [],
+  "schema": "Microsoft-Windows-Security-Auditing Event ID 6416 native XML",
+  "dataModelAcceleration": "No Change CIM substitute is claimed. Generic change rows do not preserve the device instance path, PnP class GUID/name, vendor/compatible IDs, location, or the exact 6416 semantics.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "DeviceId",
+    "DeviceDescription",
+    "ClassId",
+    "ClassName",
+    "VendorIds",
+    "CompatibleIds",
+    "LocationInformation"
   ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.user All_Changes.dest span=1h\n| where count > 0",
-  "dataModelAcceleration": "Enable acceleration for Change (All_Changes) when 6416 Device Control events are CIM-tagged; confirm `user` and `object` for device class.",
   "references": [
     {
-      "title": "Splunk_TA_windows",
+      "title": "Microsoft Security Auditing: Event 6416 new external device recognized",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-6416",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Advanced Audit Policy: Audit PNP Activity and events 6416, 6419-6424",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-pnp-activity",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1200: Hardware Additions",
+      "url": "https://attack.mitre.org/techniques/T1200/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for Microsoft Windows: XML Security event collection",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'USB / Removable Device Auditing'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "The event is true device recognition; policy determines whether it is concerning.\n\n1. **USB keyboard, mouse, smart-card reader, biometric sensor, dock, or adapter** — Verify DeviceId, ClassName/ClassId, VendorIds, endpoint inventory, and approved hardware model. Route `usb_other` to inventory unless policy says otherwise; do not suppress all USB.\n\n2. **Remote Desktop redirected printer or software print queue** — Microsoft examples show `SWD\\PRINTENUM` and `PrintQueue` in 6416. Confirm active remote session, print-queue identity, class, and user/session evidence. Use `windows_external_device_exceptions.csv` only for an exact governed queue/device class and endpoint role.\n\n3. **Approved encrypted removable drive used for backup, transfer, or incident response** — Match serial-bearing DeviceId, asset register, custodian, ticket, endpoint, purpose, and UTC window. Preserve the event; suppress duplicate notification only while the approved task is active.\n\n4. **OS deployment, driver installation, firmware update, or hardware refresh** — Correlate deployment job, setup/driver events, technician, expected device list, and change window. Unknown devices or events after expiry remain visible.\n\n5. **VDI/USB redirection or docking-station reconnect** — Verify broker/session, virtual endpoint, redirection policy, physical client, device identity, and repeat pattern. Scope exceptions to the exact pool/device and measured session window.\n\nThe post-result lookup requires endpoint, exact DeviceId or controlled class plus vendor/model, owner, reason, ticket, numeric start, and exclusive expiry. Never suppress by `ClassName=DiskDrive`, all servers, or machine-account subject.",
+  "mitreAttack": [
+    "T1200"
+  ],
+  "detectionType": "Audit trail",
+  "securityDomain": "endpoint",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Windows endpoints and servers that support Audit PNP Activity. USB/device-control enforcement and file-operation visibility require additional endpoint or DLP tooling.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 6416 and Audit PNP Activity, MITRE ATT&CK, and Splunk Windows add-on configuration; policy, device generation, class/provider fields, SPL, controls, source health, device inventory, notification, and file-movement correlation were specified but not executed or Microsoft/Splunk/endpoint-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 6416), `sourcetype=WinEventLog:Microsoft-Windows-DriverFrameworks-UserMode/Operational`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Audit PnP Activity (EventCode 6416) via Advanced Audit Policy. Track USB mass storage, MTP devices, and portable drives. Correlate with file access events for full data movement picture. Alert on USB connections to servers or high-security workstations. Consider blocking USB storage via Group Policy on sensitive systems.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog EventCode=6416\n| eval DeviceClass=coalesce(ClassName, \"Unknown\")\n| where DeviceClass=\"DiskDrive\" OR DeviceClass=\"WPD\" OR DeviceClass=\"USB\"\n| stats count by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**USB / Removable Device Auditing** — Removable storage devices are a data exfiltration vector. Auditing device connections enables DLP and compliance enforcement.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 6416), `sourcetype=WinEventLog:Microsoft-Windows-DriverFrameworks-UserMode/Operational`. **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **DeviceClass** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where DeviceClass=\"DiskDrive\" OR DeviceClass=\"WPD\" OR DeviceClass=\"USB\"` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by host, DeviceId, DeviceDescription, DeviceClass, SubjectUserName, _time** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timeline (device connections over time), Table (device details), Alert on server USB connections.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=see SPL into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`DeviceClass, DeviceDescription, DeviceId, SubjectUserName`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We log when someone plugs a USB or other removable device into a Windows server so the right people can review it against policy and later explain who moved data in or out that way.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Event 6416 is low-volume on stable servers but can be noisier with VDI redirection and peripheral-heavy endpoints.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event ID 6416"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact device contract\n\nAssign endpoint engineering, asset inventory, security/DLP, Splunk collection, and incident owners. Define policies by asset role: a new storage device on a domain controller differs from one on a managed workstation. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and restrict hardware/user context. Remove the prior unsupported compliance mappings; 6416 collection alone does not satisfy application control or ordered-operations obligations.\n\nMicrosoft defines 6416 as **a new external device was recognized by the system**. DeviceId is the device instance path, DeviceDescription the friendly description, ClassId the class GUID, and ClassName the device class. Subject often represents SYSTEM/the computer account. Do not call it the inserting person.\n\n## Step 1 — Enable auditing and collect Security XML\n\nThrough Advanced Audit Policy set **Detailed Tracking > Audit PNP Activity** to Success for governed systems. Verify effective policy using `auditpol /get /subcategory:\"Plug and Play Events\"` or the localized supported equivalent plus winning GPO. Measure event volume on VDI and peripheral-heavy roles.\n\nCollect `[WinEventLog://Security]` with `renderXml=true` in an app-owned `inputs.conf`, writing to deployment-local `index=wineventlog`. Verify effective stanza with `splunk btool inputs list WinEventLog://Security --debug`. In the Event Viewer console at **Windows Logs > Security**, compare fixed 6416 EventRecordIDs and all Data fields to Splunk XML extraction. Operate Security source-health per expected host.\n\n## Step 2 — Save and understand the report\n\nSave the sidecar SPL as `windows_new_external_device_6416`, schedule every five minutes over `earliest=-10m@m latest=-5m@m`, and retain all rows. It fixes the Security XML source and exact event ID, requires endpoint/device identity, then uses only observed DeviceId/ClassName to produce three triage scopes. `USB\\` plus DiskDrive or WPD is a review priority, not proof of removable media. USB devices with other classes and non-USB external devices remain visible.\n\nApply alert policy after the base report: page on storage-class USB for sensitive servers, ticket first-seen devices on controlled workstations, and inventory other classes. Do not use a Change tstats count as a substitute.\n\n## Step 3 — Validate device classes and identity\n\nRun exact controls with fixed bounds. Test USB DiskDrive, other USB, SWD PrintQueue, empty fields, wrong channel/ID, case handling, and duplicate records. On a lab system connect only approved devices. In **Device Manager > device Properties > Details**, compare Device instance path, Device description, Class and Class GUID to the event. Record endpoint, physical device/serial-bearing identity, Windows/add-on/Splunk versions, expected/actual row, and operator.\n\nTest 6419-6424 separately if device enable/disable or policy enforcement matters. Correlate Defender Device Control/DLP verdicts and file auditing in separate searches. Prove alert delivery, dashboard ACL, source health, lookup expiry, and a server-versus-workstation routing policy.\n\n## Step 4 — Operationalize review and response\n\nOn a sensitive-server row: verify raw XML and source health; identify class, device path, vendor/compatible IDs, location, and endpoint role; check active logon/session and physical/change ownership; compare approved inventory; query device-control verdict and file activity when available; contact system/security owner; and preserve evidence.\n\nDo not automatically disable the device, eject storage, delete files, lock the machine account, or attribute activity to `SubjectUserName`. A keyboard, dock, redirected printer, or emergency response drive can be operationally critical. Use approved endpoint controls for blocking.\n\n## Step 5 — Troubleshoot\n\n- **No 6416:** verify effective Audit PNP Activity, Security input, supported Windows version, channel retention, and source freshness.\n- **Everything appears as SYSTEM/computer account:** expected for many PnP operations; correlate interactive/RDP logons and endpoint telemetry, do not rewrite the subject.\n- **Printers look external:** 6416 covers external devices broadly; classify by SWD/PRINTENUM and PrintQueue rather than dropping the record.\n- **Storage device class differs:** inspect actual Device Manager and XML fields on that hardware; update classification only with fixtures and source evidence.\n- **Same device repeats:** compare full DeviceId, endpoint, EventRecordID, reconnect/reinstall behavior, and collection duplication.\n- **WEF host is collector:** repair original Computer preservation before applying sensitive-server policy.\n- **No file-copy evidence:** expected; 6416 is recognition, not mount or I/O. Add device-control/DLP/object-access telemetry rather than inferring transfer.",
+  "grandmaExplanation": "We keep a record when Windows notices a new outside device, such as a drive, dock, printer, or keyboard. The details help the team check sensitive computers and investigate portable storage without pretending every plugged-in device moved data.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
