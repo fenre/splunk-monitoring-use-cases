@@ -1,66 +1,108 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.1.23",
-  "title": "Kernel Core Dump Generation",
-  "criticality": "critical",
-  "difficulty": "beginner",
+  "title": "Linux Core Dumps Processed by systemd-coredump",
+  "criticality": "high",
+  "difficulty": "intermediate",
   "monitoringType": [
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Kernel Core Dump Generation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_kernel_core_dump_generation` (UC-1.1.23), SOC dashboard panel \"Linux — Kernel Core Dump Generation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects journal records carrying systemd's documented core-dump `MESSAGE_ID`; it does not treat a kernel `segfault at`, general-protection-fault, shell `Segmentation fault`, or systemd unit-failure line as proof that a dump reached `systemd-coredump`. It does not cover non-systemd core handlers, clean exits, OOM kills, application exceptions, root-cause diagnosis, regulatory compliance, or the binary core contents. `COREDUMP_FILENAME` reports an externally stored file when the journal event was written, but this search does not prove that the file still exists after systemd-tmpfiles or an operator removes it. A row without that field is a handler record, not a claim that a persistent core file exists.",
+  "evidence": "Retain the versioned definition and dispatch history of saved search `linux_systemd_coredump_5m`, the matching raw JSON journal event with `MESSAGE_ID`, `COREDUMP_PID`, signal, executable, and any `COREDUMP_FILENAME`, the effective `journald://systemd-coredump` input from `splunk btool inputs list --debug`, and the incident or approved-test disposition. These artefacts demonstrate collection and detection activity only; they do not prove that an external core remains retrievable.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.23 positive (Kernel, Core, Dump, Generation): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `message`, `user` satisfies detection threshold for 'Kernel Core Dump Generation'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.23 negative (Dump Generation): ingest benign `os` / `syslog` events where `host`, `message`, `user` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Kernel Core Dump Generation'."
+    "positiveScenario": "Into a nonproduction `index=os` input using `sourcetype=linux:journald:systemd-coredump`, index one JSON event on host `core-test-01` containing `MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1`, `COREDUMP_PID=4242`, `COREDUMP_UID=1000`, `COREDUMP_SIGNAL_NAME=SIGSEGV`, `COREDUMP_COMM=crashprobe`, `COREDUMP_EXE=/opt/crashprobe/bin/crashprobe`, and `COREDUMP_FILENAME=/var/lib/systemd/coredump/core.crashprobe.1000.4242.zst`. The completed five-minute bucket must return one row with `process=crashprobe`, `process_ids=4242`, `coredump_events=1`, and `external_core_reported=yes`.",
+    "negativeScenario": "Into the same nonproduction source, index a JSON kernel event whose `MESSAGE` is `crashprobe[4242]: segfault at 0 ip 0000000000401136 sp 00007ffd00000000 error 4 in crashprobe[400000+1000]` but which has no systemd-coredump `MESSAGE_ID` or `COREDUMP_PID`; also index a systemd unit line `crashprobe.service: Main process exited, code=dumped, status=11/SEGV`. Both are crash indicators, but neither is the documented systemd-coredump record required by this SPL, so the bucket must return zero rows."
   },
-  "dataSources": "`sourcetype=syslog, /var/log/kern.log` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
-  "spl": "index=os sourcetype=syslog \"segfault at\" OR \"general protection fault\" OR \"double fault\"\n| stats count by host, message, user\n| eval severity=\"high\"",
-  "description": "Detects UC-1.1.23 — Kernel, Core, Dump, Generation — using `index=os` sourcetype `syslog`, grouped by `host`, `message`, `user`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Dump Generation. Purpose-built for 'Kernel Core Dump Generation' in Linux workflows.",
-  "value": "Operators running UC-1.1.23 on `syslog` feeds shorten triage for Dump Generation tied to 'Kernel Core Dump Generation', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "On the UF, enable `[monitor:///var/log/kern.log]` (Debian/Ubuntu) or `[monitor:///var/log/messages]` (RHEL/CentOS) with `sourcetype=syslog`; for journald-only distros use the `[journald://]` input. Alert on first occurrence of `segfault` or `core dumped` per host. Configure `systemd-coredump` to write dumps to `/var/lib/systemd/coredump/` and monitor the directory for new files to correlate dump metadata with syslog events.",
-  "visualization": "Alert, Stats Table",
+  "dataSources": "JSON system-journal events collected by the Splunk Universal Forwarder's built-in `[journald://systemd-coredump]` modular input and explicitly assigned the local convention `index=os sourcetype=linux:journald:systemd-coredump`. Configure `journalctl-filter=MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1` and include `MESSAGE_ID, MESSAGE, COREDUMP_PID, COREDUMP_UID, COREDUMP_SIGNAL, COREDUMP_SIGNAL_NAME, COREDUMP_COMM, COREDUMP_EXE, COREDUMP_UNIT, COREDUMP_USER_UNIT, COREDUMP_FILENAME`. Required Splunk metadata is `_time, _raw, host, source, sourcetype`; `os` and the sourcetype name are deployment choices, not vendor-defined defaults. Splunk Add-on for Unix and Linux (Splunkbase 833) is optional adjacent host telemetry and is not the source of these systemd fields.",
+  "app": "Splunk Universal Forwarder built-in journald modular input (`journald_input`); no Splunkbase add-on is required for this feed. Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) may supply other Linux telemetry but does not establish this detection's field contract.",
+  "spl": "index=os sourcetype=linux:journald:systemd-coredump\n| spath\n| where MESSAGE_ID=\"fc2e22bc6ee647b6b90729ab34a250b1\" AND isnotnull(COREDUMP_PID)\n| eval process=coalesce(COREDUMP_COMM,\"unknown\"), executable=coalesce(COREDUMP_EXE,\"unknown\"), signal=coalesce(COREDUMP_SIGNAL_NAME,COREDUMP_SIGNAL,\"unknown\"), external_core_reported=if(isnotnull(COREDUMP_FILENAME) AND len(trim(COREDUMP_FILENAME))>0,\"yes\",\"no\")\n| bin _time span=5m\n| stats count as coredump_events values(COREDUMP_PID) as process_ids values(COREDUMP_UID) as user_ids values(signal) as signals values(COREDUMP_UNIT) as system_units values(COREDUMP_USER_UNIT) as user_units values(COREDUMP_FILENAME) as external_core_files values(MESSAGE) as messages by _time host process executable external_core_reported\n| where coredump_events>=1\n| sort 0 -_time host process",
+  "description": "Identifies JSON journal events that carry systemd-coredump's fixed message identifier and a crashed-process ID. Each result represents one host, process label, executable, external-file-reporting state, and five-minute bucket, and appears after at least one qualifying handler record; retained fields show event count, PIDs, user IDs, terminating signals, units, messages, and any reported external core paths. Kernel segfault text alone cannot create a result.",
+  "value": "Early, correctly scoped notification can shorten service-restoration and defect-triage time by giving responders the process, executable, signal, and available dump location needed for debugging. Separating handler records from mere fault text also avoids sending engineers to look for a core file that was never reported as externally stored, while recurrence counts support rollback or vendor-escalation decisions.",
+  "implementation": "Enable a dedicated Universal Forwarder `[journald://systemd-coredump]` input, filter on systemd's core-dump `MESSAGE_ID`, include the documented metadata fields but not the binary `COREDUMP` payload, and assign the locally chosen index and sourcetype. Verify JSON extraction and compare sample rows with `coredumpctl info`; then save `linux_systemd_coredump_5m` to run every five minutes over a delayed completed bucket and alert when any result is returned.",
+  "visualization": "Use a five-minute timechart of `coredump_events` split by `process`, plus a table of `_time`, `host`, `process`, `executable`, `signals`, `process_ids`, `system_units`, `external_core_reported`, and `external_core_files`. Add a 24-hour recurrence panel by host/process and raw-event drilldown. Label `external_core_reported=yes` as a path reported at event time, not current file availability; display `no` as \"no external filename reported\", not \"no dump generated\".",
   "cimModels": [
     "N/A"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "systemd: systemd-coredump",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemd-coredump.html",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunkbase app 833",
+      "title": "systemd: coredump.conf",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/coredump.conf.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "systemd: coredumpctl",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/coredumpctl.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel: Documentation for /proc/sys/kernel/ (core_pattern)",
+      "url": "https://docs.kernel.org/admin-guide/sysctl/kernel.html#core-pattern",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux man-pages: core(5)",
+      "url": "https://man7.org/linux/man-pages/man5/core.5.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: Get data with the Journald input",
+      "url": "https://help.splunk.com/en/data-management/get-data-in/get-data-into-splunk-enterprise/10.2/get-other-kinds-of-data-in/get-data-with-the-journald-input",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: inputs.conf",
+      "url": "https://help.splunk.com/en/splunk-enterprise/administer/admin-manual/9.2/configuration-file-reference/9.2.11-configuration-file-reference/inputs.conf",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: spath search command",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/spath",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (optional adjacent telemetry; Splunkbase 833)",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Kernel Core Dump Generation'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A matching `MESSAGE_ID` with `COREDUMP_PID` is evidence that systemd-coredump recorded a handler event; the scenarios below are false-positive pages or duplicate notifications, not fictitious records.\n\n1. **crashprobe release test** — A resilience or packaging test may deliberately send `SIGSEGV` to `/opt/crashprobe/bin/crashprobe`. Confirm the exact host, executable, approved change, and bounded test window; route the row to the test record instead of opening an outage.\n\n2. **GDB developer reproduction** — An engineer can intentionally reproduce a native defect under GDB or with `kill -SEGV` so systemd-coredump captures diagnostics. Distinguish it with the lab host inventory, named operator, debugger session, and active defect ticket; never suppress the same executable fleet-wide.\n\n3. **systemd service restart containment** — A worker such as `api-worker` may dump core while `Restart=on-failure` restores capacity immediately. Check `systemctl show <unit> -p NRestarts,ActiveState,SubState` and service health; downgrade urgency only when the replacement is healthy because the dump remains genuine.\n\n4. **Duplicate journald modular inputs** — Two `[journald://]` stanzas or a second journal relay can index the same `MESSAGE_ID`, `COREDUMP_PID`, host, and timestamp twice. Compare `_raw`, `_cursor` when retained, `source`, and `_indextime`, then remove the overlapping collector rather than suppressing the process.\n\n5. **Disposable desktop or CI process** — A browser renderer, compiler test, or short-lived CI helper can produce a valid dump on a shared Linux host without customer impact. Resolve `COREDUMP_UID`, `COREDUMP_USER_UNIT`, executable, job ID, and host role before changing priority; continue paging for infrastructure daemons on the same host.\n\n6. **Known package defect during a controlled upgrade** — A documented `dnf`, `apt`, or vendor-package rollout can trigger a repeatable dump during a bounded maintenance task. Correlate package-manager and change records and confirm that the affected version is the known one before routing to the existing problem record.\n\n**Suppression mechanism:** use a locally governed `linux_coredump_exceptions.csv` lookup keyed by exact `host` and `executable`, with `start_time`, `end_time`, owner, reason, and ticket. Filter alert actions only for events inside an approved time-bound exception; retain suppressed search rows, reject wildcards and expired entries, and do not suppress solely because `external_core_reported=no`.",
   "equipment": [
-    "linux",
-    "syslog"
+    "linux"
   ],
   "equipmentModels": [
-    "linux_generic",
-    "syslog_generic"
+    "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against systemd, Linux kernel, Linux man-pages, and Splunk primary sources; no runtime or SME sign-off",
+  "requiredFields": [
+    "_time",
+    "_raw",
+    "host",
+    "source",
+    "sourcetype",
+    "MESSAGE_ID",
+    "MESSAGE",
+    "COREDUMP_PID",
+    "COREDUMP_UID",
+    "COREDUMP_SIGNAL",
+    "COREDUMP_SIGNAL_NAME",
+    "COREDUMP_COMM",
+    "COREDUMP_EXE",
+    "COREDUMP_UNIT",
+    "COREDUMP_USER_UNIT",
+    "COREDUMP_FILENAME"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, /var/log/kern.log`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn the UF, enable `[monitor:///var/log/kern.log]` (Debian/Ubuntu) or `[monitor:///var/log/messages]` (RHEL/CentOS) with `sourcetype=syslog`; for journald-only distros use the `[journald://]` input. Alert on first occurrence of `segfault` or `core dumped` per host. Configure `systemd-coredump` to write dumps to `/var/lib/systemd/coredump/` and monitor the directory for new files to correlate dump metadata with syslog events.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"segfault at\" OR \"general protection fault\" OR \"double fault\"\n| stats count by host, message, user\n| eval severity=\"high\"\n```\n\nUnderstanding this SPL\n\n**Kernel Core Dump Generation** — Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues.\n\nDocumented **Data sources**: `sourcetype=syslog, /var/log/kern.log`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, message, user** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Stats Table",
-  "grandmaExplanation": "Core dumps indicate process crashes at kernel level, enabling root cause analysis of system stability issues — so you find out before users do when something is slowing down or breaking.",
+  "mitreAttack": [
+    "N/A (operational Linux crash observability; not a security detection)"
+  ],
+  "detailedImplementation": "## Prerequisites and scope\n\nUse a Linux host where the kernel is configured to invoke `systemd-coredump` through `kernel.core_pattern`; confirm the effective value with `sysctl kernel.core_pattern`. A process fault message does not establish this path. Core processing can be prevented by signal disposition, `RLIMIT_CORE`, dumpability rules, filesystem conditions, or a different core handler. Review `/etc/systemd/coredump.conf` and drop-ins to understand `Storage=`, size limits, compression, and retention, but do not change those controls merely to satisfy monitoring. Grant the Universal Forwarder account enough journal access to read system entries, and grant the Splunk infrastructure-monitoring role read access to the chosen event index plus permission to create the saved search. Do not grant access to binary cores through this use case.\n\nThe built-in Universal Forwarder journald modular input is the collector. Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) is optional for surrounding host context; it neither creates systemd's fields nor needs a custom scripted input here. The catalogue's `index=os` and `sourcetype=linux:journald:systemd-coredump` are explicit local conventions. Replace both consistently if the deployment uses different names.\n\n## 1. Configure and verify collection\n\nCreate a deployment app containing `local/inputs.conf`; do not edit the shipped `journald_input/default/inputs.conf`. Define `[journald://systemd-coredump]`, set `disabled=0`, the approved `index=os`, and `sourcetype=linux:journald:systemd-coredump`. Set `journalctl-filter = MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1`. Configure `journalctl-include-fields` for `MESSAGE_ID,MESSAGE,COREDUMP_PID,COREDUMP_UID,COREDUMP_SIGNAL,COREDUMP_SIGNAL_NAME,COREDUMP_COMM,COREDUMP_EXE,COREDUMP_UNIT,COREDUMP_USER_UNIT,COREDUMP_FILENAME`. Splunk documents `MESSAGE`, `_REALTIME_TIMESTAMP`, and `_CURSOR` as required defaults. Deliberately omit `COREDUMP`, which can contain the memory image when journal storage is enabled and can expose secrets while consuming substantial ingest volume.\n\nDeploy the app, restart the Universal Forwarder as Splunk requires for configuration changes, and inspect the effective stanza with `splunk btool inputs list journald://systemd-coredump --debug`. On the host, run `journalctl MESSAGE_ID=fc2e22bc6ee647b6b90729ab34a250b1 -o verbose` and `coredumpctl list` under an appropriately authorized account. In Splunk, search `index=os sourcetype=linux:journald:systemd-coredump earliest=-15m` and verify `_time`, `_raw`, `host`, `source`, and `sourcetype`. Confirm that `_raw` is valid JSON and that `| spath` yields the uppercase systemd fields. Compare a representative `COREDUMP_PID`, signal, executable, and timestamp with `coredumpctl info <PID>`.\n\nA dedicated `MESSAGE_ID` filter is stable and language-independent. Do not substitute a search for `segfault at`, `general protection fault`, `code=dumped`, or English `dumped core`: those strings describe related failures but do not carry the systemd-coredump field contract. Also avoid a second broad journald stanza covering the same records unless duplicate ingestion is intentionally handled.\n\n## 2. Create and schedule the search\n\nThe base search selects only the configured local index and sourcetype. `spath` extracts JSON keys from `_raw`; `where` then requires systemd's fixed core-dump message identifier and a non-null `COREDUMP_PID`. `coalesce` supplies display values without inventing executable or signal data. `external_core_reported=yes` means the event included `COREDUMP_FILENAME`, which systemd documents for external storage. `no` means only that no external filename was reported; the dump might have been journal-stored, processed without permanent storage, truncated, or otherwise unavailable.\n\n`bin _time span=5m` and `stats` create one row per five-minute bucket, host, process, executable, and filename-reporting state. `coredump_events` counts journal records, not unique incidents, affected users, or files still present. Save the search as `linux_systemd_coredump_5m`. Schedule it every five minutes over a completed delayed bucket such as `earliest=-10m@m latest=-5m@m`, after measuring `_indextime-_time` on the deployment. Trigger when result count is greater than zero, equivalent to at least one qualifying handler record per grouping in that five-minute window. If normal ingestion exceeds five minutes, correct forwarding or increase the delay and window without creating overlapping dispatches. Throttle notifications by `host` and `executable` for 30 minutes while preserving each dispatch result for recurrence analysis.\n\nThere is no CIM alternative for this raw systemd journal contract. Do not map `COREDUMP_COMM` to a CIM process field or claim data-model acceleration without a separately designed and tested normalization layer.\n\n## 3. Validate positive, negative, and storage semantics\n\nUse a nonproduction index or isolated test host. First index the exact positive JSON fixture described in `controlTest`; confirm one result with `process=crashprobe`, `process_ids=4242`, `signals=SIGSEGV`, `external_core_reported=yes`, and the expected path in `external_core_files`. Then index both negative messages. The kernel segfault line and systemd unit exit line must produce zero results because neither supplies the fixed `MESSAGE_ID` and `COREDUMP_PID` pair.\n\nAdd a second positive event with the correct identifier and PID but no `COREDUMP_FILENAME`. It must return with `external_core_reported=no`; this tests classification without falsely asserting that no dump was processed. Add malformed JSON and confirm `spath` does not create a qualifying row. Documentation review verifies this logic only and does not claim these tests ran in a customer environment.\n\nFor an approved end-to-end exercise, use an organization-sanctioned crash fixture on an isolated host, record the change ticket, and compare Splunk with `journalctl` and `coredumpctl`. Never induce a crash in production. If `coredumpctl` reports `present`, `journal`, `truncated`, `missing`, `none`, or `error`, preserve that operational distinction in the incident; the SPL's two-state filename indicator is intentionally narrower.\n\n## 4. Alert, visualize, and respond\n\nRoute results to Linux or application operations with `_time`, `host`, `process`, `executable`, `signals`, `process_ids`, units, `external_core_reported`, and a raw-event link. Page immediately only when service ownership, criticality, recurrence, or health checks justify it. Use the dashboard layouts in `visualization` and keep the labels explicit so viewers do not interpret journal-record count as outage count or current core-file inventory.\n\nThe runbook should identify the owning service, inspect `systemctl status` and `systemctl show <unit> -p NRestarts,ActiveState,SubState`, check deployment and package changes, and determine whether restart restored service. Before repeated restarts or cleanup, preserve authorized metadata and the core according to local privacy and retention policy. Escalate recurring defects with package version, executable, signal, PID, timestamp, unit, and `coredumpctl info` output. Do not attach memory images to tickets by default: cores can contain credentials, personal data, or other sensitive process memory.\n\n## 5. Suppress and troubleshoot safely\n\nApply `linux_coredump_exceptions.csv` only to alert routing, keyed by exact `host` and `executable` and bounded by approved `start_time` and `end_time`. Keep owner, reason, and ticket fields, reject wildcard and permanent exceptions, and retain suppressed results for review. A matching handler event remains real during a test or maintenance window.\n\nNo Splunk events usually means `systemd-coredump` is not the active `core_pattern` handler, the Forwarder cannot read the journal, the filter or field list is malformed, the stanza is disabled, or the search role cannot read `index=os`. Missing extracted fields indicate that `_raw` is not the expected JSON or the field was omitted; inspect one raw event before adding regexes. Inflated counts normally indicate duplicate `[journald://]` readers or another relay. A missing `COREDUMP_FILENAME` is a storage-policy observation, not a collection failure. Conversely, a populated filename can outlive neither retention nor manual deletion; use current `coredumpctl info` status when responders need to know whether the file is still accessible.",
+  "grandmaExplanation": "When a Linux program crashes badly enough to produce a memory snapshot, we collect the system's official record of handling it. That helps the team find the failed program and determine whether useful debugging information was saved.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
