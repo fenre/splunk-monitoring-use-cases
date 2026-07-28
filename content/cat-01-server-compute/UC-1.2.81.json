@@ -1,66 +1,124 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.81",
-  "title": "SMBv1 Usage Detection",
+  "title": "SMBv1 Connection Attempts to Windows Servers",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
+    "Security",
+    "Audit"
   ],
-  "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'SMBv1 Usage Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_smbv1_usage_detection` (UC-1.2.81), SOC dashboard panel \"Linux — SMBv1 Usage Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "splunkPillar": "Security",
+  "exclusions": "Reports Microsoft-Windows-SMBServer/Audit Event ID 3000, which Microsoft defines as a client attempt to connect to an SMB server by using SMBv1. It does not prove authentication, share access, file transfer, exploit activity, or a successful SMBv1 session; identify the user or process; inventory whether SMBv1 is installed or enabled; cover SMB client-side attempts that never reach a monitored server; or collect servers where AuditSmb1Access is disabled. Event IDs 3002 and 3003, Security events 5140/5145, network packet analysis, and non-Windows SMB servers are outside this exact rule. The index, 15-minute window, five-minute ingestion delay, and notification policy are local design choices, not Microsoft or Splunk defaults.",
+  "evidence": "After deployment, retain the saved search `windows_smbv1_server_attempts`, ACL, schedule, dispatch/job ID, and result rows; raw Event ID 3000 XML with Computer, EventRecordID, SystemTime, and ClientName; `Get-SmbServerConfiguration | Select AuditSmb1Access,EnableSMB1Protocol` output from each governed server; the deployed inputs.conf and Splunk Add-on version; expected-server channel and ingestion-health reports; client-address enrichment with its observation time; remediation ticket and owner; bounded exceptions; and dated positive, negative, duplicate, late-event, and field-parity tests. This documentation-only review generated no SMB connection, Windows event, Splunk result, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.81 positive (SMBv1, Usage, Detection): ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=3000 where `client_count` grouped by `host` satisfies detection threshold for 'SMBv1 Usage Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.81 negative (Usage Detection): ingest benign `wineventlog` / `target_sourcetype` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'SMBv1 Usage Detection'."
+    "positiveScenario": "In an isolated test index and a fixed closed window, ingest two XML events with source `XmlWinEventLog:Microsoft-Windows-SMBServer/Audit`, sourcetype `XmlWinEventLog`, EventCode 3000, Computer `FS01.example.test`, distinct EventRecordID values, and ClientName `192.0.2.81`. Expect one result for server `fs01.example.test` and client address `192.0.2.81`, `attempt_count=2`, both record IDs, exact first/last times, and `use_case=UC-1.2.81`.",
+    "negativeScenario": "Expect no result for Event ID 3002, Event ID 3003, Security Event ID 5140, source `XmlWinEventLog:Application`, a missing/blank ClientName, a missing server identity, or an Event ID 3000 inside the newest excluded five minutes. Verify an approved printer or scanner still appears in the base result before the separate exception lookup is applied, and verify duplicate collection paths are exposed rather than silently interpreted as multiple client attempts."
   },
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-SMBServer/Audit` (EventCode 3000) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-SMBServer/Audit\" EventCode=3000\n| stats count values(ClientName) as clients dc(ClientName) as client_count by host\n| sort -client_count",
-  "description": "Surfaces Usage Detection anomalies for UC-1.2.81 with window `the scheduled window` on `index=wineventlog` sourcetype `configured sourcetype`. Combines `client_count` by `host` and compares against configured threshold. Mapped to keywords SMBv1, Usage, Detection for dashboard routing.",
-  "value": "Alerting on SMBv1, Usage, Detection through UC-1.2.81 reduces capacity incidents, patch regressions, and service outages by surfacing `client_count` early.",
-  "implementation": "Enable SMB1 audit logging via `Set-SmbServerConfiguration -AuditSmb1Access $true`. EventCode 3000 logs each SMBv1 connection with the client name. Identify all clients still using SMBv1, then upgrade or remediate before disabling SMBv1 entirely. Alert on any new SMBv1 access after remediation is complete. MS17-010 (EternalBlue) affects unpatched SMBv1 systems.",
-  "visualization": "Table (SMBv1 clients), Bar chart (clients per server), Single value (total SMBv1 connections — target: 0).",
-  "cimModels": [
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.dest All_Changes.src span=1h\n| where count > 0",
-  "dataModelAcceleration": "Enable acceleration for Change (All_Changes) if SMB1 audit 3000 is CIM-tagged; otherwise the WinEvent `SMBServer/Audit` search is the source of truth.",
-  "references": [
+  "dataSources": "Microsoft Windows SMB server audit channel `Microsoft-Windows-SMBServer/Audit`, Event ID 3000, collected as XML into `index=wineventlog` by Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-SMBServer/Audit`; required native fields are `_time`, `EventCode` or `EventID`, `Computer`, `EventRecordID`, `SystemTime`, and EventData field `ClientName` (displayed by Windows as Client Address).",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), minimum version 10.0.1, provides Windows Event Log collection and XML search-time knowledge. Microsoft Windows supplies the SMBServer/Audit channel after administrators enable AuditSmb1Access.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'SMBv1 Usage Detection'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `values` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-SMBServer/Audit\" EventCode=3000 earliest=-20m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), server=lower(trim(coalesce(Computer,host))), client_address=trim(ClientName), record_id=tostring(EventRecordID)\n| where event_code=3000 AND len(server)>0 AND len(client_address)>0 AND len(record_id)>0\n| stats min(_time) as first_time max(_time) as last_time count as attempt_count values(record_id) as event_record_ids values(SystemTime) as system_times values(source) as observed_sources values(sourcetype) as observed_sourcetypes by server client_address\n| eval activity=\"SMBv1 connection attempt observed by Windows SMB server audit\", window_minutes=15, use_case=\"UC-1.2.81\"\n| table first_time last_time server client_address attempt_count event_record_ids system_times activity window_minutes observed_sources observed_sourcetypes use_case\n| sort 0 -last_time server client_address",
+  "description": "Returns one row per Windows SMB server and client address when native SMBServer/Audit Event ID 3000 records occur in a delayed, closed 15-minute interval. The result preserves attempt count, record IDs, source metadata, and event-time bounds without claiming that the legacy connection succeeded.",
+  "value": "Every observed attempt identifies a remaining dependency on a deprecated and unsafe file-sharing protocol that Microsoft recommends removing. Accurate server/client evidence lets infrastructure owners find legacy printers, appliances, software, or unmanaged hosts before disabling SMBv1 causes an outage, and detects recurrence after remediation.",
+  "implementation": "Enable auditing with elevated `Set-SmbServerConfiguration -AuditSmb1Access $true` and verify it using `Get-SmbServerConfiguration`. Collect the SMBServer/Audit channel with `renderXml=true`, validate native field `ClientName`, then save the SPL as `windows_smbv1_server_attempts` on a 15-minute cadence. Treat every row as a real protocol attempt requiring ownership and remediation; enrich the address only after preserving the raw value.",
+  "visualization": "Restricted dashboard `Windows — SMBv1 Dependency Removal`: expected-server audit/input freshness and AuditSmb1Access state first; single values for attempts, unique client addresses, affected servers, and unresolved owners; a 24-hour trend; and a table with server, raw client address, first/last time, attempt count, record IDs, asset owner, exception expiry, and remediation ticket. Drill down to raw Event ID 3000 XML, time-bounded DHCP/DNS/NAC/CMDB identity, server configuration evidence, related authentication/share events, and the change record. Label the panel `attempts`, never `successful SMBv1 sessions`.",
+  "cimModels": [],
+  "schema": "Microsoft-Windows-SMBServer/Audit Event ID 3000 native XML fields",
+  "dataModelAcceleration": "No exact CIM data model is claimed. The Change model does not represent an SMBv1 negotiation attempt, and generic network traffic models may omit Windows EventRecordID, the native ClientName value, and AuditSmb1Access context. Keep the native XML search authoritative; use network or asset models only for post-result enrichment after parity testing.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "SystemTime",
+    "ClientName"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Learn: Detect, enable, and disable SMBv1, SMBv2, and SMBv3 in Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/detect-enable-and-disable-smbv1-v2-v3",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: SMBv1 is not installed by default in Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/troubleshoot/smbv1-not-installed-by-default-in-windows",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Set-SmbServerConfiguration",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/smbshare/set-smbserverconfiguration?view=windowsserver2025-ps",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: Monitor Windows event log data with Splunk Enterprise",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.4/get-windows-data/monitor-windows-event-log-data-with-splunk-enterprise",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: Add-on for Microsoft Windows",
+      "url": "https://help.splunk.com/en/data-management/integrate-data-with-add-ons/splunk-supported-add-ons/splunk-supported-add-ons/microsoft-windows",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise inputs.conf reference",
+      "url": "https://help.splunk.com/en/data-management/splunk-enterprise-admin-manual/10.0/configuration-file-reference/10.0.1-configuration-file-reference/inputs.conf",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "Event ID 3000 is not a false report of the protocol attempt; the expected-benign cases below are legitimate legacy dependencies that may justify temporary notification suppression but still require remediation.\n\n1. **Microsoft Windows print server contacting a multifunction printer** — Confirm the raw address against DHCP/NAC inventory, printer make/firmware, print-server job history, and a failed SMB2-or-later capability test. Assign the device owner and replacement or firmware ticket.\n\n2. **Document scanner writing to a Windows share** — Match the exact scanner address, scan workflow, destination server, approved business owner, and test result showing the device cannot negotiate SMB2. Do not infer identity from stale reverse DNS alone.\n\n3. **Backup or archival appliance** — Correlate the exact address and server with the vendor job ID, scheduled UTC window, appliance inventory record, and supported-protocol configuration. Unexpected timing or a new server remains actionable.\n\n4. **Industrial, laboratory, or medical device** — Require a current asset record, network segment, compensating-control approval, vendor support statement, and dated upgrade/replacement plan; safety impact changes response priority but does not make SMBv1 safe.\n\n5. **Legacy NAS or embedded file client during migration** — Verify the migration change ticket, source address lease history, named operator, target share, inclusive start, exclusive end, and proof that attempts stop after cutover.\n\n6. **Authorized protocol-discovery scan** — Confirm the scanner identity, signed scan job, target list, owner, and narrow maintenance window. A scanner outside that window or from another address is not covered.\n\n**Suppression mechanism:** use lookup windows_smbv1_attempt_exceptions.csv after the base aggregation, keyed by exact `server,client_address` with owner, reason, ticket, approver, inclusive `valid_from`, and exclusive `valid_until`. Reject wildcard servers, whole-subnet entries, and permanent exceptions. Keep the unsuppressed evidence report and continue surfacing expired entries and identity drift.",
+  "mitreAttack": [
+    "N/A (SMBv1 protocol-hygiene audit, not adversary behavior)"
+  ],
+  "detectionType": "Audit / protocol hygiene",
+  "securityDomain": "network",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Governed Windows systems running the SMB server component and supporting `Set-SmbServerConfiguration -AuditSmb1Access`. Coverage requires the Microsoft-Windows-SMBServer/Audit channel, Event ID 3000 generation, and a working Windows Event Log collection path. Non-Windows SMB servers and client-only attempts require separate network or platform telemetry.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft SMBv1 audit/deprecation and PowerShell documentation plus Splunk Windows Event Log/add-on documentation; event generation, ClientName extraction, SPL, 15-minute schedule, source health, alerting, exceptions, dashboard, and response were specified but not executed or Microsoft/Windows/Splunk/network/SOC-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-SMBServer/Audit` (EventCode 3000).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable SMB1 audit logging via `Set-SmbServerConfiguration -AuditSmb1Access $true`. EventCode 3000 logs each SMBv1 connection with the client name. Identify all clients still using SMBv1, then upgrade or remediate before disabling SMBv1 entirely. Alert on any new SMBv1 access after remediation is complete. MS17-010 (EternalBlue) affects unpatched SMBv1 systems.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-SMBServer/Audit\" EventCode=3000\n| stats count values(ClientName) as clients dc(ClientName) as client_count by host\n| sort -client_count\n```\n\nUnderstanding this SPL\n\n**SMBv1 Usage Detection** — SMBv1 is vulnerable to EternalBlue and WannaCry. Detecting remaining SMBv1 traffic identifies systems that need upgrading or have SMBv1 re-enabled.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-SMBServer/Audit` (EventCode 3000). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (SMBv1 clients), Bar chart (clients per server), Single value (total SMBv1 connections — target: 0).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=see SPL into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We list machines still talking the oldest Windows file-sharing dialect so the team can turn it off on purpose instead of by surprise when a new flaw appears.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "Event ID 3000 should be sparse after remediation. The search scans one exact XML channel over a 15-minute closed interval and performs a small server/client aggregation; Windows Event Log retention and duplicate collection paths are the main operational considerations.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Microsoft-Windows-SMBServer/Audit Event ID 3000",
+      "Splunk Add-on for Microsoft Windows XML field extraction"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact scope\n\nAssign Windows file-services, endpoint engineering, network, Splunk, security operations, asset, and exception owners. Inventory every governed Windows SMB server and its expected event-collection path. Splunk Enterprise 9.3+ or 10.x, or Splunk Cloud, needs a search role with access to index=wineventlog; endpoint administrators need elevation to inspect and change SMB server configuration. Deploy Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1 on the appropriate search and collection tiers and test upgrades before production.\n\nMicrosoft documents Event ID 3000 in `Microsoft-Windows-SMBServer/Audit` as a client attempt to use SMBv1. The event does not prove authentication or successful file access. Its EventData field is `ClientName`, although the rendered message labels the value `Client Address`; preserve that native value and do not invent a ClientAddress extraction. The operational target is zero attempts after dependencies are remediated.\n\n## Step 1 — Enable and collect SMBv1 audit events\n\nOn each governed server, run elevated `Set-SmbServerConfiguration -AuditSmb1Access $true`, then record `Get-SmbServerConfiguration | Select AuditSmb1Access,EnableSMB1Protocol`. Enabling audit is not the same as enabling SMBv1. Follow Microsoft removal guidance and a tested change process; this use case must never turn the protocol on to create evidence.\n\nDeploy an inputs.conf stanza such as `[WinEventLog://Microsoft-Windows-SMBServer/Audit]` with `disabled=0`, `renderXml=true`, and `index=wineventlog`. XML collection should yield `sourcetype=XmlWinEventLog` and source `XmlWinEventLog:Microsoft-Windows-SMBServer/Audit`. If XML allow/deny rules are used, follow Splunk's `$XmlRegex` requirement. Preserve the original Computer when Windows Event Forwarding is involved and eliminate duplicate direct-plus-WEF paths.\n\nIn Event Viewer, compare **Applications and Services Logs > Microsoft > Windows > SMBServer > Audit** with Splunk for EventCode/EventID 3000, Computer, EventRecordID, SystemTime, and ClientName. Run `$SPLUNK_HOME/bin/splunk btool inputs list --debug` on the forwarder to prove the effective stanza and source app. Maintain a source-health report for expected servers, but do not mistake a quiet audit log for a healthy input: combine forwarder heartbeat, channel readability, configuration state, and other Windows events.\n\n## Step 2 — Create and understand the saved search\n\nSave the supplied SPL as `windows_smbv1_server_attempts` and schedule it every 15 minutes. It searches from twenty to five minutes before dispatch, creating one complete delayed 15-minute interval. Measure `_indextime-_time` and move the entire interval if the five-minute delay is insufficient; overlapping windows can duplicate notifications.\n\nThe base pins index, XML sourcetype, exact channel source, and Event ID 3000. `coalesce(EventCode,EventID)` tolerates the two common event-ID field names without broadening event scope. `Computer` becomes the server identity; the native `ClientName` becomes the clearly labeled `client_address`. Requiring server, client, and EventRecordID prevents unattributable rows. `stats` returns one row per server/address while preserving event counts, record IDs, timestamps, and source metadata. There is intentionally no threshold above one and no allowlist inside the base SPL: one attempt is sufficient evidence of a dependency.\n\nApply asset/DHCP/NAC enrichment after aggregation and retain observation time because addresses can be reassigned. Apply the bounded exception lookup only to notification routing; do not erase the base evidence. Throttle by exact server and client address for one search interval, and reopen when an exception expires or identity changes.\n\n## Step 3 — Validate collection and logic\n\nUse deterministic XML fixtures for the positive and negative scenarios. Assert one and two event counts, EventCode versus EventID coalescing, blank ClientName rejection, exact source filtering, duplicate EventRecordID visibility, earliest/latest boundaries, and preservation of IPv4 and IPv6 text. Test that Event IDs 3002, 3003, 5140, and 5145 do not enter this exact rule.\n\nOn an isolated lab server where the protocol dependency and risk are approved, enable auditing and use a controlled legacy client or packet-replay fixture supplied by the lab owner. Do not enable SMBv1 on production or weaken signing/authentication to test. Compare the raw event with `Get-WinEvent -LogName Microsoft-Windows-SMBServer/Audit -FilterXPath \"*[System[EventID=3000]]\"` and the Splunk row. Record server, lab client, event record ID, native ClientName, UTC bounds, add-on/forwarder/Splunk versions, search job ID, expected and actual rows, and operator.\n\nKeep status draft until production validation demonstrates expected-server coverage, AuditSmb1Access state, field parity, late-data handling, alert delivery, dashboard ACLs, exception expiry, address enrichment, and responder workflow.\n\n## Step 4 — Investigate and remediate safely\n\nFor each row, first verify the raw Event ID 3000 and server identity. Resolve the client address with time-bounded DHCP, NAC, EDR, switch, and CMDB records; reverse DNS alone is not authoritative. Identify owner, device type, firmware/OS, business workflow, target server, and whether SMB2 or later is supported. Check related authentication/share events and network telemetry only as corroboration, because Event ID 3000 alone does not provide user, share, process, success, or exploit status.\n\nOpen a remediation ticket to update software or firmware, reconfigure the client for SMB2+, replace the device, or retire the workflow. After a measured observation period covering infrequent jobs, use Microsoft's supported procedure and change controls to remove SMBv1. Never auto-isolate a medical/industrial device, disable file services, block an address, or remove the Windows feature solely from this result. Emergency response requires asset criticality and corroborating malicious behavior.\n\n## Step 5 — Operationalize and troubleshoot\n\nPublish the restricted dashboard described above with source health before findings, assign weekly dependency-review ownership, and measure open clients, median remediation age, expired exceptions, and recurrence after closure.\n\n- **No Event ID 3000 anywhere:** verify AuditSmb1Access, the SMB server component, channel readability, input deployment, forwarder service, queues, index routing, and search RBAC.\n- **Events appear in Event Viewer but not Splunk:** inspect the effective inputs.conf stanza with btool, exact channel spelling, disabled state, XML filtering, forwarder output, and index admission.\n- **ClientName is null:** inspect raw XML and add-on placement/version; do not substitute Message parsing or a guessed ClientAddress field without a version-qualified test.\n- **Source is WinEventLog rather than XmlWinEventLog:** standardize `renderXml=true` or build and validate a separate plain-text search; do not silently mix contracts.\n- **Attempt counts are doubled:** compare EventRecordID and Computer for direct plus WEF duplication or overlapping schedules; fix collection/scheduling instead of raising a threshold.\n- **Address resolves to the wrong device:** use lease/NAC evidence at event time and preserve the raw value; do not rely on current PTR data.\n- **Quiet server marked healthy:** require heartbeat, channel/configuration proof, and expected inventory coverage in addition to Event 3000 freshness.\n- **Event occurs after SMBv1 is disabled:** remember Microsoft defines it as an attempted connection; verify server state and investigate the still-legacy client rather than calling the event false.\n- **Exception hides a new device:** key on exact server/address plus bounded identity context, reject subnet wildcards, and alert on enrichment drift or expiry.",
+  "grandmaExplanation": "We record when a device tries to use the oldest and least safe version of Windows file sharing. The attempt may fail, but it still tells the team which printer, appliance, or computer needs updating before the old method can be removed everywhere.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
