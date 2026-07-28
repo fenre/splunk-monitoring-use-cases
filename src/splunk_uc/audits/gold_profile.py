@@ -233,7 +233,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     # Bronze check
     bronze_ok = True
-    for field in BRONZE_REQUIRED:
+    for field in sorted(BRONZE_REQUIRED):
         if not _has_field(field):
             bronze_ok = False
             gaps.append(f"Missing field: {field}")
@@ -252,7 +252,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     # Silver check
     silver_ok = True
-    for field in SILVER_REQUIRED - BRONZE_REQUIRED:
+    for field in sorted(SILVER_REQUIRED - BRONZE_REQUIRED):
         if not _has_field(field):
             silver_ok = False
             gaps.append(f"For Silver: missing {field}")
@@ -279,7 +279,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     # Gold check
     gold_ok = silver_ok
-    for field in GOLD_REQUIRED - SILVER_REQUIRED:
+    for field in sorted(GOLD_REQUIRED - SILVER_REQUIRED):
         if not _has_field(field):
             gold_ok = False
             gaps.append(f"For Gold: missing {field}")

@@ -433,6 +433,18 @@ class TestAuditUcSilver:
         assert result["tier"] == "bronze"
         assert any("For Silver: missing" in g for g in result["gaps"])
 
+    def test_missing_silver_fields_have_stable_order(self, fake_path: Path) -> None:
+        fake_path.touch()
+        uc = _make_silver_uc()
+        del uc["wave"]
+        del uc["prerequisiteUseCases"]
+        result = gp.audit_uc(uc, fake_path)
+        missing = [gap for gap in result["gaps"] if gap.startswith("For Silver: missing")]
+        assert missing == [
+            "For Silver: missing prerequisiteUseCases",
+            "For Silver: missing wave",
+        ]
+
     def test_silver_min_length_failure(self, fake_path: Path) -> None:
         fake_path.touch()
         uc = _make_silver_uc()
