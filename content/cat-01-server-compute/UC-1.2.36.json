@@ -1,67 +1,145 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.36",
-  "title": "DCSync Attack Detection",
+  "title": "Active Directory Replication Rights Use (Potential DCSync)",
   "criticality": "critical",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Audit"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'DCSync Attack Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_dcsync_attack_detection` (UC-1.2.36), SOC dashboard panel \"Linux — DCSync Attack Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This rule reports Security Event ID 4662 on domain controllers when Control Access (`0x100`) references DS-Replication-Get-Changes, DS-Replication-Get-Changes-All, or DS-Replication-Get-Changes-In-Filtered-Set. It is a DCSync candidate, not proof of credential dumping: 4662 records the subject and target domain object but generally does not supply the originating workstation/IP needed to prove an unsanctioned location. It does not detect replication when Audit Directory Service Access/SACL coverage is absent, ACL grants that precede use, DRSUAPI network traffic, DCShadow, NTDS file access, or other credential dumping. It does not discard all accounts ending in `$`; a compromised computer account can be relevant. No regulation or runtime assurance is claimed.",
+  "evidence": "After deployment, retain the version-controlled `windows_ad_replication_rights_use_4662` saved search and ACL; schedule/job/alert history; every row with receiving DC, subject SID/account/logon ID, object server/type/name, access mask, raw Properties, decoded right, EventRecordID, source, and source type; matching raw 4662 XML; audit-policy/SACL proof; inventory of authorized replication principals and DCs; correlated authentication, endpoint, and DRSUAPI network evidence; dated controls; analyst disposition; response record; and bounded exception approval. This documentation-only review generated no replication request, Windows event, Splunk job, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.36 positive (DCSync, Attack, Detection): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4662 where `count` grouped by `entity` satisfies detection threshold for 'DCSync Attack Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.36 negative (Attack Detection): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'DCSync Attack Detection'."
+    "positiveScenario": "In an isolated test index and fixed window, replay three XML Security fixtures from `Computer=DC01.example`, `source=XmlWinEventLog:Security`, `sourcetype=XmlWinEventLog`, and `EventCode=4662`, each with `ObjectServer=DS`, `ObjectType=domainDNS`, `ObjectName=DC=example,DC=com`, `AccessMask=0x100`, `SubjectUserSid=S-1-5-21-100-200-300-1105`, `SubjectUserName=svc_sync`, `SubjectDomainName=EXAMPLE`, and distinct EventRecordIDs 36001-36003. Set Properties respectively to the full GUIDs `1131f6aa-9c07-11d1-f79f-00c04fc2dcd2`, `1131f6ad-9c07-11d1-f79f-00c04fc2dcd2`, and `89e95b76-444d-4c62-991a-0facbeda640c`. Expect exactly three rows with the corresponding decoded replication right. Documentation review checks logic only; replay was not performed.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: Event 4663; Event 4662 with AccessMask `0x10`; Event 4662 with `ObjectServer=Security`; 4662 with unrelated Properties; 4662 under System source; Classic source type; malformed event code; empty endpoint identity; an event at or after the exclusive latest boundary; and an event outside the closed hour. A valid 4662 whose SubjectUserName is `DC02$` must still return one row, proving the rule does not use the unsafe machine-account-suffix exclusion."
   },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4662) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4662\n  AccessMask=\"0x100\"\n  (Properties=\"*1131f6aa*\" OR Properties=\"*1131f6ad*\" OR Properties=\"*89e95b76*\")\n| where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")\n| table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n| sort -_time",
-  "description": "Monitors UC-1.2.36 — DCSync, Attack, Detection — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Attack Detection. Purpose-built for 'DCSync Attack Detection' in Linux workflows.",
-  "value": "For 'DCSync Attack Detection', UC-1.2.36 converts `activity` on `WinEventLog:Security` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Enable Directory Service Access auditing on domain controllers. EventCode 4662 with GUID 1131f6aa (DS-Replication-Get-Changes) or 1131f6ad (DS-Replication-Get-Changes-All) from a non-machine account (not ending in $) is a DCSync indicator. Alert immediately with critical priority. Legitimate replication only occurs between DCs (machine accounts). MITRE ATT&CK T1003.006.",
-  "visualization": "Table (replication requests from non-DCs), Single value (count — target: 0), Alert with analyst playbook.",
-  "cimModels": [
-    "Change.All_Changes",
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1h\n| where count>0",
-  "dataModelAcceleration": "4662 to `All_Changes` for directory service access; align with ES identity datamodels if present.",
-  "references": [
+  "dataSources": "Microsoft-Windows-Security-Auditing Event ID 4662 from every writable and read-only domain controller's Security channel, collected in XML by Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Security`. Required fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `ObjectServer`, `ObjectType`, `ObjectName`, `OperationType`, `AccessMask`, and `Properties`. Success Audit Directory Service Access and matching SACLs on naming-context roots are prerequisites.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for Security XML collection and field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Splunk Enterprise Security asset/identity and risk workflows are optional enrichments.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'DCSync Attack Detection'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4662 earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), subject_account=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), access_mask=lower(trim(AccessMask)), properties_norm=lower(coalesce(Properties,\"\")), object_server=upper(trim(ObjectServer))\n| where event_code=4662 AND object_server=\"DS\" AND access_mask=\"0x100\" AND len(endpoint)>0 AND match(properties_norm,\"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c|replicating directory changes\")\n| eval replication_right=case(match(properties_norm,\"89e95b76-444d-4c62-991a-0facbeda640c|replicating directory changes in filtered set\"),\"DS-Replication-Get-Changes-In-Filtered-Set\",match(properties_norm,\"1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|replicating directory changes all\"),\"DS-Replication-Get-Changes-All\",match(properties_norm,\"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|replicating directory changes\"),\"DS-Replication-Get-Changes\",true(),\"unclassified replication right\"), detection=\"Active Directory replication control access observed\"\n| table _time endpoint subject_account SubjectUserSid SubjectLogonId ObjectType ObjectName OperationType access_mask replication_right Properties EventRecordID detection source sourcetype\n| sort 0 -_time endpoint subject_account replication_right",
+  "description": "Returns one row per Security 4662 event in the delayed closed hour where a domain controller recorded Control Access against one of three documented directory-replication rights. Rows are at access-event grain and preserve the subject token, naming-context object, raw rights evidence, and receiving domain controller for DCSync investigation.",
+  "value": "Directory replication rights can expose current and historical password material. Surfacing every observed use enables defenders to validate authorized domain-controller or synchronization activity, identify unexpected principals, correlate the request to its origin, and contain possible domain-wide credential theft before forged tickets or lateral movement follow.",
+  "implementation": "Enable Success Audit Directory Service Access on domain controllers and deploy narrowly designed SACLs for the three replication extended rights on each naming-context root. Collect Security XML with Splunk Add-on for Microsoft Windows 10.0.1, validate 4662 fields, and save `windows_ad_replication_rights_use_4662`. Run hourly over `-70m@m` to `-10m@m`; triage every row against authorized principals/DC inventory and corroborate source location with authentication, endpoint, and DRSUAPI network telemetry.",
+  "visualization": "On a restricted identity-threat dashboard, put domain-controller Security-source and SACL coverage first. Add counts by subject account, replication right, target naming context, and receiving DC; a timeline; and a table with SID, logon ID, object, Properties, EventRecordID, authorized-principal status, inferred source evidence, owner, and disposition. Drill down to raw XML, same-logon events, 4624 network logon data, endpoint activity, AD ACL history, and DRSUAPI traffic. Never display “DCSync confirmed” from 4662 alone.",
+  "cimModels": [],
+  "schema": "Native Microsoft-Windows-Security-Auditing Event 4662 XML fields; no lossless Splunk CIM dataset is claimed",
+  "dataModelAcceleration": "No `cimSpl` is supplied. Event 4662 replication-right detail is not a policy change and a generic Change or Authentication model does not preserve AccessMask, Properties, SubjectLogonId, naming-context object, and EventRecordID. A network CIM correlation can independently identify DRS applications, but it is not equivalent to this host audit event. Any local accelerated dataset must prove fixed-window row/field parity and freshness against raw XML.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "ObjectServer",
+    "ObjectType",
+    "ObjectName",
+    "OperationType",
+    "AccessMask",
+    "Properties"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing Event 4662: an operation was performed on an object",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4662",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Audit Directory Service Access policy and event-volume guidance",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-directory-service-access",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft DS-Replication-Get-Changes extended right and GUID",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/r-ds-replication-get-changes",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft DS-Replication-Get-Changes-All extended right and GUID",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/r-ds-replication-get-changes-all",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft MS-ADTS DS-Replication-Get-Changes-In-Filtered-Set GUID",
+      "url": "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-adts/a8b179de-bb7f-45e5-8524-3b8ccf5f8758",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1003.006: OS Credential Dumping—DCSync",
+      "url": "https://attack.mitre.org/techniques/T1003/006/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK DET0594: Unauthorized DCSync Operations via Replication API Abuse",
+      "url": "https://attack.mitre.org/detectionstrategies/DET0594/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: AD Replication Request Initiated by User Account",
+      "url": "https://research.splunk.com/endpoint/51307514-1236-49f6-8686-d46d93cc2821/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a genuine audited use of a replication-related control access right. “False positive” means the principal and operation are authorized, not that the 4662 record is false.\n\n1. **Normal domain-controller replication** — A DC computer account can legitimately exercise replication rights. Confirm the subject SID/account is an inventoried DC, the receiving Computer and correlated source are approved replication partners, AD Sites and Services topology is expected, and replication health is normal. Do not suppress every `$` account.\n\n2. **Microsoft Entra Connect / Azure AD Connect synchronization** — A dedicated connector account may have DS-Replication-Get-Changes and sometimes broader rights. Match immutable SID, configured connector server, service instance, approved naming contexts, schedule, source logon/network evidence, and owner. Reject activity from another host or interactive session.\n\n3. **Identity governance, migration, backup, or recovery product** — Quest, Semperis, Veeam, or another approved AD-aware tool may request replication rights. Verify vendor service, exact service-account SID, registered server, job ID, target naming context, maintenance window, and contractually required permissions. Remove unused broad rights rather than permanently silencing them.\n\n4. **Authorized forest/domain migration or disaster-recovery exercise** — ADMT-like migration or recovery validation can create unusual replication access. Correlate project/change ID, source and target forests, operator, approved principals, exact dates, and rollback. Preserve first alerts as evidence and expire exceptions when the exercise ends.\n\n5. **Security assessment or purple-team DCSync simulation** — An approved test using Mimikatz or another tool should trigger. Match engagement ID, operator, source endpoint, account/SID, domain, UTC bounds, and cleanup/credential rotation plan. Escalate any mismatch and preserve the detection as control evidence.\n\n6. **Rendered Properties localization or duplicate collection** — The same right may appear as a GUID or localized display name, and direct plus WEF collection can duplicate an event. Compare Computer, EventRecordID, raw XML, collection route, and GUID. Repair duplicate topology; do not suppress a principal because parsing is inconvenient.\n\n**Safe suppression:** keep the raw event and base result. In a notification wrapper, use a governed authorization table keyed on immutable SubjectUserSid, approved source endpoint/IP from corroborating telemetry, receiving DC/site, ObjectName, exact replication right, service instance, `valid_from_epoch`, `valid_until_epoch`, owner, and ticket. Suppress only when all required dimensions match. Reject username-only, `$`-suffix, Domain Admins, all-DC, wildcard-domain, and open-ended exceptions. Review rights and exceptions after topology, connector, recovery, or privileged-account changes.",
+  "mitreAttack": [
+    "T1003.006",
+    "TA0006"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Active Directory Domain Services domain controllers that generate Security 4662 under an enabled audit policy and suitable SACL. Include writable and read-only DCs and every naming context in scope. WEF/WEC must preserve original Computer, EventRecordID, SubjectLogonId, Properties, and arrival latency and avoid duplicate direct collection.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4662, Directory Service Access and replication-right documentation, Splunk Add-on/Security Content, and MITRE ATT&CK T1003.006/DET0594; SACLs, replication, XML fixtures, SPL, origin correlation, alert delivery, suppression, and response not executed or AD/SOC SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4662).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable Directory Service Access auditing on domain controllers. EventCode 4662 with GUID 1131f6aa (DS-Replication-Get-Changes) or 1131f6ad (DS-Replication-Get-Changes-All) from a non-machine account (not ending in $) is a DCSync indicator. Alert immediately with critical priority. Legitimate replication only occurs between DCs (machine accounts). MITRE ATT&CK T1003.006.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode=4662\n  AccessMask=\"0x100\"\n  (Properties=\"*1131f6aa*\" OR Properties=\"*1131f6ad*\" OR Properties=\"*89e95b76*\")\n| where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")\n| table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DCSync Attack Detection** — DCSync uses Directory Replication Service permissions to extract password hashes remotely. Detecting non-DC replication requests catches this attack before credential theft completes.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4662). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where NOT match(SubjectUserName, \"(?i)(\\\\$$)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **DCSync Attack Detection**): table _time, host, SubjectUserName, SubjectDomainName, ObjectName\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.user All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (replication requests from non-DCs), Single value (count — target: 0), Alert with analyst playbook.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Security into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We look for the kind of directory access that copies the keys to the kingdom, which is a serious sign someone may be staging a domain-wide attack.",
+  "cost": {
+    "tier": "high",
+    "search_load": "light",
+    "search_load_notes": "The hourly predicate is narrow, but Event 4662 can be high volume. SACL scope, Security XML ingest, and retention drive cost; tune audit design rather than dropping replication events at search time.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event ID 4662 on domain controllers",
+      "Active Directory replication-right SACL auditing"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and audit contract\n\nAssign AD forest/domain, Windows audit policy, Splunk collection, identity detection, network telemetry, incident response, and exception owners. Inventory all DCs, naming contexts, sites, replication partners, Entra Connect/synchronization services, recovery/migration products, and every principal granted the three replication rights. Install `Splunk_TA_windows` 10.0.1 and test exact OS, forwarder, add-on, and Splunk versions. Restrict Security records and identity data.\n\nEnable **Success** Audit Directory Service Access on DCs. Design SACLs on each relevant domain/naming-context root for DS-Replication-Get-Changes, Get-Changes-All, and Get-Changes-In-Filtered-Set; validate inheritance and volume in a lab. Microsoft warns this subcategory can be high volume. Record SACL security descriptor, GPO, scope, owner, and rollback. The collector role reads Security; the search role reads `index=wineventlog` and schedules the alert but cannot change AD ACLs or audit policy.\n\nEvent 4662 with AccessMask 0x100 means Control Access. Properties names the right, sometimes by display name and sometimes GUID. The three exact GUIDs are embedded in the SPL. One event is a candidate. Do not exclude all machine accounts: legitimate DCs use them, but compromised computer identities can also request replication. Because 4662 usually lacks request-origin IP, correlate before confirming DCSync.\n\n## Step 1 — Collect and verify XML\n\nConfigure the Security XML input in governed `inputs.conf`:\n\n```ini\n[WinEventLog://Security]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\nValidate the effective modular input with `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, Computer, EventRecordID, subject token, object fields, AccessMask, and Properties against Event Viewer raw XML. Build DC source-health and SACL-coverage panels; absence of 4662 is not health proof. For WEF/WEC, preserve original Computer and IDs, measure `_indextime-_time`, and prevent direct/collector duplication.\n\n## Step 2 — Save and understand the analytic\n\nSave as `windows_ad_replication_rights_use_4662`. Run hourly with embedded `earliest=-70m@m latest=-10m@m`, a 60 minute closed window delayed 10 minutes. Shift both bounds together if measured p99 latency requires it.\n\nThe search constrains exact Security XML and 4662, normalizes endpoint/account/access values, and requires ObjectServer DS, AccessMask 0x100, nonempty endpoint, and a documented GUID or rendered replication-right phrase. The `case` prioritizes filtered-set and all before the generic phrase so names are not mislabeled. It preserves raw Properties and one row per EventRecordID. Do not call the subject the source host; SubjectLogonId is a correlation key, not a network address.\n\nNo CIM replacement is claimed. If adding an authorized-principal lookup, enrich after the base result and keep unauthorized/unknown rows. Key on SID, source evidence, right, object, and time—not username suffix. Create a separate network correlation for DRSUAPI from non-DC sources.\n\n## Step 3 — Validate safely\n\nReplay the three positive XML fixtures at fixed times and assert exact right decoding and identities. Run each negative independently, including the DC02$ positive guard, wrong mask/server/source, unrelated Properties, malformed code, and earliest/latest boundaries. Test GUIDs with braces/case and rendered English names; unfamiliar values must not be guessed.\n\nIn an authorized isolated AD lab, apply the precise audit policy/SACL, use a dedicated account granted only required test rights, perform a controlled replication operation with approved tooling, and revoke the rights afterward. Capture the granting ACL event, 4662, source endpoint/network traffic, alert, and cleanup. Never test against production password data. Record GPO/SACL, domain, DC, account SID, tool/source, versions, exact UTC bounds, expected/actual rows, job ID, notification, and revocation evidence.\n\nKeep `status=draft` until AD and SOC owners accept SACL coverage/volume, all GUIDs, boundaries, origin correlation, notification, dashboard RBAC, response, and exceptions.\n\n## Step 4 — Triage and respond\n\nVerify raw XML, receiving DC, subject SID/account/logon ID, object, mask, Properties, and EventRecordID. Resolve SID and account lifecycle. Determine whether the principal is explicitly authorized for that right and naming context. Correlate SubjectLogonId to 4624 and related events, endpoint telemetry, DC logs, DRSUAPI-capable network records, and AD topology. Compare source against DC and connector inventories. Review recent 5136/ACL changes and privileged-account activity.\n\nIf unauthorized or origin is unexplained, invoke identity incident response: preserve evidence, contain the source with domain-service safety, disable/revoke the abused principal and replication rights through approved change, assess credential material at risk, hunt for forged tickets/lateral movement, and plan credential/KRBTGT recovery with AD experts. Do not automatically disable a DC account, isolate all DCs, rotate KRBTGT, or alter ACLs from one event.\n\n## Step 5 — Troubleshoot\n\n- **No candidate event:** verify Success audit policy, SACL placement/inheritance, DC Security log, XML input, filtering, routing, and permissions.\n- **Properties lacks GUID:** inspect raw XML/rendering and compare the documented display name; do not translate by guess.\n- **Excessive 4662 volume:** narrow SACL design to relevant roots/rights after lab testing; do not discard candidate GUIDs in forwarding.\n- **Cannot identify source:** expected limitation. Correlate logon ID, authentication and network telemetry; report unknown rather than inventing an IP.\n- **All DC accounts alert:** enrich with exact DC SID/source/topology authorization, but preserve anomalous source or rights combinations.\n- **Duplicates:** compare Computer/EventRecordID and repair direct plus WEF topology.\n- **Late data:** measure clock, collector queues, `_indextime-_time`, and scheduler dispatch; shift both time bounds equally.\n- **CIM query disagrees:** retain native XML; no lossless CIM parity is asserted.",
+  "grandmaExplanation": "We watch for use of the special directory permissions that can copy password information from a domain controller. Some trusted systems need those permissions, so the team checks who used them and where the request really came from.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
