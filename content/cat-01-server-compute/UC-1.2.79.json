@@ -1,67 +1,136 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.79",
-  "title": "Sysmon DNS Query Logging",
+  "title": "High Unique DNS Queries by Windows Process",
   "criticality": "medium",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
     "Security",
     "Anomaly"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Sysmon DNS Query Logging' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_sysmon_dns_query_logging` (UC-1.2.79), SOC dashboard panel \"Linux — Sysmon DNS Query Logging\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects one Sysmon process GUID on one Windows host querying more than 100 distinct normalized names in one closed 15-minute interval; the minimum trigger is 101. It does not detect low-volume or distributed DGA, judge entropy/age/reputation, inspect DNS packets, identify record type reliably, prove command-and-control/exfiltration, or cover non-Windows/resolver-only traffic. It excludes incomplete Event 22 records, zero/unknown ProcessGuid values, and processes that terminate before Sysmon attributes them correctly. Cached and failed queries are included because Microsoft states Event 22 logs successful or failed, cached or uncached queries. The threshold/window/index are local policy, not Microsoft or Splunk defaults. No domain, process, host, or network flow is blocked.",
+  "evidence": "After deployment, retain the signed/versioned Sysmon configuration and effective hash; XML channel input and add-on versions; expected-endpoint source/config health; `windows_sysmon_process_dns_fanout` search/ACL/schedule/dispatch/results; rows with host, process GUID/ID/image, user, first/last time, query/failure counts, 101+ exact normalized names, statuses/results, record IDs, and source metadata; raw Event 22 XML; threshold/baseline analysis; reputation/resolver/EDR corroboration used in triage; bounded exceptions; dispositions; and dated 100/101 boundary, split-process, normalization, failed-query, zero-GUID, source, and time-window tests. This documentation review generated no DNS request or runtime evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.79 positive (Sysmon, DNS, Query, Logging): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' EventCode=22 where `unique_domains` grouped by `Image`, `host` satisfies `unique_domains` > 100 for 'Sysmon DNS Query Logging'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.79 negative (Query Logging): ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `Image`, `host` stays below `unique_domains` > 100, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Sysmon DNS Query Logging'."
+    "positiveScenario": "In an isolated index and fixed 15-minute closed interval, ingest 101 Sysmon Event ID 22 records for `Computer=LAB01.example`, one nonzero `ProcessGuid`, `ProcessId=4242`, and `Image=C:\\Lab\\resolver.exe`. Use distinct QueryName values `d001.example.test` through `d101.example.test`, valid record IDs, and mixed QueryStatus/QueryResults. Expect one row with `query_count=101`, `unique_query_names=101`, all normalized names, the exact process identity, and `use_case=UC-1.2.79`.",
+    "negativeScenario": "Expect zero rows for exactly 100 distinct names; 101 events containing only 10 distinct names; 101 names split across two process GUIDs with neither above 100; zero ProcessGuid; empty image/query/host; Event ID 1; wrong source/type; and queries in the newest excluded five minutes. Verify case and trailing-dot variants count as one normalized name. Approved browsers, scanners, and agents must still produce the base row before any bounded suppression."
   },
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 22) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=22\n| where NOT match(QueryName, \"(?i)(microsoft\\.com|windowsupdate\\.com|office\\.com|bing\\.com|msftconnecttest)\")\n| stats count dc(QueryName) as unique_domains by Image, host\n| where unique_domains > 100\n| sort -unique_domains",
-  "description": "Surfaces UC-1.2.79 — Sysmon, DNS, Query, Logging — using `index=wineventlog` sourcetype `WinEventLog:Microsoft-Windows-Sysmon/Operational`, grouped by `Image`, `host`. Outputs `unique_domains` each `the scheduled window`; alert when `unique_domains` > 100. Primary focus: Query Logging. Purpose-built for 'Sysmon DNS Query Logging' in Linux workflows.",
-  "value": "Operators running UC-1.2.79 on `WinEventLog:Microsoft-Windows-Sysmon/Operational` feeds shorten triage for Query Logging tied to 'Sysmon DNS Query Logging', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Deploy Sysmon v10+ with DNS query logging (EventCode 22). Each event records the process that made the DNS query and the resolved domain. Filter out known-good domains. Alert on processes with high unique domain counts (DGA indicator), processes that normally don't make DNS queries (LOLBin abuse), or queries to known-bad domains (threat intel lookup). Lower volume than network-level DNS logging since it's per-endpoint.",
-  "visualization": "Table (queries by process), Bar chart (top resolving processes), Sankey diagram (process→domain).",
-  "cimModels": [
-    "Network_Resolution"
-  ],
-  "cimSpl": "| tstats `summariesonly` dc(DNS.query) as uq\n  from datamodel=Network_Resolution where nodename=Network_Resolution.DNS\n  by DNS.process DNS.dest span=1h\n| where uq > 100",
-  "dataModelAcceleration": "Enable acceleration for Network_Resolution (DNS node). Map Sysmon EventCode 22 to `DNS.query` and process fields; if `nodename` differs in your CIM, adjust or use the primary Sysmon SPL.",
-  "references": [
+  "dataSources": "Microsoft Sysinternals Sysmon DNS Query Event ID 22 from governed Windows 8.1+ endpoints, with DnsQuery enabled in a signed Sysmon configuration. Collect `Microsoft-Windows-Sysmon/Operational` as XML using Splunk Add-on for Microsoft Windows (Splunkbase 742) into local `wineventlog`. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`; fields are `Computer`, `EventRecordID`, `RuleName`, `UtcTime`, `ProcessGuid`, `ProcessId`, `QueryName`, `QueryStatus`, `QueryResults`, `Image`, and optional `User`/SecurityID depending on qualified version.",
+  "app": "Microsoft Sysinternals Sysmon supplies Event ID 22. Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, collects/parses XML. Splunk Security Content documents Sysmon Event 22 analytics. Enterprise Security and CIM acceleration are optional, not required.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Network Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkResolution",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `Image` metrics for 'Sysmon DNS Query Logging'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `Image`** — Predictable `dc` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `Image` and mimics sustained load without crossing `unique_domains` > 100.\n\n4. **New host onboarding** — `Image` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `Image`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=22 earliest=-20m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), query_name=lower(replace(trim(QueryName),\"\\\\.$\",\"\")), process_guid=lower(trim(ProcessGuid)), process_image=trim(Image), process_id=tonumber(ProcessId), query_status=trim(QueryStatus)\n| where event_code=22 AND len(dest)>0 AND len(query_name)>0 AND len(process_guid)>0 AND process_guid!=\"{00000000-0000-0000-0000-000000000000}\" AND len(process_image)>0\n| stats min(_time) as first_time max(_time) as last_time count as query_count dc(query_name) as unique_query_names values(query_name) as query_names values(query_status) as query_statuses values(QueryResults) as query_results values(EventRecordID) as event_record_ids values(User) as users values(RuleName) as rule_names values(source) as observed_sources values(sourcetype) as observed_sourcetypes by dest process_guid process_id process_image\n| where unique_query_names>100\n| eval threshold_unique_names=100, window_minutes=15, use_case=\"UC-1.2.79\"\n| table first_time last_time dest process_guid process_id process_image users query_count unique_query_names threshold_unique_names window_minutes query_names query_statuses query_results event_record_ids rule_names observed_sources observed_sourcetypes use_case\n| sort 0 -unique_query_names -query_count dest process_guid",
+  "description": "Returns one row per host and Sysmon process identity when a complete closed 15-minute window contains at least 101 distinct case-normalized DNS query names. It preserves total and unique counts, names, statuses, answers, process identity, event records, and exact observation bounds for anomaly triage.",
+  "value": "A single process rapidly resolving many different names can reveal domain-generation behavior, discovery, scanning, or a broken application before network controls identify a stable destination. Process-level attribution narrows investigation and supports targeted tuning, while the retained queries and outcomes let analysts distinguish browsers and agents from unusual binaries.",
+  "implementation": "Deploy current Sysmon with governed Event 22 collection, verify nonzero ProcessGuid and complete query/process fields, and maintain endpoint/config source health. Save the SPL as `windows_sysmon_process_dns_fanout`, schedule every 15 minutes over the prior delayed closed window, and trigger on rows above the strict 100-name boundary. Baseline by process image/role, enrich after detection, and use exact expiring exceptions rather than a global domain allowlist.",
+  "visualization": "Restricted dashboard `Windows — Process DNS Fan-out`: endpoint Sysmon/config freshness first; then unique-name count by process/host, query count, failure ratio, first-seen image/hash context, and 24-hour trend. Table process GUID/path/user, 15-minute bounds, 101+ names/statuses/results, and exception state. Drill down to raw Event 22, matching Sysmon Event 1 process creation, EDR process tree/hash/signature, resolver logs, network connections, domain intelligence, and change/job records. Do not label a row DGA solely from volume.",
+  "cimModels": [],
+  "schema": "Microsoft Sysmon DNS Query Event ID 22 native XML fields",
+  "dataModelAcceleration": "No exact CIM substitute is claimed. Network_Resolution.DNS standardizes query/answer/message fields but does not necessarily preserve Sysmon ProcessGuid, ProcessId, Image, record identity, cached/failed semantics, or one-process 15-minute denominator. Use CIM for broader DNS analytics only after proving those dimensions and raw parity.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "RuleName",
+    "UtcTime",
+    "ProcessGuid",
+    "ProcessId",
+    "QueryName",
+    "QueryStatus",
+    "QueryResults",
+    "Image"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Sysinternals: Sysmon and DNS Query Event ID 22",
+      "url": "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Sysmon events",
+      "url": "https://learn.microsoft.com/en-us/windows/security/operating-system-security/sysmon/sysmon-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content data source: Sysmon EventID 22",
+      "url": "https://research.splunk.com/sources/911538b2-eba7-4d3e-85e8-d82d380c37bf/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: DNS Query Length With High Standard Deviation",
+      "url": "https://research.splunk.com/network/1a67f15a-f4ff-4170-84e9-08cf6f75d6f5/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk CIM: Network Resolution DNS",
+      "url": "https://help.splunk.com/en/data-management/common-information-model/8.5/data-models/network-resolution-dns",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1568.002: Domain Generation Algorithms",
+      "url": "https://attack.mitre.org/techniques/T1568/002/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1071.004: DNS",
+      "url": "https://attack.mitre.org/techniques/T1071/004/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a real high-cardinality process DNS workload; many legitimate applications generate one.\n\n1. **Web browsers and WebView applications** — Browsers resolve many first/third-party, CDN, advertising, telemetry, and preload names. Confirm signed image, user session, process tree, browser policy/extensions, destinations, normal role baseline, and no unusual child or download behavior.\n\n2. **Security, EDR, DNS filtering, or vulnerability agents** — Reputation scanners and endpoint agents may query threat feeds or test many names. Verify product/signature, agent ID, policy/job, update window, management console, expected process GUID lifetime, and vendor-owned domains.\n\n3. **Software inventory, package, or update tooling** — Package managers and deployment agents can contact many mirrors/CDNs during rollout. Match job/change ID, signed binaries, target set, UTC window, package manifest, and post-job return to baseline.\n\n4. **Developer/build/test workload** — Integration tests, crawlers, dependency resolution, or browser automation can intentionally fan out. Require approved host role, pipeline/job ID, repository, operator, bounded run, and isolated credentials.\n\n5. **DNS monitoring or synthetic test utility** — A health checker may intentionally query a domain list. Confirm exact list/version, owner, schedule, expected statuses, and process signature.\n\n6. **Broken retry/discovery behavior** — A misconfigured application may generate unique names from tenant IDs, search suffixes, or cache-busting tokens. Validate application logs/configuration and repair it; operationally benign intent can still overload DNS.\n\n**Suppression mechanism:** apply lookup windows_process_dns_fanout_exceptions.csv after aggregation, keyed by exact `dest,process_image` plus signer/hash or managed job identity, owner, approver, ticket, inclusive start and exclusive expiry. Reject process-name-only, domain-wide, wildcard-host, and permanent entries. Preserve base results and never suppress unknown/zero GUID health failures, unsigned image drift, or first-seen paths.",
+  "mitreAttack": [
+    "T1568.002",
+    "T1071.004",
+    "TA0011"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "endpoint",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Governed Windows 8.1 or later endpoints running a qualified Microsoft Sysmon version with DnsQuery enabled. Windows 7 and earlier, endpoints with zero/missing process attribution, resolver-only logs, non-Windows systems, and encrypted application resolution not surfaced to Sysmon require separate coverage.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon Event 22 documentation, Splunk Security Content/Windows add-on/CIM, and MITRE DNS/DGA techniques; Sysmon configuration, event fields, SPL, 100/101 fixtures, source health, baselines, alerting, exceptions, scale, and response were specified but not executed or Sysmon/Windows/DNS/Splunk/SOC-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, Sysmon required.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 22).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Sysmon v10+ with DNS query logging (EventCode 22). Each event records the process that made the DNS query and the resolved domain. Filter out known-good domains. Alert on processes with high unique domain counts (DGA indicator), processes that normally don't make DNS queries (LOLBin abuse), or queries to known-bad domains (threat intel lookup). Lower volume than network-level DNS logging since it's per-endpoint.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=22\n| where NOT match(QueryName, \"(?i)(microsoft\\.com|windowsupdate\\.com|office\\.com|bing\\.com|msftconnecttest)\")\n| stats count dc(QueryName) as unique_domains by Image, host\n| where unique_domains > 100\n| sort -unique_domains\n```\n\nUnderstanding this SPL\n\n**Sysmon DNS Query Logging** — Per-process DNS query logging reveals which applications communicate with which domains. Detects DGA, C2 callbacks, and data exfiltration at the endpoint level.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 22). **App/TA** (typical add-on context): `Splunk_TA_windows`, Sysmon required. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-Sysmon/Operational. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where NOT match(QueryName, \"(?i)(microsoft\\.com|windowsupdate\\.com|office\\.com|bing\\.com|msftconnecttest)\")` — typically the threshold or rule expression for this monitoring goal.\n• `stats` rolls up events into metrics; results are split **by Image, host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where unique_domains > 100` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (Sysmon 22 → `Network_Resolution.DNS` — confirm `query`/`process` aliases in your CIM add-on):\n\n```spl\n| tstats `summariesonly` dc(DNS.query) as uq\n  from datamodel=Network_Resolution where nodename=Network_Resolution.DNS\n  by DNS.process DNS.dest span=1h\n| where uq > 100\n```\n\nEnable **data model acceleration** on `Network_Resolution`. The primary `EventCode=22` search is definitive if CIM mapping is not available.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (queries by process), Bar chart (top resolving processes), Sankey diagram (process→domain).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Microsoft-Windows-Sysmon into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Image, host, unique_domains`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We look at which programs on a Windows machine ask the network for which website or server names, so a single program asking for a huge mix of names stands out the way some bad software does.",
+  "cost": {
+    "tier": "high",
+    "search_load": "moderate",
+    "search_load_notes": "Sysmon Event 22 can be high volume. The search scans one 15-minute closed interval and performs distinct counting plus multivalue evidence per process; ingest and high-cardinality query retention dominate cost.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Microsoft Sysmon DNS Query Event ID 22"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact anomaly contract\n\nAssign Sysmon, Windows endpoint, DNS, Splunk, SOC, threat-intelligence, privacy, and exception owners. Inventory endpoint roles and legitimate high-DNS applications. Deploy a current signed Microsoft Sysmon binary and version-controlled XML configuration. Microsoft says Event 22 is generated whenever a process executes a DNS query, successful or failed and cached or not, and is available on Windows 8.1+.\n\nThe threshold is strictly more than 100 distinct normalized names for one nonzero ProcessGuid on one host in one 15-minute closed window, so 101 is the first result. It is a local starting policy. It does not calculate DGA entropy, registered-domain uniqueness, reputation, query type, or network success. Preserve failures because high failed-name fan-out can be especially useful.\n\n## Step 1 — Configure and verify Event 22 collection\n\nEnable DnsQuery in the governed Sysmon configuration with include/exclude rules appropriate to measured volume. Do not exclude browsers, SYSTEM, Microsoft domains, or security agents merely to make this alert quiet; tune notification after collecting evidence. Monitor Sysmon Event 16 configuration changes and service/binary health separately.\n\nCollect `[WinEventLog://Microsoft-Windows-Sysmon/Operational]` with `renderXml=true` into local `wineventlog`. Modern add-on contract is `index=wineventlog`, `sourcetype=XmlWinEventLog`, and exact source `XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Preserve original Computer through WEF and prevent duplicate direct paths.\n\nValidate EventCode, Computer, EventRecordID, UtcTime, ProcessGuid/Id, Image, QueryName/Status/Results and optional user against Event Viewer **Applications and Services Logs > Microsoft > Windows > Sysmon > Operational**. Microsoft-documented short-lived process attribution can produce zero GUID/unknown image; route those to telemetry health because grouping them can merge unrelated processes.\n\nMaintain expected-host Event 22/config freshness and event-volume baselines. Quiet endpoints may legitimately produce few queries, so combine heartbeat, Sysmon service/config, and broader Sysmon events rather than requiring periodic DNS.\n\n## Step 2 — Create and understand the search\n\nSave the SPL as `windows_sysmon_process_dns_fanout` and schedule every 15 minutes. The example scans twenty to five minutes before dispatch, a single delayed closed window. Measure `_indextime-_time` and move the whole window if five minutes is inadequate.\n\nThe base pins XML Sysmon source and Event 22. Query names are trimmed, lowercased, and one final root dot removed so DNS-equivalent case/trailing-dot variants do not inflate `dc()`. The search requires host, image and nonzero ProcessGuid. It groups by host, GUID, PID and full image, preserving query names/statuses/results and event IDs. More than 100 is visible and boundary-testable.\n\nNo global Microsoft/office/browser domain regex appears in the base SPL. Such a list is incomplete, can be attacker-used, and changes the denominator. Use post-result process/job context and keep the raw count. Multivalue results can hit UI limits; `unique_query_names` remains the denominator and raw drilldown supplies the full set.\n\n## Step 3 — Validate logic and endpoint behavior\n\nGenerate deterministic fixtures for 100 and 101 names and assert exact results. Test repeated names, case/trailing-dot normalization, two GUIDs, PID reuse, zero GUID, unknown image, failed QueryStatus, mixed answers, duplicate EventRecordIDs, and earliest/latest boundaries. Verify one process that crosses two adjacent windows does not combine across them.\n\nOn a nonproduction endpoint, run a signed lab resolver that queries an approved `.test` list, compare Event 22 records with the fixture manifest, and inspect process creation Event 1. Avoid sending random names to production resolvers or external infrastructure. Record Sysmon/config/add-on/Splunk versions, host, query manifest, bounds, expected/actual counts, search job ID, and operator.\n\nKeep draft until runtime validation proves volume, process attribution, late data, source health, threshold replay, alert delivery, dashboard access, and responder workflow.\n\n## Step 4 — Operationalize investigation and safe response\n\nBuild the dashboard described in `visualization` with endpoint/config health above alerts. Baseline unique names by exact signed image and endpoint role over several weeks. Enrich results after counting with asset owner, signer/hash, process parent, domain age/reputation, registered domain, resolver response and network destination; preserve original event-time fields.\n\nTriage: verify raw records and denominator; inspect image/hash/signature and Event 1 parent/command/user; classify names, statuses and failure ratio; compare process/host baseline and approved jobs; review resolver/network telemetry and subsequent connections; inspect domain age/reputation/entropy only as supporting evidence; and look for file/registry/task/service changes. High cardinality alone is not DGA.\n\nDo not automatically kill a browser/agent, isolate a server, block all names, clear DNS cache, or add thousands of domains to a blocklist from this row. Use approved containment when process and corroborating evidence establish risk.\n\n## Step 5 — Troubleshoot specific failures\n\n- **No Event 22:** verify supported Windows, Sysmon service/config DnsQuery rule, channel input, filters, permissions, queues, index, and host freshness.\n- **Zero ProcessGuid or unknown image:** preserve raw record and flag attribution health; do not aggregate unrelated zero GUID records into an alert.\n- **Counts exceed raw expectations:** check direct plus WEF duplication, case/trailing-dot normalization, window bounds, and process GUID reuse.\n- **Queries missing:** inspect Sysmon include/exclude rules and version; Event 22 is endpoint-process telemetry, not guaranteed parity with recursive resolver logs.\n- **QueryResults lacks record type:** expected; do not invent A/AAAA labels. Use resolver/packet telemetry for record-type analysis.\n- **Browser dominates results:** baseline and use exact signed-image/role exception after detection; do not subtract a domain allowlist from the base denominator.\n- **CIM DNS count differs:** CIM may represent query/response traffic and omit process identity. Keep native Sysmon search unless parity is explicitly proven.\n- **Late events cross windows:** measure latency, clock and WEF/forwarder queues; adjust closed delay and rerun 100/101 boundary fixtures.",
+  "grandmaExplanation": "We notice when one program on a Windows machine asks for more than a hundred different network names in a short time. That can be normal for a browser or security tool, but it can also expose automated malicious software, so the team checks the exact program and names.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "walk"
 }
