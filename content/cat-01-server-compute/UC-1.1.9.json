@@ -1,52 +1,89 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.1.9",
-  "title": "Unauthorized Sudo Usage",
+  "title": "Denied Sudo Attempts on Linux",
   "criticality": "high",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Audit"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Unauthorized Sudo Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_unauthorized_sudo_usage` (UC-1.1.9), SOC dashboard panel \"Linux — Unauthorized Sudo Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Covers English-language, traditional sudo-format denial records written to Linux authentication logs. It does not detect successful sudo commands, `su`, direct root logins, changes to `/etc/sudoers`, sudo I/O-log content, `sudo_logsrvd` JSON, or process execution proved by auditd. A denial is not proof of malicious intent or successful privilege escalation, and the resulting records do not by themselves establish compliance.",
+  "evidence": "Show the saved-search definition and ACL for `linux_denied_sudo_attempts_5m`, scheduler and triggered-alert history, and exported result rows containing the five-minute bucket, host, invoking user, target user, denial reason, attempt count, and command when sudo logged one. Preserve the underlying `linux_secure` events for the same interval under the organization's access and retention policy; redact command arguments from broadly distributed reports when they can contain secrets.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.9 positive (Unauthorized, Sudo, Usage): ingest synthetic events into `index=os` sourcetype='linux_secure' where `count` grouped by `host`, `sudo_user`, `command` satisfies detection threshold for 'Unauthorized Sudo Usage'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.9 negative (Sudo Usage): ingest benign `os` / `linux_secure` events where `host`, `sudo_user`, `command` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Unauthorized Sudo Usage'."
+    "positiveScenario": "In a staging `index=os` with `sourcetype=linux_secure`, index `Jul 28 09:00:00 lab01 sudo: deniedtest : user NOT in sudoers ; TTY=pts/7 ; PWD=/home/deniedtest ; USER=root ; COMMAND=/usr/bin/id`. Run the search over that five-minute bucket. Expect exactly one row for `host=lab01`, `sudo_user=deniedtest`, `target_user=root`, `denial_reasons=not_in_sudoers`, `denial_events=1`, `denied_attempts=1`, and `immediate_policy_denial=1`.",
+    "negativeScenario": "In a separate five-minute staging bucket, index one allowed record, `Jul 28 09:05:00 lab01 sudo: opsadmin : TTY=pts/2 ; PWD=/home/opsadmin ; USER=root ; COMMAND=/usr/bin/id`, plus only two denial records for `batchtest` whose reason is `a password is required`. Expect zero result rows: the allowed record does not match a denial phrase, and two non-interactive password-required events remain below the threshold of three denied attempts per host, invoking user, and target user."
   },
-  "dataSources": "`sourcetype=linux_secure` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix`, Syslog — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=linux_secure \"sudo:\" (\"NOT in sudoers\" OR \"authentication failure\" OR \"incorrect password\")\n| rex \"user (?<sudo_user>\\w+)\"\n| rex \"COMMAND=(?<command>.+)\"\n| stats count by host, sudo_user, command\n| sort -count",
-  "description": "Alerts on Sudo Usage activity in UC-1.1.9 ('Unauthorized Sudo Usage') from `index=os` sourcetype `linux_secure`. Rolls up `count` by `host`, `sudo_user`, `command` across `the scheduled window` and pages when configured threshold. Covers Unauthorized, Sudo, Usage. Linux operators treat UC-1.1.9 as the canonical signal.",
-  "value": "Operators running UC-1.1.9 on `linux_secure` feeds shorten triage for Sudo Usage tied to 'Unauthorized Sudo Usage', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Forward auth logs. Alert immediately on `NOT in sudoers` events. For successful sudo, create audit dashboard showing who ran what with root privileges.",
-  "visualization": "Table (user, host, command, count), Bar chart of sudo failures by user, Events list for investigation.",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "`index=os sourcetype=linux_secure` events collected from the distribution's authentication log by a Splunk Universal Forwarder with the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Typical sources are `/var/log/secure` on RHEL and `/var/log/auth.log` on Ubuntu; `os` is a local index choice. The raw event must preserve `_time`, `host`, and sudo's traditional message text so the search can extract `sudo_user`, `denial_text`, `target_user`, `tty`, and `command`.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) on the Universal Forwarder and search tier. No premium Splunk app is required.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_nix",
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "role": "primary"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Unauthorized Sudo Usage'. Correlate with apt/yum logs in the same `linux_secure` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_secure`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=os sourcetype=linux_secure (\"NOT in sudoers\" OR \"NOT authorized on host\" OR \"command not allowed\" OR \"incorrect password attempt\" OR \"a password is required\")\n| rex field=_raw \"\\bsudo(?:\\[\\d+\\])?:\\s+(?<sudo_user>[^:\\s]+)\\s*:\\s+(?<denial_text>[^;]+)\"\n| where isnotnull(sudo_user)\n| eval denial_reason=case(match(denial_text,\"NOT in sudoers\"),\"not_in_sudoers\",match(denial_text,\"NOT authorized on host\"),\"not_authorized_on_host\",match(denial_text,\"command not allowed\"),\"command_not_allowed\",match(denial_text,\"incorrect password attempt\"),\"incorrect_password_attempts\",match(denial_text,\"a password is required\"),\"password_required_noninteractive\",true(),\"other\")\n| rex field=denial_text \"^(?<password_attempts>\\d+)\\s+incorrect password attempt\"\n| rex field=_raw \"\\bTTY=(?<tty>[^ ;]+)\"\n| rex field=_raw \"\\bUSER=(?<target_user>[^ ;]+)\"\n| rex field=_raw \"\\bCOMMAND=(?<command>.*)$\"\n| eval sudo_user=trim(sudo_user), target_user=coalesce(target_user,\"unknown\"), command=coalesce(trim(command),\"not_logged\"), attempt_weight=coalesce(tonumber(password_attempts),1), immediate_policy_denial=if(in(denial_reason,\"not_in_sudoers\",\"not_authorized_on_host\",\"command_not_allowed\"),1,0), event_time=_time\n| bin _time span=5m\n| stats count as denial_events sum(attempt_weight) as denied_attempts max(immediate_policy_denial) as immediate_policy_denial earliest(event_time) as first_seen latest(event_time) as last_seen values(denial_reason) as denial_reasons values(tty) as ttys values(command) as commands by _time host sudo_user target_user\n| where immediate_policy_denial=1 OR denied_attempts>=3\n| sort 0 -denied_attempts",
+  "description": "Detects sudo policy denials immediately and repeated sudo authentication or non-interactive password failures in five-minute windows. Each result represents one bucket, host, invoking user, and requested target user; a row appears for any `NOT in sudoers`, `NOT authorized on host`, or `command not allowed` record, or when the weighted denial count reaches three.",
+  "value": "Early, correctly attributed notice of rejected privilege requests helps responders distinguish an access-policy violation from password mistakes or broken automation. That shortens investigation of possible privilege-escalation attempts while avoiding the unsupported conclusion that a denied command actually ran.",
+  "implementation": "Collect the host authentication log as `sourcetype=linux_secure` with Splunkbase 833, preserve sudo's traditional English event text, and verify the extracted actor and denial reason before saving the search. Run every five minutes over a matching five-minute lookback; alert on any returned row and tune only the repeated authentication threshold, not the immediate policy-denial conditions.",
+  "visualization": "Use a result table with bucket, host, invoking user, target user, denial reasons, denied attempts, TTYs, and commands, plus a timechart of `denied_attempts` split by `denial_reason`. Add drilldowns to the raw authentication events and the host's recent successful sudo records. Restrict or redact the commands column when arguments may expose credentials or sensitive paths.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Enable data and scripted inputs for the Splunk Add-on for Unix and Linux",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Enabledataandscriptedinputs/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Source types for the Splunk Add-on for Unix and Linux",
+      "url": "https://docs.splunk.com/Documentation/UnixAddOn/6.0.0/User/SourcetypesandCIMdatamodelinfo",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise pretrained source types",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.4/configure-source-types/list-of-pretrained-source-types",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: rex",
+      "url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.3/search-commands/rex",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk scheduled alert configuration",
+      "url": "https://help.splunk.com/en/splunk-enterprise/alert-and-respond/alerting-manual/10.4/create-alerts/create-scheduled-alerts",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Sudoers manual: logging and traditional event format",
+      "url": "https://www.sudo.ws/docs/man/sudoers.man/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Red Hat Enterprise Linux 10: troubleshooting with log files",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/risk_reduction_and_recovery_operations/troubleshooting-problems-by-using-log-files",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Ubuntu Desktop: standard authentication log path",
+      "url": "https://documentation.ubuntu.com/desktop/en/latest/how-to/log-in-using-a-smart-card/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1548.003: Sudo and Sudo Caching",
+      "url": "https://attack.mitre.org/techniques/T1548/003/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "1. **Interactive password mistakes** — sudo normally summarizes the configured number of failed password tries in an `incorrect password attempts` record. Distinguish a user typo by checking for a subsequent allowed sudo event from the same host, user, TTY, and change window. The threshold of three attempts already suppresses one or two low-level `a password is required` events; do not suppress `NOT in sudoers` on this basis.\n\n2. **Ansible, systemd, or cron using `sudo -n`** — unattended automation emits `a password is required` after a credential, `NOPASSWD`, or execution-context change. Confirm the exact service account, host, job ID, and deployment change. Fix the automation; if a short transition must be muted, use a time-bound exception for that account and host only.\n\n3. **SSSD, LDAP, or sudoers policy outage** — a valid administrator can appear not authorized when centralized sudo rules are unavailable or stale. Correlate with `sssd_sudo.log`, directory-service health, and the effective policy from `sudo -l -U <user>` on the affected host. Treat a fleet-wide burst as an identity-service incident, not as proof that every user is hostile.\n\n4. **Approved access-revocation or host-onboarding test** — IAM or Linux engineering may deliberately verify that a removed user receives `user NOT in sudoers`. Match the named test user, host, ticket, and test interval. A local `sudo_denial_exceptions.csv` lookup may be used only as a documented, expiring filter keyed by `host`, `sudo_user`, `denial_reason`, `valid_from`, and `valid_until`.\n\n5. **Stale role assignment after a workload move** — an operator may run a formerly permitted command on a rebuilt host and receive `command not allowed`. Compare the command and target host with the current runbook and configuration-management inventory. Correct the role or workflow rather than permanently allow-listing the operator.\n\n**Suppression rule:** never globally suppress a user or all sudo denials. Review exception rows at expiry, retain the ticket and reason, and keep immediate policy denials visible in a non-paging audit panel even when an approved test suppresses notification.",
   "equipment": [
     "linux",
     "syslog"
@@ -55,12 +92,25 @@
     "linux_generic",
     "syslog_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "mitreAttack": [
+    "T1548.003"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, Syslog.\n• Ensure the following data sources are available: `sourcetype=linux_secure`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward auth logs. Alert immediately on `NOT in sudoers` events. For successful sudo, create audit dashboard showing who ran what with root privileges.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_secure \"sudo:\" (\"NOT in sudoers\" OR \"authentication failure\" OR \"incorrect password\")\n| rex \"user (?<sudo_user>\\w+)\"\n| rex \"COMMAND=(?<command>.+)\"\n| stats count by host, sudo_user, command\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Unauthorized Sudo Usage** — Repeated failed `sudo` attempts indicate attacker probing after account compromise; unexpected `sudo` success with destructive commands (e.g. `rm -rf`, `chmod 777`) may signal insider misuse or stolen credentials. Pair detection with IR steps: disable the account, revoke SSH keys, and review command history for lateral movement.\n\nDocumented **Data sources**: `sourcetype=linux_secure`. **App/TA** (typical add-on context): `Splunk_TA_nix`, Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_secure. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_secure. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• `stats` rolls up events into metrics; results are split **by host, sudo_user, command** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (user, host, command, count), Bar chart of sudo failures by user, Events list for investigation.",
-  "grandmaExplanation": "We watch sudo-related messages so you can see repeated failed attempts or fishy privilege use — a sign someone may be poking at admin access or misusing a normal account.",
+  "detectionType": "TTP",
+  "securityDomain": "access",
+  "requiredFields": [
+    "_time",
+    "host",
+    "_raw",
+    "sudo_user",
+    "denial_text",
+    "target_user",
+    "tty",
+    "command"
+  ],
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against Splunk, sudo, Red Hat, Ubuntu, and MITRE primary sources; no runtime or SME sign-off",
+  "detailedImplementation": "## Prerequisites and scope\n\nUse the supported Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Install its collection configuration on each Linux Universal Forwarder and its search-time knowledge objects on the search tier. The Splunkbase listing retrieved for this review identifies add-on 10.2.0 as compatible with Splunk platform 9.2 through 10.5 and Splunk Cloud, but this editorial review did not execute the search on those releases. Confirm the current listing before deployment and test upgrades outside production, especially when crossing the add-on's version 6.0 configuration changes.\n\nCreate or select an operating-system event index and grant the detection role read access. The catalogue uses `index=os`; that name is a local convention, so change it consistently in the input and SPL if your deployment differs. The forwarder service account needs read permission on the distribution's authentication log, while dashboard access should be restricted because sudo command arguments may contain sensitive values.\n\nThis implementation expects sudo's traditional English event format. The sudoers manual documents that denied records place the invoking username and denial reason before semicolon-delimited fields such as `TTY`, `PWD`, `USER`, and `COMMAND`. It also documents the reasons searched here: `user NOT in sudoers`, `user NOT authorized on host`, `command not allowed`, a numbered `incorrect password attempts` summary, and `a password is required`. Do not apply this SPL unchanged to JSON from `sudo_logsrvd`, localized messages, PAM-only `authentication failure` lines, or auditd records.\n\n## 1. Configure and verify collection\n\nOn RHEL, confirm that rsyslog or the system journal is writing sudo's authpriv messages to `/var/log/secure`; Red Hat documents that file as the location for security and authentication messages. Ubuntu documentation identifies `/var/log/auth.log` as its standard authentication log. If the host sends only to journald or a remote collector, establish one documented route that preserves the traditional sudo message and host identity before using this search.\n\nFollow the installed add-on's input guidance. In `$SPLUNK_HOME/etc/apps/Splunk_TA_nix/local/inputs.conf`, copy only the applicable monitor stanza from the installed `default/inputs.conf`, set `disabled = 0`, route it to the selected index, and ensure the authentication records receive `sourcetype=linux_secure`. Add-on releases can use a broader `/var/log` stanza, so inspect the installed defaults rather than inventing a second overlapping monitor for `/var/log/secure` or `/var/log/auth.log`. Restart the forwarder through the approved deployment process.\n\nOn a representative host, run `$SPLUNK_HOME/bin/splunk btool inputs list --debug` and confirm the effective monitor path, index, disabled state, and source configuration. Then search `index=os sourcetype=linux_secure sudo earliest=-15m` and table `_time`, `host`, `source`, and `_raw`. Verify that each host event appears once, timestamps are correct, and `_raw` contains `sudo:` or `sudo[pid]:`. Compare a bounded interval with `/var/log/secure`, `/var/log/auth.log`, or `journalctl SYSLOG_IDENTIFIER=sudo` on that same host. Resolve duplicate file-and-journal ingestion before alerting.\n\nThe Splunk Add-on source-type table lists `linux_secure` without a native CIM model for this feed. Do not advertise a `cimSpl` equivalent. A deployment may separately normalize authentication events to the CIM Authentication model, whose `src_user`, `user`, `action`, and `reason` fields can represent privilege events, but that custom mapping must be tested and is not required by this raw-event detection.\n\n## 2. Understand and save the search\n\nThe base search selects only documented sudo denial phrases. It intentionally omits generic PAM `authentication failure` text because PAM records have a different shape and can duplicate sudo's final denial record. The first `rex` accepts both `sudo:` and `sudo[1234]:`, captures the invoking account before the next colon as `sudo_user`, and captures the reason up to the first semicolon. Later expressions extract `TTY`, target `USER`, and trailing `COMMAND` when present. Missing target users and commands become `unknown` and `not_logged` so `stats by` does not silently discard the event.\n\nFor a numbered reason such as `3 incorrect password attempts`, `attempt_weight` uses the documented number rather than counting the summary as one try. Other denial records contribute one. `immediate_policy_denial` is set for not-in-policy, wrong-host, and forbidden-command reasons. The search then creates five-minute buckets per `host`, `sudo_user`, and `target_user`. It returns any immediate policy denial or at least three authentication/non-interactive denials in that five-minute window.\n\nSave the SPL as `linux_denied_sudo_attempts_5m`. Schedule it with cron `*/5 * * * *`, earliest `-5m@m`, and latest `@m`; matching the search window to the schedule avoids routine gaps and overlaps. Trigger when the number of results is greater than zero. Start with a 15-minute throttle keyed on `host`, `sudo_user`, and `denial_reasons`, but retain all result rows for investigation. The units are denied attempts, the aggregation window is five minutes, and the default repeated-failure threshold is three. Tune that numeric threshold only after measuring automation noise; policy denials remain immediate because they already state that authorization failed.\n\n## 3. Validate parsing and controls\n\nRun the positive and negative scenarios in `controlTest` in a staging index. For the positive raw record, inspect the pre-aggregation fields and confirm `sudo_user=deniedtest`, `denial_reason=not_in_sudoers`, `target_user=root`, `tty=pts/7`, and `command=/usr/bin/id`. The final search must emit exactly one `lab01` row even though its weighted count is one, because the reason is an immediate policy denial.\n\nFor the negative bucket, verify that the successful `opsadmin` record never enters the pipeline and that two `a password is required` records for `batchtest` produce no final row. Add a boundary test with a single `3 incorrect password attempts` record; it must emit one row with `denial_events=1` and `denied_attempts=3`. Add a parser test using `sudo[4321]:` to confirm the optional PID is accepted. Record these as synthetic search-logic checks, not as production validation or evidence that a real privilege-escalation attempt occurred.\n\nAfter synthetic checks, compare a change-approved denial on one non-production host with the local log. The event count, actor, target account, TTY, and command should agree. If the organization's sudo build logs a different reason or format, capture representative redacted records and revise the extraction under source control before enabling the alert.\n\n## 4. Operationalize, investigate, and retain evidence\n\nCreate a restricted dashboard table for bucket, host, invoking account, target account, denial reason, attempt count, TTY, first and last seen, and command. Add a trend panel by reason and drilldowns to the raw `linux_secure` records, successful sudo events for the same account and host, identity-provider health, and recent host configuration changes. Redact or omit command arguments from general SOC displays if they can carry tokens, passwords, or confidential paths.\n\nThe runbook should first verify the source record and host ownership, then determine whether the account should have sudo rights, whether the requested command is permitted, whether an approved ticket covers the action, and whether a successful sudo event followed. Check SSSD or LDAP availability for centralized policy and compare the effective policy with `sudo -l -U <user>` using an authorized administrator. Do not disable an account or claim command execution solely from a denied record. Escalate confirmed unauthorized attempts according to host criticality and identity context.\n\nMITRE ATT&CK T1548.003 describes abuse of sudo and sudo caching for privilege escalation. This UC provides contextual coverage for rejected attempts involving that mechanism; it does not implement MITRE's successful elevated-execution analytic and does not prove the technique succeeded. Preserve the saved-search definition, ACL, scheduler history, triggered-alert records, and source events according to local retention policy. Those artifacts demonstrate operation of this detection only.\n\n## 5. Troubleshoot safely\n\nIf no events arrive, verify that sudo is configured to log denied commands (`log_denied` is on by default in current sudo), that syslog logging and its bad-event priority are not disabled, that the authentication log exists, and that the forwarder can read it. Use `btool` to find the winning input stanza and check routing and search-role access to `index=os`.\n\nIf base events exist but `sudo_user` is null, inspect `_raw`. JSON logging requires `spath` and a dedicated source contract; PAM lines such as `pam_unix(sudo:auth): authentication failure` are intentionally not parsed by this SPL. A localized or vendor-modified denial phrase requires a reviewed variant rather than a broad `authentication failure` match. If commands are `not_logged`, confirm whether the denial type supplies `COMMAND`; do not infer a command that sudo did not record.\n\nIf counts are doubled, check for overlapping `/var/log` and explicit file monitors, dual journald/file collection, or a remote syslog copy ingested alongside the local file. If many valid administrators suddenly become `not_in_sudoers` or `not_authorized_on_host`, investigate SSSD, LDAP, and configuration deployment before treating the burst as coordinated hostile activity. If `password_required_noninteractive` dominates, identify the Ansible, systemd, or cron job using `sudo -n` and repair its least-privilege policy rather than raising the threshold fleet-wide.",
+  "grandmaExplanation": "We watch for people or automated jobs being refused when they ask a Linux computer for administrator powers. That helps the team spot access mistakes or suspicious attempts without pretending a blocked command actually ran.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
