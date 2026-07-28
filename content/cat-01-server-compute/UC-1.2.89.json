@@ -1,66 +1,126 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.89",
-  "title": "System Uptime & Unexpected Restarts (Windows)",
-  "criticality": "medium",
-  "difficulty": "beginner",
+  "title": "Unexpected Windows Restart Evidence",
+  "criticality": "high",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Availability",
+    "Fault",
+    "Reliability"
   ],
-  "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'System Uptime & Unexpected Restarts (Windows)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_system_uptime_unexpected_restarts_windows` (UC-1.2.89), SOC dashboard panel \"Linux — System Uptime & Unexpected Restarts (Windows)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "splunkPillar": "Observability",
+  "exclusions": "Detects System Event ID 41 from Microsoft-Windows-Kernel-Power and Event ID 6008 from EventLog, which Microsoft uses as evidence that Windows restarted without a clean shutdown. It does not calculate uptime, prove power loss, distinguish a bug check from a hang or reset, identify the root cause, prove user impact, or detect a planned restart solely because 1074 is absent. EventLog 6005/6006 describe the Event Log service, not authoritative boot/shutdown boundaries, and are intentionally excluded. BugCheck 1001, Kernel-General 12/13, User32 1074, update/driver events, hypervisor telemetry, and availability probes are corroboration. The `wineventlog` index is local; no automated restart or SLA/compliance claim is made.",
+  "evidence": "Retain `windows_unexpected_restart_evidence` definition, ACL, schedule and results; exact raw 41/6008 XML with provider, endpoint, EventRecordID, bugcheck parameters when present, and timestamps; source-health evidence; correlated 1001/1074/12/13/6009, update, driver, hardware, VM, UPS, and availability records; maintenance decision; dated controls; alert delivery; incident root cause and recovery validation. This documentation-only review generated no restart, event, search job, alert, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.89 positive (System, Uptime, Unexpected, Restarts, (Windows)): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=6005 where `count` grouped by `entity` satisfies detection threshold for 'System Uptime & Unexpected Restarts (Windows)'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.89 negative (Restarts (Windows)): ingest benign `wineventlog` / `WinEventLog:System` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'System Uptime & Unexpected Restarts (Windows)'."
+    "positiveScenario": "In an isolated index, ingest System Event ID 41 from provider `Microsoft-Windows-Kernel-Power`, `Computer=SERVER01`, `EventRecordID=41001`, `BugcheckCode=0`, `PowerButtonTimestamp=0`, and fixed `_time`. Expect one row with `restart_evidence=kernel_power_unclean_restart`. Add a provider-qualified EventLog 6008 and expect a second independent evidence row; the rule must not claim two restarts or a root cause.",
+    "negativeScenario": "Expect zero rows for each: User32 1074 planned restart; EventLog 6005 service start; Event ID 41 from an unrelated provider; Kernel-Power 42 sleep transition; and a qualifying ID with empty endpoint. Confirm the separate System source-health query still reports the host."
   },
-  "dataSources": "`sourcetype=WinEventLog:System` (EventCode 6005, 6006, 6008, 6009, 1074) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" EventCode IN (6005, 6006, 6008, 1074)\n| eval event=case(EventCode=6005,\"Event log started (boot)\",EventCode=6006,\"Event log stopped (clean shutdown)\",EventCode=6008,\"Unexpected shutdown\",EventCode=1074,\"User-initiated shutdown/restart\")\n| table _time, host, event, User, Reason, Comment\n| sort -_time",
-  "description": "Identifies UC-1.2.89 — System, Uptime, Unexpected, Restarts, (Windows) — using `index=wineventlog` sourcetype `WinEventLog:System`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Restarts (Windows). Purpose-built for 'System Uptime & Unexpected Restarts (Windows)' in Linux workflows.",
-  "value": "UC-1.2.89 operationalises 'System Uptime & Unexpected Restarts (Windows)' against `WinEventLog:System` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
-  "implementation": "EventCode 6008=unexpected shutdown (BSOD, power loss, hard reset) — always investigate. EventCode 1074=planned shutdown with user and reason. Calculate uptime by measuring time between 6005 events. Alert on any EventCode 6008 (unexpected) and on restarts outside maintenance windows. Track monthly uptime percentage per server for SLA reporting.",
-  "visualization": "Table (shutdown events), Line chart (uptime per host), Single value (hosts with unexpected restarts), Calendar view.",
-  "cimModels": [
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change.All_Changes\n  by All_Changes.dest All_Changes.action span=1h\n| where count > 0",
-  "dataModelAcceleration": "Enable acceleration for Change (All_Changes) with 6005/6006/6008/1074-style events as `action`/`status` when tagged from System log.",
-  "references": [
+  "dataSources": "Windows System XML collected by Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:System`. Primary evidence is Microsoft-Windows-Kernel-Power Event ID 41 and EventLog Event ID 6008. Preserve `EventCode`/`EventID`, `Provider_Name`/`ProviderName`/`SourceName`, `Computer`, `EventRecordID`, `Level`, `BugcheckCode`, `BugcheckParameter1`-`4`, `SleepInProgress`, `PowerButtonTimestamp`, `BootAppStatus`, and `Message` when present. Collect 1001, 1074, 12, 13, and 6009 separately for triage.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. No premium app is required; ITSI may optionally correlate service impact.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'System Uptime & Unexpected Restarts (Windows)'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:System\" EventCode IN (41,6008) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), event_provider=lower(trim(coalesce(Provider_Name,ProviderName,SourceName)))\n| where len(endpoint)>0 AND ((event_code=41 AND event_provider=\"microsoft-windows-kernel-power\") OR (event_code=6008 AND event_provider=\"eventlog\"))\n| eval restart_evidence=if(event_code=41,\"kernel_power_unclean_restart\",\"eventlog_previous_shutdown_unexpected\"), use_case=\"UC-1.2.89\"\n| table _time endpoint event_code event_provider restart_evidence Level BugcheckCode BugcheckParameter1 BugcheckParameter2 BugcheckParameter3 BugcheckParameter4 SleepInProgress PowerButtonTimestamp BootAppStatus EventRecordID Message source sourcetype use_case\n| sort 0 -_time endpoint",
+  "description": "Returns one provider-qualified evidence row when Windows records Kernel-Power 41 or EventLog 6008 after an unclean shutdown/restart. It preserves bug-check and power-button context when present but deliberately does not calculate uptime, merge the two records into a restart count, or infer whether the cause was power, crash, hang, reset, or virtualization.",
+  "value": "An unclean restart can interrupt services, lose in-flight work, corrupt state, and violate availability objectives even when Windows boots again. Reliable provider-qualified evidence gives operations a prompt investigation anchor and prevents misleading uptime calculations based on Event Log service start/stop records.",
+  "implementation": "Collect the System channel as XML, verify provider extraction, and maintain host source health. Save the SPL as `windows_unexpected_restart_evidence`, schedule every five minutes over the delayed closed bucket, and alert once per endpoint incident while retaining both 41 and 6008 evidence. Correlate Microsoft-recommended reboot history events and infrastructure telemetry before assigning cause, then validate application/service recovery rather than treating a successful boot as resolution.",
+  "visualization": "Dashboard `Windows — Restart Reliability`: System-source freshness first; affected hosts over 24 hours; a timechart by evidence type; repeat offenders over 30 days; and raw details including bugcheck code/parameters and EventRecordID. Drill down to 1001, 1074, 12, 13, 6009, update/driver/service events, VM platform, UPS/BMC, and availability monitors. Two evidence records for one boot must not be shown as two outages.",
+  "cimModels": [],
+  "schema": "Microsoft Windows System event XML for Kernel-Power 41 and EventLog 6008",
+  "dataModelAcceleration": "No generic Change data-model equivalent is claimed. Provider-qualified unclean-restart semantics and bug-check/power fields are not preserved reliably by a generic change action.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Provider_Name",
+    "ProviderName",
+    "SourceName",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "Level",
+    "BugcheckCode",
+    "BugcheckParameter1",
+    "BugcheckParameter2",
+    "BugcheckParameter3",
+    "BugcheckParameter4",
+    "SleepInProgress",
+    "PowerButtonTimestamp",
+    "BootAppStatus",
+    "Message"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Learn: troubleshoot unexpected reboots using System event logs",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-unexpected-reboots-system-event-logs",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Event ID 41 advanced troubleshooting",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/event-id-41-restart",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: XML event-log configuration",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Repository Windows Servers Integration Guide",
+      "url": "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/docs/guides/windows-servers.md",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "These are real unclean-restart records; a finding can still be expected or authorized.\n\n1. **Approved hard-reset, watchdog, or crash-recovery exercise** — Confirm test plan, exact host, operator, UTC window, expected 41/6008 records, and application recovery. Preserve the alert as evidence; suppress duplicate notification with `windows_restart_exceptions.csv` only for that test window.\n\n2. **Hypervisor reset, host evacuation failure, or cloud platform maintenance** — Match VM instance/host IDs, platform activity log, maintenance ticket, console/power transition, and guest event time. Route to virtualization ownership; never allowlist all virtual machines.\n\n3. **UPS, PDU, BMC, firmware, or facility failover test** — Correlate UPS/PDU/BMC telemetry, change record, affected chassis/rack, and expected recovery sequence. A bounded site/test exception may suppress paging but not guest evidence or source health.\n\n4. **Endpoint power-button or battery-removal test by support** — Verify asset, technician, support case, `PowerButtonTimestamp` where present, and post-boot checks. Consumer laptops and servers require different routing; do not interpret zero timestamp as proof that no button was used.\n\n5. **Kernel/driver validation intentionally inducing a bug check** — Match lab asset, dump, WER 1001, bugcheck code, driver test plan, and owner. Keep 41/6008 and dump evidence; exact lab notification suppression expires with the test.\n\nA lookup exception requires endpoint or governed asset group, change/test ID, owner, reason, numeric start, and exclusive expiry. Planned ordinary patching should produce a clean 1074/13 sequence and is not a reason to suppress unexpected-restart evidence.",
+  "mitreAttack": [
+    "N/A (operational unclean-restart evidence; no adversary intent is asserted)"
+  ],
+  "detectionType": "Provider-qualified fault evidence",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Supported Windows physical or virtual systems generating System 41/6008. Hypervisor, cloud, UPS, PDU, and BMC data are separate corroborating sources.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft unexpected-reboot and Event 41 guidance plus Splunk Windows add-on configuration; event generation, provider extraction, SPL, controls, source health, incident pairing, infrastructure correlation, and recovery were specified but not executed or Microsoft/Splunk/platform-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (EventCode 6005, 6006, 6008, 6009, 1074).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEventCode 6008=unexpected shutdown (BSOD, power loss, hard reset) — always investigate. EventCode 1074=planned shutdown with user and reason. Calculate uptime by measuring time between 6005 events. Alert on any EventCode 6008 (unexpected) and on restarts outside maintenance windows. Track monthly uptime percentage per server for SLA reporting.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" EventCode IN (6005, 6006, 6008, 1074)\n| eval event=case(EventCode=6005,\"Event log started (boot)\",EventCode=6006,\"Event log stopped (clean shutdown)\",EventCode=6008,\"Unexpected shutdown\",EventCode=1074,\"User-initiated shutdown/restart\")\n| table _time, host, event, User, Reason, Comment\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**System Uptime & Unexpected Restarts (Windows)** — Unexpected restarts indicate BSOD, power loss, forced reboots, or patch installations. Tracking uptime reveals instability patterns and unauthorized maintenance.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (EventCode 6005, 6006, 6008, 6009, 1074). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **event** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **System Uptime & Unexpected Restarts (Windows)**): table _time, host, event, User, Reason, Comment\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (shutdown events), Line chart (uptime per host), Single value (hosts with unexpected restarts), Calendar view.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:System into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`event`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep a simple story of when a server last started and whether shutdowns look clean, so the team can tell maintenance restarts from power or software surprises.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Two rare System event IDs over a closed five-minute bucket; corroborating history searches are incident-driven.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Kernel-Power 41",
+      "EventLog 6008"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and semantics\n\nAssign Windows, hardware/virtualization, application, Splunk, and incident owners. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and inventory expected hosts. Microsoft identifies Kernel-Power 41 and EventLog 6008 as unexpected-reboot evidence. A typical normal restart includes User32 1074, Kernel-General 13, and EventLog 6009; an unexpected sequence often includes 41, WER-SystemErrorReporting 1001, and 6008. These patterns support triage, not automatic causality.\n\nEventLog 6005 means the Event Log service started and 6006 means it stopped; service restart, missing records, and corruption make them unsuitable as universal uptime boundaries. Calculate service availability from probes or explicit state data in a separate UC.\n\n## Step 1 — Collect and verify System XML\n\nConfigure `[WinEventLog://System]` in a deployment app with `renderXml=true` and local `index=wineventlog`. Verify effective `inputs.conf` using `splunk btool inputs list WinEventLog://System --debug`. In the Event Viewer console at **Windows Logs > System**, inspect provider, ID, EventRecordID, and XML fields. Qualify exact Windows builds and confirm the extracted provider field. Preserve 41 bugcheck parameters and power/boot fields without translating a zero value into a root cause.\n\nOperate source-health by expected host. With WEF, preserve original Computer and latency and prevent direct-plus-forwarded duplication. A powered-off host naturally cannot forward until it returns; alert latency begins after reboot/indexing, so availability monitoring remains separate.\n\n## Step 2 — Save and understand the detector\n\nSave the sidecar SPL as `windows_unexpected_restart_evidence`, run every five minutes over `earliest=-10m@m latest=-5m@m`, and trigger on rows. The index/source/type and provider-ID pairs eliminate cross-provider collisions. Each row stays independent because 41 and 6008 may describe the same restart and their timing varies; incident handling can group by endpoint and boot episode only after checking raw chronology.\n\nThrottle notifications by endpoint and incident ID while retaining each event. Do not alert only on 6008, because 41 is key evidence, and do not call every 41 a power outage. No CIM variant is supplied.\n\n## Step 3 — Validate event logic and chronology\n\nRun positive and negative fixtures with fixed bounds. Test both providers, wrong-provider collisions, empty endpoint, duplicate collection, null bugcheck fields, and event-time/index-time delay. In a disposable lab VM, perform only an approved reset or controlled crash test; never crash production to validate monitoring. Compare fixed EventRecordIDs/XML in Event Viewer and Splunk.\n\nBuild timelines with 12, 13, 41, 1001, 1074, 6008, and 6009. Test one clean restart and one unclean restart, and assert the detector ignores the clean sequence. Record VM console or physical power evidence, exact bounds, versions, expected/actual rows, alert delivery, and application recovery.\n\n## Step 4 — Operationalize investigation and recovery\n\nOn a result: verify provider, endpoint, raw XML, source health, and whether 41/6008 belong to one boot; look for 1001 bugcheck/dump, 1074 initiator/reason, update and driver installation, service/storage/hardware warnings, and preceding hangs; correlate hypervisor/cloud activity or UPS/PDU/BMC for physical systems; determine impacted applications; and validate service/data recovery.\n\nDo not automatically reboot again, disable drivers, roll back updates, delete dumps, reset firmware, migrate a VM, or isolate an endpoint from these events alone. Severity depends on service impact, recurrence, data integrity, redundancy, and criticality. Preserve the evidence list and close only after source and application checks.\n\n## Step 5 — Troubleshoot\n\n- **No result after known reset:** wait for host return, verify System input, provider extraction, forwarder backlog, index routing, and search window delay.\n- **41 but no 6008:** preserve 41; collection/log state and Windows sequence vary. Do not require both.\n- **6008 but no 41:** verify provider, retention, collection gaps, and timeline; 6008 remains evidence but source completeness is in question.\n- **BugcheckCode zero:** investigate hang, power, reset, firmware, virtualization, and dump configuration; zero is not proof of power loss.\n- **Two alerts for one restart:** incident correlation should group raw evidence; do not delete one record or claim two outages.\n- **Wrong host under WEF:** repair original Computer extraction and subscription topology.\n- **High restart count:** deduplicate exact EventRecordIDs, then investigate recurring root cause rather than raising a threshold.",
+  "grandmaExplanation": "We notice when Windows comes back after it did not shut down cleanly. That gives the support team a reliable starting point to check for a crash, power problem, forced reset, or platform issue and to make sure the services really recovered.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
