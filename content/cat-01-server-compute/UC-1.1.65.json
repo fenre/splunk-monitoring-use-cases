@@ -2,145 +2,140 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.1.65",
   "title": "Auditd Rule Violation Detection",
-  "criticality": "critical",
+  "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
+    "Audit",
+    "Change",
+    "Configuration",
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Auditd Rule Violation Detection' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_auditd_rule_violation_detection` (UC-1.1.65), SOC dashboard panel \"Linux — Auditd Rule Violation Detection\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "compliance": [
+  "exclusions": "Detects Linux kernel Audit `CONFIG_CHANGE` records for attempts to add, remove, or automatically remove live Audit rules and to change Audit control settings. It does not treat an ordinary event emitted because a rule matched as a rule violation; detect SELinux AVC denials; monitor edits to `/etc/audit/audit.rules`, `/etc/audit/rules.d/*.rules`, or `/etc/audit/auditd.conf` before they are loaded; detect `auditd` service termination or log deletion; prove that a change was unauthorized or malicious; recover events lost while auditing was disabled; or attest regulatory compliance. File-change, service-health, log-continuity, and policy-authorization controls are separate requirements.",
+  "evidence": "When deployed, retain the managed persistent rule files, bounded `auditctl -s` and `auditctl -l` captures, the `linux_auditd_rule_violation_detection` saved-search definition and ACL, scheduler and triggered-alert history, and exported result rows containing `firstTime`, `host`, `audit_event_id`, `operation`, `setting`, `new_value`, `old_value`, `rule_key`, `rule_list`, `outcome`, `actor`, and `severity`. These artefacts show that observed `CONFIG_CHANGE` records were collected and evaluated; they do not prove continuous host coverage, authorization, or the effective ruleset outside the captured times.",
+  "controlTest": {
+    "positiveScenario": "In an isolated `index=os` input with `sourcetype=auditd`, index `type=CONFIG_CHANGE msg=audit(1761660000.100:651): auid=1001 ses=8 op=remove_rule key=\"identity\" list=exit res=yes AUID=\"tester\"` and `type=CONFIG_CHANGE msg=audit(1761660001.200:652): pid=4100 uid=0 auid=1001 ses=8 op=add_rule audit_enabled=2 res=no AUID=\"tester\"`. The search must return exactly two rows. Event 651 must be `operation=remove_rule`, `setting=audit_rule`, `outcome=success`, `actor=tester`, and `severity=critical`; event 652 must be `operation=add_rule`, `setting=audit_rule`, `outcome=failure`, and `severity=high`.",
+    "negativeScenario": "In a separate isolated interval, index a `type=AVC` SELinux denial and a normal `type=SYSCALL` event with `key=identity`, using the same host and actor fields as the positive records. The search must return zero rows. A rule key on a SYSCALL or PATH event means that an Audit rule matched; it is not evidence that the rule itself was violated or changed.",
+    "attackTechnique": "T1685.004"
+  },
+  "dataSources": "`index=os sourcetype=auditd` events from the Splunk Add-on for Unix and Linux `rlog.sh` scripted input. Splunk documents that input as reading Linux Auditing System events recorded in `/var/log/audit/audit.log` and translating them with `ausearch`. The primary contract is `type=CONFIG_CHANGE`, `_time`, `host`, `msg`, `op`, and `res`; context can include `AUID`/`auid`, `UID`/`uid`, `ses`, `subj`, `pid`, `key`, `list`, `old`, and one changed-setting field such as `audit_enabled`, `audit_failure`, `audit_rate_limit`, `audit_backlog_limit`, `audit_backlog_wait_time`, `audit_pid`, `lost`, or `backlog_wait_time_actual`. `os` is a deployment-local index name.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Use the add-on's `rlog.sh` input and translated `auditd` source type; the separately documented `linux_audit` file source type has a different raw-event and CIM contract and is not interchangeable without rewriting and testing the search. No premium Splunk app is required.",
+  "splunkbaseApps": [
     {
-      "regulation": "fedramp",
-      "version": "Rev.5 Baselines",
-      "clause": "SI-4",
-      "clauseUrl": "https://www.fedramp.gov/baselines/",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "FedRAMP Rev.5 Baselines SI-4 System monitoring — auditd rule violations are the canonical Linux system-monitoring signal for FedRAMP SI-4 evidence.",
-      "controlObjective": "Evidence that FedRAMP SI-4 (System monitoring) is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "swift-csp",
-      "version": "CSCF v2025",
-      "clause": "6.4",
-      "clauseUrl": "https://www.swift.com/myswift/customer-security-programme-csp/security-controls",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "SWIFT CSP CSCF v2025 6.4 Logging and monitoring — host-level auditd rules are an explicit SWIFT CSP logging/monitoring control for the secure zone.",
-      "controlObjective": "Evidence that SWIFT CSP 6.4 (Logging and monitoring) is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "hitrust",
-      "version": "v11",
-      "clause": "09.aa",
-      "clauseUrl": "https://hitrustalliance.net/csf-overview/",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "HITRUST CSF v11 09.aa Audit logging — auditd violation detection implements the OS-level audit-logging control in HITRUST.",
-      "controlObjective": "Evidence that HITRUST 09.aa (Audit logging) is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "FDA Part 11",
-      "version": "current",
-      "clause": "§11.10(e)",
-      "clauseUrl": "https://www.ecfr.gov/current/title-21/chapter-I/subchapter-A/part-11",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "FDA 21 CFR Part 11 §11.10(e) Audit trails — auditd violation detection is the standard Linux host evidence for the secure, computer-generated, time-stamped audit trail requirement.",
-      "controlObjective": "Evidence that FDA Part 11 §11.10(e) (Audit trails) is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "eu-ai-act",
-      "version": "Regulation (EU) 2024/1689",
-      "clause": "Art.12",
-      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "EU AI Act Art.12 Record-keeping (logging) — host-level auditd monitoring records the infrastructure events that high-risk AI systems must log.",
-      "controlObjective": "Evidence that EU AI Act Art.12 (Record-keeping (logging)) is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "SWIFT CSP",
-      "version": "CSCF v2025",
-      "clause": "6.4",
-      "clauseUrl": "https://www.swift.com/myswift/customer-security-programme-csp/security-controls",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "SWIFT CSP CSCF v2025 6.4 Logging and monitoring — host-level auditd rules are an explicit SWIFT CSP logging/monitoring control for the secure zone.",
-      "controlObjective": "Evidence that SWIFT CSP 6.4 is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "EU AI Act",
-      "version": "Regulation (EU) 2024/1689",
-      "clause": "Art.12",
-      "clauseUrl": "https://eur-lex.europa.eu/eli/reg/2024/1689/oj",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "EU AI Act Art.12 Record-keeping (logging) — host-level auditd monitoring records the infrastructure events that high-risk AI systems must log.",
-      "controlObjective": "Evidence that EU AI Act Art.12 is enforced — Splunk UC-1.1.65: Auditd Rule Violation Detection.",
-      "evidenceArtifact": "Saved search 'UC-1.1.65' running on sourcetype=linux_audit, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
     }
   ],
-  "controlTest": {
-    "positiveScenario": "UC-1.1.65 positive (Auditd, Rule, Violation, Detection): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `avc_type`, `comm` satisfies `count` > 5 for 'Auditd Rule Violation Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.65 negative (Violation Detection): ingest benign `os` / `linux_audit` events where `host`, `avc_type`, `comm` stays below `count` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Auditd Rule Violation Detection'."
-  },
-  "dataSources": "`sourcetype=linux_audit` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=linux_audit type=AVC\n| stats count by host, avc_type, comm\n| where count>5",
-  "description": "Surfaces 'Auditd Rule Violation Detection' (UC-1.1.65) using `index=os` sourcetype `linux_audit` by aggregating `count` grouped by `host`, `avc_type`, `comm` over `the scheduled window` and alerting when `count` > 5. Keywords: Auditd, Rule, Violation, Detection. Focuses on Violation Detection behaviour so linux teams can triage UC-1.1.65 without ad-hoc log review.",
-  "value": "UC-1.1.65 accelerates insight into Violation Detection ('Auditd Rule Violation Detection') by tracking `activity` on `linux_audit` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
-  "implementation": "Map `type`, `avc_type`, and `comm` in **props** for the sourcetype your TA actually emits (strings vary). Tighten the leading search to the rule keys you care about, and add **allow** lists for known noisy workloads once you have history.",
-  "visualization": "Table, Alert",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats `summariesonly` count from datamodel=Authentication.Authentication where Authentication.action=failure by Authentication.user Authentication.dest span=1h | where count>5",
-  "dataModelAcceleration": "After linux_audit is tagged into CIM Authentication, enable acceleration for the Authentication data model (Authentication dataset) with summary range covering your alert lookback.",
+  "spl": "index=os sourcetype=auditd type=CONFIG_CHANGE\n| rex field=msg \"audit\\((?<audit_event_id>[^\\)]+)\\)\"\n| rex field=_raw \"msg=audit\\((?<audit_event_id_raw>[^\\)]+)\\)\"\n| eval audit_event_id=coalesce(audit_event_id,audit_event_id_raw,msg,\"unknown\"), operation=lower(trim(coalesce(op,\"unknown\"))), outcome_raw=lower(trim(tostring(res))), actor=coalesce(AUID,auid,UID,uid,\"unknown\"), rule_key=coalesce(key,\"(none)\"), rule_list=coalesce(list,\"unknown\")\n| eval outcome=case(in(outcome_raw,\"1\",\"yes\",\"success\"),\"success\",in(outcome_raw,\"0\",\"no\",\"failed\",\"failure\"),\"failure\",true(),\"unknown\")\n| eval setting=case(match(operation,\"(^|_)add_rule|(^|_)remove_rule|^autoremove_rule|^updated_rules\"),\"audit_rule\",isnotnull(audit_enabled),\"audit_enabled\",isnotnull(audit_failure),\"audit_failure\",isnotnull(audit_rate_limit),\"audit_rate_limit\",isnotnull(audit_backlog_limit),\"audit_backlog_limit\",isnotnull(audit_backlog_wait_time),\"audit_backlog_wait_time\",isnotnull(audit_pid),\"audit_pid\",isnotnull(lost),\"lost\",isnotnull(backlog_wait_time_actual),\"backlog_wait_time_actual\",true(),\"other_audit_configuration\")\n| eval new_value=case(setting=\"audit_enabled\",tostring(audit_enabled),setting=\"audit_failure\",tostring(audit_failure),setting=\"audit_rate_limit\",tostring(audit_rate_limit),setting=\"audit_backlog_limit\",tostring(audit_backlog_limit),setting=\"audit_backlog_wait_time\",tostring(audit_backlog_wait_time),setting=\"audit_pid\",tostring(audit_pid),setting=\"lost\",tostring(lost),setting=\"backlog_wait_time_actual\",tostring(backlog_wait_time_actual),setting=\"audit_rule\",rule_key,true(),\"not_reported\"), old_value=coalesce(tostring(old),\"not_reported\")\n| eval finding=case(outcome=\"failure\",\"configuration_attempt_failed\",operation=\"remove_rule\" OR like(operation,\"remove_rule:%\") OR operation=\"autoremove_rule\",\"rule_removed\",operation=\"add_rule\" OR like(operation,\"add_rule:%\"),\"rule_added\",setting=\"audit_enabled\" AND new_value=\"0\",\"auditing_disabled\",setting=\"audit_enabled\" AND new_value=\"1\",\"auditing_enabled\",setting=\"audit_enabled\" AND new_value=\"2\",\"configuration_locked\",operation=\"set\",\"control_setting_changed\",true(),\"audit_configuration_changed\")\n| eval severity=case(outcome=\"success\" AND (finding=\"rule_removed\" OR finding=\"auditing_disabled\"),\"critical\",outcome=\"failure\",\"high\",outcome=\"success\" AND finding=\"control_setting_changed\",\"high\",outcome=\"unknown\",\"high\",true(),\"medium\")\n| table _time host audit_event_id operation finding setting new_value old_value rule_key rule_list outcome actor ses pid subj severity\n| rename _time as firstTime\n| sort 0 -firstTime",
+  "description": "Reports each Linux Audit `CONFIG_CHANGE` record as a discrete attempt to change the live kernel Audit configuration. It distinguishes rule additions and removals, control-setting changes, successful changes, and failed attempts such as changes denied by immutable mode. In this use case, “violation” means a result that local authorization policy has not approved; Linux Audit itself reports the operation and outcome, not whether it violated policy.",
+  "value": "Unexpected removal of a collection rule, disabling of auditing, or weakening of backlog, rate, or failure controls can create a monitoring blind spot. Preserving the login identity, rule key, setting, old and new values, result, and Audit event identifier lets security and Linux teams compare each attempt with boot activity and approved change records without misclassifying ordinary rule matches or SELinux denials.",
+  "implementation": "Enable Linux Audit and verify the effective rule and control state, then enable the add-on's `rlog.sh` input into the selected operating-system index with `sourcetype=auditd`. Confirm `CONFIG_CHANGE`, `op`, `res`, actor, rule-key, and changed-setting extraction against `ausearch -m CONFIG_CHANGE -i`. Save the SPL, run it every five minutes over a ten-minute lookback, alert on any returned row, and route by the calculated severity; use `host,audit_event_id` only to suppress duplicate notifications from overlapping windows.",
+  "visualization": "Use a newest-first findings table with time, host, operation, finding, setting, old value, new value, rule key, outcome, actor, and severity. Add 24-hour counts by `finding` and `outcome`, a critical panel for successful rule removal or audit disablement, a high panel for failed attempts and control-setting changes, and a host timeline that overlays boot or maintenance windows. Drill down by `host,audit_event_id` to the raw record; never label an unknown outcome as successful.",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable to the primary search. Splunk documents the add-on's translated `auditd` source type as having no CIM data-model mapping. Although its separate `linux_audit` source type maps some events to Authentication and Change, no accelerated CIM dataset preserves the complete `CONFIG_CHANGE` operation, dynamic setting, old value, rule key, result, and Audit event identity required here.",
   "references": [
     {
-      "title": "Splunk Add-on for Unix and Linux",
+      "title": "Linux Audit project: audit message dictionary",
+      "url": "https://github.com/linux-audit/audit-documentation/blob/master/specs/messages/message-dictionary.csv",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux Audit project: auditctl(8)",
+      "url": "https://man7.org/linux/man-pages/man8/auditctl.8.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux Audit project: audit.rules(7)",
+      "url": "https://man7.org/linux/man-pages/man7/audit.rules.7.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel: Audit configuration-change implementation",
+      "url": "https://github.com/torvalds/linux/blob/master/kernel/audit.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Red Hat: Linux Audit System Reference",
+      "url": "https://access.redhat.com/articles/4409591",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Red Hat Enterprise Linux 10: Auditing the system",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/risk_reduction_and_recovery_operations/auditing-the-system",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: source types and CIM mappings",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: rlog.sh data collection",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: enable data and scripted inputs",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Enabledataandscriptedinputs/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk CIM (Authentication, Change) for mapped variants",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "title": "MITRE ATT&CK T1685.004: Disable or Modify Linux Audit System Log",
+      "url": "https://attack.mitre.org/techniques/T1685/004/",
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Auditd Rule Violation Detection'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Boot-time or service-supported ruleset loading** — Persistent rule loaders commonly delete an old live ruleset and add the desired rules in sequence. Correlate the event with the same boot ID or startup interval, the version-controlled ruleset, the expected service identity, and the final `auditctl -l` output. Do not assume every `remove_rule` is hostile merely because it is critical-priority.\n\n2. **Approved configuration-management convergence** — Ansible, Puppet, Chef, Salt, image initialization, or a hardening agent can replace rules or change backlog and failure controls. Require an exact job or change ID, expected host scope, actor or service context, rule key or setting, desired value, and bounded execution window.\n\n3. **Audit package upgrade or operating-system maintenance** — Package scripts and a controlled reboot can reload defaults, migrate rules, or re-register the daemon PID. Compare package-manager records, maintenance authorization, resulting package version, effective controls, and the complete post-change ruleset.\n\n4. **Authorized audit-policy testing or incident response** — Security engineers may add a temporary key, remove it after a test, reset a counter, or increase collection during an investigation. Validate the named operator, test plan, exact rule, expected outcome, and cleanup evidence; a test label alone is insufficient.\n\n5. **Expected denial under immutable mode** — A deployment tool or administrator can attempt a change after `auditctl -e 2`; Linux Audit records the failed attempt and leaves the configuration locked. Confirm `audit_enabled=2`, command purpose, actor, and no effective-state change. Repeated or unexplained denied attempts remain security-relevant.\n\n**Notification suppression:** keep the base result and evidence. If local policy permits suppression, apply it only at the alert-routing layer for an exact host or managed host role, operation, rule key or setting/value, outcome, `valid_from`, `valid_until`, change ID, and owner. Never suppress every action by root, every boot, all rule removals, unknown outcomes, or expired entries.",
+  "mitreAttack": [
+    "T1685.004"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "audit",
+  "requiredFields": [
+    "_time",
+    "host",
+    "_raw",
+    "type",
+    "msg",
+    "op",
+    "res",
+    "AUID",
+    "auid",
+    "UID",
+    "uid",
+    "ses",
+    "pid",
+    "subj",
+    "key",
+    "list",
+    "old",
+    "audit_enabled",
+    "audit_failure",
+    "audit_rate_limit",
+    "audit_backlog_limit",
+    "audit_backlog_wait_time",
+    "audit_pid",
+    "lost",
+    "backlog_wait_time_actual"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "status": "verified",
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• `Splunk_TA_nix` with **augment**-style parsing of **linux_audit** into multi-line JSON or **key=value** (your props determine whether `type=AVC` is literally present in `_raw` or normalized differently).\n• **CIM** note: a straight **tstats** on **Authentication** or **Change** only mirrors this UC after you have **eventtypes**+**tags** that project **AVC** denials into those models. Until then, keep the primary SPL on the raw sourcetype.\n\nStep 1 — Configure data collection\nHarden `auditd` rules, forward **/var/log/audit/audit.log** (or the journal path your distro uses) into the **os** index, and add **SME**-owned allow lists for build pipelines.\n\nStep 2 — Create the search and alert\nThe saved SPL uses a numeric **>5**; convert to a token `$threshold$` in the saved search if you need per-environment values.\n\n```spl\nindex=os sourcetype=linux_audit type=AVC\n| stats count by host, avc_type, comm\n| where count>5\n```\n\n**Understanding this SPL** — Counts **denied** decisions per tuple; you can add `| search avc_type=file` style clauses on day one to drop noise you already understand.\n\n**CIM** — The `cimSpl` on this use case is the same failure-count form; it only populates after you project audit denials into **Authentication** (tags + fields).\n\n\nStep 3 — Validate\nOn the host, `ausearch -m avc` or your distro’s `auditctl` status should show the same seconds and subjects as Splunk for a reproduced event. On non-prod, trigger a **known** policy denial in a test directory and search it back in Splunk.\n\nStep 4 — Operationalize\nFeed **host+avc_type+comm** to IR if counts spike across many machines at once; for single-host spikes, start with a recent **package** change and SELinux **boolean** diffs before assuming breach.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_audit into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`avc_type, comm, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you know when the security layer on a Linux box is saying “no, you may not do that” more often than usual, so the right people can check policy or a possible break-in early.",
+  "status": "community",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against Linux Audit, Linux kernel, Red Hat, Splunk, and MITRE ATT&CK sources; no runtime or SME sign-off",
+  "detailedImplementation": "## Prerequisites and semantic boundary\n\nUse a supported Linux distribution with the kernel Audit subsystem enabled and `auditd` operating normally. Assign a Linux security-policy owner, the host or platform owner, a Splunk content owner, and an incident-response escalation path. The search role needs read access to the chosen operating-system event index and permission to schedule a search and alert action. This catalogue calls the index `os`; that is a local convention, so change it consistently if the deployment uses another name.\n\nThe title needs a precise interpretation. Linux Audit rules select activity to record. When a normal `SYSCALL`, `PATH`, or other event carries a `key`, the key says a configured rule matched; it does not mean the rule was violated. `AVC` records are SELinux access decisions and belong to SELinux monitoring. This UC instead consumes the kernel's record type 1305, `CONFIG_CHANGE`, whose upstream description is “Audit system configuration change.” Rule operations expose values such as `op=add_rule` and `op=remove_rule`; control changes use `op=set` plus a named setting and `old`; `res` states whether the requested operation succeeded. The word “violation” is therefore a local policy judgement made after comparing the operation with authorization, not a semantic field emitted by Audit.\n\n`CONFIG_CHANGE` covers the live kernel Audit configuration. It is not a file-integrity monitor for persistent files. Editing a file under `/etc/audit/rules.d/` does not produce the same signal unless the resulting rules are loaded, and changing `auditd.conf` concerns the user-space daemon rather than every kernel rule control represented here. Separate controls must watch those files, daemon health, Audit backlog and lost-record state, and end-to-end event freshness.\n\n## 1. Establish and verify the Linux Audit state\n\nManage persistent rules through the distribution-supported mechanism, commonly files under `/etc/audit/rules.d/` compiled by `augenrules`, or `/etc/audit/audit.rules` where that is the configured source. Keep the source under configuration management and capture its version. Use `auditctl -s` to inspect status and `auditctl -l` to inspect the effective kernel rules. A successful command and a syntactically valid file do not prove that every intended rule loaded; compare the effective output with the managed source after boot and every approved policy change.\n\nNo extra audit rule is required to create `CONFIG_CHANGE` records while kernel auditing is active. The Linux Audit documentation describes hard-wired event classes that can be emitted independently of syscall and file-watch rules. Do not create a recursive “watch the rule-change event” rule and do not mistake a key attached to a rule being added or removed for a key that matched application activity.\n\nDecide whether immutable mode is appropriate for each host class. `auditctl -e 2`, conventionally the last control command in the ruleset, locks the Audit configuration until reboot. The `auditctl(8)` documentation states that attempted changes in this mode are audited and denied. Such a record has a failed outcome: it proves an attempt and the kernel's denial, not an effective rule change. Never weaken immutable mode merely to make a production detection test easier.\n\nDocument an important blind spot. The current kernel logs a control change while the prior Audit state is not `AUDIT_OFF`. A successful transition to `audit_enabled=0` may therefore be the last visible configuration record, while actions performed with auditing off cannot be reconstructed by this search. A host booted with auditing unavailable is also outside this event stream. Alerting on disablement must be paired with independent host inventory, forwarder health, and expected-event continuity.\n\n## 2. Configure the supported Splunk collection path\n\nInstall the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) on the supported collection tier and deploy its search-time knowledge where searches execute. The vendor documentation reviewed for this entry identifies version 10.3.1, but this documentation review did not execute that release or establish a minimum compatible version. Use a currently supported release, read its compatibility and privilege requirements, and regression-test the exact deployed package before production rollout.\n\nEnable only the add-on-supplied `rlog.sh` stanza in `$SPLUNK_HOME/etc/apps/Splunk_TA_nix/local/inputs.conf`; copy the stanza that needs an override rather than copying or editing the full default file. Set `disabled=0`, route it to the selected event index, and retain the add-on-defined `sourcetype=auditd`. The add-on documents `rlog.sh` as collecting `/var/log/audit/audit.log`, and its source-type table describes `auditd` as records translated with `ausearch`. Follow the current add-on privilege guidance for the forwarder. If the required execution model conflicts with local hardening, select and test another supported collection architecture before claiming equivalent coverage; do not silently replace the documented input with an unreviewed HEC or journal poll.\n\nConfirm the effective input with `splunk btool inputs list --debug` on the collection node. Record the winning stanza, index, source, source type, disabled state, interval, add-on version, and deployment-app source. Search `index=os sourcetype=auditd earliest=-15m` after an approved test and verify that `type`, `msg`, `op`, `res`, and actor fields are extracted. Translated output can represent `res` as `yes` or `no`, while raw kernel examples use `1` or `0`; the SPL normalizes both. The interpreted input can also add uppercase values such as `AUID`, so the search prefers the interpreted login identity but retains lowercase and effective-UID fallbacks.\n\nDo not substitute the add-on's `linux_audit` source type without a separately reviewed SPL. Splunk documents `linux_audit` as the raw Linux audit log with Authentication and Change mappings, whereas `auditd` is the translated `rlog.sh` output and has no CIM mapping. Running both inputs over the same audit file can duplicate records. Identify and remove overlap at collection time rather than hiding it with `dedup host`.\n\n## 3. Create, schedule, and understand the search\n\nSave the primary SPL as `linux_auditd_rule_violation_detection`. The first line selects only `CONFIG_CHANGE`; an AVC denial or ordinary keyed syscall cannot enter the result. The two `rex` expressions recover the Audit timestamp-and-serial identifier from either the extracted `msg` or raw text. `eval` normalizes operation, outcome, actor, rule key, and list while preserving `unknown` instead of inferring success.\n\nThe dynamic-setting logic reflects upstream kernel fields. A set operation can report `audit_enabled`, `audit_failure`, `audit_rate_limit`, `audit_backlog_limit`, `audit_backlog_wait_time`, or `audit_pid`; reset operations can expose `lost` or `backlog_wait_time_actual`. Rule operations are labeled `audit_rule`, and the rule key becomes the described new value only for display. `old_value` is left as `not_reported` when the record has no old field. Rule records do not describe the entire rule expression, so responders must inspect the effective ruleset and related event context rather than reconstructing a deleted rule from its key.\n\nSeverity is deterministic, not a volume baseline. A successful rule removal or transition to `audit_enabled=0` is critical because it can directly reduce visibility. A failed configuration attempt, unknown outcome, or successful change to another control is high pending authorization review. A successful add, enable, or lock is medium because it changes security telemetry but commonly occurs during approved boot or deployment. Severity is triage priority, not a verdict of compromise.\n\nSchedule every five minutes with `dispatch.earliest_time=-10m@m` and `dispatch.latest_time=@m` to tolerate a typical one-minute scripted-input cycle and modest forwarding delay. Trigger when the result count is greater than zero: one configuration attempt is sufficient, and the former threshold of more than five AVCs had no relationship to rule changes. Route critical and high rows for prompt review and medium rows to the monitored change queue. Suppress duplicate notifications from the overlapping window for 15 minutes on the pair `host,audit_event_id`; do not throttle only by host, actor, or rule key because that can hide a second distinct attempt. Preserve all rows even when a notification is suppressed.\n\n## 4. Validate event meaning, parsing, and thresholds\n\nRun the two synthetic positive records and two negative records from `controlTest` through an isolated input or approved fixture. Require exactly two positive result rows and no negative rows. Confirm the successful removal is critical and the immutable-mode-style failed addition is high. Then vary `res` between `1`/`0` and `yes`/`no`; the normalized outcomes must remain success and failure. Remove `res` and confirm the row remains visible with `outcome=unknown` and high severity instead of being discarded. Confirm in the Splunk Search interface that each returned `host,audit_event_id` pair matches the corresponding `ausearch -m CONFIG_CHANGE -i` record.\n\nOn a disposable non-production host whose configuration is not immutable, an authorized tester can create a harmless file and temporarily add and remove an exact path rule. For example, after creating `/tmp/uc-1.1.65-test`, use a distribution-supported `auditctl` rule with `-a always,exit`, the correct host architecture, `-F path=/tmp/uc-1.1.65-test`, `-F perm=wa`, and `-k uc_1_1_65_test`; remove it with the exact corresponding `-d` form. Capture the commands and approval, verify the effective rule after addition and its absence after removal, and delete the test file. Do not use this procedure on an immutable or production ruleset merely for validation.\n\nCompare `ausearch -m CONFIG_CHANGE -i` for the bounded test interval with Splunk by host and Audit serial. The add and remove records should preserve `op`, key, list, login identity, session, and result. Count exact event IDs rather than expecting a fixed percentage or treating every line as an independent event. If the host is intentionally immutable, an approved add attempt should fail, produce a failed `CONFIG_CHANGE`, and leave `auditctl -l` unchanged; never reboot or unlock solely for this test.\n\nTest a controlled boot or ruleset reload separately. Record the expected delete/add sequence, final effective rules, and number of configuration records. This establishes local noise without converting it into a universal count threshold. Also index an AVC and a keyed SYSCALL test event and prove they remain absent. Finally, verify that a quiet host is corroborated by independent forwarder and Audit health signals, because this event-driven source can legitimately have no changes for long periods.\n\n## 5. Operationalize investigation and evidence\n\nBuild the dashboard described in `visualization` and restrict raw-event access to roles allowed to view account, process, and security-policy context. The response runbook should first confirm the Audit event ID and outcome, then compare host time and boot state, login identity and session, operation, rule key or setting/value, and maintenance or automation records. For a successful removal, capture `auditctl -s` and `auditctl -l`, compare the effective rules with the managed source, and identify the exact approved loader or operator. For disablement, treat the following period as a potential visibility gap and pivot to independent endpoint, system journal, forwarder, and infrastructure telemetry.\n\nA failed result means the requested operation did not take effect according to the Audit record; it can still indicate probing, stale automation, or an administrator attempting to modify an immutable host. A successful addition can strengthen coverage, introduce excessive volume, or add a suppressive `never` rule depending on its full expression. Because `CONFIG_CHANGE` may expose only the key and list, do not call an addition benign from `op=add_rule` alone. Similarly, do not automatically restore or delete a rule from an alert: an incorrect live change can damage evidence collection, overload the host, or conflict with immutable mode and managed policy.\n\nMITRE ATT&CK T1685.004 applies when an adversary disables or modifies the Linux Audit system to hide activity. This search observes one relevant behavior—live configuration attempts—but does not cover service termination, configuration-file edits before loading, library hooking, or log clearing. Apply the ATT&CK label as detection context, not as a claim that every result is adversarial or that this UC covers the entire technique.\n\nRetain the persistent source, effective-state captures, input configuration, add-on version, search definition, dispatch history, raw event, normalized result, alert disposition, authorization record, and any bounded routing exception under the organization's approved retention policy. Record collection outages, duplicate inputs, missing fields, and Audit lost-record findings explicitly. These artefacts support investigation and control operation; they do not establish compliance by themselves, so the unsupported clause mappings and fixed seven-year retention claim were intentionally removed.\n\n## 6. Troubleshoot specific failure modes\n\n* **No `CONFIG_CHANGE` after an approved test** — Verify kernel auditing and `auditd` status, inspect `auditctl -s`, confirm the operation really reached the kernel, and check the same interval with `ausearch -m CONFIG_CHANGE`. Then verify `rlog.sh` enablement, privilege, seek state, index routing, and source type with `btool` and internal logs.\n* **Events arrive as `linux_audit` rather than `auditd`** — The raw file monitor is enabled instead of, or alongside, the translated input. Do not change only the source-type token in the SPL. Choose one reviewed contract, test field extraction and event breaking, and remove duplicate collection.\n* **`op` or changed-setting fields are null** — Compare raw output with `ausearch -i` and the host kernel version. Older kernels and some translated formats can omit or differently present operation context, especially failed locked changes. Keep the row visible as unknown, document the limitation, and add a local extraction only against observed fixtures.\n* **Actor is `unknown` or `unset`** — Boot loaders and daemons may have no human login UID. Correlate session, subject context, PID when present, boot and service records, and the automation job; do not assign the event to root or a person without evidence.\n* **Many remove/add pairs appear at boot** — Compare the sequence, managed source, and final `auditctl -l`. Tune routing around the exact authorized boot workflow while preserving the records; do not suppress every removal or every event with an unset actor.\n* **Duplicate rows share one Audit serial** — Check for overlapping `rlog.sh` and direct file inputs, duplicated deployment apps, or collection seek-state problems. Correct collection and use `host,audit_event_id` only for notification throttling.\n* **A critical disable event is followed by silence** — Treat silence as expected evidence loss, not recovery. Confirm state through approved out-of-band administration and independent telemetry; the search cannot reconstruct changes made while Audit was off.\n* **CIM or `tstats` returns no equivalent rows** — This is expected for the documented `auditd` source type. Do not enable acceleration or reuse an Authentication failure search; preserve the raw `CONFIG_CHANGE` contract.",
+  "grandmaExplanation": "We watch for attempts to change the list of important actions a Linux computer is supposed to record. A change may be planned, blocked, or suspicious, so the team checks each one against the approved work.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
