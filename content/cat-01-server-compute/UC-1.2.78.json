@@ -1,66 +1,139 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.78",
-  "title": "DSRM Account Usage",
+  "title": "DSRM Administrator Password Set Attempt",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Audit",
+    "Change"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'DSRM Account Usage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_dsrm_account_usage` (UC-1.2.78), SOC dashboard panel \"Linux — DSRM Account Usage\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports Windows Security Event ID 4794 on domain controllers and classifies `Status=0x0` as a successful DSRM administrator password set. It does not detect use/logon of the DSRM account, reveal the password, prove persistence or malicious intent, validate password quality, detect registry `DSRMAdminLogonBehavior` changes, or identify a reset if the DC Security event is missing. Ordinary 4624 local Administrator logons are deliberately excluded because they do not uniquely prove DSRM identity. The local index, five-minute close delay, severity, and exception process are deployment choices. No password, boot mode, registry value, account, or DC service is changed automatically.",
+  "evidence": "After deployment, retain the version-controlled `windows_ad_dsrm_password_set_4794` search/ACL; schedule, dispatch, and alert history; each row with DC, actor SID/domain/user/logon ID, workstation, normalized/raw status, record ID, source metadata, and event time; exact raw 4794 XML; effective Audit User Account Management policy and expected-DC freshness; DSRM credential rotation/recovery policy and approved change/incident; correlated 4793, 4688/EDR `ntdsutil.exe`, remote administration, registry/boot, and DC recovery evidence where available; bounded exceptions; disposition; and dated success, failure-status, source, field, and time-boundary tests. This documentation review reset no password and executed no search.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.78 positive (DSRM, Account, Usage): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4794 where `count` grouped by `entity` satisfies detection threshold for 'DSRM Account Usage'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.78 negative (Account Usage): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'DSRM Account Usage'."
+    "positiveScenario": "In an isolated index and fixed closed interval, ingest one `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, `EventCode=4794` event from `Computer=DC01.example` with EventRecordID 8001, actor SID/domain/user/logon ID, `Workstation=MGMT01`, and `Status=0x0`. Expect exactly one row with normalized destination/actor, `outcome=success`, `activity=DSRM administrator password set`, and `use_case=UC-1.2.78`. Repeat uppercase `0X0` and expect the same classification.",
+    "negativeScenario": "Expect zero rows for Event ID 4793 alone, Event ID 4624 for local Administrator, wrong source/type, empty destination/actor/status, and a qualifying 4794 in the newest excluded five minutes. A 4794 with nonzero status must still return one base row classified `failure_or_unknown_status`; an approved rotation must still return and may be notification-suppressed only by an exact expiring wrapper."
   },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\"\n  (EventCode=4794 OR (EventCode=4624 TargetUserName=\"Administrator\" LogonType=10 AuthenticationPackageName=\"Negotiate\"))\n| eval alert_type=case(EventCode=4794,\"DSRM password changed\",EventCode=4624,\"Possible DSRM logon\")\n| table _time, host, alert_type, SubjectUserName, IpAddress\n| sort -_time",
-  "description": "Identifies UC-1.2.78 — DSRM, Account, Usage — using `index=wineventlog` sourcetype `WinEventLog:Security`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Account Usage. Purpose-built for 'DSRM Account Usage' in Linux workflows.",
-  "value": "UC-1.2.78 operationalises 'DSRM Account Usage' against `WinEventLog:Security` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
-  "implementation": "EventCode 4794=DSRM password change (should only happen during planned maintenance). DSRM logons appear as local \"Administrator\" logons on the DC. Since Windows Server 2008 R2, registry key DsrmAdminLogonBehavior allows DSRM logon while AD is running (value=2). Alert on any DSRM password change and any local admin logon to a DC. Set DsrmAdminLogonBehavior=0 (default, deny DSRM logon while AD running).",
-  "visualization": "Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count >= 1",
-  "dataModelAcceleration": "Enable acceleration for Authentication (Authentication dataset) with EventCode 4794 and 4624 on DCs mapped to CIM user, src, dest, and app.",
-  "references": [
+  "dataSources": "Windows Security Event ID 4794, generated only on Active Directory domain controllers when the DSRM administrator password is set/attempted. Enable **Account Management > Audit User Account Management** for Success and Failure as governed. Collect every DC Security channel as XML through Splunk Add-on for Microsoft Windows (Splunkbase 742) into local `wineventlog`. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; required native fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `Workstation`, and `Status`.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. Splunk Security Content supplies the directly relevant `Windows AD DSRM Password Reset` analytic. Enterprise Security is optional.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'DSRM Account Usage'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4794 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), actor=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), status_code=lower(trim(Status)), initiating_workstation=trim(Workstation)\n| where event_code=4794 AND len(dest)>0 AND len(actor)>0 AND len(status_code)>0\n| eval outcome=if(status_code=\"0x0\",\"success\",\"failure_or_unknown_status\"), activity=\"DSRM administrator password set\", use_case=\"UC-1.2.78\"\n| table _time dest EventRecordID actor SubjectUserSid SubjectLogonId initiating_workstation status_code outcome activity source sourcetype use_case\n| sort 0 -_time dest EventRecordID",
+  "description": "Returns one row for every complete domain-controller Security 4794 record in a delayed closed interval. It preserves the responsible subject, workstation, DC, status, and event identity and explicitly distinguishes status zero from nonzero outcomes without claiming that the DSRM account logged on.",
+  "value": "The DSRM credential is a local recovery administrator secret for a domain controller and is changed infrequently. Immediate evidence of who set it and from where allows identity responders to verify an approved rotation or recovery action and investigate unauthorized credential persistence before the account is used.",
+  "implementation": "Enable Audit User Account Management Success/Failure on every DC, collect Security as XML, and maintain DC source health. Save the SPL as `windows_ad_dsrm_password_set_4794`, run every five minutes over the prior delayed bucket, and trigger on every row, with successful status highest severity. Validate actor/workstation against the approved DSRM rotation or recovery record and correlate process/remote/registry/boot evidence; do not infer DSRM logon from generic 4624.",
+  "visualization": "Restricted dashboard `Active Directory — DSRM Credential Events`: expected DC Security freshness first; then 4794 by outcome, actor, workstation, DC, and time. Show record ID, status and approved change/exception. Drill down to raw 4794 and nearby 4793, actor logon/process or EDR evidence for `ntdsutil.exe`, remote administration, DSRMAdminLogonBehavior monitoring, boot/recovery activity, and incident records. Never display a password or treat missing DC data as no change.",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats `summariesonly` min(_time) as first_time max(_time) as last_time count from datamodel=Change.All_Changes where All_Changes.result_id=\"4794\" by All_Changes.action All_Changes.dest All_Changes.src All_Changes.user All_Changes.result\n| rename All_Changes.* as *",
+  "schema": "Microsoft-Windows-Security-Auditing Event ID 4794 native XML fields; optional CIM Change normalization",
+  "dataModelAcceleration": "Splunk Security Content documents a Change data-model form using `result_id=4794`; use it only after the add-on/CIM mapping preserves correct action, destination, source/workstation, user, result/status and raw drilldown. The native search remains authoritative for Status, SubjectLogonId, EventRecordID, and source completeness.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "Workstation",
+    "Status"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing: Event 4794 DSRM administrator password set",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4794",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: reset the Directory Services Restore Mode administrator password",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/reset-directory-services-restore-mode-admin-pwd",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft AD DS events to monitor: 4794 high criticality",
+      "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/appendix-l--events-to-monitor",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Security Auditing: Event 4793 password policy check API",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4793",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: Windows AD DSRM Password Reset",
+      "url": "https://research.splunk.com/endpoint/d1ab841c-36a6-46cf-b50f-b2b04b31182a/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content data source: Windows Security 4794",
+      "url": "https://research.splunk.com/sources/ec7da74f-274a-4bde-aa0e-15c68aca0426/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1098: Account Manipulation",
+      "url": "https://attack.mitre.org/techniques/T1098/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a real 4794 event; authorized causes are narrow.\n\n1. **Scheduled DSRM credential rotation** — An identity team may rotate each DC's recovery password under policy. Verify exact DC, rotation platform/procedure, actor, workstation, two-person approval, ticket, UTC window, escrow/vault evidence, and successful recovery-control validation without exposing the secret.\n\n2. **Domain-controller promotion/build** — Promotion or a rebuild establishes DSRM credentials. Match server build, promotion logs, change record, operator, asset identity, and expected event time; a surprise 4794 after steady state remains suspicious.\n\n3. **Forest or domain recovery exercise** — A declared isolated recovery test may reset DSRM credentials. Require incident/exercise ID, isolated scope, commander, exact DCs, start/expiry, evidence handling, and post-test credential rotation.\n\n4. **Emergency recovery** — During a real DC restore, responders may need a reset. Confirm declared severity, authority, affected DC, Ntdsutil procedure, chain of custody, and post-recovery rotation/audit.\n\n5. **Authorized purple-team account-manipulation test** — Preserve the alert as control evidence and bind duplicate notification suppression to exact DC/actor/workstation/engagement and expiry.\n\n**Suppression mechanism:** apply lookup `windows_dsrm_password_set_exceptions.csv` after the base result, keyed by exact `dest,actor,initiating_workstation` and approved ticket, owner, approver, inclusive start and exclusive expiry. Reject wildcard DCs/actors and permanent entries. Never suppress failed/unknown status, missing DC source health, unexpected remote workstation, or absent change evidence.",
+  "mitreAttack": [
+    "T1098",
+    "TA0003",
+    "TA0004"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "identity",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Supported Active Directory domain controllers that generate Event ID 4794 and have Security XML collection. Member servers/workstations cannot generate this event under Microsoft's contract. Managed directory services without DC Security access and non-AD directories require separate controls.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4794, DSRM reset and AD event-monitoring guidance, Splunk Security Content/Windows add-on/CIM, and MITRE ATT&CK; audit policy, XML fields, SPL, fixtures, DC coverage, process/workstation correlation, alerting, exceptions, and response were specified but not executed or AD/Windows/Splunk/SOC-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEventCode 4794=DSRM password change (should only happen during planned maintenance). DSRM logons appear as local \"Administrator\" logons on the DC. Since Windows Server 2008 R2, registry key DsrmAdminLogonBehavior allows DSRM logon while AD is running (value=2). Alert on any DSRM password change and any local admin logon to a DC. Set DsrmAdminLogonBehavior=0 (default, deny DSRM logon while AD running).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\"\n  (EventCode=4794 OR (EventCode=4624 TargetUserName=\"Administrator\" LogonType=10 AuthenticationPackageName=\"Negotiate\"))\n| eval alert_type=case(EventCode=4794,\"DSRM password changed\",EventCode=4624,\"Possible DSRM logon\")\n| table _time, host, alert_type, SubjectUserName, IpAddress\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DSRM Account Usage** — The Directory Services Restore Mode (DSRM) account is a local admin on every DC with a rarely-changed password. Its use outside restores indicates compromise.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4794, 4624 with DSRM). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **alert_type** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DSRM Account Usage**): table _time, host, alert_type, SubjectUserName, IpAddress\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant:\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.src Authentication.dest span=1h\n| where count >= 1\n```\n\nEnable **data model acceleration** on `Authentication`. Refine `where` with your CIM aliases for 4794 vs 4624; the primary search in Step 2 stays the source of truth.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DSRM events), Single value (count — target: 0 outside restore operations), Alert.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Security into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`alert_type`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We watch for use of a special break-glass administrator on domain controllers so we can tell when someone is not doing a normal directory sign-in during everyday work.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "The scheduled search is an exact Event ID filter over five closed minutes. Security-channel collection drives ingest; 4794 itself should be exceptionally rare.",
+    "tstats_eligible": true,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event ID 4794",
+      "optional accelerated CIM Change"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact event contract\n\nAssign Active Directory recovery, privileged access, Windows audit, Splunk, SOC, vault, and incident owners. Inventory every DC, DSRM credential owner/rotation method, approved management workstations, vault/escrow control, and recovery test cadence. Restrict raw records because actor and recovery-operation context are sensitive, although the password is not logged.\n\nMicrosoft states 4794 is generated only on domain controllers when the DSRM administrator password is changed and documents Subject identity, Workstation, and Status. Status `0x0` means success. Microsoft rates one occurrence high criticality. The event does not prove a DSRM logon; remove the old 4624 heuristic because local Administrator/Negotiate/logon type cannot uniquely establish DSRM use.\n\n## Step 1 — Enable auditing and collect every DC\n\nEnable **Advanced Audit Policy > Account Management > Audit User Account Management** Success and Failure on domain controllers. Verify effective policy with `auditpol /get /subcategory:\"User Account Management\"` and identify the winning GPO. Monitor policy changes separately.\n\nCollect `[WinEventLog://Security]` with `renderXml=true` through the governed Windows add-on deployment. Route to local `wineventlog`, preserve original Computer through WEF, avoid direct/forwarded duplicates, and measure latency. Current XML contract is `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`.\n\nMaintain expected-DC freshness even though 4794 is rare. Source health must use ordinary Security heartbeat/events/forwarder state, not expect periodic 4794. Validate field extraction against raw XML and Event Viewer **Windows Logs > Security**: Computer, EventRecordID, subject SID/name/domain/logon, Workstation, Status, and time.\n\n## Step 2 — Create and understand the search\n\nSave the SPL as `windows_ad_dsrm_password_set_4794`, run every five minutes, and trigger on every row. The example searches ten to five minutes before dispatch; adjust the whole nonoverlapping closed window from measured indexing/WEF delay.\n\nThe base pins XML Security and 4794. It normalizes destination/actor/status while preserving subject identity and record ID. Complete destination, actor, and status are required; incomplete 4794 must enter parser health. `0x0` is success; every nonzero or unexpected value remains visible as `failure_or_unknown_status` rather than being discarded.\n\nThe Workstation is the caller workstation value Microsoft supplies; it may be a name, DNS value, or IP. It is evidence, not guaranteed proof of the process host without correlation. Search 4793 near the event because Microsoft notes password-policy API checks can occur during DSRM reset, and inspect EDR/4688 for Ntdsutil, remote administration and actor logon. Do not require those secondary events for the 4794 alert.\n\nThe optional Change tstats follows Splunk Security Content. Use native raw SPL for authoritative status, logon and record identity unless CIM parity is proven.\n\n## Step 3 — Validate safely\n\nReplay fixed fixtures for status `0x0`, uppercase, and one representative nonzero status. Assert exact outcome and all fields. Run all negative controls, earliest/latest boundaries, IPv6 workstation, local workstation, Unicode actor, duplicate direct/WEF paths, and missing-field parser-health cases. Confirm 4624 and 4793 alone never enter the rule.\n\nIf policy permits runtime validation, reset a DSRM password only on a disposable isolated lab DC using Microsoft's `ntdsutil` procedure and approved secret handling. Capture 4794, compare Event Viewer, validate the recovery credential under the lab's restore test, and rotate/retire it. Never reset a production DSRM password merely to test Splunk.\n\nRecord Windows/add-on/Splunk versions, GPO/input revision, fixture or approved lab change, exact bounds, expected/actual rows, search job ID, operator, and cleanup. Keep draft until human owners approve runtime evidence, source health, alert delivery, response, and vault controls.\n\n## Step 4 — Triage and response\n\nWhen 4794 fires: verify raw event, DC freshness, record ID, status, actor and workstation; locate approved rotation/promotion/recovery record; resolve actor logon and management source; inspect Ntdsutil/process/remote session evidence; check DSRMAdminLogonBehavior and boot/recovery changes with separate telemetry; determine whether the credential was exposed or used; preserve evidence; and involve forest recovery leadership for unauthorized activity.\n\nDo not attempt to recover or display the password from logs. Do not automatically reset it again, disable the actor, reboot into DSRM, stop AD DS, alter DSRMAdminLogonBehavior, isolate a DC, or delete evidence from this event alone. If unauthorized, coordinate immediate credential rotation through the approved secure method and investigate actor/source and DC integrity.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No 4794 after an approved lab reset:** verify the target is a DC, User Account Management audit, Security input/filtering, exact target DC, queues, and retention.\n- **Status is null:** inspect raw EventData and add-on search knowledge. Route parser failure; do not infer success.\n- **Workstation differs from operator workstation:** remote Ntdsutil can target another DC. Correlate management path and exact Microsoft procedure rather than rewriting the field.\n- **Duplicate rows:** compare Computer/EventRecordID and repair direct plus WEF duplication.\n- **CIM result differs from raw:** verify Change mapping for result_id/result/action/src/user and acceleration. Keep raw as authority.\n- **A local Administrator 4624 is suspicious:** investigate with boot state, AD DS state, registry and endpoint evidence in separate content; it is intentionally not called DSRM here.\n- **Approved rotation is noisy:** use the exact bounded lookup after preserving the base row; never suppress all 4794 for a maintenance account.\n- **No events for months:** expected for 4794, but prove DC Security source health and audit policy separately.",
+  "grandmaExplanation": "We alert when someone changes the emergency administrator password on a domain controller. That can be a proper recovery task, but it is rare and powerful enough that the team should confirm who did it and why.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
