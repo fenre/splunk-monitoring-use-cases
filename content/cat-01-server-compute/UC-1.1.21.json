@@ -1,64 +1,115 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.1.21",
-  "title": "Kernel Module Loading Tracking",
+  "title": "Linux Kernel Module Load Syscall Attempts",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
     "Security"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Kernel Module Loading Tracking' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_kernel_module_loading_tracking` (UC-1.1.21), SOC dashboard panel \"Linux — Kernel Module Loading Tracking\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects Linux Audit `init_module` and `finit_module` syscall attempts visible to the configured audit rules. It does not detect modules built into the kernel, prove that a loaded module is malicious, cover `delete_module`, inspect module signatures or hashes, or guarantee visibility after audit tampering or loss. It is not regulatory attestation. The base search does not suppress approved activity; responders must validate any time-bound exception against change records.",
+  "evidence": "When deployed, retain the version-controlled `kernel_module_load` audit rule, the `linux_kernel_module_load_syscalls` saved-search definition, dispatch and alert history, and exported result rows containing `firstTime`, `host`, `msg`, `syscall`, `module_name`, `success`, `exit`, `actor`, `comm`, and `exe`. These artefacts show collection and search operation; they do not establish that every host was continuously audited.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.21 positive (Kernel, Module, Loading, Tracking): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `name`, `exe` satisfies `count` > 0 for 'Kernel Module Loading Tracking'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.21 negative (Loading Tracking): ingest benign `os` / `linux_audit` events where `host`, `name`, `exe` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Kernel Module Loading Tracking'."
+    "positiveScenario": "Index two synthetic `sourcetype=auditd` records on host `uc-1-1-21-test` with the same `msg=audit(1760000000.100:421)`: a `type=SYSCALL` record with `SYSCALL=finit_module`, `success=yes`, `exit=0`, `AUID=tester`, `comm=modprobe`, and `exe=/usr/bin/kmod`, plus a `type=KERN_MODULE` record with `name=uc_1_1_21_test`. The search must return exactly one row with syscall `finit_module` and module name `uc_1_1_21_test`.",
+    "negativeScenario": "Index a paired synthetic `type=SYSCALL` and `type=KERN_MODULE` event on host `uc-1-1-21-test` whose interpreted syscall is `delete_module`, followed by a normal `SYSCALL=execve` event. The search must return zero rows because neither record is an `init_module` or `finit_module` attempt."
   },
-  "dataSources": "`sourcetype=linux_audit, auditctl syscall logs` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_module\n| stats count by host, name, exe\n| where count > 0",
-  "description": "Detects Loading Tracking activity in UC-1.1.21 ('Kernel Module Loading Tracking') from `index=os` sourcetype `linux_audit`. Rolls up `count` by `host`, `name`, `exe` across `the scheduled window` and pages when `count` > 0. Covers Kernel, Module, Loading, Tracking. Linux operators treat UC-1.1.21 as the canonical signal.",
-  "value": "Operators running UC-1.1.21 on `linux_audit` feeds shorten triage for Loading Tracking tied to 'Kernel Module Loading Tracking', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Configure auditctl rules to monitor syscalls for module loading (init_module, finit_module). Create a search that alerts on any unexpected module loads outside maintenance windows. Correlate against a whitelist of approved modules per host.",
-  "visualization": "Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.",
+  "dataSources": "`index=os sourcetype=auditd` events from the `rlog.sh` scripted input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). The input reads `/var/log/audit/audit.log` and translates records with `ausearch`; required fields are `host`, `msg`, `type`, and interpreted `SYSCALL`, with `success`, `exit`, `AUID`/`auid`, `UID`/`uid`, `comm`, `exe`, `pid`, `ppid`, `key`, and KERN_MODULE `name` used for context when present. `os` is a local index convention, not a Splunk default.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Use its `rlog.sh` input and `auditd` sourcetype for this search; the add-on's separate `linux_audit` sourcetype represents the raw Linux audit log and does not guarantee the interpreted `SYSCALL` names required here.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=os sourcetype=auditd ((type=SYSCALL (SYSCALL=init_module OR SYSCALL=finit_module)) OR type=KERN_MODULE)\n| eval syscall_name=if(type=\"SYSCALL\",lower(SYSCALL),null()), module_name=if(type=\"KERN_MODULE\",name,null()), actor=if(type=\"SYSCALL\",coalesce(AUID,auid),null()), effective_user=if(type=\"SYSCALL\",coalesce(UID,uid),null())\n| stats earliest(_time) as firstTime latest(_time) as lastTime values(syscall_name) as syscall values(module_name) as module_name values(success) as success values(exit) as exit values(actor) as actor values(effective_user) as effective_user values(comm) as comm values(exe) as exe values(pid) as pid values(ppid) as ppid values(key) as key by host msg\n| where mvfind(syscall,\"^(init_module|finit_module)$\")>=0\n| fillnull value=\"unknown\" module_name success exit actor effective_user comm exe pid ppid key\n| sort 0 -firstTime",
+  "description": "Returns one row per Linux Audit event identifier and host when the interpreted SYSCALL record reports an `init_module` or `finit_module` attempt. The search joins any same-event KERN_MODULE record to expose the module name and preserves process, user, success, and return-code context. A saved search running over a ten-minute lookback causes a result for every matching attempt, successful or failed.",
+  "value": "Kernel module loading is legitimate but highly privileged, and an unexpected load can introduce kernel-level code or support persistence. Prompt visibility lets responders compare the caller, module, host role, and change record before deciding whether to isolate the host, while failed calls can reveal probing that a success-only search would miss.",
+  "implementation": "Create persistent Linux Audit exit-filter rules for `init_module` and `finit_module` on each supported host ABI, load and verify them, then enable the add-on's `rlog.sh` input into the chosen operating-system index. Confirm interpreted `SYSCALL` values and shared `msg` identifiers before saving the search. Run every five minutes over ten minutes, trigger on any result, and suppress duplicate notifications by `host,msg` rather than hiding later calls.",
+  "visualization": "Show a newest-first table with `firstTime`, `host`, `syscall`, `module_name`, `success`, `exit`, `actor`, `comm`, and `exe`. Add an hourly count split by `success` and panels for modules first seen on each host or host role. Label unknown module names explicitly; absence of a KERN_MODULE record is a telemetry limitation, not proof that no module was named.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "Not applicable. Splunk documents `auditd` as having no CIM data-model mapping for this input, and the search relies on Linux Audit event identifiers plus SYSCALL and KERN_MODULE record fields.",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Linux Audit project: audit.rules(7)",
+      "url": "https://man7.org/linux/man-pages/man7/audit.rules.7.html",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Linux man-pages: init_module(2) and finit_module(2)",
+      "url": "https://man7.org/linux/man-pages/man2/finit_module.2.html",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Red Hat Enterprise Linux 8: Auditing the system",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/security_hardening/auditing-the-system_security-hardening",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for Unix and Linux: source types",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: rlog.sh input",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: search command and Boolean evaluation",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.2.2510/search-commands/search",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: Linux Auditd Syscall data source",
+      "url": "https://research.splunk.com/sources/4dff7047-0d43-4096-bb3f-b756c889bbad/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1547.006: Kernel Modules and Extensions",
+      "url": "https://attack.mitre.org/techniques/T1547/006/",
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Kernel Module Loading Tracking'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "1. **Kernel or driver package maintenance** — An approved kernel update, DKMS build, or driver package can load a new module. Match the host and time to the package transaction and change ticket, then verify the installed package and module signer before closing the result.\n\n2. **Hardware discovery and hot-plug** — `udev` or another device manager can invoke `modprobe` when a network, storage, or peripheral device appears. Confirm the corresponding device event and that the module is approved for that hardware class.\n\n3. **Boot and service initialization** — Required filesystem, storage, networking, security, or virtualization modules may load during a normal boot or service start. Correlate with boot telemetry and the host-role baseline; a familiar module at an unusual time still requires review.\n\n4. **Authorized administrative testing** — Platform engineers or detection testers may deliberately call `modprobe` or `insmod`. Require a named change or exercise record and compare `actor`, `comm`, `exe`, module name, and test window.\n\n**Suppression mechanism:** if local policy permits alert-time suppression, maintain an owner-reviewed `linux_kernel_module_exceptions.csv` lookup with exact `host_role`, `module_name`, `comm`, `valid_from`, `valid_until`, `change_id`, and `owner` fields. Filter only rows inside an active approved window after the base search has been retained. Reject wildcard module names and expired or ownerless rows; never suppress all calls by root, and retain failed attempts for review.",
+  "mitreAttack": [
+    "T1547.006"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "host",
+    "msg",
+    "type",
+    "SYSCALL",
+    "success",
+    "exit",
+    "AUID",
+    "UID",
+    "comm",
+    "exe",
+    "pid",
+    "ppid",
+    "key",
+    "name"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=linux_audit, auditctl syscall logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nConfigure auditctl rules to monitor syscalls for module loading (init_module, finit_module). Create a search that alerts on any unexpected module loads outside maintenance windows. Correlate against a whitelist of approved modules per host.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=linux_audit action=* syscall=init_module OR syscall=finit_module\n| stats count by host, name, exe\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**Kernel Module Loading Tracking** — Detects unauthorized kernel module insertions which can indicate rootkits or malware persistence.\n\nDocumented **Data sources**: `sourcetype=linux_audit, auditctl syscall logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: linux_audit. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=linux_audit. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, name, exe** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of module name, executable path, and loading user sorted by time; timechart of module load counts per host to spot anomalous spikes; single-value panel showing new (first-seen) modules in the last 24 hours for SOC triage.",
-  "grandmaExplanation": "We catch unauthorized kernel module insertions which can indicate rootkits or malware persistence — so you find out before users do when something is slowing down or breaking.",
-  "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against primary Linux Audit, Splunk, and MITRE ATT&CK sources",
+  "detailedImplementation": "## Prerequisites and scope\n\nUse a Linux kernel with the Audit subsystem enabled and an operational `auditd` service. The service account running the Splunk Universal Forwarder must be able to execute the add-on's supported `rlog.sh` input; follow the add-on's documented deployment and privilege guidance rather than replacing it with an unreviewed polling script. Deploy the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) to the collection tier and make its search-time knowledge available where the search runs. Create or select an operating-system event index. This catalogue calls it `os`; if the deployment uses another name, change only the index term consistently.\n\nThis control records attempts to invoke the two Linux syscalls that load modules. `init_module` loads an image supplied from memory, while `finit_module` loads from a file descriptor. It deliberately includes `success=no` because denied attempts can be investigative leads. It does not label every result malicious and does not inspect module content.\n\n## 1. Configure persistent Linux Audit rules\n\nPlace a dedicated file such as `/etc/audit/rules.d/40-kernel-module-load.rules` under configuration management. On a 64-bit host, use one combined exit-filter rule:\n\n```text\n-a always,exit -F arch=b64 -S init_module -S finit_module -k kernel_module_load\n```\n\nOn a bi-architecture host that permits 32-bit system calls, add the corresponding `arch=b32` rule after confirming those syscall names exist for that ABI. Linux Audit documentation recommends specifying the architecture before syscall names and using separate rules for 32-bit and 64-bit tables. Do not add an `auid` filter: kernel module operations often run through root-owned services, and filtering to interactive users would create a known blind spot.\n\nLoad the managed rule with the distribution-supported audit workflow, for example `augenrules --load`, and inspect `auditctl -l`. If the ruleset is immutable, follow the host's controlled reboot procedure instead of weakening immutability. Confirm that the effective rule contains both syscalls and the `kernel_module_load` key. Monitor audit backlog and loss separately; a search that receives no events cannot distinguish quiet hosts from failed collection.\n\n## 2. Collect and verify the records\n\nEnable the existing `rlog.sh` scripted-input stanza supplied by `Splunk_TA_nix` in a local configuration layer. Route it to the selected index and retain the add-on-defined `sourcetype=auditd`. Splunk documents this source type as Audit records translated by `ausearch`; that translation is important because the raw kernel record stores architecture-dependent syscall numbers while the interpreted event supplies values such as `SYSCALL=finit_module`.\n\nDo not substitute `sourcetype=linux_audit` without rewriting and testing the search. The add-on documents that as the raw Linux audit-log source type, and raw `syscall` values can be numeric. After deployment, search the latest `auditd` events and verify `host`, `msg`, `type`, interpreted `SYSCALL`, `success`, `exit`, user identifiers, `comm`, `exe`, `pid`, `ppid`, and `key`. Where the kernel emits a KERN_MODULE auxiliary record, verify that it shares the SYSCALL record's `msg` value and exposes `name`. The shared timestamp-and-serial identifier is what lets the SPL attach the module name without `transaction`.\n\n## 3. Save and schedule the detection\n\nSave the catalogue SPL as `linux_kernel_module_load_syscalls`. The initial clause is fully parenthesized so both syscall alternatives remain constrained to `index=os`, `sourcetype=auditd`, and `type=SYSCALL`; the second branch admits KERN_MODULE context. This is intentional because Splunk's search command evaluates `OR` before implied `AND`, unlike `eval` and `where`. Removing the parentheses can silently widen the search.\n\nThe aggregation grain is `host,msg`, which represents one Audit event on one host. `stats` joins the SYSCALL and KERN_MODULE records and the final `where` removes unrelated KERN_MODULE records. Schedule the search every five minutes with `dispatch.earliest_time=-10m@m` and `dispatch.latest_time=@m` to tolerate modest forwarding delay. Trigger when the result count is greater than zero. To avoid repeat notifications from the overlapping window, suppress for 15 minutes on both `host` and `msg`; do not suppress only by host, because that could hide a second module-load attempt. Preserve all result rows even if notification routing is throttled.\n\n## 4. Validate without claiming production execution\n\nFirst run the positive and negative synthetic scenarios in `controlTest` through an isolated test input or a search-time fixture approved by the Splunk administrator. The positive pair must collapse to one row and carry `finit_module`, `uc_1_1_21_test`, `success=yes`, and the test actor. The paired `delete_module` event and ordinary `execve` event must produce no row. Repeat the positive test with `SYSCALL=init_module` and with `success=no`; both must remain visible.\n\nOn a disposable Linux test host, an authorized operator may exercise an approved, harmless module-load workflow and compare the indexed event with `ausearch -k kernel_module_load -i`. Record the test host, rule version, Audit event serial, Splunk search time, and expected row. This optional runtime test requires change approval and is not asserted by this documentation review.\n\n## 5. Alert, dashboard, and respond\n\nRoute each result to the Linux security or platform-security queue with the module name, syscall, success, return code, actor, executable, PID, parent PID, host, and Audit message identifier. A failed load is not equivalent to a successful insertion, but repeated failures or an unexpected caller can still merit escalation. Dashboard counts should separate success values and should never replace unknown module names with a guessed filename.\n\nThe runbook should confirm the host and clock, retrieve all records sharing `msg`, check the corresponding change and package transactions, and identify why the caller needed `CAP_SYS_MODULE`. For successful unexpected loads, inspect `/proc/modules` or `/sys/module`, collect module path, package ownership, signer, and hash using approved response tooling, and compare with the host-role baseline. Escalate unexplained or untrusted modules under the incident-response process; do not unload a module automatically because removal can destabilize storage, networking, or security controls.\n\n## 6. Troubleshoot and preserve evidence\n\nNo results after an approved test usually indicates a missing Audit rule, unsupported ABI rule, disabled `rlog.sh`, insufficient collector privilege, wrong index, or a sourcetype mismatch. Numeric `syscall` values with no uppercase `SYSCALL` indicate raw rather than interpreted collection. A row with `module_name=unknown` means the matching SYSCALL was present but no same-window KERN_MODULE record was available; inspect the complete Audit event before changing extraction. Duplicate alerts should be addressed with `host,msg` suppression, not `dedup host`, which discards distinct calls.\n\nKeep the managed rule, effective-rule output, input configuration, saved-search definition, dispatch history, alert disposition, and any approved exception together under the organization's evidence-retention policy. Document collection gaps and audit loss explicitly. These records support operational review of this detection; they do not prove kernel integrity or compliance on their own.",
+  "grandmaExplanation": "We watch for attempts to add powerful new parts to the heart of a Linux server. Some are normal, but an unexpected one deserves a quick check before it can hide harmful activity or take control."
 }
