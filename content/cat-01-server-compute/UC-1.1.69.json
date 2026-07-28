@@ -3,64 +3,121 @@
   "id": "1.1.69",
   "title": "SUID/SGID Binary Changes",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
-  ],
-  "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'SUID/SGID Binary Changes' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_suid_sgid_binary_changes` (UC-1.1.69), SOC dashboard panel \"Linux — SUID/SGID Binary Changes\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "controlTest": {
-    "positiveScenario": "UC-1.1.69 positive (SUID, SGID, Binary, Changes): ingest synthetic events into `index=os` sourcetype='linux_audit' where `count` grouped by `host`, `name`, `comm` satisfies `count` > 0 for 'SUID/SGID Binary Changes'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.69 negative (Binary Changes): ingest benign `os` / `linux_audit` events where `host`, `name`, `comm` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'SUID/SGID Binary Changes'."
-  },
-  "dataSources": "`sourcetype=linux_audit` (path, chmod, fchmod events with setuid bit changes) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=linux_audit (suid=1 OR sgid=1 OR auid=0) (type=PATH OR type=SYSCALL name=chmod*)\n| stats count by host, name, comm\n| where count>0",
-  "description": "Surfaces Binary Changes activity in UC-1.1.69 ('SUID/SGID Binary Changes') from `index=os` sourcetype `linux_audit`. Rolls up `count` by `host`, `name`, `comm` across `the scheduled window` and pages when `count` > 0. Covers SUID, SGID, Binary, Changes. Linux operators treat UC-1.1.69 as the canonical signal.",
-  "value": "Operators running UC-1.1.69 on `linux_audit` feeds shorten triage for Binary Changes tied to 'SUID/SGID Binary Changes', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "**auditd** rules must log **chmod**/**fchmod** on executables and watch critical directories. Your fields may be `nametype`, `name`, or `file`—retarget the `search` to your parser. Drop in your standard `suid` hunting search from the OS baseline doc when ready to replace the starter string.",
-  "visualization": "Alert, Table",
-  "cimModels": [
+    "Security",
     "Change"
   ],
-  "cimSpl": "| tstats `summariesonly` count from datamodel=Change.All_Changes where All_Changes.action=modified by All_Changes.user All_Changes.object All_Changes.dest span=1d | where count>0",
-  "dataModelAcceleration": "After you tag AIDE/audit file permission changes into **Change.All_Changes**, enable Change model acceleration; until then, rely on raw `linux_audit` SPL.",
-  "references": [
+  "splunkPillar": "Security",
+  "exclusions": "The base search detects successful `chmod`, `fchmod`, `fchmodat`, or locally supported `fchmodat2` calls whose requested mode grants set-user-ID or set-group-ID to a regular file with at least one execute bit. It does not prove the resulting on-disk mode, identify content as an ELF binary, detect a special bit removed by `chmod`, detect a bit cleared as a side effect of writing a file, cover setgid directories, file capabilities, ACLs, `sudo`, or every filesystem mount, or establish malicious intent. Removal and state-drift coverage requires a separately validated FIM old/new-mode contract or complete inventory snapshots. Audit loss, disabled rules, unsupported ABIs, and events outside retention remain blind spots. This UC is not regulatory attestation.",
+  "evidence": "When deployed, retain the version-controlled `suid_sgid_change` Audit rules, `auditctl -l` output, the enabled `rlog.sh` input stanza, the `linux_suid_sgid_binary_grants` saved-search definition and dispatch history, and exported result rows containing the Audit event ID, requested bits, path, actor, process, and outcome. For each control test or investigated result, retain same-event `ausearch -k suid_sgid_change -i` output plus a time-stamped `stat` or approved `find` inventory observation. These artefacts demonstrate operation of the configured control; they do not prove continuous host coverage or that the requested mode persisted.",
+  "controlTest": {
+    "positiveScenario": "In an isolated `index=os sourcetype=auditd` test input, index a `type=SYSCALL` record and a `type=PATH` record on host `uc-1-1-69-test` with shared `msg=audit(1760000000.100:469)`. The SYSCALL record must contain `syscall=chmod success=yes a1=9ed auid=tester uid=root comm=chmod exe=/usr/bin/chmod key=suid_sgid_change`; the PATH record must contain `name=/opt/uc-1-1-69/probe mode=file,755 nametype=NORMAL inode=469`. The search must return exactly one row with `requested_mode_hex=9ed`, `suid_requested=1`, `sgid_requested=0`, `execute_requested=1`, and the probe path. `9ed` is the hexadecimal syscall argument for octal mode `04755`.",
+    "negativeScenario": "Index three isolated pairs with unique Audit event IDs: a successful `chmod` using `a1=1ed` (octal `0755`, no special bit), a failed `chmod` using `a1=9ed success=no`, and a successful `chmod` using `a1=9a4` (octal `04644`, set-user-ID but no execute bit). Give each pair the correct key and a `type=PATH mode=file,755 nametype=NORMAL` record. The search must return zero rows: ordinary mode changes, failed requests, and non-executable special-bit files are outside the base alert contract."
+  },
+  "dataSources": "Primary signal: `index=os sourcetype=auditd` records from the `rlog.sh` scripted input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). The input reads `/var/log/audit/audit.log` and translates events with `ausearch`. Required fields are `host`, `msg`, `type`, interpreted `syscall`, `success`, `a1`, `a2`, `key`, PATH `name`, `mode`, and `nametype`; `auid`, `uid`, `comm`, `exe`, `pid`, `ppid`, and `inode` provide triage context. `os` is a local index convention, not a Splunk default. A separately managed FIM feed or NUL-safe GNU `find` inventory can verify state changes, but neither is silently assumed by the base SPL.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Use its `rlog.sh` scripted input and add-on-defined `sourcetype=auditd`; the separate `linux_audit` source type is raw Audit log data and does not satisfy this search's interpreted syscall-name contract without a tested rewrite.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk Add-on for Unix and Linux",
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'SUID/SGID Binary Changes'. Correlate with apt/yum logs in the same `linux_audit` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `linux_audit`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=os sourcetype=auditd (\"type=SYSCALL\" OR \"type=PATH\")\n| rex field=_raw \"msg=audit\\((?<audit_event_id>[^\\)]+)\\)\"\n| eval audit_type=upper(type), syscall_record=if(audit_type=\"SYSCALL\",lower(coalesce(SYSCALL,syscall)),null()), result_record=if(audit_type=\"SYSCALL\",lower(success),null()), audit_key_record=if(audit_type=\"SYSCALL\",coalesce(KEY,key),null()), actor_record=if(audit_type=\"SYSCALL\",coalesce(AUID,auid),null()), effective_user_record=if(audit_type=\"SYSCALL\",coalesce(UID,uid),null()), comm_record=if(audit_type=\"SYSCALL\",comm,null()), exe_record=if(audit_type=\"SYSCALL\",exe,null()), pid_record=if(audit_type=\"SYSCALL\",pid,null()), ppid_record=if(audit_type=\"SYSCALL\",ppid,null()), path_record=if(audit_type=\"PATH\" AND upper(coalesce(NAMETYPE,nametype))=\"NORMAL\",name,null()), path_mode_record=if(audit_type=\"PATH\" AND upper(coalesce(NAMETYPE,nametype))=\"NORMAL\",mode,null()), inode_record=if(audit_type=\"PATH\" AND upper(coalesce(NAMETYPE,nametype))=\"NORMAL\",inode,null())\n| rex field=_raw \"(?i)\\ba1=(?:0x)?(?<arg1_hex>[0-9a-f]+)\"\n| rex field=_raw \"(?i)\\ba2=(?:0x)?(?<arg2_hex>[0-9a-f]+)\"\n| eval requested_mode_hex_record=case(in(syscall_record,\"chmod\",\"fchmod\"),lower(arg1_hex),in(syscall_record,\"fchmodat\",\"fchmodat2\"),lower(arg2_hex))\n| stats earliest(_time) as firstTime latest(_time) as lastTime values(syscall_record) as syscall values(result_record) as result values(audit_key_record) as audit_key values(requested_mode_hex_record) as requested_mode_hex values(path_record) as path values(path_mode_record) as observed_path_mode values(inode_record) as inode values(actor_record) as actor values(effective_user_record) as effective_user values(comm_record) as comm values(exe_record) as exe values(pid_record) as pid values(ppid_record) as ppid by host audit_event_id\n| where mvfind(syscall,\"^(chmod|fchmod|fchmodat|fchmodat2)$\")>=0 AND mvfind(result,\"^yes$\")>=0 AND mvfind(audit_key,\"^suid_sgid_change$\")>=0\n| eval requested_mode_hex=mvindex(requested_mode_hex,0), requested_mode_decimal=tonumber(requested_mode_hex,16), suid_requested=if(floor(requested_mode_decimal/2048)%2=1,1,0), sgid_requested=if(floor(requested_mode_decimal/1024)%2=1,1,0), execute_requested=if(floor(requested_mode_decimal/64)%2=1 OR floor(requested_mode_decimal/8)%2=1 OR requested_mode_decimal%2=1,1,0), object_is_regular=if(mvfind(observed_path_mode,\"^file,\")>=0,1,0)\n| where (suid_requested=1 OR sgid_requested=1) AND execute_requested=1 AND object_is_regular=1\n| eval requested_special_bits=case(suid_requested=1 AND sgid_requested=1,\"SUID+SGID\",suid_requested=1,\"SUID\",sgid_requested=1,\"SGID\")\n| fillnull value=\"unknown\" path inode actor effective_user comm exe pid ppid\n| sort 0 -firstTime",
+  "description": "Correlates the SYSCALL and PATH records of each translated Linux Audit event, decodes the mode argument for successful `chmod`-family calls, and reports requests that grant SUID or SGID to a regular file while also requesting an execute bit. The result identifies who requested the grant, through which process, and against which path. It is deliberately an event-level grant detector, not an unsupported claim that Audit supplies old and new file modes.",
+  "value": "Unexpected SUID or SGID grants can create a durable route for code to execute with a file owner's or group's identity. Preserving the login identity, effective user, process, path, requested bits, and Audit serial helps responders separate approved package or configuration work from unauthorized privilege changes and gives them a precise host-side event to verify.",
+  "implementation": "Enable persistent Linux Audit rules for successful `chmod`, `fchmod`, and `fchmodat` calls on every in-scope ABI, and conditionally add `fchmodat2` only where the local syscall table supports it. Ship translated events with the add-on's `rlog.sh` input to `index=os sourcetype=auditd`, verify the required fields and shared Audit event identifier, then save the SPL as `linux_suid_sgid_binary_grants`. Run every five minutes over ten minutes, alert on each result, and verify resulting state with `stat` or a managed `find`/FIM inventory rather than treating a requested mode as final state.",
+  "visualization": "Use a newest-first alert table with `firstTime`, `host`, `path`, `requested_special_bits`, `requested_mode_hex`, `actor`, `effective_user`, `comm`, `exe`, `result`, and `audit_event_id`. Add counts by host role, package/change disposition, and path prefix. Keep unknown paths visible as telemetry failures; do not replace them with guessed command arguments.",
+  "cimModels": [
+    "N/A"
+  ],
+  "dataModelAcceleration": "Not applicable to the base search. Splunk documents the add-on's translated `auditd` source type as having no CIM data-model mapping, and a generic Change data-model count cannot reproduce Audit event correlation or decode syscall-specific mode arguments. Use raw events unless a local normalization is separately specified and regression-tested.",
+  "references": [
+    {
+      "title": "Linux Audit project: audit.rules(7)",
+      "url": "https://man7.org/linux/man-pages/man7/audit.rules.7.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux man-pages: chmod(2), fchmod(2), and fchmodat(2)",
+      "url": "https://man7.org/linux/man-pages/man2/chmod.2.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux Audit project: ausearch(8)",
+      "url": "https://man7.org/linux/man-pages/man8/ausearch.8.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "GNU Findutils manual: Mode Bits",
+      "url": "https://www.gnu.org/software/findutils/manual/html_node/find_html/Mode-Bits.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Red Hat Enterprise Linux: Auditing the system",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/risk_reduction_and_recovery_operations/auditing-the-system",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: source types",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: rlog.sh input",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1548.001: Setuid and Setgid",
+      "url": "https://attack.mitre.org/techniques/T1548/001/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "These are usually benign true positives—the mode grant occurred, but the reason may be authorized.\n\n1. **RPM, DNF, APT, or dpkg package transactions** — Installation or upgrade scripts can restore packaged SUID/SGID executables such as `passwd`, `su`, or `mount`. Require a matching package transaction and approved change, then compare package ownership, signature, installed mode, and path before disposition.\n\n2. **Ansible, Puppet, Chef, or Salt configuration enforcement** — A declared file mode can repeatedly restore a special bit after drift. Match `comm`, `exe`, actor, host role, and timestamp to the named automation run; inspect the reviewed policy revision rather than suppressing the automation account globally.\n\n3. **`make install`, image building, or application deployment** — Build and release tooling may apply a packaged mode under a staging or application prefix. Confirm the release identifier, destination owner/group, artifact hash, and promotion record. A compiler workspace or world-writable destination is not explained merely by a deployment window.\n\n4. **Authorized administrator repair or recovery** — A Linux engineer may run `chmod u+s` or `chmod g+s` to repair an accidentally stripped package file. Require a time-bound ticket, verify the file against the package or host-role baseline, and confirm that direct permission repair was the approved method.\n\n5. **Detection engineering and penetration testing** — A controlled test may create a disposable SUID/SGID probe. Match the exact test host, path, operator, and exercise interval, and verify prompt cleanup with `stat` or the next inventory snapshot.\n\n**Suppression mechanism:** preserve the unsuppressed base results, then optionally apply an owner-reviewed `linux_suid_sgid_exceptions.csv` lookup keyed by exact `host`, `path`, `comm`, `valid_from`, `valid_until`, `change_id`, and `owner`. Filter only a row inside its approved interval. Reject wildcard paths, expired entries, missing owners, and blanket exceptions for `root`, package managers, or configuration-management accounts.",
+  "mitreAttack": [
+    "T1548.001"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "endpoint",
+  "requiredFields": [
+    "host",
+    "msg",
+    "type",
+    "syscall",
+    "success",
+    "a1",
+    "a2",
+    "key",
+    "name",
+    "mode",
+    "nametype",
+    "auid",
+    "uid",
+    "comm",
+    "exe",
+    "pid",
+    "ppid",
+    "inode"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Hardened **auditd** with writable rules in `/etc/audit/rules.d` for permission bits on binaries, not only **exec**.\n\n**SPL** — The starter `spl` is intentionally broad. Replace with the exact `key=` filters your org standardizes on, for example `key=priv_esc` on **execve**+**chmod** pairs from your reference architecture.\n\n**CIM** — `cimSpl` is a generic **object**+**user**+**dest** count for anything mapped to **All_Changes**; tune `object` to your field name (often `file_name`).\n\n\nStep 3 — Validate\n`ausearch -k priv_esc` (or your key) on the node and `ls -l` the binary. Use `find / -xdev -perm /6000` during maintenance windows to rebuild an inventory baseline, not for minute-by-minute Splunk match.\n\nStep 4 — Operationalize\nAny truly new SUID in `/tmp` or `/var/tmp` is usually **sev-1** until proven otherwise.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_nix` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=linux_audit into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`comm, host, name`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you notice when something tries to hand extra powers to a normal program, which is a serious thing to look at on a well-run server.",
+  "status": "community",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against primary Linux Audit, GNU Findutils, Splunk, and MITRE ATT&CK sources; no production execution claimed",
+  "detailedImplementation": "## Prerequisites and detection contract\n\nAssign a Linux platform owner, security-response owner, and Splunk content owner. Use a kernel with the Linux Audit subsystem enabled and an operational `auditd`. Deploy the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) on the collection tier and make its search-time knowledge available where searches run. The Universal Forwarder execution context must satisfy the add-on's documented `rlog.sh` requirements for reading `/var/log/audit/audit.log` and invoking `ausearch`; use a reviewed least-privilege design supported by the local platform team rather than weakening audit-log permissions ad hoc. No premium Splunk app is required. The search role needs access to the deployment-selected operating-system index, called `index=os` here.\n\nThe base alert has a narrow, testable meaning. It reports a successful permission syscall that requested at least one of `S_ISUID` (`04000`) or `S_ISGID` (`02000`) and at least one execute bit on a regular file. `chmod(2)` defines those mode bits. Audit records the syscall arguments in hexadecimal, so the SPL selects argument `a1` for `chmod` and `fchmod`, argument `a2` for `fchmodat` and `fchmodat2`, converts it with `tonumber(...,16)`, and tests the corresponding numeric bits. `auid=0` is not a SUID test, and a field named `suid` in the SYSCALL record is the process's saved user ID—not the target file's set-user-ID bit.\n\nA successful request is not guaranteed final state. Linux can clear SGID when the caller lacks `CAP_FSETID` and the file's group is not one of the caller's groups; filesystems can impose other behavior. Writing a file can also clear SUID/SGID without a `chmod` call. The PATH `mode` field is one observed `st_mode`, not a documented old/new pair. Therefore the alert must be followed by `stat` or an inventory/FIM observation. This honesty boundary is part of the control, not a tuning option.\n\n## 1. Configure data collection and persistent Audit rules\n\nManage a file such as `/etc/audit/rules.d/40-suid-sgid-change.rules`. On a 64-bit host, start with:\n\n```text\n-a always,exit -F arch=b64 -S chmod -S fchmod -S fchmodat -F success=1 -k suid_sgid_change\n```\n\nOn a bi-architecture host that permits 32-bit system calls, add an equivalent `arch=b32` rule after confirming the syscall names in that ABI. Linux Audit documentation requires the architecture selector before syscall names because syscall numbers can differ between tables. Do not add `auid>=1000`: package scripts and system services can make relevant changes with unset or service login IDs. The success filter is intentional because this UC describes requested grants accepted by the syscall; failed privilege-change attempts belong in a separate attempt-oriented detection.\n\nOn kernels that expose `fchmodat2`, verify it with the local syscall table (for example, `ausyscall fchmodat2`) and add it to a separate architecture-correct rule. Do not place an unknown syscall name in the common managed rule because rule loading can fail. Load the distribution-managed rules with `augenrules --load` or the platform's equivalent, then inspect `auditctl -l`. If the ruleset is immutable, follow the controlled reboot process instead of changing immutability. Monitor Audit backlog and lost-record counters separately.\n\nEnable the add-on's `[script://./bin/rlog.sh]` stanza in a local `inputs.conf` layer, retain `source=auditd` and `sourcetype=auditd`, set the target index, and use the add-on's documented interval. Splunk documents this input as reading the Audit log and translating it with `ausearch`; that interpretation supplies syscall names while preserving hexadecimal syscall arguments. Do not substitute `sourcetype=linux_audit` without rewriting and regression-testing the search.\n\n## 2. Create the search and verify fields\n\nAfter an approved test event, inspect `index=os sourcetype=auditd` and confirm `host`, `msg`, `type`, interpreted `syscall`, `success`, `a1`, `a2`, `key`, `name`, `mode`, `nametype`, user identifiers, process fields, and `inode`. Every record in one Audit event shares the timestamp-and-serial value inside `msg=audit(...)`; the SPL extracts that value as `audit_event_id` and aggregates on `host,audit_event_id`. This avoids `transaction` and prevents unrelated PATH records from becoming alerts: the post-aggregation filters require the exact syscall, successful result, and managed key.\n\nSave the supplied SPL as `linux_suid_sgid_binary_grants`. The first search term admits SYSCALL and PATH records because the actor and requested mode live in SYSCALL while the pathname and file type live in PATH. The `case` expression uses the syscall's documented argument position. Dividing by 2048 and 1024 tests decimal values corresponding to octal `04000` and `02000`; the three execute tests represent octal `00100`, `00010`, and `00001`. `object_is_regular` requires the interpreted PATH mode to begin with `file,`, excluding directories whose SGID semantics are different.\n\nSchedule every five minutes with a ten-minute lookback to tolerate forwarding delay. Trigger on each row. Suppress duplicate notifications for 15 minutes on `host,audit_event_id`, never only on host or path; a second Audit serial is a second permission operation. Preserve base results before any allow-list is applied. If local `ausearch` formatting or field extraction differs, update the normalization and both fixtures together—do not coalesce an absent mode argument to zero.\n\n## 3. Validate mode arithmetic and host behavior\n\nRun both synthetic scenarios in `controlTest` through an isolated input. The `9ed` fixture must produce one SUID row because hexadecimal `9ed` equals decimal 2541, which is octal `04755`. Add a second positive fixture using `a1=5ed` (octal `02755`) and expect `sgid_requested=1`. Add `a1=ded` (octal `06755`) and expect both labels. The three negative variants must remain absent. Inspect the result's `audit_event_id`, path, actor, executable, and requested mode rather than accepting only a nonzero result count.\n\nThere is no vendor UI for this kernel feed. For the external comparison point, compare with the host Audit command interface: on a disposable host and under an approved change, create a root-owned test file containing harmless content, make it executable, and issue the planned mode change. Compare the indexed row with `ausearch -k suid_sgid_change -i --start recent`, then immediately run `stat --format='%d %i %a %u %g %n' -- /absolute/test/path`. Remove the special bit and test file after evidence capture. Never test on a production binary. This documentation review does not claim that such runtime execution has occurred in a consumer's environment.\n\nConfirm collection completeness independently: compare recent key counts in Splunk with `ausearch -k suid_sgid_change --start today`, account for forwarding delay, and investigate mismatches by Audit serial. A quiet result set is not proof of control health. Track effective rules, audit daemon state, backlog/loss, `rlog.sh` execution, forwarder output, and search dispatch separately.\n\n## 4. Add FIM or `find` state coverage\n\nUse a FIM source only when its contract explicitly provides a regular-file identity plus authoritative `old_mode` and `new_mode` values from the same change. Normalize both as octal permission bits and test whether `(old_mode & 06000)` differs from `(new_mode & 06000)`; the implementation language or tested Splunk normalization must perform that bit comparison. Vendor labels such as `chmod` or `attributes changed` without both modes do not prove which special bit changed. Splunk's documented `fs_notification` source type alone does not guarantee this old/new-mode contract.\n\nFor periodic reconciliation on GNU systems, enumerate each approved local mount root separately with a NUL-safe command equivalent to:\n\n```text\nfind /approved/mount -xdev -type f -perm /6000 -perm /111 -printf '%D\\0%i\\0%m\\0%U\\0%G\\0%p\\0'\n```\n\n`-perm /6000` means either SUID or SGID is set; `-perm /111` means at least one execute bit is set. `-type f` excludes SGID directories, and `-xdev` prevents an implicit crossing into another mounted filesystem. A collector must parse the NUL-delimited tuples and encode arbitrary pathname bytes safely, for example as Base64 in one JSON record per file. Do not pipe newline-delimited paths into Splunk: Linux pathnames can contain newlines. Include device, inode, mode, numeric owner/group, scan ID, mount ID, observation time, and a scan-complete marker.\n\nCompare only two complete snapshots for the same host, boot/mount identity, and scope. A newly present tuple is an observed grant or new file; a disappeared tuple is a removal, deletion, rename, mount-scope change, or scan failure until resolved. Inventory cannot attribute the actor and misses a set-then-remove sequence between scans. Enumerate separate filesystems explicitly; pseudo-filesystems, remote mounts, containers, overlay layers, and offline volumes are outside scope unless named. Reconcile Audit events, FIM deltas, and inventory drift by host, device/inode, path, and time without claiming perfect identity across replacement or remount.\n\n## 5. Alert, investigate, and preserve evidence\n\nRoute results to Linux security with the requested bits, path, actor, effective user, executable, process IDs, host role, and Audit serial. First retrieve every record sharing the serial. Then verify current type, mode, ownership, device/inode, package ownership, signature or trusted hash, writable parent directories, mount options, and the corresponding change or automation run. Treat a path under a user-writable or temporary directory as higher priority, but do not assign a universal severity solely from a path prefix. For an unexpected surviving SUID/SGID executable, follow incident-response preservation and containment procedures; do not automatically remove the bit before collecting evidence because that changes the host and can break required software.\n\nDashboard the newest events, results by host role, requested SUID versus SGID, first-seen paths, and disposition. Limit access because paths, usernames, and process details can be sensitive. Retain the managed rule, effective-rule capture, add-on input configuration, saved-search revision, dispatch history, result export, host verification, exception record, and disposition under the organization's evidence policy. Record Audit loss and collection gaps rather than presenting an uninterrupted evidence claim.\n\n## 6. Troubleshoot specific failures\n\nNo result after the positive fixture usually means the wrong index or source type, disabled `rlog.sh`, missing Audit rule/key, an unsupported architecture rule, collector permission failure, or a search-time extraction mismatch. A numeric syscall with no interpreted name indicates raw rather than translated input. A SYSCALL row without PATH context cannot satisfy `object_is_regular`; inspect all records for the serial and the add-on's event breaking before weakening that guard. A null requested mode means the syscall was mapped to the wrong argument or the argument extraction changed. Verify `chmod`/`fchmod` use `a1` and `fchmodat`/`fchmodat2` use `a2` against the local ABI and fixture.\n\nIf Splunk reports a grant but `stat` does not, check whether the kernel cleared SGID, the file was immediately rewritten or replaced, another mode change followed, the path now resolves to another inode, or the event arrived late. If inventory suddenly reports mass removals, require a scan-complete marker and verify mount availability before alerting; an unmounted filesystem or truncated scan is not thousands of permission repairs. Duplicate alerts indicate overlapping schedule windows without `host,audit_event_id` suppression. Missing removals are expected from the base Audit SPL and must be addressed through the explicit FIM or complete-snapshot path, not by pretending PATH `mode` contains both states.",
+  "grandmaExplanation": "We watch for a program being given a special permission that can let it run with someone else's powers. Some system updates do this legitimately, but an unexpected change deserves a quick check.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
