@@ -1,65 +1,128 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.84",
-  "title": "Sysmon Named Pipe Monitoring",
+  "title": "Suspicious Sysmon Named Pipe Activity",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
+    "Security",
+    "Audit"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Sysmon Named Pipe Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_sysmon_named_pipe_monitoring` (UC-1.2.84), SOC dashboard panel \"Linux — Sysmon Named Pipe Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects only Sysmon Event IDs 17 and 18 whose `PipeName` matches the explicitly listed case-insensitive strings. It does not detect an unlisted or randomly named pipe, prove malware or command-and-control, identify data transferred through a pipe, reconstruct both endpoints, or cover hosts where Sysmon PipeEvent collection is absent or filtered out. Event 17 means a pipe was created and Event 18 means a client connected; neither event alone establishes malicious intent. The `wineventlog` index is a deployment-local choice. The rule applies no exception lookup and makes no prevention, runtime-validation, attribution, compliance, or regulatory-assurance claim.",
+  "evidence": "After deployment, retain the version-controlled `windows_sysmon_suspicious_named_pipe` saved-search definition and ACL; Sysmon configuration hash and Event IDs 16/17/18 showing effective configuration and telemetry; every result with event time, host, EventRecordID, pipe name, image, process GUID/ID, user, event ID, source, and source type; exact raw XML; source-health results; dated positive and negative control outputs; alert delivery and analyst disposition; and every approved, bounded notification exception. This documentation-only review generated no Sysmon event, Splunk search job, alert, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.84 positive (Sysmon, Named, Pipe, Monitoring): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Microsoft-Windows-Sysmon/Operational' where `count` grouped by `entity` satisfies detection threshold for 'Sysmon Named Pipe Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.84 negative (Pipe Monitoring): ingest benign `wineventlog` / `WinEventLog:Microsoft-Windows-Sysmon/Operational` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'Sysmon Named Pipe Monitoring'."
+    "positiveScenario": "In an isolated test index, ingest one XML Sysmon Event ID 17 with `PipeName=\\\\postex_4f8`, `Image=C:\\\\Windows\\\\Temp\\\\agent.exe`, `ProcessGuid={11111111-1111-1111-1111-111111111111}`, `ProcessId=4242`, `User=EXAMPLE\\\\lab-user`, `Computer=LAB01`, and `EventRecordID=17001`. Expect exactly one row with `event_action=pipe_created` and `matched_pipe_family=postex`. Repeat as Event ID 18 with uppercase `\\\\POSTEX_4F8`; expect `pipe_connected` and the same family, proving case-insensitive matching. Documentation review checks expected logic but does not claim replay.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: Event ID 17 with `PipeName=\\\\dotnet-diagnostic-4242`; Event ID 1 with `PipeName=\\\\postex_4f8`; Event ID 17 with an empty pipe name; and an otherwise identical event from a different source channel. In a separate raw-data check, confirm the ordinary pipe remains searchable so the detector is not mistaken for source-health coverage. An approved test notification may be suppressed only after the base row is produced.",
+    "attackTechnique": "T1559"
   },
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows`, Sysmon required — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\"\n  EventCode IN (17, 18)\n| where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")\n| table _time, host, EventCode, PipeName, Image, User\n| sort -_time",
-  "description": "Identifies 'Sysmon Named Pipe Monitoring' (UC-1.2.84) using `index=wineventlog` sourcetype `WinEventLog:Microsoft-Windows-Sysmon/Operational` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: Sysmon, Named, Pipe, Monitoring. Focuses on Pipe Monitoring behaviour so linux teams can triage UC-1.2.84 without ad-hoc log review.",
-  "value": "UC-1.2.84 accelerates insight into Pipe Monitoring ('Sysmon Named Pipe Monitoring') by tracking `activity` on `WinEventLog:Microsoft-Windows-Sysmon/Operational` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
-  "implementation": "Deploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.",
-  "visualization": "Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.",
-  "cimModels": [
-    "Endpoint"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Endpoint.Processes\n  by Processes.process_name Processes.parent_process_name Processes.dest span=1h\n| where count > 0",
-  "dataModelAcceleration": "Enable acceleration for Endpoint (Processes) with Sysmon 17/18 mapped to CIM; pipe fields may differ by CIM add-on version.",
-  "references": [
+  "dataSources": "Microsoft Sysmon Operational XML, Event ID 17 (`PipeEvent`, pipe created) and Event ID 18 (`PipeEvent`, pipe connected), collected from `Microsoft-Windows-Sysmon/Operational` with Splunk Add-on for Microsoft Windows (Splunkbase 742) into the deployment-local `wineventlog` index. The primary contract is `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Required fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `PipeName`, `Image`, `ProcessGuid`, `ProcessId`, `User`, and `RuleName`. Sysmon must be installed and its `PipeEvent` filter must admit the events; collection cannot recover events excluded by Sysmon.",
+  "app": "Microsoft Sysmon plus Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, installed on the collection and knowledge tiers required by the topology. No premium Splunk app is required; Splunk Enterprise Security may optionally route the result as a finding.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Sysmon Named Pipe Monitoring'. Correlate with apt/yum logs in the same `WinEventLog:Microsoft-Windows-Sysmon/Operational` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Microsoft-Windows-Sysmon/Operational`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode IN (17,18) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), pipe_name=trim(PipeName), process_image=trim(Image), process_guid=trim(ProcessGuid), process_id=tonumber(ProcessId), user_name=trim(User), endpoint=lower(trim(coalesce(Computer,host)))\n| where in(event_code,17,18) AND len(pipe_name)>0 AND len(endpoint)>0\n| eval matched_pipe_family=case(match(pipe_name,\"(?i)\\\\\\\\MSSE-[^\\\\\\\\]+\"),\"msse\",match(pipe_name,\"(?i)\\\\\\\\msagent_[^\\\\\\\\]+\"),\"msagent\",match(pipe_name,\"(?i)\\\\\\\\postex_[^\\\\\\\\]+\"),\"postex\",match(pipe_name,\"(?i)\\\\\\\\status_[^\\\\\\\\]+\"),\"status\",match(pipe_name,\"(?i)\\\\\\\\mojo\\.[^\\\\\\\\]+\"),\"mojo\",true(),null())\n| where isnotnull(matched_pipe_family)\n| eval event_action=if(event_code=17,\"pipe_created\",\"pipe_connected\"), use_case=\"UC-1.2.84\"\n| table _time endpoint event_code event_action matched_pipe_family pipe_name process_image process_guid process_id user_name RuleName EventRecordID source sourcetype use_case\n| sort 0 -_time endpoint pipe_name",
+  "description": "Returns one row for each Sysmon pipe-created or pipe-connected event whose nonempty `PipeName` matches one of five explicitly encoded suspicious families. The result preserves the endpoint, operation, pipe, process identity, user, and raw event identity; it applies no count threshold and does not label every named pipe as malicious.",
+  "value": "Named pipes are legitimate Windows inter-process communication, but offensive tooling can use recognizable pipe names to coordinate components or move commands locally. A narrow, explainable match gives defenders an early pivot into the creating or connecting process while retaining enough evidence to distinguish an authorized test, a copied naming convention, and actual compromise.",
+  "implementation": "Install and govern Sysmon, enable `PipeEvent` collection for Event IDs 17 and 18, and collect the Operational channel as XML with the Windows add-on. Verify native pipe/process fields before saving the SPL as `windows_sysmon_suspicious_named_pipe`; schedule it every five minutes over the preceding closed five-minute bucket and trigger on any row. Keep source-health and broad pipe baselining separate, validate every encoded family with isolated fixtures, and suppress only duplicate notification for an exact approved test window.",
+  "visualization": "Restricted endpoint-security dashboard: place Sysmon source/configuration health first; then a single value for matched endpoints over 24 hours, a timechart by `matched_pipe_family`, a bar chart of `process_image`, and a table containing time, endpoint, operation, family, full pipe name, image, process GUID/ID, user, rule name, and EventRecordID. Drill down to exact raw 17/18 XML and same-`ProcessGuid` process, network, file, and registry events. Never render unmatched or missing telemetry as healthy.",
+  "cimModels": [],
+  "schema": "Microsoft Sysmon Event IDs 17 and 18 native XML fields",
+  "dataModelAcceleration": "No CIM accelerated equivalent is claimed. Endpoint.Processes models process activity, not the native `PipeName` and pipe-created/pipe-connected semantics needed by this detector. A summary may be used only after it preserves event ID, pipe, image, process GUID/ID, user, endpoint, raw identity, and source-health parity.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "PipeName",
+    "Image",
+    "ProcessGuid",
+    "ProcessId",
+    "User",
+    "RuleName"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Sysinternals Sysmon: Event IDs 17 and 18 named-pipe semantics",
+      "url": "https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Sysmon event overview and named-pipe activity",
+      "url": "https://learn.microsoft.com/en-us/windows/security/operating-system-security/sysmon/sysmon-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Learn: Sysmon configuration and PipeEvent filtering",
+      "url": "https://learn.microsoft.com/en-us/windows/security/operating-system-security/sysmon/sysmon-configuration-files",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: configure XML WinEventLog inputs",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK T1559: Inter-Process Communication",
+      "url": "https://attack.mitre.org/techniques/T1559/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Repository Windows Servers Integration Guide",
+      "url": "https://github.com/fenre/splunk-monitoring-use-cases/blob/main/docs/guides/windows-servers.md",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A row proves only that a listed string occurred in a real Sysmon pipe event.\n\n1. **Authorized Atomic Red Team, purple-team, or penetration test** — Confirm operator, engagement ID, exact endpoint, process hash/image, encoded pipe family, and UTC window. Preserve the result as control evidence; suppress duplicate notification only for that exact approved window.\n\n2. **Malware-analysis sandbox or detection-engineering fixture** — A lab may intentionally execute or emulate a known pipe name. Distinguish it through governed lab asset identity, fixture ID, process hash, network isolation, and test schedule. Exclude lab notification at routing time, never by removing production collection.\n\n3. **Internally developed software reusing a public example or collision-prone prefix** — Prove code ownership, signed binary, deployment package, expected parent/process GUID chain, and stable pipe suffix. Rename the pipe where practical; otherwise use an exact image-hash plus pipe-family exception with owner and expiry.\n\n4. **Security product or deception control deliberately creating canary pipes** — Verify the product policy, vendor-signed image, host scope, and expected RuleName. Keep the base event visible because a copied pipe name from another process is still suspicious; bind notification suppression to the exact image hash and product change window.\n\n**Safe suppression:** apply only after the base result using an exact `endpoint,matched_pipe_family,process_image,sha256` key plus owner, approver, reason, `valid_from_epoch`, and exclusive `valid_until_epoch`. Reject wildcard hosts, pipe prefixes alone, unsigned-path exceptions, and open-ended rows.",
+  "mitreAttack": [
+    "T1559"
+  ],
+  "detectionType": "TTP",
+  "securityDomain": "endpoint",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon event and configuration documentation, Splunk Add-on for Microsoft Windows configuration, and MITRE ATT&CK; Sysmon deployment, filter behavior, field extraction, SPL, fixtures, source health, alert delivery, suppressions, scale, and response were specified but not executed or Microsoft/Splunk/endpoint-security-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`, Sysmon required.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDeploy Sysmon with PipeCreated (17) and PipeConnected (18) monitoring. Known malicious pipe names: `MSSE-*` (Metasploit), `msagent_*` (Cobalt Strike), `postex_*` (Cobalt Strike post-exploitation), `status_*` (default Cobalt Strike). Also detect PsExec pipes (`PSEXESVC`). Baseline normal pipes per application role, then alert on anomalies.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\"\n  EventCode IN (17, 18)\n| where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")\n| table _time, host, EventCode, PipeName, Image, User\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Sysmon Named Pipe Monitoring** — Named pipes are used for inter-process communication and by tools like Cobalt Strike, Mimikatz, and PsExec. Detecting unusual named pipes reveals C2 and lateral movement.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Sysmon/Operational` (EventCode 17, 18). **App/TA** (typical add-on context): `Splunk_TA_windows`, Sysmon required. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Microsoft-Windows-Sysmon/Operational. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Microsoft-Windows-Sysmon/Operational\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Filters the current rows with `where match(PipeName, \"(?i)(MSSE-|msagent_|postex_|status_|mojo\\.|cobaltstrike|beacon)\")` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **Sysmon Named Pipe Monitoring**): table _time, host, EventCode, PipeName, Image, User\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (pipe events), Bar chart (top pipe names), Timeline, Alert on known-bad patterns.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The scheduled search scans one exact source and two event IDs over one closed five-minute bucket. Ingest cost depends on how broadly Sysmon PipeEvent is enabled; measure by endpoint role before retaining all pipe activity.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Sysmon Event IDs 17 and 18",
+      "Splunk Add-on for Microsoft Windows XML extraction"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact contract\n\nAssign Sysmon configuration, Windows collection, Splunk content, SOC response, and exception owners. Inventory endpoints where named-pipe telemetry is justified, especially domain controllers, management servers, jump hosts, and high-value application servers. Install a supported Sysmon release and Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) on the required tiers. Qualify the exact Windows, Sysmon, forwarder, add-on, and Splunk versions; this editorial review executed none. Restrict raw pipe, user, process, and command telemetry to endpoint-security roles.\n\nMicrosoft defines Event 17 as a named pipe being created and Event 18 as a client-server pipe connection. These are activity records, not verdicts. This rule matches only `MSSE-`, `msagent_`, `postex_`, `status_`, and `mojo.` families after a leading backslash. Treat them as investigation leads. Do not claim payload visibility, both endpoint identities, malware family, lateral movement, or compromise from the name alone.\n\n## Step 1 — Configure and collect PipeEvent XML\n\nUse a governed Sysmon configuration whose `PipeEvent` rules include the desired activity. Apply it through the organization's signed deployment process and record the configuration hash and Event ID 16 configuration-change telemetry. Before broad rollout, measure Events 17/18 per host role and tune only high-volume known-good names; an exclusion prevents generation and cannot be repaired in Splunk.\n\nCollect `Microsoft-Windows-Sysmon/Operational` as XML. The local catalogue index is `wineventlog`; it is not a Splunk default. With current XML handling, validate `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Verify `EventCode`, `Computer`, `EventRecordID`, `PipeName`, `Image`, `ProcessGuid`, `ProcessId`, `User`, and `RuleName` against Event Viewer XML. Operate a source-health search for every expected endpoint and monitor Sysmon service/configuration events separately.\n\n## Step 2 — Create and understand the saved search\n\nSave the sidecar SPL as `windows_sysmon_suspicious_named_pipe`. Run it every five minutes over `earliest=-10m@m latest=-5m@m`; the newest five minutes are delayed for ingestion and the `latest` boundary is exclusive. Trigger on any row and throttle duplicate delivery by exact endpoint, process GUID, pipe name, and action—not merely host.\n\nThe base predicate fixes index, XML source type, channel, and the two documented IDs. Numeric conversion prevents string ambiguity. `trim` and endpoint normalization reject records that cannot support triage. The `case` expression assigns one explicit family from a case-insensitive regex; no generic words such as `beacon` are matched because they create uncontrolled collisions. Event 17 becomes `pipe_created`; 18 becomes `pipe_connected`. The output retains native evidence rather than aggregating it away.\n\nNo CIM search is offered. `Endpoint.Processes` can enrich a matching `ProcessGuid`, but it cannot prove pipe creation/connection or preserve `PipeName`. Correlate after detection with Sysmon Event 1 and other endpoint telemetry; do not replace the primary event semantics with process counts.\n\n## Step 3 — Validate logic and telemetry\n\nUse the exact positive and negative fixtures in `controlTest` in an isolated index with fixed bounds. Assert one row per matching raw event, correct family, correct action, case-insensitive behavior, and preservation of EventRecordID and process identity. Test each listed family independently, pipes with extra path components, empty fields, Event IDs other than 17/18, wrong channels, and ordinary `.NET`, browser, service-control, database, backup, and security-agent pipes.\n\nOn a lab endpoint, create and connect to a harmless uniquely named test pipe under change approval, then compare Event Viewer XML with Splunk. Do not rename a production pipe to a threat-like value. Confirm configuration, source health, indexing latency, alert action, dashboard ACL, drilldown, and bounded suppression expiry. Keep `status=draft` until human owners execute and accept these controls.\n\n## Step 4 — Operationalize triage and evidence\n\nWhen a result fires: verify raw XML and source health; determine whether creation or connection occurred; pivot on `ProcessGuid` to Sysmon Event 1 for image, command line, parent, hashes, signer, and user; inspect adjacent network/file/registry events; validate asset role and software ownership; check approved testing or deception activity; and escalate according to endpoint response policy. A pipe name can be copied by benign or malicious software, so corroboration is mandatory.\n\nDo not automatically terminate a process, isolate a server, delete a pipe, or block a user solely on this event. Preserve artifacts listed in `evidence`, including the matched raw event and any process/hash enrichment. Review encoded names after tooling changes and threat-intelligence review; additions require a sourced rationale plus positive and collision-negative fixtures.\n\n## Step 5 — Troubleshoot specific failures\n\n- **No 17/18 events:** verify Sysmon is installed/running, the active configuration admits `PipeEvent`, Event 16 shows the expected hash, the Operational channel contains events, and the forwarder input includes that channel.\n- **Event Viewer has data but Splunk does not:** inspect effective WinEventLog input, XML rendering, forwarder queues/outputs, index routing, channel spelling, and role access. Compare fixed EventRecordIDs.\n- **`PipeName` or process fields are null:** inspect raw XML Data names and ensure Windows add-on parsing/search knowledge is present on the required tiers. Do not substitute `process_name` from an unrelated event.\n- **Too many rows:** identify the exact family, image hash, signer, host role, and suffix distribution. Correct an overbroad encoded family or add a narrow post-result notification exception; never suppress an entire server or all pipes.\n- **Expected family does not match:** compare the literal leading backslash and regex escaping, Event ID, and case. Add a fixture before changing the expression.\n- **Duplicate events:** compare endpoint, EventRecordID, channel, and collection path. Correct direct-plus-WEF duplication instead of deduplicating unrelated pipe operations.\n- **Late events miss the bucket:** measure `_indextime-_time`, endpoint clock, WEF delay, and forwarder queues; increase the close delay while preserving nonoverlapping windows.",
   "grandmaExplanation": "We watch the hidden pipes programs use to talk to each other on Windows so we can notice odd pipe activity that often rides along with sneaky tools moving between machines.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
