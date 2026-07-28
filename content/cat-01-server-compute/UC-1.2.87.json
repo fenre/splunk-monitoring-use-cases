@@ -1,66 +1,126 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.87",
-  "title": "DPAPI Credential Backup (DC)",
-  "criticality": "critical",
+  "title": "DPAPI Master-Key Backup and Recovery Audit",
+  "criticality": "medium",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Audit",
+    "Security",
+    "Operations"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'DPAPI Credential Backup (DC)' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_dpapi_credential_backup_dc` (UC-1.2.87), SOC dashboard panel \"Linux — DPAPI Credential Backup (DC)\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports Microsoft Security Event IDs 4692 (DPAPI master-key backup attempted) and 4693 (DPAPI master-key recovery attempted). Microsoft describes these as mostly informational and difficult to use for malicious-activity detection; a result is not proof of Mimikatz, SharpDPAPI, backup-key theft, credential access, compromise, or successful recovery. It does not detect direct extraction of domain DPAPI backup-key objects, DPAPI protect/unprotect events 4694/4695, secrets decrypted without audited recovery, or activity absent from the Security log. The local `wineventlog` index and alert policy are deployment choices. No regulatory, runtime, or prevention assurance is claimed.",
+  "evidence": "Retain the version-controlled `windows_dpapi_master_key_audit` saved search and ACL; effective Audit DPAPI Activity policy; source-health coverage; each result with outcome keyword, subject, master-key ID, recovery server/key ID, host, EventRecordID, source, and source type; exact raw 4692/4693 XML; baseline and owner decision; dated controls; analyst disposition; and any bounded notification exception. This documentation-only review generated no DPAPI operation, Windows event, search job, alert, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.87 positive (DPAPI, Credential, Backup, (DC)): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Security' EventCode=4692 where `count` grouped by `entity` satisfies detection threshold for 'DPAPI Credential Backup (DC)'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.87 negative (Backup (DC)): ingest benign `wineventlog` / `WinEventLog:Security` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'DPAPI Credential Backup (DC)'."
+    "positiveScenario": "In an isolated index, ingest one XML Security Event ID 4693 with `SubjectUserName=alice`, `SubjectDomainName=EXAMPLE`, `SubjectLogonId=0x12345`, `MasterKeyId={11111111-1111-1111-1111-111111111111}`, `RecoveryServer=DC01.example`, `RecoveryKeyId={22222222-2222-2222-2222-222222222222}`, `Computer=CLIENT01`, `Keywords=Audit Success`, and `EventRecordID=4693001`. Expect exactly one row classified `master_key_recovery_attempt` with every supplied field preserved.",
+    "negativeScenario": "Expect zero rows for each isolated variant: Event ID 4694; Event ID 4692 from the System channel; an event with empty event ID; and a Security 4693 event whose endpoint identity is empty. Also confirm that a valid 4692 with an empty `RecoveryServer` still returns because Microsoft documents that field as potentially empty."
   },
-  "dataSources": "`sourcetype=WinEventLog:Security` (EventCode 4692, 4693) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4692, 4693)\n| eval action=case(EventCode=4692,\"DPAPI backup attempted\",EventCode=4693,\"DPAPI recovery attempted\")\n| table _time, host, action, SubjectUserName, SubjectDomainName, MasterKeyId\n| sort -_time",
-  "description": "Surfaces 'DPAPI Credential Backup (DC)' patterns (UC-1.2.87) sourced from `index=wineventlog` sourcetype `WinEventLog:Security`. Threshold bundle: configured threshold; aggregation grain: `entity`; metrics: `count`. Watch terms: DPAPI, Credential, Backup, (DC).",
-  "value": "UC-1.2.87 gives Linux teams earlier visibility into Backup (DC) through `WinEventLog:Security` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "EventCode 4692=DPAPI master key backup, 4693=recovery. Normal during user password changes. Alert on mass backup attempts (many keys in short time) or recovery from unexpected admin accounts — indicates SharpDPAPI/Mimikatz DPAPI module usage. Correlate with DCSync events (4662) as attackers often combine both techniques.",
-  "visualization": "Table (DPAPI events), Single value (recovery count), Timeline, Alert on mass operations.",
-  "cimModels": [
-    "Authentication"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  where (like(Authentication.app,\"%DPAPI%\") OR like(Authentication.object,\"%4692%\") OR like(Authentication.object,\"%4693%\"))\n  by Authentication.user Authentication.src span=1h\n| where count > 5",
-  "dataModelAcceleration": "Enable acceleration for Authentication (Authentication dataset) with 4692/4693 events mapped to CIM; align EventCode to `app` or `object` in your CIM add-on.",
-  "references": [
+  "dataSources": "Windows Security XML Event IDs 4692 and 4693 under the **Audit DPAPI Activity** subcategory, collected with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Required native fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `Keywords`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `MasterKeyId`, `RecoveryServer`, and `RecoveryKeyId`. Microsoft states `RecoveryServer` or `RecoveryKeyId` may be empty in some records.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. No premium application is required.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Authentication",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'DPAPI Credential Backup (DC)'. Correlate with apt/yum logs in the same `WinEventLog:Security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode IN (4692,4693) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), subject_user=trim(SubjectUserName), subject_domain=trim(SubjectDomainName), master_key_id=trim(MasterKeyId), recovery_server=trim(RecoveryServer), recovery_key_id=trim(RecoveryKeyId), audit_outcome=trim(Keywords)\n| where in(event_code,4692,4693) AND len(endpoint)>0\n| eval dpapi_action=if(event_code=4692,\"master_key_backup_attempt\",\"master_key_recovery_attempt\"), use_case=\"UC-1.2.87\"\n| table _time endpoint event_code dpapi_action audit_outcome SubjectUserSid subject_domain subject_user SubjectLogonId master_key_id recovery_server recovery_key_id EventRecordID source sourcetype use_case\n| sort 0 -_time endpoint subject_user",
+  "description": "Returns one evidence-preserving row for every collected DPAPI master-key backup attempt (4692) or recovery attempt (4693), without a count threshold. The row identifies the endpoint, audit outcome, subject, master-key identifier, recovery server/key identifier when present, and raw record identity.",
+  "value": "Central history of DPAPI backup and recovery operations supports troubleshooting after password resets, profile changes, and domain recovery issues, while highlighting unusual subjects, endpoints, or bursts for review. Accurate scoping avoids converting Microsoft's informational events into an unsupported high-confidence credential-theft alert.",
+  "implementation": "Enable Success and Failure for Audit DPAPI Activity only on governed systems, collect Security as XML, and validate native 4692/4693 fields. Save the SPL as `windows_dpapi_master_key_audit`, run every five minutes over a delayed closed bucket, and retain all rows; notify only on a separately approved anomaly policy such as recovery by an unexpected subject or volume outside a measured baseline. Keep raw events and source health available for diagnosis.",
+  "visualization": "Restricted `Windows — DPAPI Audit` dashboard: Security-source health first; backup versus recovery counts over time; counts by endpoint, subject, audit outcome, and recovery server; and a detail table containing all output fields. Drill down to exact XML and nearby password-reset, profile, domain-controller, and logon evidence. Label rows as attempts, never as credential theft or successful decryption.",
+  "cimModels": [],
+  "schema": "Microsoft-Windows-Security-Auditing Event IDs 4692 and 4693 native XML",
+  "dataModelAcceleration": "No Authentication CIM equivalent is claimed. These are DPAPI audit operations, not authentication transactions, and a generic tstats count loses master-key, recovery-server, recovery-key, subject-logon, outcome, and event-identity evidence.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "Keywords",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "MasterKeyId",
+    "RecoveryServer",
+    "RecoveryKeyId"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Security Auditing: Event 4692 DPAPI master-key backup attempted",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4692",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Security Auditing: Event 4693 DPAPI master-key recovery attempted",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-4693",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Advanced Audit Policy: Audit DPAPI Activity",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-dpapi-activity",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: CNG DPAPI backup keys on Active Directory domain controllers",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/seccng/cng-dpapi-backup-keys-on-ad-domain-controllers",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: XML event-log collection",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A row is normally a genuine DPAPI operation; the review question is whether its context is expected.\n\n1. **First use of a newly generated user master key on a domain-joined computer** — Microsoft states 4692 is generated whenever a new DPAPI master key is generated. Confirm user, endpoint, profile creation or credential use, recovery server, and normal adjacent logons. Baseline it; do not suppress all future operations for that user.\n\n2. **User password reset followed by legitimate DPAPI recovery** — Confirm help-desk reset ticket, account, endpoint, recovery-server identity, user report, and successful business recovery. Use a short ticket-bound notification exception only if repeated recovery retries would create duplicate pages.\n\n3. **Profile migration, VDI refresh, workstation replacement, or domain migration** — Verify migration batch, source/destination device, approved users, deployment tool, and UTC window. Preserve rows as migration evidence; scope suppression to exact assets and change window.\n\n4. **DPAPI troubleshooting or recovery exercise** — Confirm operator, test account, isolated endpoint, test plan, and expected master-key IDs. Retain the event as control evidence and suppress only notification after matching the authorized exercise.\n\n5. **Ordinary periodic domain backup attempt described by Microsoft** — Establish endpoint/user cadence and recovery-server ownership from clean history. A frequency change, new subject, new server, failure keyword, or broad host spread still requires investigation.\n\nSafe suppression is post-result and requires exact endpoint, subject, action, recovery server when present, owner, reason, ticket, `valid_from_epoch`, and exclusive `valid_until_epoch`. Never suppress by Event ID alone, an entire domain, or empty recovery-server value.",
+  "mitreAttack": [
+    "N/A (informational DPAPI master-key backup and recovery auditing; the events do not by themselves establish credential access)"
+  ],
+  "detectionType": "Audit trail",
+  "securityDomain": "audit",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Supported Windows clients, member servers, and domain controllers that generate Security 4692/4693 after Audit DPAPI Activity is enabled. Domain DPAPI backup-key object extraction requires a separate control.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft 4692/4693, Audit DPAPI Activity, domain DPAPI backup-key, and Splunk Windows add-on documentation; policy, event generation, field extraction, SPL, controls, baselines, alert policy, and response were specified but not executed or Microsoft/identity/Splunk-SME signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Security` (EventCode 4692, 4693).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEventCode 4692=DPAPI master key backup, 4693=recovery. Normal during user password changes. Alert on mass backup attempts (many keys in short time) or recovery from unexpected admin accounts — indicates SharpDPAPI/Mimikatz DPAPI module usage. Correlate with DCSync events (4662) as attackers often combine both techniques.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Security\" EventCode IN (4692, 4693)\n| eval action=case(EventCode=4692,\"DPAPI backup attempted\",EventCode=4693,\"DPAPI recovery attempted\")\n| table _time, host, action, SubjectUserName, SubjectDomainName, MasterKeyId\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**DPAPI Credential Backup (DC)** — Data Protection API master key backup to domain controllers enables credential theft. Abnormal DPAPI backup activity from unexpected accounts indicates compromise.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Security` (EventCode 4692, 4693). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Security. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Security\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **DPAPI Credential Backup (DC)**): table _time, host, action, SubjectUserName, SubjectDomainName, MasterKeyId\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (DPAPI backup/recovery in `Authentication` — confirm field mapping):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Authentication.Authentication\n  by Authentication.user Authentication.src span=1h\n| where count > 5\n```\n\nEnable **data model acceleration** on `Authentication`. If EventCode 4692/4693 is not in summaries, the Security log search in Step 2 is authoritative; tag `app=DPAPI` in props for tstats.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (DPAPI events), Single value (recovery count), Timeline, Alert on mass operations.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Security into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We look for odd bulk backup or recovery of the Windows secret-keeping keys on your domain controllers, because that pattern often shows up when someone is after passwords and tokens.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Microsoft characterizes Audit DPAPI Activity as low volume, and the search reads two exact IDs in a closed five-minute bucket.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Windows Security Event IDs 4692 and 4693"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and event contract\n\nAssign Windows audit-policy, endpoint, identity, Splunk collection, and security-review owners. Install the supported Splunk Add-on for Microsoft Windows 10.0.1 on required collection and knowledge tiers. Limit raw access because subjects, master-key identifiers, recovery infrastructure, and timing are sensitive. Microsoft says Audit DPAPI Activity is low volume, usually informational, and difficult to use directly for malicious-activity detection. Event 4692 records a backup attempt and 4693 a recovery attempt; Success/Failure auditing can generate both outcomes.\n\nDo not claim that a burst is Mimikatz/SharpDPAPI, that a key was stolen, or that recovery succeeded from EventCode alone. The domain DPAPI backup keys are highly sensitive and normally protected in Active Directory, but these two client audit operations are not evidence that those domain keys were extracted.\n\n## Step 1 — Enable and collect Security XML\n\nThrough governed Advanced Audit Policy, configure **Detailed Tracking > Audit DPAPI Activity** for Success and Failure on the systems in scope. Verify effective policy with `auditpol /get /subcategory:\"DPAPI Activity\"` and the winning GPO. Measure event volume before broad deployment.\n\nCollect the Security channel in XML with an app-owned `[WinEventLog://Security]` stanza, `renderXml=true`, and local `index=wineventlog`; never edit the add-on's default directory. Verify effective `inputs.conf` with `splunk btool inputs list WinEventLog://Security --debug`. In the Event Viewer console at **Windows Logs > Security**, compare fixed EventRecordIDs to `sourcetype=XmlWinEventLog source=XmlWinEventLog:Security` in Splunk. Confirm every required field and accept that Microsoft documents recovery server/key fields as possibly empty.\n\n## Step 2 — Save and understand the search\n\nSave the sidecar SPL as `windows_dpapi_master_key_audit`. Schedule every five minutes with the encoded delayed closed bucket and trigger the report on all rows. The base predicate admits only Security XML 4692/4693. Numeric event normalization and endpoint validation prevent unrelated or unusable records. The action label says **attempt**, preserving Microsoft's semantics, and the table retains native subject, key, recovery, outcome, and raw-record evidence.\n\nDo not use the old Authentication tstats variant: DPAPI backup/recovery is not an authentication dataset contract. Build any anomaly wrapper after the base report, using measured endpoint/user/action baselines and explicit policy. Keep the unmodified base result for audit and troubleshooting.\n\n## Step 3 — Validate fields and expected cases\n\nRun the exact control fixtures in an isolated index with fixed bounds. Test both event IDs, Success and Failure keywords, empty recovery server/key, duplicate records, wrong channel, wrong event ID, and missing endpoint. On a lab domain, generate only an approved benign DPAPI scenario; compare Event Viewer XML and Splunk without exposing protected data. Record event and indexing times, EventRecordID, Windows/add-on/Splunk versions, fixture, expected/actual rows, and operator.\n\nEstablish a 30-day baseline by endpoint role, subject, action, outcome, and recovery server. Separately monitor Security-source freshness for every expected system. Absence of events is not proof that DPAPI is unused; policy, log, or collection may be absent.\n\n## Step 4 — Operationalize investigation and evidence\n\nA review-worthy pattern can include a first-seen recovery subject, unexpected recovery server, repeated failures, broad endpoint spread, or a sharp deviation from that role's baseline. When it occurs: verify raw XML and source health; confirm user/profile/password-reset or migration context; validate recovery-server ownership; inspect adjacent logons and endpoint process telemetry under normal incident procedure; contact the identity/endpoint owner; and record disposition.\n\nDo not automatically isolate a host, reset a password, rotate unsupported domain DPAPI backup keys, delete user Protect folders, or rebuild a domain from this event. Microsoft states there is no officially supported rotation method for domain DPAPI backup keys; actual compromise of those keys is a separate severe incident requiring Microsoft-supported planning.\n\n## Step 5 — Troubleshoot\n\n- **No 4692/4693:** verify effective Audit DPAPI Activity, Security input, channel permissions, local policy override, and source freshness.\n- **Event Viewer has rows but Splunk does not:** compare EventRecordID, XML rendering, forwarder queues, index routing, and effective input stanza.\n- **Recovery fields are empty:** this can be valid per Microsoft; preserve nulls and use subject, endpoint, action, outcome, and raw message rather than inventing values.\n- **Wrong account fields:** use `SubjectUserName`/domain/SID from native XML; do not substitute a generic CIM user.\n- **Many events after migration or password reset:** correlate exact change population and timing, then apply only a bounded post-result exception.\n- **Duplicate events:** identify direct plus WEF collection through Computer/EventRecordID/source and repair topology.\n- **Alert called credential theft:** correct the rule or analyst text; these records are informational attempts and need corroboration.",
+  "grandmaExplanation": "We keep a history of when Windows tries to back up or recover the keys that protect a person's saved secrets. Most of this is normal, but the record helps support staff solve password and profile problems and notice unusual recovery activity.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
