@@ -3,50 +3,98 @@
   "id": "1.1.40",
   "title": "XFS Filesystem Errors and Recovery",
   "criticality": "high",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
     "Fault"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'XFS Filesystem Errors and Recovery' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_xfs_filesystem_errors_and_recovery` (UC-1.1.40), SOC dashboard panel \"Linux — XFS Filesystem Errors and Recovery\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects only collected Linux kernel records with the documented XFS message prefix and selected metadata-corruption, metadata/log I/O, forced-shutdown, or recovery-directive phrases. It does not detect ordinary application I/O failures, data-file corruption invisible to XFS metadata verifiers, generic block-layer errors without a matching XFS record, space or inode exhaustion, performance degradation, a clean mount or log replay, silent faults, or records retained only in an uncollected journal. The kernel token inside `XFS (<device>)` is not a mount point and may be a device-mapper alias. This use case does not diagnose the underlying disk, controller, path, firmware, memory, or software cause; prove that repair is required or safe; execute recovery; attest filesystem integrity; or provide regulatory evidence. The base SPL contains no exception lookup.",
+  "evidence": "After deployment, retain the `linux_xfs_faults_5m` saved-search definition and schedule, dispatch and alert history, matching raw kernel record, result fields (`_time`, `host`, `xfs_device`, `signatures`, `first_seen`, `last_seen`, `event_count`, `sources`), effective Universal Forwarder monitor configuration, host-to-device/mount mapping captured during response, linked incident disposition, and dated positive and negative control-test results. These artifacts demonstrate that the configured collection and signature rule observed specific records; they do not prove continuous collection, root cause, successful repair, or a healthy filesystem.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.40 positive (XFS, Filesystem, Errors, and, Recovery): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `host`, `mount_point` satisfies `count` > 0 for 'XFS Filesystem Errors and Recovery'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.40 negative (and Recovery): ingest benign `os` / `syslog` events where `host`, `mount_point` stays below `count` > 0, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 5 confirms zero alert rows for 'XFS Filesystem Errors and Recovery'."
+    "positiveScenario": "In an isolated test index, place `Jul 28 09:00:00 xfs-lab kernel: XFS (dm-3): Metadata I/O Error (0x2) detected at xfs_trans_read_buf_map+0x10/0x20 (xfs_trans_buf.c:340). Shutting down filesystem.` inside the completed five-minute search window with `host=xfs-lab` and `sourcetype=linux_messages_syslog`. The production SPL must return exactly one row with `xfs_device=dm-3`, `signatures=metadata_io_error`, and `event_count=1`. Repeat with `kernel: XFS (vdb1): Metadata corruption detected at xfs_btree_lblock_verify+0x10/0x20, xfs_bmapbt block 0x8`; it must return `signatures=metadata_verifier_failure`.",
+    "negativeScenario": "In the same isolated setup, ingest `kernel: XFS (dm-3): Mounting V5 Filesystem 1234-5678`, `kernel: XFS (dm-3): Ending clean mount`, `kernel: blk_update_request: I/O error, dev dm-3, sector 8`, and `xfs_repair: Phase 1 - find and verify superblock`. Run the production SPL over that window and require zero rows: clean XFS lifecycle messages, an uncorrelated block-layer error, and xfsprogs userspace output are outside the signature contract."
   },
-  "dataSources": "`sourcetype=syslog, kernel logs` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix, custom scripted input` — Splunk Add-on for Unix and Linux (Splunkbase 833)",
-  "spl": "index=os sourcetype=syslog host=* (\"XFS\" OR \"xfs_*\" AND (\"error\" OR \"IO Error\" OR \"shutdown\"))\n| stats count by host, mount_point\n| where count > 0",
-  "description": "Detects 'XFS Filesystem Errors and Recovery' patterns (UC-1.1.40) sourced from `index=os` sourcetype `syslog`. Threshold bundle: `count` > 0; aggregation grain: `host`, `mount_point`; metrics: `count`. Watch terms: XFS, Filesystem, Errors, and, Recovery.",
-  "value": "UC-1.1.40 gives Linux teams earlier visibility into and Recovery through `syslog` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Monitor XFS-specific kernel messages. Create alerts for any XFS I/O errors or shutdown messages. Include xfs_repair suggestions and track patterns across storage arrays.",
-  "visualization": "Alert, Table",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "Linux kernel messages persisted by the host logging stack to the distribution's active text log, commonly `/var/log/messages`, `/var/log/kern.log`, or `/var/log/syslog`, and collected by a Splunk Universal Forwarder file-monitor input as `index=os sourcetype=linux_messages_syslog`. `os` is a local index choice. Required indexed fields are `_time`, `_raw`, `host`, `source`, and `sourcetype`; the SPL extracts `xfs_device`, `xfs_message`, and `signature`. `journalctl -k` is the host-side comparison source in this implementation, not a claimed Splunk input.",
+  "app": "Splunk Universal Forwarder native file monitoring with the pretrained `linux_messages_syslog` source type. Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) is optional deployment context for managing Linux inputs; it does not provide a dedicated XFS error input or the fields extracted by this SPL.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunkbase app 833",
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "role": "optional",
+      "requiresSmeReview": true
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'XFS Filesystem Errors and Recovery'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `count` > 0.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=os sourcetype=linux_messages_syslog \"kernel:\" \"XFS (\" (\"Metadata corruption detected\" OR \"Metadata CRC error detected\" OR \"Corruption detected. Unmount and run xfs_repair\" OR \"Unmount and run xfs_repair\" OR \"metadata I/O error in\" OR \"Metadata I/O Error\" OR \"Log I/O Error\" OR \"Corruption of in-memory data\" OR \"Corruption of on-disk metadata\" OR \"Filesystem has been shut down\" OR \"Shutting down filesystem\" OR (\"Please unmount the filesystem\" AND \"rectify the problem\")) earliest=-10m@m latest=-5m@m\n| rex field=_raw \"(?i)\\bXFS\\s+\\((?<xfs_device>[^)\\r\\n]+)\\):\\s+(?<xfs_message>[^\\r\\n]+)\"\n| where isnotnull(xfs_device) AND isnotnull(xfs_message)\n| eval xfs_device=trim(xfs_device), signature=case(match(xfs_message,\"(?i)^Metadata (?:CRC error|corruption) detected\"),\"metadata_verifier_failure\",match(xfs_message,\"(?i)^Corruption detected\\. Unmount and run xfs_repair|^Unmount and run xfs_repair\"),\"repair_directive\",match(xfs_message,\"(?i)^metadata I/O error in|^Metadata I/O Error\"),\"metadata_io_error\",match(xfs_message,\"(?i)^Log I/O Error\"),\"log_io_error\",match(xfs_message,\"(?i)^Corruption of in-memory data\"),\"in_memory_corruption_shutdown\",match(xfs_message,\"(?i)^Corruption of on-disk metadata\"),\"on_disk_corruption_shutdown\",match(xfs_message,\"(?i)^Filesystem has been shut down|Shutting down filesystem\"),\"filesystem_shutdown\",match(xfs_message,\"(?i)^Please unmount the filesystem and rectify the problem\"),\"recovery_directive\",true(),\"unclassified_review_required\"), event_time=_time\n| bin _time span=5m\n| stats min(event_time) as first_seen max(event_time) as last_seen count as event_count values(signature) as signatures values(source) as sources latest(_raw) as sample_event by _time host xfs_device\n| sort 0 -_time host xfs_device",
+  "description": "Detects selected XFS kernel records that report metadata verifier failures, metadata or log I/O failures, protective filesystem shutdowns, and the kernel's unmount/repair guidance. It extracts the device token from the canonical `XFS (<device>):` prefix and summarizes matching records by five-minute bucket, host, and device without inventing a mount-point field.",
+  "value": "An XFS metadata failure or protective shutdown can stop durable writes while the host and some reads remain available, creating application errors and risk to service continuity. Device-specific, source-preserving notification helps Linux and storage responders contain writes, preserve the kernel sequence, map the affected volumes and workloads, and choose a controlled recovery path instead of attempting an unsafe automated repair.",
+  "implementation": "Collect the one active text log that persists kernel records on each supported Linux image, assign Splunk's pretrained `linux_messages_syslog` source type, and route it to the locally selected operating-system index. Verify representative XFS lines against `journalctl -k`, save the search as `linux_xfs_faults_5m`, run it every five minutes over the preceding completed bucket, and trigger on any result. Treat one matching record as actionable; recovery remains a human-owned storage procedure.",
+  "visualization": "Use a high-severity latest-first table with bucket time, host, `xfs_device`, signatures, first and last seen times, event count, sources, and a drilldown to `sample_event` plus surrounding kernel records. Add a 24-hour trend split by signature and a host/device recurrence panel. Display kernel-log collection freshness separately. Label `event_count` as matching indexed records, not distinct incidents, affected mounts, corrupt objects, or failed repair attempts.",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable. CIM does not define a dataset for XFS kernel verifier and shutdown records, and `xfs_device` and `signature` are local search-time extractions. No honest accelerated `tstats` equivalent is claimed.",
+  "references": [
+    {
+      "title": "Linux kernel source: XFS forced-shutdown reasons and current log messages",
+      "url": "https://github.com/torvalds/linux/blob/master/fs/xfs/xfs_fsops.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel source: XFS corruption, verifier, and xfs_repair guidance messages",
+      "url": "https://github.com/torvalds/linux/blob/master/fs/xfs/xfs_error.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel source: canonical `XFS (<device>):` logging prefix",
+      "url": "https://github.com/torvalds/linux/blob/master/fs/xfs/xfs_message.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel documentation: XFS online filesystem-check design and shutdown semantics",
+      "url": "https://docs.kernel.org/filesystems/xfs/xfs-online-fsck-design.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "xfsprogs: xfs_repair(8) manual page",
+      "url": "https://man7.org/linux/man-pages/man8/xfs_repair.8.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "xfsprogs: xfs_scrub(8) manual page",
+      "url": "https://man7.org/linux/man-pages/man8/xfs_scrub.8.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: pretrained source types (`linux_messages_syslog`)",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/configure-source-types/list-of-pretrained-source-types",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk: monitor files and directories with inputs.conf",
+      "url": "https://help.splunk.com/en/data-management/get-data-in/get-data-into-splunk-enterprise/9.3/get-data-from-files-and-directories/monitor-files-and-directories-with-inputs.conf",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: rex",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/rex",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: stats",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/stats",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux: enable only required input stanzas",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Enabledataandscriptedinputs/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A parsed signature normally represents a real XFS warning, failure, or recovery directive. The following cases can be expected activity or duplicate notification rather than evidence that the message itself is false.\n\n1. **Approved XFS fault-injection or xfstests exercise** — A disposable lab filesystem may deliberately trigger verifier or forced-shutdown paths. Confirm the exact host, device, test case, kernel boot, owner, and bounded change window; retain the result as resilience-test evidence.\n\n2. **Known damaged volume already isolated** — One incident can emit a cause line, a shutdown line, and a recovery directive, or repeat messages while applications retry. Correlate by host, device, boot, raw sequence, and active incident. Throttle duplicate actions only; keep every source record.\n\n3. **Duplicate local and relay collection** — The same kernel line may be indexed from a local file monitor and a syslog relay, or from overlapping `/var/log/messages` and `/var/log/kern.log` monitors. Compare event time, `_indextime`, `_raw`, `host`, and `source`, then remove overlapping collection instead of suppressing XFS failures.\n\n4. **Forwarder backlog after recovery or restart** — A historical XFS record can arrive after forwarding resumes and page after the underlying incident was handled. Compare `_time` with `_indextime`, current boot identity, incident history, and the current kernel journal; preserve the late record and close or downgrade only the duplicate notification.\n\n5. **Deliberate administrator-initiated shutdown** — XFS supports a userspace `goingdown` operation and current kernel source emits `User initiated shutdown received.`; that phrase alone is not selected by this rule. If the same exercise produces a selected shutdown or recovery line, verify the authorized command and test ticket before changing incident priority.\n\n**Optional suppression:** use an owner-reviewed `linux_xfs_fault_exceptions.csv` keyed by exact `host` and `xfs_device`, with UTC `valid_from`, UTC `valid_until`, `ticket`, `owner`, and `reason`. Apply it only after parsing, reject wildcards and expired entries, preserve suppressed rows in a review report, and never exempt an entire host indefinitely. The catalogue SPL intentionally has no lookup dependency.",
   "equipment": [
     "linux",
     "syslog"
@@ -55,12 +103,22 @@
     "linux_generic",
     "syslog_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "requiredFields": [
+    "_time",
+    "_raw",
+    "host",
+    "source",
+    "sourcetype"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=syslog, kernel logs`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor XFS-specific kernel messages. Create alerts for any XFS I/O errors or shutdown messages. Include xfs_repair suggestions and track patterns across storage arrays.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog host=* (\"XFS\" OR \"xfs_*\" AND (\"error\" OR \"IO Error\" OR \"shutdown\"))\n| stats count by host, mount_point\n| where count > 0\n```\n\nUnderstanding this SPL\n\n**XFS Filesystem Errors and Recovery** — XFS errors indicate potential corruption in high-performance storage systems commonly used in enterprise environments.\n\nDocumented **Data sources**: `sourcetype=syslog, kernel logs`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, mount_point** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > 0` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Alert, Table",
-  "grandmaExplanation": "XFS errors indicate potential corruption in high-performance storage systems commonly used in enterprise environments — so you find out before users do when something is slowing down or breaking.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation review against Linux kernel, xfsprogs, and Splunk primary sources; no production execution or SME sign-off claimed",
+  "detailedImplementation": "## Prerequisites and signal boundary\n\nAssign both a Linux storage owner and a Splunk content owner. Use a supported Universal Forwarder or the organization's approved syslog collection tier, and grant its service account read access only to the selected text log. The search role needs read access to the chosen operating-system index and permission to create a scheduled search; it does not require filesystem repair privileges. This record uses `index=os` as a local convention, not a Splunk default.\n\nConfirm that in-scope hosts actually use XFS and record the stable filesystem UUID, current kernel device token, block-device path, mount target, storage owner, and critical workloads in the runbook or CMDB. The token printed in `XFS (dm-3):` comes from the kernel's filesystem identifier and is not a `mount_point` field. A mapper name can change across boots or differ from the stable storage identifier, so response must resolve it with approved host inventory and mount tooling.\n\nThe signature boundary follows kernel source. Current XFS emits `XFS (<device>):` and reports forced-shutdown causes such as `Log I/O Error`, `Metadata I/O Error`, `Corruption of in-memory data`, or `Corruption of on-disk metadata`, followed by `Shutting down filesystem.` and a request to unmount and rectify the problem. Verifier paths emit `Metadata corruption detected`, `Metadata CRC error detected`, or `Corruption detected. Unmount and run xfs_repair`. Older supported deployments can emit `metadata I/O error in` or `Filesystem has been shut down`. A selected message is actionable evidence, but it is not a root-cause diagnosis and does not prove that offline repair is the correct next command.\n\n## Step 1 — Configure and qualify kernel-log collection\n\nOn each supported distribution, compare `journalctl -k -b` with `/var/log/messages`, `/var/log/kern.log`, and `/var/log/syslog`; monitor only the text file that actually persists the same kernel records. Do not monitor the binary journal as a flat file, poll `dmesg` repeatedly, or enable every candidate path. Those approaches can miss rotations or duplicate the same kernel line. A journal-only host is outside this file-monitor procedure until the platform owner implements an approved journald input or journal-to-syslog route and separately qualifies its source type and field contract.\n\nPackage the monitor in a deployment app. If `Splunk_TA_nix` already owns the relevant file input, copy only the required stanza to its `local/inputs.conf`; do not copy the complete default file or edit `default`. A verified `/var/log/messages` deployment can use:\n\n```ini\n[monitor:///var/log/messages]\ndisabled = 0\nindex = os\nsourcetype = linux_messages_syslog\n```\n\nReplace the path and index consistently when local standards differ. `linux_messages_syslog` is Splunk's pretrained source type for standard Linux syslog; neither generic `syslog` nor a custom scripted poll is needed here. Inspect the effective configuration with `splunk btool inputs list --debug`, then search `index=os sourcetype=linux_messages_syslog earliest=-15m`. Confirm `_time`, `_raw`, `host`, `source`, and `sourcetype`, compare harmless kernel lines byte-for-byte with the source file and `journalctl -k`, and measure `_indextime-_time`. Baseline bytes and event counts for the whole monitored file because licensing volume comes from that feed, not merely the rare XFS matches. Keep a separate source-freshness control; zero XFS faults is meaningful only while collection is healthy.\n\n## Step 2 — Create and understand the search\n\nSave the catalogue SPL as `linux_xfs_faults_5m`, schedule it with `*/5 * * * *`, and initially retain `earliest=-10m@m latest=-5m@m`. This evaluates the preceding completed five-minute event-time bucket while allowing five minutes for ordinary indexing delay. Increase the delay only from measured latency and preserve non-overlapping windows. Configure the alert to trigger when result count is greater than zero. The threshold is one matching kernel record, not a rate, percentage, or count above a learned baseline.\n\nUnderstanding the SPL: the base search requires the selected index and pretrained source type, the syslog `kernel:` program marker, the canonical `XFS (` prefix, and one reviewed XFS phrase. This avoids the former `(XFS OR xfs_*) AND error` logic, which could select unrelated application text and had incorrect boolean precedence. `rex` enforces `XFS (<device>): <message>` and creates `xfs_device` and `xfs_message`; `where` rejects lines that fail that shape. `case` gives each message a reviewable semantic label. Cause-bearing current messages are classified before the generic `Shutting down filesystem` suffix, so `Metadata I/O Error ... Shutting down filesystem` becomes `metadata_io_error` rather than losing its cause.\n\n`event_time` preserves the original timestamp before `bin` creates a five-minute reporting bucket. `stats` returns one row per bucket, host, and XFS device, retaining earliest and latest event times, all signature classes and sources, the number of matching indexed records, and the latest raw sample. Multiple lines in one kernel failure sequence can therefore yield one row with several signatures. `event_count` is not a count of damaged metadata objects, distinct shutdowns, affected mounts, or failed writes. One device can back multiple mount targets, and the SPL deliberately does not fabricate that relationship.\n\nNo CIM data model represents these XFS-specific raw messages. Do not substitute a fictitious Filesystem or Performance `tstats` path. Adjacent block, path, application, and host metrics are useful investigation context but are not prerequisites for this detector.\n\n## Step 3 — Validate signatures, grouping, and coverage\n\nRun both `controlTest` scenarios in an isolated index with event timestamps inside the search's completed bucket. The current forced-shutdown fixture must produce one `dm-3` row classified `metadata_io_error`; the verifier fixture must produce one `vdb1` row classified `metadata_verifier_failure`. All four negative records must produce zero rows. Add two selected records for the same host and device in one bucket and verify that `event_count=2`, both semantic labels appear in `signatures`, and the source list reflects the fixtures. Repeat one record through a second source and confirm the duplicate is visible rather than silently deduplicated.\n\nFor collection acceptance, choose at least one representative host for every distribution, kernel line, and logging route. Compare with the kernel journal interface (`journalctl -k`) and the persisted text log: timestamps, hostname, exact raw body, and source path for two existing benign kernel events must agree with Splunk. Reconcile searchable hosts with the in-scope XFS inventory. A quiet kernel does not emit in every bucket, so assess forwarding health using Universal Forwarder telemetry and source freshness rather than generating filesystem faults.\n\nDo not corrupt a production filesystem to test this search. If a storage team already has an approved disposable-VM xfstests or fault-injection procedure, preserve its test ID, kernel and xfsprogs versions, disposable device, boot identity, exact source records, Splunk search-job ID, and expected shutdown/recovery state. This editorial review did not ingest fixtures into Splunk, invoke error injection, run `xfs_repair`, or validate a kernel/platform version matrix; `status=draft` records that limitation.\n\n## Step 4 — Operationalize evidence and recovery handling\n\nRoute results to Linux and storage operations using `host` and the resolved stable device identity. Escalate according to workload impact: root filesystems, databases, queues, virtualization storage, and evidence repositories usually warrant immediate coordination. The runbook should preserve the entire neighboring kernel sequence, map `xfs_device` to block path, UUID, mount targets, and dependent services, stop unnecessary write retries, assess backup and replica state, and correlate multipath, SAN/cloud-volume, controller, hypervisor, memory, and recent change telemetry. Do not infer that a process named in an adjacent log caused the fault.\n\nNever attach an automatic `xfs_repair`, remount, reboot, detach, or log-clear action to the alert. The xfsprogs manual requires the filesystem passed to `xfs_repair` to be unmounted. A dirty log normally requires kernel log replay by mounting and cleanly unmounting on the same class of system; if mounting cannot succeed, `xfs_repair -L` is explicitly a last resort because destroying the log can lose metadata updates and cause further corruption. Even `xfs_repair -n` is an assessment tool whose findings need qualified interpretation. `xfs_scrub` can inspect supported mounted filesystems, but availability and repair capability depend on the deployed kernel and xfsprogs and it is not proof that a shutdown filesystem is safe to use. Follow the operating-system and storage vendor procedure, quiesce workloads, verify recoverability, and obtain owner approval before any modifying action.\n\nRestrict raw-event and evidence access under the operating-system log policy. Retain the saved-search version, effective input, dispatch result, exact kernel records, inventory resolution, control outputs, incident timeline, commands approved by responders, and recovery disposition. These records support operational review only; they do not establish uninterrupted coverage, restored data, or regulatory compliance.\n\n## Step 5 — Troubleshoot misses and noisy delivery\n\nIf there are no XFS events after a known kernel record, first locate it in `journalctl -k -b` and the monitored text file. Common causes are a journal-only host, wrong file, unreadable path, wrong index or source type, search-role access, ingestion delay outside the completed bucket, loss of the `kernel:` program marker at a relay, or an unreviewed kernel phrase. Inspect the exact `_raw` event before altering SPL. Extend the signature list only after obtaining a primary-source implementation or vendor reference plus positive and negative fixtures; do not restore broad `error`, `IO Error`, or `shutdown` keywords.\n\nA searchable event with null `xfs_device` indicates prefix or line-breaking drift. Confirm whether the source preserved one complete `XFS (<device>):` record and whether a relay prepended or split content. Duplicate rows or inflated counts usually indicate overlapping file and relay monitors, reread after rotation, or genuinely separate cause/directive lines; compare `_raw`, `_time`, `_indextime`, and `source` before changing notification throttles. A device with no obvious mount can be an unmounted filesystem, stale alias, container-visible device, or external log device; resolve it with host and storage inventory rather than assigning `mount_point` from guesswork. Historical pages after a forwarding outage require backlog repair and a documented schedule-delay review, not deletion of the kernel evidence.",
+  "grandmaExplanation": "We watch for the system warning that one of its disk areas has found serious bookkeeping or write problems and may have stopped itself to protect the data. That lets the right team pause risky activity and plan a careful recovery instead of trying an automatic fix.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "mitreAttack": [
+    "N/A (operational XFS filesystem-fault monitoring; no attacker behavior is inferred)"
+  ],
+  "detectionType": "Fault"
 }
