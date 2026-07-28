@@ -1,67 +1,147 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.40",
-  "title": "WHEA Hardware Error Reporting",
+  "title": "WHEA Corrected or Fatal Hardware Errors (Events 17–19)",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Reliability",
+    "Operations"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'WHEA Hardware Error Reporting' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_whea_hardware_error_reporting` (UC-1.2.40), SOC dashboard panel \"Linux — WHEA Hardware Error Reporting\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This rule reports Microsoft-Windows-WHEA-Logger System events 17, 18, and 19: corrected hardware conditions for 17/19 and fatal hardware error 18. It does not claim that every WHEA provider event uses those semantics, and it excludes IDs 20, 46, 47 and other versions until their payload/severity is separately validated. It does not diagnose a failed component from numeric ErrorSource/ErrorType alone, predict a universal failure date, replace CPER/error-record analysis or vendor diagnostics, or prove hardware rather than firmware/driver/configuration causation. Systems that crash before forwarding, unsupported platforms, firmware-only logs, BMC/SEL, storage SMART, and collection gaps are outside scope. No ATT&CK or regulatory assurance is claimed.",
+  "evidence": "After deployment, retain the version-controlled `windows_whea_hardware_errors_17_19` saved search and ACL; schedule/job/alert history; every row with endpoint, event ID, severity label, ErrorSource/ErrorType, FRU/device/processor fields present, EventRecordID, SourceName, source, and source type; matching raw XML and WHEA error record/RawData; OEM diagnostics, firmware/driver/configuration and asset history; source-health evidence; dated controls; alert delivery; incident/work order; and bounded notification exception. This documentation-only review generated no hardware fault, WHEA event, Splunk job, alert, or diagnostic evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.40 positive (WHEA, Hardware, Error, Reporting): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:System' EventCode=18 where `count` grouped by `host`, `severity`, `ErrorSource`, `ErrorType` satisfies detection threshold for 'WHEA Hardware Error Reporting'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.40 negative (Error Reporting): ingest benign `wineventlog` / `WinEventLog:System` events where `host`, `severity`, `ErrorSource`, `ErrorType` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 11 confirms zero alert rows for 'WHEA Hardware Error Reporting'."
+    "positiveScenario": "In an isolated test index and fixed window, replay three XML System fixtures with `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:System`, `SourceName=Microsoft-Windows-WHEA-Logger`, `Computer=WIN-WHEA.example`, and distinct EventRecordIDs 40017-40019. Use EventCode 17 with ErrorSource `4` and PrimaryDeviceName `PCI\\VEN_8086&DEV_1234`; EventCode 18 with ErrorSource `0`, ErrorType `9`, and ProcessorAPICID `2`; EventCode 19 with ErrorSource `0`, ErrorType `0`. Expect exactly three rows labeled respectively `corrected`, `fatal`, and `corrected`, preserving all raw diagnostic values. Documentation review checks logic only; no hardware fault or replay was performed.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: WHEA provider Event IDs 20, 46, and 47; Event 18 from another SourceName; Event 18 under Security source; Classic source type; malformed event code; empty endpoint; event at or after the exclusive latest boundary; and event outside the closed hour. Valid IDs 17 and 19 with blank optional ErrorType/FRU fields must still return corrected rows, and a valid 18 must remain fatal regardless of ErrorSource value."
   },
-  "dataSources": "`sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Microsoft-Windows-WHEA-Logger\"\n| eval severity=case(EventCode=18,\"Fatal\",EventCode=19,\"Corrected\",EventCode=20,\"Informational\",1=1,\"Other\")\n| stats count by host, severity, ErrorSource, ErrorType\n| sort -count",
-  "description": "Surfaces UC-1.2.40 — WHEA, Hardware, Error, Reporting — using `index=wineventlog` sourcetype `WinEventLog:System`, grouped by `host`, `severity`, `ErrorSource`, `ErrorType`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Error Reporting. Purpose-built for 'WHEA Hardware Error Reporting' in Linux workflows.",
-  "value": "UC-1.2.40 helps teams contain WHEA, Hardware, Error, Reporting scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
-  "implementation": "WHEA events are logged automatically by Windows on hardware error. EventCode 18=fatal (machine check, NMI), 19=corrected (ECC memory correction, CPU thermal), 47=informational. Track corrected error rates — rising counts predict imminent failure. Correlate with specific hardware component (CPU, memory DIMM, PCIe device) from ErrorSource field. Alert on any fatal errors and on corrected error rate >10/hour.",
-  "visualization": "Table (errors by host and component), Line chart (corrected error trend), Single value (fatal errors — target: 0).",
-  "cimModels": [
-    "Change.All_Changes",
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0",
-  "dataModelAcceleration": "WHEA to `Change` for hardware event correlation if tagged; the System log search lists severity and EventCode as primary.",
-  "references": [
+  "dataSources": "Microsoft-Windows-WHEA-Logger Event IDs 17, 18, and 19 from each in-scope Windows endpoint's System channel, collected in XML with Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:System`, and provider field `SourceName=Microsoft-Windows-WHEA-Logger`. Required system fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `Level`, and `SourceName`; payloads vary by error record and can include `ErrorSource`, `ErrorType`, `FRUId`, `FRUText`, `PrimaryDeviceName`, `SecondaryDeviceName`, `ProcessorAPICID`, `RawData`, bus/device/function, status, and memory-location fields.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for XML System-channel collection and field extraction. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. OEM/BMC diagnostic tools are corroborating systems, not Splunkbase dependencies.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'WHEA Hardware Error Reporting'. Correlate with apt/yum logs in the same `WinEventLog:System` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:System`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:System\" SourceName=\"Microsoft-Windows-WHEA-Logger\" (EventCode=17 OR EventCode=18 OR EventCode=19) earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), error_source=trim(ErrorSource), error_type=trim(ErrorType), hardware_component=trim(coalesce(Component,PrimaryDeviceName,FRUText))\n| where event_code IN (17,18,19) AND len(endpoint)>0\n| eval severity=case(event_code=18,\"fatal\",event_code IN (17,19),\"corrected\"), detection=\"Windows Hardware Error Architecture event observed\"\n| table _time endpoint event_code severity hardware_component error_source error_type FRUId FRUText PrimaryDeviceName SecondaryDeviceName ProcessorAPICID Bus Device Function Segment CorrectableErrorStatus UncorrectableErrorStatus Status RawData Level EventRecordID detection SourceName source sourcetype\n| sort 0 -_time endpoint event_code EventRecordID",
+  "description": "Returns one row for every collected WHEA-Logger System Event 17, 18, or 19 in the delayed closed hour, at hardware-error-event grain. It labels 17/19 as corrected and 18 as fatal while preserving endpoint, provider, available component/error-record fields, raw data, event level, and record identity.",
+  "value": "Corrected hardware errors can reveal unstable PCIe, processor, memory, firmware, power, cooling, or board conditions before users report failures; fatal events require urgent incident and diagnostic review. Fleet-wide evidence helps operations correlate recurrence, protect workloads, dispatch the correct vendor team, and avoid replacing parts based on a single ambiguous message.",
+  "implementation": "Collect the System channel in XML from every in-scope Windows endpoint with Splunk Add-on for Microsoft Windows 10.0.1 and verify provider/payload fields across hardware models. Save `windows_whea_hardware_errors_17_19`, run hourly over `-70m@m` to `-10m@m`, and create one result per event. Route Event 18 urgently; trend 17/19 in a companion analytic using hardware/model-specific baselines rather than the unsupported universal `>10/hour` threshold removed from this UC.",
+  "visualization": "On a hardware-reliability dashboard, put endpoint System-source freshness and hardware/firmware inventory coverage first. Add fatal and corrected counts, affected endpoints, trends by event ID/provider/error source/device, recurrence per asset, and a table with component, FRU/device identifiers, ErrorSource/ErrorType, event level, EventRecordID, firmware/driver versions, owner, work order, and disposition. Drill down to raw XML/RawData, nearby bugcheck/reboot events, BMC/SEL/OEM diagnostics, temperature/power telemetry, recent BIOS/driver/configuration changes, and workload impact.",
+  "cimModels": [],
+  "schema": "Native Microsoft-Windows-WHEA-Logger System XML and WHEA/CPER error-record fields; no semantically equivalent Splunk CIM dataset is claimed",
+  "dataModelAcceleration": "No `cimSpl` is supplied. The Windows add-on has historical model mappings for some event IDs, but a generic Updates, Event Signatures, Change, or Performance dataset is not a lossless hardware-error contract and may omit SourceName, EventRecordID, variable CPER fields, and RawData. A local summary can support trends only after model-specific field/row parity and acceleration freshness tests against raw XML.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "SourceName",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "Level",
+    "ErrorSource",
+    "ErrorType",
+    "Component",
+    "FRUId",
+    "FRUText",
+    "PrimaryDeviceName",
+    "SecondaryDeviceName",
+    "ProcessorAPICID",
+    "Bus",
+    "Device",
+    "Function",
+    "Segment",
+    "CorrectableErrorStatus",
+    "UncorrectableErrorStatus",
+    "Status",
+    "RawData"
+  ],
+  "references": [
+    {
+      "title": "Microsoft WHEA: Hardware errors and error sources",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/whea/hardware-errors-and-error-sources",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft WHEA: Hardware error events in the System log",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/whea/whea-hardware-error-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft WHEA: Querying the System event log for hardware error events",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/whea/querying-the-system-event-log-for-hardware-error-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft WHEA: Error records and section types",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/whea/error-records",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft archived guidance: Event ID 18 Microsoft-Windows-WHEA-Logger fatal hardware error",
+      "url": "https://learn.microsoft.com/en-us/archive/technet-wiki/3567.event-id-18-microsoft-windows-whea-logger",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise: Monitor Windows event log data and SourceName semantics",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.4/get-windows-data/monitor-windows-event-log-data-with-splunk-enterprise",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows source types and CIM",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A WHEA row represents a real condition reported through Windows. “False positive” means the event is expected, transient, duplicated, or not a physical part failure—not that the provider invented it.\n\n1. **Known PCIe Advanced Error Reporting corrected-error storm** — Event 17 can recur for a particular root port/device because of firmware, chipset driver, link power management, cabling, or device behavior without user-visible failure. Match exact hardware ID, slot/bus/device/function, BIOS/driver version, OEM case/advisory, diagnostic results, and bounded risk acceptance. Never suppress all Event 17 fleet-wide.\n\n2. **Approved BIOS/UEFI, chipset, driver, or firmware maintenance** — Restart and link retraining around an update may produce corrected events. Correlate package/version, signed deployment job, endpoint/model ring, reboot, UTC window, and post-change recurrence. Event 18 or continued errors after the window remain urgent.\n\n3. **Hardware qualification, burn-in, stress, or fault-injection test** — Lab tools can intentionally expose marginal processor, memory, PCIe, thermal, or power behavior. Match test plan, asset/lab tag, operator, exact test interval, expected event IDs, sensors, and pass/fail criteria. Preserve results as qualification evidence.\n\n4. **Overclocking, undervolting, power-policy, or thermal tuning** — An approved engineering experiment can cause corrected or fatal machine checks. Verify BIOS profile, owner, asset class, temperatures/voltages, test approval, and restoration to supported settings. Production systems should not receive broad exceptions for unsupported tuning.\n\n5. **Hot-plug, docking, PCIe device reset, virtualization, or pass-through transition** — Supported device lifecycle operations may create transient corrected errors. Confirm hardware/model capability, hypervisor or docking action, device identity, maintenance/job record, and no recurrence or workload impact. A fatal event is not dismissed solely because hot-plug occurred.\n\n6. **WEF plus direct-forwarder duplicate** — The same Computer/EventRecordID/provider can arrive twice. Confirm raw XML, route, `_indextime`, collector, and original endpoint. Repair collection topology; do not suppress the asset or provider.\n\n**Safe suppression mechanism:** keep raw events and base results. In a notification wrapper, use a governed `windows_whea_notification_exceptions` lookup keyed on endpoint/asset ID, event code/severity, exact hardware model and device/FRU identifiers, ErrorSource/ErrorType where stable, approved firmware/driver/BIOS version, `valid_from_epoch`, `valid_until_epoch`, owner, vendor case, and work order. Suppress only corrected-event notification for exact bounded matches; never blanket-suppress Event 18, all WHEA, a vendor, or an open-ended endpoint. Trend suppressed events and revoke the exception if rate, severity, device, or impact changes.",
+  "mitreAttack": [
+    "N/A (WHEA hardware-health events are operational signals, not an adversary technique)"
+  ],
+  "detectionType": "Baseline",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Windows Vista/Server 2008 or later systems using WHEA, subject to platform firmware and hardware support. Payload fields vary among processor machine checks, PCIe AER, memory and platform error records. Maintain asset model, slot/device, BIOS/BMC, firmware, driver, cooling, power, and warranty context. WEF/WEC must preserve original Computer, provider, EventRecordID, RawData, and event time and avoid duplicate direct collection.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft WHEA architecture/error-record/System-log and Event 18 documentation, Splunk Windows event collection/Add-on guidance, and ATT&CK scope; hardware faults, XML fixtures, provider fields, SPL, diagnostics, thresholds, alert delivery, suppression, and response not executed or Windows/hardware SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nWHEA events are logged automatically by Windows on hardware error. EventCode 18=fatal (machine check, NMI), 19=corrected (ECC memory correction, CPU thermal), 47=informational. Track corrected error rates — rising counts predict imminent failure. Correlate with specific hardware component (CPU, memory DIMM, PCIe device) from ErrorSource field. Alert on any fatal errors and on corrected error rate >10/hour.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:System\" Source=\"Microsoft-Windows-WHEA-Logger\"\n| eval severity=case(EventCode=18,\"Fatal\",EventCode=19,\"Corrected\",EventCode=20,\"Informational\",1=1,\"Other\")\n| stats count by host, severity, ErrorSource, ErrorType\n| sort -count\n```\n\nUnderstanding this SPL\n\n**WHEA Hardware Error Reporting** — Windows Hardware Error Architecture (WHEA) reports CPU, memory, and PCIe hardware errors before they cause crashes. Enables proactive hardware replacement.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:System` (Source=Microsoft-Windows-WHEA-Logger, EventCode 17, 18, 19, 20, 47). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:System. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:System\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **severity** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, severity, ErrorSource, ErrorType** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (errors by host and component), Line chart (corrected error trend), Single value (fatal errors — target: 0).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:System into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`ErrorSource, ErrorType, host, severity`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you know when the server is reporting on-the-metal hardware health problems, not just an app error, so you can fix chips and drivers before a crash.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The hourly provider/event-ID predicate is narrow and row-preserving. System XML retention and corrected-error storms drive cost; RawData can be large.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Microsoft-Windows-WHEA-Logger System Events 17, 18, and 19",
+      "WHEA/CPER payload and OEM diagnostic context"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and scope\n\nAssign Windows platform, server/workstation hardware, datacenter/field support, firmware/driver, Splunk collection, service owner, incident, and exception owners. Inventory endpoint model/serial, CPU/memory/PCIe topology, BIOS/BMC/firmware/drivers, power/cooling, virtualization/pass-through, warranty, workload criticality, and OEM diagnostic access. Install `Splunk_TA_windows` 10.0.1 and test exact Windows/forwarder/add-on/Splunk versions and representative hardware models.\n\nWHEA logs hardware error records to System through provider `Microsoft-Windows-WHEA-Logger`. Error payloads vary by source and Common Platform Error Record section. This UC deliberately scopes IDs 17, 18, and 19 only: 17/19 corrected and 18 fatal. One event creates one row; no count threshold applies. A separate trend may baseline corrected recurrence by exact model/device. The prior unsupported universal >10 per hour predictor was removed.\n\nThe collector reads System; the search role reads `index=wineventlog` and schedules alerts but cannot update firmware, reboot, alter BIOS, suppress events, or close work orders. Protect RawData and hardware inventory.\n\n## Step 1 — Collect and validate System XML\n\nConfigure a governed modular input:\n\n```ini\n[WinEventLog://System]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\nRecord actual start/checkpoint/filter/routing settings. Validate with `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:System`, and `SourceName=Microsoft-Windows-WHEA-Logger` from the XML Provider Name. Compare Computer, EventCode/EventID, Level, EventRecordID, and every available EventData field to Event Viewer XML. Do not rely on the human-rendered message as the only evidence.\n\nBuild System-source health for every asset. A healthy endpoint can have zero WHEA events, so use forwarder/channel freshness and controlled telemetry. For WEF/WEC, preserve original Computer, provider, EventRecordID, payload/RawData and arrival latency, and prevent direct-plus-collector duplication. Consider crash/queue behavior: fatal systems may fail before forwarding, so add BMC and reboot/bugcheck companions.\n\n## Step 2 — Save and understand the search\n\nSave as `windows_whea_hardware_errors_17_19`; run hourly at minute 5. Embedded `earliest=-70m@m latest=-10m@m` defines one closed 60 minute event-time window delayed 10 minutes. Measure p99 `_indextime-_time` and move both bounds equally if needed.\n\nThe base clause requires exact index, XML System source, provider SourceName, and IDs 17-19. Evaluation normalizes numeric ID/endpoint and common optional fields. The `where` clause reasserts IDs and nonempty endpoint. Severity is based only on scoped event semantics, not Event Viewer Level or ErrorSource. The table preserves one event, diagnostic fields, RawData, and EventRecordID. Empty optional fields remain empty because CPER sections differ.\n\nNo CIM replacement is claimed. Trend summaries may aggregate after the base search by endpoint, event code, stable device/FRU, and hardware/firmware version, but must retain drilldown and prove row parity.\n\n## Step 3 — Validate without damaging equipment\n\nReplay the three synthetic XML fixtures in an isolated index at fixed times and assert exact severity, endpoint, fields, record IDs, source, and provider. Run every negative separately: excluded WHEA IDs, wrong provider/channel/type, malformed ID, null endpoint, earliest inclusion, latest exclusion, and outside window. Test blank optional payloads, long RawData, hexadecimal fields, and duplicate Computer/EventRecordID.\n\nDo not induce processor, memory, power, thermal, or PCIe failures in production. In a vendor-supported hardware lab, use OEM diagnostics or a safe existing captured event corpus; if corrected-error injection is officially supported, obtain hardware-owner approval and rollback. Validate Event Viewer, Splunk, urgent Event 18 routing, dashboard, and work-order integration without unsafe overclocking, undervolting, heat, component removal, or power interruption.\n\nRecord asset/model, BIOS/BMC/firmware/driver versions, input, fixture hash/captured-event provenance, exact UTC bounds, expected/actual rows, search job, notification, diagnostics, and owner acceptance. Keep `status=draft` until source coverage, model payloads, boundaries, fatal routing, dashboards, runbook, and exception behavior are human accepted.\n\n## Step 4 — Triage and respond\n\nVerify raw XML/provider/event identity and whether the row is corrected or fatal. Identify hardware component from CPER fields and asset topology; numeric ErrorSource/ErrorType can be architecture-specific. Correlate recurrence, Event 17/19 history, Event 18, WHEA IDs outside this scope, bugcheck 1001, unexpected shutdown/reboot, thermal/power/sensor data, BMC SEL, storage/network/device logs, workload errors, and recent BIOS/firmware/driver/hardware/configuration changes.\n\nFor Event 18, engage incident and hardware support urgently, protect workload availability, collect dump/error record and BMC/OEM diagnostics, and follow tested failover/drain/shutdown procedures. For corrected events, assess rate/change from model baseline, component identity, impact, and vendor guidance; schedule diagnostics or replacement when evidence supports it. Do not automatically reboot, power off, evacuate a cluster, flash firmware, change voltage, disable PCIe power management, or replace CPU/RAM from one ambiguous event.\n\nTrack vendor case, work order, diagnostics, remediation, recurrence-free observation, and returned-part analysis. Keep suppressed corrected events visible in trends. Review exceptions after hardware, slot, firmware, BIOS, driver, power, or cooling changes.\n\n## Step 5 — Troubleshoot\n\n- **No WHEA events:** verify the endpoint actually logged one in System, exact provider, XML input, filters, forwarding/queues, index routing, and search permissions.\n- **SourceName is missing/different:** inspect raw Provider Name and add-on extraction; fix the collection contract or explicitly adapt and retest rather than searching generic System errors.\n- **Error fields are null:** expected across different CPER sections; inspect EventData and RawData, add-on version, and XML parsing. Do not manufacture component names.\n- **Corrected errors flood:** group by exact model/device/firmware, compare rate and impact, engage OEM, and use finite notification suppression while retaining data.\n- **Fatal event arrived after reboot:** inspect clocks, forwarder queues, crash persistence, WEF delay, and BMC/bugcheck companions; adjust both time bounds if needed.\n- **Duplicate rows:** compare Computer/SourceName/EventRecordID and repair WEF/direct topology.\n- **CIM/dashboard count differs:** compare raw event bounds, provider filter, summary freshness, and field availability; raw XML remains authoritative.",
+  "grandmaExplanation": "We show when Windows says the computer's physical parts reported a corrected problem or a fatal one. That helps the hardware team investigate the right machine quickly without guessing that every warning means a part must be replaced.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
