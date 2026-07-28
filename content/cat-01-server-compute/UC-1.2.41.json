@@ -1,56 +1,101 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.41",
-  "title": "Volume Shadow Copy Failures",
+  "title": "Volume Shadow Copy Service Error Events",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
+    "Fault",
+    "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Volume Shadow Copy Failures' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_volume_shadow_copy_failures` (UC-1.2.41), SOC dashboard panel \"Linux — Volume Shadow Copy Failures\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This search reports Application-channel VSS provider events 8193, 8194, 12289, and 12298 in a closed 15-minute window. It does not prove that a backup failed, identify every VSS failure, inspect backup-product logs, measure restore success, execute `vssadmin`, test writers, or cover VolSnap, SPP, SQLWriter, Hyper-V-VMMS, or other providers. Event ID alone is not a universal error-code taxonomy: the event message, HRESULT, operation, context, writer, provider, and backup job must be read together. The catalogue index and source contract are deployment choices. No exception lookup, automated remediation, runtime validation, regulatory assurance, or SME sign-off is claimed.",
+  "evidence": "After deployment, retain the version-controlled `windows_vss_error_events` saved-search definition and ACL; schedule, dispatch, and triggered-alert history; each result with host, provider, Event ID, level, HRESULT, operation, context, writer, event count, first/last time, and raw EventRecordIDs; matching Application XML and backup-job records; source-health evidence; add-on/input versions; dated positive and negative control outputs; analyst disposition; and any bounded notification exception. This documentation-only review generated no VSS operation, shadow copy, backup, restore, Splunk search job, alert, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.41 positive (Volume, Shadow, Copy, Failures): ingest synthetic events into `index=wineventlog` sourcetype='WinEventLog:Application' EventCode=12289 where `count` grouped by `host`, `issue`, `EventCode` satisfies detection threshold for 'Volume Shadow Copy Failures'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.41 negative (Copy Failures): ingest benign `wineventlog` / `WinEventLog:Application` events where `host`, `issue`, `EventCode` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 13 confirms zero alert rows for 'Volume Shadow Copy Failures'."
+    "positiveScenario": "In an isolated test index, place one XML Application event in the closed interval with `source=XmlWinEventLog:Application`, `sourcetype=XmlWinEventLog`, `Provider_Name=VSS`, `EventCode=8193`, `Computer=FS01.example`, `EventRecordID=7001`, `Level=2`, and Message containing `hr = 0x80070018` and `Operation: Gathering Writer Data`. Expect exactly one row with `host=fs01.example`, `event_id=8193`, `event_count=1`, `hresult=0x80070018`, the operation/context text when extracted, and EventRecordID 7001. Documentation review checks this expected logic but does not claim replay.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: a VSS 8193 event in the newest excluded five minutes; an Application event from provider `Application Error` with Event ID 8193; a VSS event with Event ID 22; and a VSS 8193 event lacking host identity. Place one 8194 and one 12289 event on different hosts and confirm two independent rows rather than one combined incident. A VSS 12289 row must remain labelled `review event message and backup outcome`, not be asserted as a failed backup."
   },
-  "dataSources": "`sourcetype=WinEventLog:Application` (Source=VSS, EventCode 12289, 12298, 8193, 8194) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog sourcetype=\"WinEventLog:Application\" Source=\"VSS\" EventCode IN (12289, 12298, 8193, 8194)\n| eval issue=case(EventCode=12289,\"VSS writer failed\",EventCode=12298,\"VSS copy failed\",EventCode=8193,\"VSS error\",EventCode=8194,\"VSS error\")\n| stats count by host, issue, EventCode\n| sort -count",
-  "description": "Detects UC-1.2.41 — Volume, Shadow, Copy, Failures — using `index=wineventlog` sourcetype `WinEventLog:Application`, grouped by `host`, `issue`, `EventCode`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Copy Failures. Purpose-built for 'Volume Shadow Copy Failures' in Linux workflows.",
-  "value": "UC-1.2.41 gives Linux teams earlier visibility into Copy Failures through `WinEventLog:Application` feeds, lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "VSS events appear in the Application log. EventCode 12289=writer failure (often SQL, Exchange, or Hyper-V writers), 12298=shadow copy creation failure. Common causes: low disk space, I/O timeouts, conflicting backup agents. Alert on any VSS failure — they directly impact RPO. Correlate with backup job logs to identify which backup product is affected.",
-  "visualization": "Table (VSS errors by host), Timeline, Bar chart (failure types).",
-  "cimModels": [
-    "Change.All_Changes",
-    "Application_State",
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0",
-  "dataModelAcceleration": "VSS Application + System logs map to `Application_State` and `All_Changes` in many deployments; the raw EventCode/ Source=VSS view is the clearest for backup triage.",
-  "references": [
+  "dataSources": "Windows Application-channel XML events from provider `VSS`, collected by Splunk Add-on for Microsoft Windows (Splunkbase 742) with `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Application` into the deployment-local `wineventlog` index. Required fields are `_time`, `Computer`/`host`, `Provider_Name` or `SourceName`, `EventCode`/`EventID`, `EventRecordID`, `Level`, and `Message`; operation, context, writer, provider, and HRESULT may require validation against raw XML/message text.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), reviewed at version 10.0.1. It provides Windows Event Log collection and parsing; the Universal Forwarder is the collection runtime, not Splunkbase app 617. No premium app is required.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Endpoint",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Endpoint",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Volume Shadow Copy Failures'. Correlate with apt/yum logs in the same `WinEventLog:Application` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `WinEventLog:Application`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Application\" EventCode IN (8193,8194,12289,12298) earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), provider=lower(trim(coalesce(Provider_Name,SourceName))), host=lower(trim(coalesce(Computer,dest,host))), message=coalesce(Message,RenderedDescription,_raw)\n| where provider=\"vss\" AND event_id IN (8193,8194,12289,12298) AND len(host)>0\n| rex field=message max_match=1 \"(?i)\\bhr\\s*=\\s*(?<hresult>0x[0-9a-f]+)\"\n| rex field=message max_match=1 \"(?im)^Operation:\\s*(?<operation>[^\\r\\n]+)\"\n| rex field=message max_match=1 \"(?im)^Context:\\s*(?<vss_context>[^\\r\\n]+)\"\n| rex field=message max_match=1 \"(?im)^Writer Name:\\s*(?<writer_name>[^\\r\\n]+)\"\n| eval hresult=lower(coalesce(hresult,\"not_extracted\")), operation=trim(coalesce(operation,\"not_extracted\")), vss_context=trim(coalesce(vss_context,\"not_extracted\")), writer_name=trim(coalesce(writer_name,\"not_extracted\")), disposition=\"review event message and backup outcome\"\n| stats count as event_count min(_time) as first_seen max(_time) as last_seen values(Level) as levels values(hresult) as hresults values(operation) as operations values(vss_context) as contexts values(writer_name) as writers values(EventRecordID) as event_record_ids values(source) as observed_sources by host provider event_id disposition\n| convert ctime(first_seen) ctime(last_seen)\n| table host provider event_id event_count first_seen last_seen levels hresults operations contexts writers event_record_ids observed_sources disposition\n| sort 0 -event_count host event_id",
+  "description": "Reports one row per Windows host and VSS Event ID when provider `VSS` records 8193, 8194, 12289, or 12298 in the closed 15-minute interval from 20 to 5 minutes before dispatch. Each row preserves count, time range, level, HRESULT, operation, context, writer, and record identifiers; it deliberately requires an operator to confirm the related backup or restore outcome.",
+  "value": "Early, source-specific visibility lets backup and Windows teams connect recurring shadow-copy infrastructure errors to the exact job, writer, provider, and host before the next restore is needed. Preserving raw identifiers and HRESULT context reduces speculative fixes and helps owners distinguish a product workflow issue from a damaged writer or service configuration.",
+  "implementation": "Collect the Application channel as XML from every in-scope Windows backup client and server, validate `VSS` provider identity and native fields, and save the SPL as `windows_vss_error_events`. Run it every 15 minutes over a five-minute delayed closed window and trigger on any result, initially as a triage notification rather than proof of backup failure. Pair each row with backup-product job status and a human-approved VSS runbook; tune only from observed event/message combinations.",
+  "visualization": "On a restricted backup-reliability dashboard, place Application-source freshness above a single value for affected hosts. Add a timeline of event count by Event ID, a host-by-ID heat map, and a table containing first/last time, host, HRESULT, operation, context, writer, record IDs, and disposition. Drilldown must open the exact raw Application XML and the matching backup job window; never label the panel `failed backups` without job-result correlation.",
+  "cimModels": [],
+  "schema": "Native Microsoft Windows Application XML for provider VSS, parsed by Splunk Add-on for Microsoft Windows",
+  "dataModelAcceleration": "No CIM or `tstats` equivalent is asserted. Generic Change or Application State summaries do not guarantee preservation of VSS provider identity, Event ID, message HRESULT, writer, operation, context, and EventRecordID. If a summary index is introduced, prove event-for-event parity and source completeness before replacing the raw search.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "Computer",
+    "host",
+    "Provider_Name",
+    "SourceName",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "Level",
+    "Message",
+    "RenderedDescription"
+  ],
+  "references": [
+    {
+      "title": "Microsoft: Volume Shadow Copy Service overview",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/volume-shadow-copy-service",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Support: VSS events 8019, 20, 8193, and 12302 and their specific causes",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/volume-shadow-copy-service-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Support: Event 8193 with HRESULT 0x80070018 during backup",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/event-id-8193-when-you-perform-backup",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Support: VSS Event 12289 writer session-state cleanup behavior",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/event-12289-vss-backup-restore",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: WinEventLog XML configuration",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: source types and CIM",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise: savedsearches.conf scheduling and alert settings",
+      "url": "https://help.splunk.com/en/data-management/splunk-enterprise-admin-manual/10.4/configuration-file-reference/10.4.0-configuration-file-reference/savedsearches.conf",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a real VSS provider event; a non-actionable result is one whose surrounding workflow does not represent an unresolved backup or restore risk.\n\n1. **Microsoft VSS writer session-state garbage collection** — Microsoft documents a 12289 case where stale backup/restore session state older than two days is removed and multiple events can appear rapidly. Confirm the exact message, HRESULT `0x80042409`, writer, backup application behavior, and successful subsequent job. Suppress duplicate paging only for the exact host, Event ID, HRESULT, writer, and bounded maintenance window; keep the base event.\n\n2. **Veeam, Commvault, Rubrik, Cohesity, or Windows Server Backup maintenance test** — Planned snapshot tests and product upgrades can intentionally exercise writers/providers and emit errors while fallback or retry succeeds. Match the product job ID, approved change, requester, UTC bounds, final job result, and restore-test outcome. Use an expiring notification exception tied to that change, never a permanent VSS allowlist.\n\n3. **SQL Server, Exchange, or Hyper-V writer restart during application maintenance** — A controlled service restart can make writer-gathering fail transiently. Verify the named writer, service-control records, owner-approved window, backup retry, and healthy post-change `vssadmin list writers`. Bind any exception to host, writer, Event ID/HRESULT, and end epoch.\n\n4. **Backup-agent or provider installation/removal** — Installer registration changes can produce 8193/8194-class errors. Prove package identity, signed deployment record, provider inventory before/after, and a successful post-install backup. Do not suppress a recurring error after the change closes.\n\n5. **Disaster-recovery or restore rehearsal** — An approved rehearsal may deliberately test failed writer/provider paths. Preserve alerts as control-test evidence, correlate the exercise ticket and expected failure step, and suppress only duplicate notifications for the exact exercise assets and timebox.\n\n**Safe suppression:** apply a post-result `windows_vss_notification_exceptions.csv` lookup keyed by exact `host,event_id,hresult,writer_name,exception_id`, with owner, approver, reason, `valid_from_epoch`, and exclusive `valid_until_epoch`. Reject wildcards and open-ended records. Never suppress solely because the event is old, the backup product retried, or the host is in maintenance.",
+  "mitreAttack": [
+    "N/A (operational Volume Shadow Copy reliability monitoring; no ATT&CK behavior asserted)"
+  ],
+  "detectionType": "Event-based fault",
   "equipment": [
     "exchange",
     "hyperv",
@@ -61,12 +106,31 @@
     "hyperv_generic",
     "windows_generic"
   ],
+  "hardware": "Windows client or server systems on which a VSS requestor, writer, or provider records Application-channel events. Coverage depends on collecting the originating host, not only the backup management server.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft VSS and troubleshooting documentation plus Splunk Add-on for Microsoft Windows and Splunk search configuration; event generation, HRESULT/message extraction, backup outcomes, SPL execution, fixtures, alert delivery, suppression, restore testing, and response not executed or SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Application` (Source=VSS, EventCode 12289, 12298, 8193, 8194).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nVSS events appear in the Application log. EventCode 12289=writer failure (often SQL, Exchange, or Hyper-V writers), 12298=shadow copy creation failure. Common causes: low disk space, I/O timeouts, conflicting backup agents. Alert on any VSS failure — they directly impact RPO. Correlate with backup job logs to identify which backup product is affected.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog sourcetype=\"WinEventLog:Application\" Source=\"VSS\" EventCode IN (12289, 12298, 8193, 8194)\n| eval issue=case(EventCode=12289,\"VSS writer failed\",EventCode=12298,\"VSS copy failed\",EventCode=8193,\"VSS error\",EventCode=8194,\"VSS error\")\n| stats count by host, issue, EventCode\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Volume Shadow Copy Failures** — VSS failures break backup chains, System Restore, and SQL/Exchange application-consistent snapshots. Often silent until a restore is attempted.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Application` (Source=VSS, EventCode 12289, 12298, 8193, 8194). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog; **sourcetype**: WinEventLog:Application. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog, sourcetype=\"WinEventLog:Application\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **issue** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, issue, EventCode** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**Volume Shadow Copy Failures** — VSS failures break backup chains, System Restore, and SQL/Exchange application-consistent snapshots. Often silent until a restore is attempted.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Application` (Source=VSS, EventCode 12289, 12298, 8193, 8194). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Endpoint.Services` — enable acceleration for that model.\n• Applies an explicit `search` filter to narrow the current result set.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VSS errors by host), Timeline, Bar chart (failure types).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Application into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`EventCode, host, issue`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you know when the shadow-copy and backup service is failing, which can break restores and some apps that expect those snapshots to work.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "The scheduled search filters one provider and four Event IDs over 15 closed minutes. Application-channel ingest is normally modest; retain the index, source, provider, and Event ID predicates.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Windows Application VSS events",
+      "Splunk Add-on for Microsoft Windows XML extraction"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and detection contract\n\nAssign a Windows backup owner, application owner, Splunk collection owner, alert owner, and exception approver. Inventory every host on which VSS-backed backup, restore, snapshot, or application-consistent protection runs. Install Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) on the collection tier and deploy its parsing/search knowledge to the required tiers. Version 10.0.1 is the reviewed release; qualify the exact Windows, forwarder, add-on, and Splunk versions before production. The collection account needs Application-channel read access, and the search role needs read access to the deployment-local `wineventlog` index. It does not need backup-admin, local-admin, registry-write, service-control, or restore permission.\n\nThe contract is intentionally narrow: provider `VSS`, Application-channel Event IDs 8193, 8194, 12289, and 12298, one row per host/Event ID in a closed 15-minute interval. These IDs are not assigned generic labels such as “writer failed” or “copy failed.” Microsoft troubleshooting pages demonstrate that the same ID must be interpreted with its rendered message, HRESULT, operation, context, writer/provider, operating-system version, and triggering requestor. Microsoft also documents a 12289 session-cleanup case that can be informational to the backup outcome. Therefore every result says `review event message and backup outcome`; the alert is evidence of a VSS error event, not proof that a backup or restore failed.\n\n## Step 1 — Collect and verify Application XML\n\nManage the input in a deployment app's `local/inputs.conf`, never the add-on's `default` directory:\n\n```ini\n[WinEventLog://Application]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\n`wineventlog` is this catalogue's deployment-local choice. Splunk documents XML as the default from add-on 6.0.0 and distinguishes events with `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Application`. If the estate intentionally uses Classic rendering, create and validate a separate SPL contract; do not silently change the source type in this rule. Avoid collecting the same channel directly and through WEF without deterministic deduplication. Protect forwarder traffic and size native log retention and queues for outages.\n\nConfirm representative raw events:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Application\" earliest=-7d\n| eval provider=lower(trim(coalesce(Provider_Name,SourceName)))\n| where provider=\"vss\"\n| table _time Computer host Provider_Name SourceName EventCode EventID EventRecordID Level Message\n| head 50\n```\n\nCompare fixed EventRecordIDs and UTC times with Event Viewer on at least two protected hosts. Verify that `Computer`, provider, Event ID, level, and rendered message are single-valued and that `_time` is the event time. Inspect raw XML for the exact field names produced by the qualified add-on release. Operation, context, writer, and HRESULT commonly occur in rendered text; the supplied `rex` expressions are convenience extraction, so preserve `not_extracted` rather than dropping an event when wording differs. Establish a separate source-health search for every expected host.\n\n## Step 2 — Save and schedule the search\n\nSave the SPL as `windows_vss_error_events`, schedule it every 15 minutes, and trigger when the result count is greater than zero. Dispatch from `earliest=-20m@m` to `latest=-5m@m`; the five-minute delay is a starting allowance for forwarder or WEF latency and `latest` is exclusive. Measure `_indextime-_time` p95/p99 and adjust delay and lookback together so windows remain complete and nonoverlapping. Do not add a count threshold that hides a single severe provider/writer error.\n\nThe base predicates constrain index, XML source type, Application source, and four IDs. `coalesce` tolerates documented native/add-on aliases without accepting another provider. The search requires host identity, extracts one HRESULT and the first operation/context/writer line when present, groups only matching events, and preserves raw EventRecordIDs for drilldown. Multiple messages with the same host/Event ID remain one triage row whose multivalue context must be inspected. If `Message` is localized or structured differently, create tested locale-specific extraction rather than guessing.\n\nDo not replace this rule with the old `Change.All_Changes` tstats example. A count of generic changes cannot reproduce the VSS provider, exact ID, message, HRESULT, writer, context, or event identity. At high volume, a governed summary may preserve every listed dimension plus source-health markers, but it must pass fixed-window parity tests against raw XML.\n\n## Step 3 — Validate controls and meaning\n\nReplay the positive fixture in an isolated index and fixed time range. Assert one row, lowercase host/provider, numeric ID, count one, extracted `0x80070018`, operation, source, and EventRecordID. Test both `EventCode` and `EventID` aliases without duplicating one record. Run every negative fixture separately: wrong provider, wrong ID, missing host, newest excluded window, and IDs split across hosts. Verify boundary events exactly at earliest and latest; Splunk excludes the latest instant.\n\nThen use an approved lab backup workflow to generate a known VSS event and compare Event Viewer XML, backup-job result, writer/provider inventory, and Splunk row. Do not corrupt writers or production backups to force an event. Run `vssadmin list writers` and `vssadmin list providers` only through an authorized human runbook; this catalogue search does not execute either command. Record host, OS/add-on/forwarder/Splunk versions, event XML, backup product/job ID, exact UTC bounds, expected and actual rows, search job ID, and analyst conclusion.\n\nTest source loss independently by stopping or isolating a lab forwarder through the approved procedure. Missing telemetry must create a source-health incident; it must not be interpreted as healthy VSS. Keep `status=draft` until human owners accept runtime controls, field extraction, source coverage, latency, alert delivery, dashboard RBAC, and response.\n\n## Step 4 — Operationalize response and evidence\n\nWhen a row appears: (1) verify source freshness and open exact raw EventRecordIDs; (2) read the complete rendered message, HRESULT, operation, context, writer, provider, and snapshot-set identifiers; (3) identify the backup/restore/snapshot requestor and matching job at that time; (4) check whether retry and final job succeeded; (5) review writer/provider state and adjacent VolSnap, SPP, SQLWriter, Hyper-V, storage, service-control, and backup-agent records as applicable; (6) involve the workload or backup vendor before changing registration, permissions, providers, or services; and (7) record disposition and follow-up restore-test requirements.\n\nDo not automatically restart VSS or writers, re-register DLLs, delete shadow copies, modify `VssAccessControl`, uninstall providers, reboot a cluster node, or declare a backup unusable from this result. Microsoft fixes are cause- and version-specific; indiscriminate remediation can disrupt active jobs or remove recovery points. A successful retry can lower urgency but does not erase a recurring infrastructure defect. Require a separate restore test to make a recoverability claim.\n\nBuild the dashboard and evidence package described above. Restrict messages if they expose paths, application names, or backup topology. Review results after backup-agent upgrades, Windows updates, writer/service changes, provider installs, storage changes, WEF migration, and add-on upgrades. Retain bounded exceptions in `windows_vss_notification_exceptions.csv`; preserve the unsuppressed base rows and raw events.\n\n## Step 5 — Troubleshooting\n\n- **No VSS events:** verify the host is in scope, Application input is enabled, forwarder/checkpoint/output is healthy, index routing is correct, and source freshness is monitored. Quiet VSS is not proof of successful backups.\n- **Wrong source type or source:** confirm `renderXml=true` and add-on version. Modern XML uses `sourcetype=XmlWinEventLog`; channel identity is in `source`.\n- **Provider is null:** inspect raw XML and add-on search-time knowledge. Qualify `Provider_Name`/`SourceName`; do not remove provider filtering or Event ID collisions from other sources can enter.\n- **HRESULT/operation/writer is `not_extracted`:** read the raw localized message, update extraction for observed structure, and preserve the event. Do not fabricate a code from Event ID.\n- **Duplicate events:** check direct plus WEF paths using Computer, EventRecordID, provider, and timestamp. Correct collection topology before tuning counts.\n- **Late events:** measure `_indextime-_time`, forwarder queues, WEF latency, host clock, and scheduler timing. Increase close delay while retaining complete, nonoverlapping windows.\n- **Frequent 12289:** compare the exact message/HRESULT with Microsoft's documented stale session-state cleanup and the requestor's BackupComplete/PostRestore/abort behavior. Escalate recurring abandoned sessions to the backup vendor; do not blanket-suppress 12289.\n- **Result but backup succeeded:** retain the VSS event, correlate retry/fallback and writer state, classify impact, and tune notification only with an exact expiring exception.\n- **Backup failed but no result:** inspect other providers and channels and the backup product log. This four-ID rule is not complete VSS or backup-failure coverage.",
+  "grandmaExplanation": "We watch for Windows reports that its snapshot system hit an error while a backup or restore tool was working. The report is a warning to check the actual backup job, not proof by itself that the backup failed.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
