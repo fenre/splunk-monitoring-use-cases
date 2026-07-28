@@ -1,67 +1,147 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.2.35",
-  "title": "Windows Defender Threat Detections",
+  "title": "Microsoft Defender Antivirus Threat Detections (Event 1116)",
   "criticality": "critical",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Fault"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Windows Defender Threat Detections' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_windows_defender_threat_detections` (UC-1.2.35), SOC dashboard panel \"Linux — Windows Defender Threat Detections\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This rule reports Microsoft Defender Antivirus Operational Event ID 1116, which says malware or potentially unwanted software was detected. It does not claim that Defender blocked, quarantined, removed, or successfully remediated the threat; those outcomes require 1117 and failure events 1118/1119 or Defender portal evidence. It excludes legacy 1006/1007, ASR events, Network Protection, Exploit Guard, configuration changes, health events, other antivirus products, and detections suppressed by exclusions or unavailable telemetry. A vendor threat name does not identify an ATT&CK technique, prove compromise, or prove the named file executed. No regulation or runtime assurance is claimed.",
+  "evidence": "After deployment, retain the version-controlled `windows_defender_antivirus_detection_1116` saved search and ACL; schedule/job/alert history; each result with endpoint, threat name/ID, severity/category, path, user, detection origin/type/source, process, product/engine/signature versions, EventRecordID, source, and source type; matching raw 1116 XML; paired 1117/1118/1119 and Defender portal/PowerShell status where available; source-health evidence; dated controls; analyst disposition; response record; and bounded exception approval. This documentation-only review generated no threat, Defender event, search job, or production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.2.35 positive (Windows, Defender, Threat, Detections): ingest synthetic events into `index=wineventlog` sourcetype='target_sourcetype' EventCode=1006 where `count` grouped by `entity` satisfies detection threshold for 'Windows Defender Threat Detections'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.2.35 negative (Threat Detections): ingest benign `wineventlog` / `target_sourcetype` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Windows Defender Threat Detections'."
+    "positiveScenario": "In an isolated test index and fixed window, replay one XML Defender Operational event with `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Windows Defender/Operational`, `EventCode=1116`, `Computer=WIN-DEFENDER.example`, `EventRecordID=35001`, `Name=Virus:DOS/EICAR_Test_File`, `ID=2147519003`, `Severity=High`, `Category=Virus`, `Path=file:_C:\\Lab\\eicar.com.txt`, `User=EXAMPLE\\alice`, `Detection Origin=Local machine`, `Detection Type=Concrete`, `Detection Source=Real-Time Protection`, `Process Name=C:\\Windows\\System32\\notepad.exe`, and explicit product, engine, and security-intelligence versions. Expect exactly one row for endpoint `win-defender.example`, event code 1116, the exact threat/path/user values, and detection `Microsoft Defender Antivirus threat detected`. Documentation review checks expected logic only; no replay or EICAR test was run.",
+    "negativeScenario": "Run isolated variants and expect zero rows for each: remediation IDs 1117/1118/1119; legacy ID 1006; ASR ID 1121; configuration ID 5007; Event 1116 in Security or System source; Classic source type; a malformed nonnumeric event ID; empty endpoint identity; an event at or after the exclusive latest boundary; and an event outside the closed hour. A valid 1116 with blank optional Process Name but populated threat, path, and endpoint must still return one row."
   },
-  "dataSources": "`sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventCode 1006, 1007, 1116, 1117) Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)",
-  "spl": "index=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\"\n  EventCode IN (1006, 1007, 1116, 1117)\n| eval action=case(EventCode=1006,\"Detected\",EventCode=1007,\"Action taken\",EventCode=1116,\"Detected\",EventCode=1117,\"Action taken\")\n| table _time, host, action, \"Threat Name\", \"Severity ID\", Path, \"Detection User\"\n| sort -_time",
-  "description": "Surfaces UC-1.2.35 for Windows, Defender, Threat, Detections over `index=wineventlog` sourcetype `configured sourcetype` with thresholds configured threshold. Groups `count` by `entity` each `the scheduled window`. Centered on Threat Detections indicators. Supports repeatable linux triage for 'Windows Defender Threat Detections'.",
-  "value": "For 'Windows Defender Threat Detections', UC-1.2.35 converts `activity` on UC-1.2.35 search results into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Forward Windows Defender Operational log from all endpoints. EventCode 1116=threat detected, 1117=action taken, 1006/1007=malware detected/acted on. Alert immediately on detections with Severity \"Severe\" or \"High\". Track remediation success (1117 following 1116). Monitor for EventCode 5001 (real-time protection disabled) as a separate critical alert.",
-  "visualization": "Table (recent detections), Bar chart (threat categories), Single value (unresolved threats), Map (affected hosts).",
-  "cimModels": [
-    "Change.All_Changes",
-    "Change"
-  ],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0",
-  "dataModelAcceleration": "Defender events often land as endpoint vendor JSON; CIM tstats is valid after the TA maps threat fields.",
-  "references": [
+  "dataSources": "Microsoft-Windows-Windows Defender/Operational Event ID 1116 from every in-scope Windows endpoint running Microsoft Defender Antivirus, collected in XML with Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Microsoft-Windows-Windows Defender/Operational`. Verify Microsoft fields `Name`, `ID`, `Severity`, `Category`, `Path`, `Detection Origin`, `Detection Type`, `Detection Source`, `User`, `Process Name`, `Product Name`, `Product Version`, `Engine Version`, `Security intelligence Version`, plus `Computer`, `EventCode` or `EventID`, and `EventRecordID`.",
+  "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for XML Defender Operational collection and CIM field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Defender for Endpoint portal integration is optional corroboration, not required by this raw-event rule.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk_TA_windows",
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
       "url": "https://splunkbase.splunk.com/app/742",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "CIM: Change",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "minVersion": "10.0.1",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `wineventlog`** — Package managers spike `host` metrics for 'Windows Defender Threat Detections'. Correlate with apt/yum logs in the same `cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Windows Defender/Operational\" EventCode=1116 earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), threat_name=trim(coalesce(Name,signature)), threat_id=trim(coalesce(ID,signature_id)), threat_severity=trim(coalesce(Severity,vendor_severity,severity)), threat_category=trim(coalesce(Category,category)), file_path=trim(coalesce(Path,file_path)), detection_user=trim(coalesce(User,user)), detection_origin=trim('Detection Origin'), detection_type=trim('Detection Type'), detection_source=trim('Detection Source'), process_name=trim('Process Name')\n| where event_code=1116 AND len(endpoint)>0\n| eval detection=\"Microsoft Defender Antivirus threat detected\"\n| table _time endpoint event_code threat_name threat_id threat_severity threat_category file_path detection_user detection_origin detection_type detection_source process_name 'Product Name' 'Product Version' 'Engine Version' 'Security intelligence Version' EventRecordID detection source sourcetype\n| sort 0 -_time endpoint threat_severity threat_name",
+  "description": "Returns one row for each Microsoft Defender Antivirus Event ID 1116 observed in the delayed closed hour, at endpoint-and-detection-event grain. The row preserves threat identity, vendor severity/category, affected path, user and detection context, product versions, and Windows event identity without asserting remediation.",
+  "value": "Rapid review of endpoint antivirus detections lets responders contain a suspected infection, verify whether remediation succeeded, find related hosts and artifacts, and distinguish a true threat from a vendor false positive before either malware or an overly broad response disrupts the business.",
+  "implementation": "Collect the Defender Operational channel in XML from every endpoint with Splunk Add-on for Microsoft Windows 10.0.1 and validate all 1116 fields. Save as `windows_defender_antivirus_detection_1116`, schedule hourly over `-70m@m` to `-10m@m`, and trigger on every row. Correlate each detection with 1117/1118/1119, Defender status, file/process/network telemetry, asset criticality, and threat intelligence; do not treat 1116 alone as successful remediation.",
+  "visualization": "On a restricted endpoint-protection dashboard, put Defender source freshness and protected-endpoint coverage first. Add counts of detections and affected endpoints; trends by severity/category; bars by threat name and detection source; and a table with endpoint, threat ID/name, severity, path, user, process, versions, EventRecordID, remediation state, owner, and disposition. Drill down to raw XML, nearby 1117/1118/1119, file hash/signature and process lineage from companion telemetry, Defender portal details, and same-threat fleet prevalence.",
+  "cimModels": [
+    "Malware.Malware_Attacks"
+  ],
+  "schema": "Microsoft Defender Antivirus Event 1116 native XML fields with optional Splunk CIM Malware.Malware_Attacks normalization",
+  "dataModelAcceleration": "Splunk Add-on for Microsoft Windows documents 1116/1117 mapping to Malware.Malware_Attacks fields including `action`, `dest`, `file_name`, `file_path`, `signature`, `user`, `category`, `severity`, `severity_id`, and `vendor_product`. No `cimSpl` is supplied because the rule must isolate native event 1116 and retain detection origin/type/source, product versions, and EventRecordID; the normalized dataset can combine detections and remediation. If a CIM panel is added, prove event-code filtering, action semantics, field completeness, row parity, and acceleration freshness against raw XML.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "Name",
+    "ID",
+    "Severity",
+    "Category",
+    "Path",
+    "Detection Origin",
+    "Detection Type",
+    "Detection Source",
+    "User",
+    "Process Name",
+    "Product Name",
+    "Product Version",
+    "Engine Version",
+    "Security intelligence Version",
+    "signature",
+    "signature_id",
+    "vendor_severity",
+    "severity",
+    "category",
+    "file_path",
+    "user"
+  ],
+  "references": [
+    {
+      "title": "Microsoft Defender Antivirus event IDs and error codes, including 1116 and 1117 fields",
+      "url": "https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: Microsoft Defender Antivirus exclusions guidance",
+      "url": "https://learn.microsoft.com/en-us/defender-endpoint/configure-exclusions-microsoft-defender-antivirus",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742), version and compatibility",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: configure XML event-log collection",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/Configuration/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: Defender 1116/1117 CIM mappings",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/CIMFieldMappings/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk CIM Malware data model",
+      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Malware",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "MITRE ATT&CK M1049: Antivirus/Antimalware",
+      "url": "https://attack.mitre.org/mitigations/M1049/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "A result is a genuine Defender 1116 detection. “False positive” means the engine classified benign content as a threat or the event is an expected test—not that the record is fabricated.\n\n1. **EICAR or approved antivirus control test** — Security validation commonly uses the EICAR test string. Match test plan, operator, endpoint, exact hash/path, UTC window, expected threat name, and cleanup evidence. Preserve the first alert as control evidence; suppress only duplicate notification for the bounded test.\n\n2. **New or updated line-of-business binary flagged by heuristic or cloud protection** — A signed internal build, packer, installer, or administrative tool can resemble malware. Verify code-signing chain, reproducible build/hash, repository commit, publisher, deployment record, Defender submission verdict, and behavior telemetry. Do not allow by filename or user-writable path.\n\n3. **Security, red-team, or incident-response tooling** — Credential testing, memory acquisition, scanners, and simulation tools may be correctly classified as potentially unwanted or malicious. Confirm engagement/case ID, operator, host list, hash, source, and time bounds. Treat execution outside those exact bounds as unexplained.\n\n4. **Old sample in backup, quarantine export, mail archive, or forensic repository** — Scheduled scanning may rediscover inert content. Confirm storage purpose, access controls, file hash, whether the path is executable or mounted, and custody. Do not suppress the threat name globally because the same signature can appear on a workstation.\n\n5. **Vendor signature or cloud-classification false positive** — A security-intelligence update can newly detect a trusted file. Compare engine/signature versions, Microsoft security-intelligence portal status, digital signature, fleet prevalence, and vendor advisory. Use Microsoft's submission/review process and a narrow temporary exception only when the risk owner approves it.\n\n6. **Restored or synchronized file repeatedly detected** — OneDrive, profile management, software distribution, or backup restoration may recreate a remediated object, producing repeated 1116 records. Correlate path, hash, synchronization source, 1117 actions, and recurrence time. Remove the upstream copy rather than silencing the endpoint.\n\n**Safe suppression:** retain raw 1116 and base-search results. Suppress alert notification only with a governed lookup keyed on exact threat ID/name, immutable file hash from corroborating telemetry when available, normalized path, endpoint or approved group, detection source, `valid_from_epoch`, `valid_until_epoch`, owner, and ticket. Reject threat-name-only global rules, wildcard user-writable paths, endpoint-wide exclusions, and open-ended dates. Antivirus exclusions change prevention behavior and must be separately risk-approved, deployed narrowly, monitored, and expired.",
+  "mitreAttack": [
+    "N/A (generic antivirus detections do not identify a specific ATT&CK technique)"
+  ],
+  "detectionType": "IOC",
+  "securityDomain": "endpoint",
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
+  "hardware": "Windows client and server versions supported by the deployed Microsoft Defender Antivirus and Splunk Add-on. Confirm whether Defender is active, passive, or periodic-scanning mode and whether another antivirus owns real-time protection. WEF/WEC must preserve original Computer, source, EventRecordID, and XML fields and avoid duplicate direct collection.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Defender Antivirus event and exclusion documentation, Splunk Add-on for Microsoft Windows 10.0.1/CIM mappings, Splunk CIM Malware, and MITRE ATT&CK; Defender detections, XML fixtures, source coverage, SPL, remediation correlation, alert delivery, suppression, and response not executed or SME-signed",
   "splunkVersions": [
-    "9.2+",
+    "9.3+",
+    "10.x",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_windows`.\n• Ensure the following data sources are available: `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventCode 1006, 1007, 1116, 1117).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward Windows Defender Operational log from all endpoints. EventCode 1116=threat detected, 1117=action taken, 1006/1007=malware detected/acted on. Alert immediately on detections with Severity \"Severe\" or \"High\". Track remediation success (1117 following 1116). Monitor for EventCode 5001 (real-time protection disabled) as a separate critical alert.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=wineventlog source=\"WinEventLog:Microsoft-Windows-Windows Defender/Operational\"\n  EventCode IN (1006, 1007, 1116, 1117)\n| eval action=case(EventCode=1006,\"Detected\",EventCode=1007,\"Action taken\",EventCode=1116,\"Detected\",EventCode=1117,\"Action taken\")\n| table _time, host, action, \"Threat Name\", \"Severity ID\", Path, \"Detection User\"\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Windows Defender Threat Detections** — Real-time visibility into endpoint AV detections across the fleet. Delayed response to malware detections increases blast radius.\n\nDocumented **Data sources**: `sourcetype=WinEventLog:Microsoft-Windows-Windows Defender/Operational` (EventCode 1006, 1007, 1116, 1117). **App/TA** (typical add-on context): `Splunk_TA_windows`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: wineventlog.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=wineventlog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **Windows Defender Threat Detections**): table _time, host, action, \"Threat Name\", \"Severity ID\", Path, \"Detection User\"\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` count\n  from datamodel=Change where nodename=Change.All_Changes\n  by All_Changes.dest All_Changes.object span=1h\n| where count>0\n```\n\nUnderstanding this CIM / accelerated SPL\n\nCIM tstats is an approximate mirror when Windows TA field extractions and CIM tags are complete. Enable the matching data model acceleration or tstats may return no rows.\n\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (recent detections), Bar chart (threat categories), Single value (unresolved threats), Map (affected hosts).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_windows` — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=see SPL into wineventlog. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We help you know when the built-in virus protection sees or blocks something nasty on a server, in plain terms your team can act on fast.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "The hourly event-ID search is narrow and row-preserving. Defender Operational XML ingest and retention across the endpoint fleet drive cost; outbreak or repeated-restoration conditions can produce bursts.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 90,
+    "sources": [
+      "Microsoft Defender Antivirus Operational Event ID 1116",
+      "Splunk Add-on for Microsoft Windows XML and CIM knowledge"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and exact scope\n\nAssign Defender platform, endpoint engineering, Splunk collection, detection, incident-response, and exception owners. Inventory every endpoint, OS, Defender mode, onboarding state, policy source, antivirus exclusions, tamper protection, and Operational-channel retention. Install `Splunk_TA_windows` 10.0.1 on the required tiers and test exact forwarder/add-on/Splunk versions. The collector needs read access to the Defender Operational channel; the search role needs only index read and saved-search permissions, not Defender policy or endpoint administration.\n\nMicrosoft defines 1116 as malware or potentially unwanted software detected. Fields include threat name/ID, severity, category, path, origin, type, source, user, process, and product/security-intelligence versions. Event 1117 means an action was taken, while 1118/1119 indicate remediation failures. Therefore 1116 alone must never be rendered as “quarantined” or “cleaned.” One valid 1116 creates one reviewable row; there is no count threshold.\n\n## Step 1 — Collect and validate XML\n\nConfigure a governed local input:\n\n```ini\n[WinEventLog://Microsoft-Windows-Windows Defender/Operational]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\nThe index is deployment-local. Record actual checkpoint, start behavior, filtering, routing, and retention; do not drop 1116/1117/1118/1119. Validate with `splunk btool inputs list --debug`, forwarder health, Event Viewer, and a field search. In Splunk Web, confirm the deployed stanza under **Settings > Data Inputs** while treating the on-disk effective configuration as authoritative. Confirm `sourcetype=XmlWinEventLog`, source `XmlWinEventLog:Microsoft-Windows-Windows Defender/Operational`, Computer, EventRecordID, and every named Defender field on representative records. Field names contain spaces and must be quoted in SPL. For WEF/WEC, preserve original Computer and EventRecordID, measure latency, and prevent duplicate direct collection.\n\nCreate a separate source-health control using forwarder/channel freshness and endpoint inventory. Threat events are activity-driven, so an endpoint with no recent 1116 can be healthy. Report inactive/passive Defender mode and stale security intelligence separately rather than inferring them from this detection search.\n\n## Step 2 — Save and schedule the analytic\n\nSave as `windows_defender_antivirus_detection_1116` and schedule hourly, for example `5 * * * *`. Embedded `earliest=-70m@m latest=-10m@m` forms a nonoverlapping 60 minute event-time window delayed by 10 minutes. Measure p99 arrival latency and move both bounds together if necessary.\n\nThe base clause selects one index, source type, exact channel source, and 1116. Evaluation accepts EventCode/EventID, normalizes endpoint and vendor fields, and keeps both native and CIM fallbacks where documented. The `where` clause reasserts numeric 1116 and nonempty endpoint. Output stays at source-event grain and preserves EventRecordID. Do not aggregate before triage or infer remediation from a detection name.\n\nAlthough the add-on maps 1116/1117 to CIM Malware_Attacks, no accelerated replacement is claimed because the normalized dataset can mix detection and action records and omit native context. If using CIM for a dashboard, first prove a reliable 1116 constraint and exact row/field parity over fixed bounds, then monitor acceleration freshness.\n\n## Step 3 — Test without introducing malware\n\nReplay the positive synthetic XML fixture in an isolated index with fixed times. Assert one row and exact endpoint, threat values, context, versions, EventRecordID, source, and source type. Run every negative variant independently and test earliest inclusion/latest exclusion. Add null tests for optional process/user fields and escaping tests for paths with backslashes and colons.\n\nFor an authorized endpoint lab, use only the industry-standard EICAR test file under the security team's procedure; never use live malware. Confirm the expected 1116 in Event Viewer, Splunk field parity, alert delivery, and corresponding 1117 action. Verify file cleanup and capture Defender status. Also test an excluded or wrong-source fixture only in isolated data, not by weakening production protection.\n\nRecord fixture hash, event times, OS/Defender engine/platform/signature versions, policy, effective input, expected/actual rows, search job ID, alert receipt, remediation evidence, and cleanup. Keep `status=draft` until humans accept collection coverage, field fidelity, boundaries, remediation correlation, notification, dashboard access, response, and exceptions.\n\n## Step 4 — Triage and respond\n\nOn a row: verify raw XML and event identity; identify threat/path/user/process and detection mechanism; obtain file hash, signature, process ancestry, command line, network activity, and prevalence from approved companion telemetry; locate 1117/1118/1119 and Defender portal or `Get-MpThreatDetection` state; determine whether the object executed or was only scanned; and classify true threat, expected test/tool, or suspected false positive.\n\nFor a credible threat, follow incident response: contain based on risk and asset role, preserve evidence, remove persistence/upstream copies, hunt the same indicator and behavior, rotate exposed credentials when justified, and verify remediation plus clean follow-up scans. Do not automatically delete files, isolate domain controllers, add exclusions, or close the incident solely because 1117 says an action succeeded. For suspected false positives, preserve the sample safely, verify publisher/hash, submit to Microsoft, and use only a narrow time-bounded exception approved by the risk owner.\n\nBuild the dashboard described above, with source gaps first and detections distinct from unresolved remediation. Review exceptions and detection quality after engine/signature, policy, OS, or add-on changes.\n\n## Step 5 — Troubleshoot\n\n- **No 1116 after approved EICAR test:** verify Defender mode, Operational channel, policy/exclusions, Event Viewer, input stanza, forwarding, index routing, and search permissions.\n- **Source is Classic or differently named:** inspect actual XML collection and add-on version. Correct the source contract or explicitly adapt and retest; do not silently mix formats.\n- **Threat fields are null:** inspect raw EventData names, quoting of fields with spaces, add-on placement/search context, and version compatibility.\n- **Detection has no 1117:** inspect 1118/1119, Defender status/history, action policy, device connectivity, and portal evidence; escalate unresolved high/severe detections.\n- **Repeated detections:** identify restoring sync/backup/deployment source and compare paths/hashes/actions. Repair the upstream source rather than suppressing recurrence.\n- **Late records miss the hour:** measure clocks, WEF queues, `_indextime-_time`, and scheduler dispatch, then shift both bounds equally.\n- **CIM differs from raw:** compare installed add-on mappings, event/action filtering, acceleration range/freshness, and native fields; retain raw XML as evidence.",
+  "grandmaExplanation": "We show when the built-in Windows protection says it found harmful or unwanted software. The team then checks what was found, whether it was truly dangerous, and whether the computer actually cleaned it up.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
