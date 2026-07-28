@@ -5,62 +5,125 @@
   "criticality": "critical",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Capacity",
+    "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'OOM Killer Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_oom_killer_events` (UC-1.1.7), SOC dashboard panel \"Linux — OOM Killer Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Detects collected Linux kernel victim records containing `Killed process ... total-vm:`. It does not alert on memory pressure that recovered without a kill, userspace `malloc` failures, kernel OOM invocations with no victim record, process exits caused by an orchestrator rather than the kernel OOM killer, or OOM records retained only in an uncollected journal. It does not identify the root cause, prove that the victim caused exhaustion, remediate memory pressure, or provide regulatory attestation.",
+  "evidence": "After deployment, retain the `UC-1.1.7 - OOM Killer Events` saved-search definition and dispatch history, each matching raw kernel event and parsed result fields, the effective monitor input and add-on version, source-coverage checks, and dated positive and negative control-test outputs. These artifacts show what the configured search observed; they do not prove complete host coverage or runtime validation by this review.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.7 positive (OOM, Killer, Events): ingest synthetic events into `index=os` sourcetype='syslog' where `count` grouped by `entity` satisfies detection threshold for 'OOM Killer Events'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.7 negative (Killer Events): ingest benign `os` / `syslog` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 8 confirms zero alert rows for 'OOM Killer Events'."
+    "positiveScenario": "Apply the SPL pipeline beginning at `rex` to one synthetic event with `host=oom-lab-01` and `_raw=\"Jul 28 09:00:00 oom-lab-01 kernel: Memory cgroup out of memory: Killed process 4242 (java) total-vm:2097152kB, anon-rss:1048576kB, file-rss:4096kB, shmem-rss:0kB, UID:1001 pgtables:2048kB oom_score_adj:500\"`. Expect exactly one row with `oom_scope=memory_cgroup`, `killed_pid=4242`, `killed_process=java`, `total_vm_kb=2097152`, `anon_rss_kb=1048576`, and `killed_uid=1001`.",
+    "negativeScenario": "Apply the same parser and post-processing to one look-alike event with `host=oom-lab-02` and `_raw=\"Jul 28 09:05:00 oom-lab-02 kernel: stress-ng invoked oom-killer: gfp_mask=0x140cca, order=0, oom_score_adj=0\"`. Expect zero rows because the record reports an invocation but contains no `Killed process ... total-vm:` victim record; it must not satisfy this use case's one-victim-event threshold."
   },
-  "dataSources": "`sourcetype=syslog`, `dmesg` Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix`, Syslog — Splunk Add-on for Unix and Linux (Splunkbase 833)",
-  "spl": "index=os sourcetype=syslog \"Out of memory\" OR \"oom-killer\" OR \"Killed process\"\n| rex \"Killed process (?<killed_pid>\\d+) \\((?<killed_process>[^)]+)\\)\"\n| rex \"total-vm:(?<total_vm>\\d+)kB\"\n| table _time host killed_process killed_pid total_vm\n| sort -_time",
-  "description": "Alerts on UC-1.1.7 — OOM, Killer, Events — using `index=os` sourcetype `syslog`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Killer Events. Purpose-built for 'OOM Killer Events' in Linux workflows.",
-  "value": "UC-1.1.7 accelerates insight into Killer Events ('OOM Killer Events') by tracking `activity` on `syslog` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
-  "implementation": "Forward syslog and dmesg output. Create a real-time alert on `oom-killer` or `Out of memory` keywords. Consider setting up a triggered action to also capture current process list via scripted input when OOM occurs.",
-  "visualization": "Events timeline, Single value panel (count of OOM events last 24h), Table with affected hosts and processes.",
+  "dataSources": "Linux kernel messages written to the active text system log, commonly `/var/log/messages` and distribution-dependently `/var/log/syslog` or `/var/log/kern.log`, collected by a Universal Forwarder file monitor managed with the Splunk Add-on for Unix and Linux (Splunkbase 833). Assign Splunk's pretrained `sourcetype=linux_messages_syslog` and the locally selected `index=os`. Required indexed fields are `_time`, `_raw`, `host`, `source`, and `sourcetype`; the SPL derives `oom_scope`, `killed_pid`, `killed_process`, `total_vm_kb`, `anon_rss_kb`, `file_rss_kb`, `shmem_rss_kb`, `killed_uid`, `pgtables_kb`, and `oom_score_adj`.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) for managed file collection. `linux_messages_syslog` is a pretrained Splunk platform source type, not an add-on-specific OOM input.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=os sourcetype=linux_messages_syslog \"kernel:\" \"Killed process\" \"total-vm:\" earliest=-10m@m latest=-5m@m\n| rex field=_raw \"(?i)(?:(?<oom_message>Memory cgroup out of memory|Out of memory):\\s+)?Killed process\\s+(?<killed_pid>\\d+)\\s+\\((?<killed_process>[^\\r\\n]+?)\\)\\s+total-vm:(?<total_vm_kb>\\d+)kB(?:,\\s+anon-rss:(?<anon_rss_kb>\\d+)kB)?(?:,\\s+file-rss:(?<file_rss_kb>\\d+)kB)?(?:,\\s+shmem-rss:(?<shmem_rss_kb>\\d+)kB)?(?:,\\s+UID:(?<killed_uid>\\d+))?(?:\\s+pgtables:(?<pgtables_kb>\\d+)kB)?(?:\\s+oom_score_adj:(?<oom_score_adj>-?\\d+))?\"\n| where isnotnull(killed_pid) AND isnotnull(killed_process)\n| eval oom_scope=case(oom_message=\"Memory cgroup out of memory\",\"memory_cgroup\",oom_message=\"Out of memory\",\"system\",true(),\"undetermined_from_victim_line\")\n| table _time host oom_scope killed_process killed_pid killed_uid total_vm_kb anon_rss_kb file_rss_kb shmem_rss_kb pgtables_kb oom_score_adj source\n| sort 0 -_time",
+  "description": "Returns one row for each collected Linux kernel victim record whose raw text contains the specific `Killed process <pid> (<name>) total-vm:<kilobytes>kB` shape. The scheduled search evaluates one completed five-minute event-time window, extracts the victim and available memory fields, and fires when at least one parsed row exists; no count or memory-size threshold is implied.",
+  "value": "An OOM kill can terminate a database, application worker, or control-plane service while allowing the host itself to remain reachable. Prompt, process-specific notification shortens the time to restore service and gives capacity and application owners the kernel evidence needed to distinguish host-wide exhaustion from a memory-cgroup limit before changing memory, workload, or restart policy.",
+  "implementation": "Collect the one distro-specific text log that receives kernel messages with a Universal Forwarder managed by `Splunk_TA_nix` (Splunkbase 833), assign `sourcetype=linux_messages_syslog`, and route it to the locally chosen `os` index. Verify real victim-line parsing on each supported kernel family, then schedule the search every five minutes over `earliest=-10m@m latest=-5m@m`; trigger when the result count is greater than zero. Treat one parsed victim event in that completed five-minute window as the threshold.",
+  "visualization": "Use a 24-hour single value for parsed victim records, a timechart of kills by `host`, and a result table containing `_time`, `host`, `oom_scope`, `killed_process`, `killed_pid`, RSS fields, `oom_score_adj`, and `source`. Add drilldowns to the surrounding raw kernel messages and host memory telemetry, but do not label `total_vm_kb` as physical memory consumed.",
   "cimModels": [
     "N/A"
   ],
+  "dataModelAcceleration": "No standard CIM dataset represents a Linux kernel OOM-victim record with these source-specific fields. Keep the raw-event SPL; do not claim a `tstats` equivalent or enable acceleration solely for this use case.",
   "references": [
     {
-      "title": "Splunk_TA_nix",
+      "title": "Splunkbase: Splunk Add-on for Unix and Linux (app 833)",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for Unix and Linux: Enable data and scripted inputs",
+      "url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Enabledataandscriptedinputs/",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Enterprise: List of pretrained source types",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.2/configure-source-types/list-of-pretrained-source-types",
+      "retrieved": "2026-07-28"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Search Reference: rex",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/rex",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: eval",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/eval",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: Evaluation functions",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/evaluation-functions/evaluation-functions",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Search Reference: sort",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/sort",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise: savedsearches.conf",
+      "url": "https://help.splunk.com/en/splunk-enterprise/administer/admin-manual/10.2/configuration-file-reference/10.2.4-configuration-file-reference/savedsearches.conf",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel documentation: Memory-management concepts — OOM killer",
+      "url": "https://docs.kernel.org/admin-guide/mm/concepts.html#oom-killer",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel documentation: VM sysctls — oom_dump_tasks, oom_kill_allocating_task, and panic_on_oom",
+      "url": "https://docs.kernel.org/admin-guide/sysctl/vm.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux kernel source: mm/oom_kill.c",
+      "url": "https://github.com/torvalds/linux/blob/master/mm/oom_kill.c",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Red Hat: Interpreting Out of memory (OOM) killer output in Red Hat Enterprise Linux",
+      "url": "https://access.redhat.com/solutions/4894121",
+      "retrieved": "2026-07-28"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'OOM Killer Events'. Correlate with apt/yum logs in the same `syslog` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `syslog`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "The kernel victim signature is evidence of a real kill; the cases below are expected or duplicate operational pages, not fabricated OOM events.\n\n1. **stress-ng or Magic SysRq `f` resilience test** — An approved fault-injection exercise can deliberately invoke the OOM killer. Match the exact lab host, test owner, command, and change window before downgrading the page; retain the event as test evidence.\n\n2. **Kubernetes or Red Hat OpenShift pod limit** — A workload exceeding its memory-cgroup limit can produce `Memory cgroup out of memory` even when the node has free memory. Compare the adjacent kernel `oom-kill:` context with the pod UID, container status, configured limit, and orchestrator event. Route an approved batch eviction to the workload owner rather than suppressing every OOM on the node.\n\n3. **systemd `MemoryMax=` enforcement** — A service intentionally capped by a systemd unit can be killed at its cgroup boundary. Confirm `systemctl show <unit> -p MemoryMax,MemoryCurrent,Result` and the deployed unit revision; treat repeated kills as a service-capacity defect unless a dated test authorizes them.\n\n4. **Slurm or other HPC batch overcommit** — A scheduler may terminate a disposable job that exceeded its assigned memory. Correlate the host, PID, process name, job ID, allocation, and scheduler completion state; suppress only the exact approved job class and window, never all victim records on compute nodes.\n\n5. **Duplicate rsyslog and local-file collection** — The same kernel line can arrive once through a host Universal Forwarder and again through a central syslog relay. Compare `_raw`, event time, `host`, and `source`; remove the overlapping input instead of deduplicating genuine repeated kills in the alert.\n\nIf policy permits notification suppression, use a reviewed `linux_oom_exceptions.csv` lookup with exact `host`, `killed_process`, UTC `start_epoch`, UTC `end_epoch`, `owner`, and `reason`. Apply a time-bound exception only after parsing, preserve suppressed rows in a review report, reject wildcards and non-expiring entries, and never suppress solely because `oom_scope=memory_cgroup`. The base SPL intentionally contains no lookup.",
   "equipment": [
-    "linux",
-    "syslog"
+    "linux"
   ],
   "equipmentModels": [
-    "linux_generic",
-    "syslog_generic"
+    "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "mitreAttack": [
+    "N/A (operational Linux memory-exhaustion fault; no attacker behavior is inferred)"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix`, Syslog.\n• Ensure the following data sources are available: `sourcetype=syslog`, `dmesg`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nForward syslog and dmesg output. Create a real-time alert on `oom-killer` or `Out of memory` keywords. Consider setting up a triggered action to also capture current process list via scripted input when OOM occurs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=syslog \"Out of memory\" OR \"oom-killer\" OR \"Killed process\"\n| rex \"Killed process (?<killed_pid>\\d+) \\((?<killed_process>[^)]+)\\)\"\n| rex \"total-vm:(?<total_vm>\\d+)kB\"\n| table _time host killed_process killed_pid total_vm\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**OOM Killer Events** — OOM killer invocations mean the system ran out of memory and Linux chose to kill a process to survive. This often takes out critical services silently.\n\nDocumented **Data sources**: `sourcetype=syslog`, `dmesg`. **App/TA** (typical add-on context): `Splunk_TA_nix`, Syslog. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: syslog. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=syslog. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Extracts fields with `rex` (regular expression).\n• Extracts fields with `rex` (regular expression).\n• Pipeline stage (see **OOM Killer Events**): table _time host killed_process killed_pid total_vm\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events timeline, Single value panel (count of OOM events last 24h), Table with affected hosts and processes.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
+  "detectionType": "Fault",
+  "requiredFields": [
+    "_time",
+    "_raw",
+    "host",
+    "source",
+    "sourcetype",
+    "oom_scope",
+    "killed_pid",
+    "killed_process",
+    "total_vm_kb"
+  ],
+  "detailedImplementation": "## Prerequisites and signal semantics\n\nInstall a currently supported Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) on the Linux Universal Forwarders used for collection and on any Splunk tiers required by the deployment topology. The Splunkbase listing retrieved for this documentation review identifies add-on 10.2.0 and Splunk platform compatibility beginning at 9.2, but no platform/add-on combination was run here. Check the current compatibility table and test upgrades outside production, especially across the add-on's documented version 6.0 configuration changes.\n\nIdentify the one text log that actually receives kernel messages on every in-scope distribution. Common paths are `/var/log/messages`, `/var/log/syslog`, and `/var/log/kern.log`; presence of a path must be verified rather than assumed. This implementation does not poll `dmesg` and does not label `dmesg` as a source type. If a host keeps kernel records only in the systemd journal, arrange an approved journal-to-text or remote-syslog path first, or record that host as uncovered. Give the forwarder service account read access to the selected file and normal outbound access to the receiving tier. Give the monitoring role read access to the operating-system index and permission to create and schedule the saved search.\n\nThe Linux kernel documentation says that when reclaim cannot free enough memory, the OOM killer selects a task to sacrifice in the hope that its exit frees enough memory for the system to continue. The victim is not necessarily the process that caused exhaustion. Modern victim records can identify a system-wide or memory-cgroup OOM and report PID, task name, virtual memory, resident-memory components, UID, page-table memory, and `oom_score_adj`; older supported kernels may omit the scope prefix and later fields. The SPL therefore requires only the stable `Killed process ... total-vm:` core and treats the remaining captures as optional.\n\n## Step 1 — Configure and verify collection\n\nUse a Universal Forwarder file monitor managed with `Splunk_TA_nix`; do not create the generic scripted input previously shown in this sidecar. Splunk documents that Universal Forwarders enable add-on inputs through configuration files and that only required stanzas should be copied into `local/inputs.conf`. Select one non-overlapping input for the active file, route it to the locally approved event index, and assign Splunk's pretrained `linux_messages_syslog` source type. A dedicated deployment stanza for a verified Red Hat-style path can take this shape:\n\n```ini\n[monitor:///var/log/messages]\ndisabled = 0\nsourcetype = linux_messages_syslog\nindex = os\n```\n\nUse `/var/log/syslog` or `/var/log/kern.log` only when that is the verified source. If the add-on's supplied `/var/log` monitor already collects the file, modify that existing local stanza rather than adding a second monitor. `index=os` is a catalogue convention and explicit deployment choice, not a requirement of the source type; create and secure it or replace the name consistently in the input and SPL. Do not collect the same record through both local monitoring and a syslog relay, because each copy would produce an alert result.\n\nAfter deployment, inspect the effective input with `splunk btool inputs list --debug` and the monitor state with the platform's input-status tooling. Then run:\n\n```spl\nindex=os sourcetype=linux_messages_syslog earliest=-24h\n| stats count min(_time) AS first_event max(_time) AS last_event values(source) AS sources by host\n```\n\nReconcile the returned hosts with the in-scope Linux inventory and confirm that each `source` is the intended live file. On one representative host per distribution and kernel family, compare a harmless recent kernel message in the source file with its Splunk event timestamp, `host`, and raw text. Do not force an OOM on production merely to test transport.\n\n## Step 2 — Create the search and alert\n\nSave the catalogue SPL as `UC-1.1.7 - OOM Killer Events`. Schedule it with cron `*/5 * * * *`. The embedded `earliest=-10m@m latest=-5m@m` evaluates the completed five-minute event-time window immediately preceding the current bucket and allows five minutes for routine indexing latency. Configure the alert to trigger when the number of results is greater than zero. The threshold is therefore one parsed kernel victim record per completed five-minute window; it is not a count-rate, percentage, or memory-size threshold. If measured ingestion delay exceeds five minutes, increase the delay and document it rather than silently widening the event window.\n\n```spl\nindex=os sourcetype=linux_messages_syslog \"kernel:\" \"Killed process\" \"total-vm:\" earliest=-10m@m latest=-5m@m\n| rex field=_raw \"(?i)(?:(?<oom_message>Memory cgroup out of memory|Out of memory):\\s+)?Killed process\\s+(?<killed_pid>\\d+)\\s+\\((?<killed_process>[^\\r\\n]+?)\\)\\s+total-vm:(?<total_vm_kb>\\d+)kB(?:,\\s+anon-rss:(?<anon_rss_kb>\\d+)kB)?(?:,\\s+file-rss:(?<file_rss_kb>\\d+)kB)?(?:,\\s+shmem-rss:(?<shmem_rss_kb>\\d+)kB)?(?:,\\s+UID:(?<killed_uid>\\d+))?(?:\\s+pgtables:(?<pgtables_kb>\\d+)kB)?(?:\\s+oom_score_adj:(?<oom_score_adj>-?\\d+))?\"\n| where isnotnull(killed_pid) AND isnotnull(killed_process)\n| eval oom_scope=case(oom_message=\"Memory cgroup out of memory\",\"memory_cgroup\",oom_message=\"Out of memory\",\"system\",true(),\"undetermined_from_victim_line\")\n| table _time host oom_scope killed_process killed_pid killed_uid total_vm_kb anon_rss_kb file_rss_kb shmem_rss_kb pgtables_kb oom_score_adj source\n| sort 0 -_time\n```\n\nUnderstanding the SPL: the base search is deliberately narrower than generic `Out of memory` or `oom-killer` keywords. It selects the local `index=os`, Splunk's documented `sourcetype=linux_messages_syslog`, the syslog `kernel:` program marker, and the victim-line tokens `Killed process` and `total-vm:`. `rex` uses named groups to parse the kernel's old and current victim formats while leaving fields absent from older formats null. `where` rejects invocation, selection, and truncated records that did not parse a victim. `eval` labels an explicit memory-cgroup prefix separately, labels an explicit `Out of memory` prefix as system scope, and leaves old unprefixed records `undetermined_from_victim_line` rather than guessing. `table` retains the source path for provenance. The kilobyte fields are kernel-reported values; `total_vm_kb` is virtual address space and must not be presented as resident physical memory.\n\nNo CIM model supplies this OOM-victim schema. Keep the raw search and do not create a fictitious Performance data-model path. Host-memory metrics from `vmstat`, `ps`, or another validated source are useful drilldowns but are not required fields for this event detector.\n\n## Step 3 — Validate parser, schedule, and coverage\n\nUse an isolated search with `| makeresults` to set `_raw` and `host` to the exact positive value in `controlTest`, then append the production pipeline beginning at `rex`. It must produce exactly one row with `oom_scope=memory_cgroup`, PID `4242`, process `java`, UID `1001`, `total_vm_kb=2097152`, and `anon_rss_kb=1048576`. Repeat with the negative `stress-ng invoked oom-killer` line; it must produce zero rows. Also test a documented older line such as `kernel: Killed process 10665 (java) total-vm:31061164kB, anon-rss:28248312kB, file-rss:0kB, shmem-rss:0kB`; it should produce one row with `oom_scope=undetermined_from_victim_line` and null fields that are absent from the record.\n\nFor collection validation, obtain an existing OOM record from an approved non-production host or a vendor incident sample, preserve it as a single event, and compare every populated extraction to the raw units. If an operations owner authorizes a fault-injection exercise, `stress-ng` or Magic SysRq `f` must be confined to an expendable lab host with a change record and console access; never run it merely because this page suggests a test. Compare the host's persisted kernel log timestamp and victim line with the indexed event and saved-search row. These are procedures for implementers. During this editorial review, no event was ingested, no OOM was induced, and no SPL was executed against Splunk.\n\nConfirm scheduling with dispatch history: consecutive jobs should cover adjacent completed five-minute windows without gaps. Compare `_time` with `_indextime` on representative kernel events to confirm the five-minute delay covers normal ingestion. Run a daily source-coverage report against the Linux inventory; an alert that returns no OOM rows says nothing about hosts that stopped sending logs.\n\n## Step 4 — Dashboard, alert routing, and response runbook\n\nBuild a table of raw victim rows, a 24-hour kill count by host, and a trend split by `oom_scope`. Restrict dashboard and raw-event access according to operational-log policy because process names, UIDs, and cgroup context can reveal workload details. Route system-scope and undetermined records to Linux operations; route memory-cgroup records to both the host and workload owner when ownership is available. Do not automatically add memory, restart services, kill more processes, or change `panic_on_oom` from this alert.\n\nThe runbook should first verify the raw signature and check whether the killed process is still unavailable or was restarted by systemd or an orchestrator. Retrieve the surrounding kernel sequence for the same host and minute, because constraint, cgroup, cpuset, task, and memory-state details commonly appear on adjacent lines rather than the victim line. Determine whether the event was host-wide or constrained, identify the owning service/container and customer impact, compare memory telemetry and deployment activity, and engage the workload owner before changing limits. Preserve the fact that the OOM killer chose a victim; do not state that the victim leaked memory unless separate evidence establishes that cause.\n\nFor every rule or parser change, retain the saved-search export, exact time bounds, raw and parsed sample rows, effective `inputs.conf`, add-on version, coverage reconciliation, control outputs, reviewer, and change ticket. Evidence retention must follow local policy. The artifacts document configured monitoring and observed records, not complete endpoint coverage, regulatory compliance, or production certification.\n\n## Step 5 — Troubleshoot and suppress safely\n\n- **The host reports an OOM but Splunk has no row:** confirm which file received the kernel record, whether the machine is journal-only, whether the monitor can read that file, whether data was routed to `index=os`, and whether the event has `sourcetype=linux_messages_syslog`. Check `_indextime` before concluding the event was missed.\n- **An event is searchable but does not parse:** inspect `_raw` for `Kill process` versus `Killed process`, a missing `total-vm:...kB` segment, line truncation, or a kernel format not represented by the primary sources. Keep the failed sample and extend the expression only with reviewed positive and negative controls.\n- **The host field names the relay:** collection through central syslog has preserved the receiver as `host`. Correct sender-host attribution at ingestion using the documented syslog format; do not rewrite `host` in this SPL from an unverified token.\n- **Rows are duplicated:** compare `_raw`, `_time`, `source`, and input topology. Remove overlap between a local file monitor, broad `/var/log` monitor, and remote relay. Do not add `dedup`, because two genuinely separate kills can share process name and memory values.\n- **The alert arrives one bucket late:** compare `_time` and `_indextime`, clock synchronization, file flush behavior, and forwarding queues. Adjust the dispatch delay from measured latency while preserving a closed five-minute window.\n- **Memory-cgroup pages are considered expected:** follow the exact, expiring exception process in `knownFalsePositives`. Apply the optional `linux_oom_exceptions.csv` lookup after field extraction and match both `host` and `killed_process` within approved UTC bounds. Keep an exception-review report; never use a permanent host wildcard.",
   "grandmaExplanation": "We notice when the system is so short on memory that it starts force-quitting programs — so you can act before a critical app disappears with little warning.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
+  "reviewer": "Cursor AI documentation review against Splunk, Linux kernel, and Red Hat primary sources; no runtime or SME validation"
 }
