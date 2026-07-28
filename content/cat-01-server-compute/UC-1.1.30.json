@@ -3,62 +3,95 @@
   "id": "1.1.30",
   "title": "Scheduler Latency and Run Queue Depth",
   "criticality": "high",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Performance"
+    "Performance",
+    "Capacity"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Scheduler Latency and Run Queue Depth' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_scheduler_latency_and_run_queue_depth` (UC-1.1.30), SOC dashboard panel \"Linux — Scheduler Latency and Run Queue Depth\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "This use case detects host-wide Linux CPU contention; it does not measure per-thread wake-up-to-run latency, identify the process causing contention, or diagnose I/O and memory stalls. The host CPU count is not a cgroup quota, so containers with CPU.max or cpuset limits require a cgroup-aware variant. Linux systems without `/proc/pressure/cpu`, non-Linux hosts, and hosts with a currently valid entry in `linux_capacity_exceptions.csv` are outside alert scope.",
+  "evidence": "After deployment, retain the `linux_scheduler_pressure_and_run_queue_depth` saved-search definition and permissions, its scheduler dispatch history, alert result rows containing the host, three-bucket breach count, run-queue-per-CPU ratio, CPU PSI percentage, and the corresponding `index=os` source events. A dashboard export is supporting operational evidence; this UC does not claim regulatory-control evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.1.30 positive (Scheduler, Latency, and, Run, Queue): ingest synthetic events into `index=os` sourcetype='vmstat' where `avg_ratio` grouped by `host` satisfies `avg_ratio` > 2 for 'Scheduler Latency and Run Queue Depth'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.1.30 negative (Queue Depth): ingest benign `os` / `vmstat` events where `host` stays below `avg_ratio` > 2, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'Scheduler Latency and Run Queue Depth'."
+    "positiveScenario": "For host `uc1130-positive`, index at least one `sourcetype=linux:scheduler_pressure` JSON event in each of three consecutive completed one-minute buckets. Each event must have `collection_status=\"ok\"`, `runnable_entities=8`, `online_cpus=4`, and `psi_cpu_some_avg10_pct=25.0`, and the host must have no active `linux_capacity_exceptions.csv` row. Run the SPL over six completed minutes and require exactly one result with `breached_buckets=3`, `runq_per_cpu=2.0`, and `psi_cpu_some_avg10_pct=25.0`.",
+    "negativeScenario": "Exercise three independent non-alert cases for `sourcetype=linux:scheduler_pressure`: (1) three consecutive events with `runnable_entities=8`, `online_cpus=4`, but `psi_cpu_some_avg10_pct=5.0`; (2) three with PSI at 25.0 but `runnable_entities=2` and `online_cpus=4`; and (3) the positive values plus a lookup row for the host whose `valid_until_utc` is in the future. Also index `collection_status=\"psi_unavailable\"` once. The primary SPL must return no rows for all four cases, while the collection-health search must expose the unavailable-PSI event."
   },
-  "dataSources": "`sourcetype=vmstat, top, custom:sched_latency` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_nix, custom scripted input` — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=vmstat host=*\n| eval runq_to_cpu=r/procs_cpu\n| stats avg(runq_to_cpu) as avg_ratio by host\n| where avg_ratio > 2",
-  "description": "Alerts on risk tied to Scheduler, Latency, and, Run, Queue through UC-1.1.30 on `index=os` sourcetype `vmstat`. Summarises `avg_ratio` grouped by `host` across `the scheduled window` before applying `avg_ratio` > 2. Operators tune 'Scheduler Latency and Run Queue Depth' using UC-1.1.30 runbook steps.",
-  "value": "Tracking `avg_ratio` via UC-1.1.30 on `vmstat` feeds improves response to 'Scheduler Latency and Run Queue Depth' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Monitor run queue (r) field from vmstat and correlate with process count. When run queue exceeds 2x CPU count, alert on scheduler saturation. Create SPL to identify top CPU-consuming processes during high latency periods.",
-  "visualization": "Timechart, Multi-series Line Chart",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "A custom Universal Forwarder scripted input polls every 30 seconds into `index=os` with `sourcetype=linux:scheduler_pressure`. One JSON event per host contains `event_epoch_s`, `collection_status`, `runnable_entities`, `total_entities`, `online_cpus`, `psi_cpu_some_avg10_pct`, `psi_cpu_some_avg60_pct`, `psi_cpu_some_avg300_pct`, and `psi_cpu_some_total_us`. Values come from `/proc/loadavg`, `/proc/pressure/cpu`, and `SC_NPROCESSORS_ONLN`; the optional Splunk Add-on for Unix and Linux (Splunkbase 833) can supply an independent `vmstat` comparison but is not queried by the alert.",
+  "app": "Custom deployment app `TA-linux-scheduler-pressure` on a Universal Forwarder. Splunk Add-on for Unix and Linux (Splunkbase 833) is optional and used only to compare its `vmstat` feed during validation; no premium Splunk app is required.",
+  "splunkbaseApps": [
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "role": "optional"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Scheduler Latency and Run Queue Depth'. Correlate with apt/yum logs in the same `vmstat` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmstat`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_ratio` > 2.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=os sourcetype=linux:scheduler_pressure earliest=-6m@m latest=@m\n| fields _time host event_epoch_s collection_status runnable_entities online_cpus psi_cpu_some_avg10_pct\n| where collection_status=\"ok\"\n| eval runnable_entities=tonumber(runnable_entities), online_cpus=tonumber(online_cpus), psi_cpu_some_avg10_pct=tonumber(psi_cpu_some_avg10_pct)\n| where online_cpus>0 AND isnotnull(runnable_entities) AND isnotnull(psi_cpu_some_avg10_pct)\n| eval runq_per_cpu=runnable_entities/online_cpus\n| bin _time span=1m\n| stats latest(runq_per_cpu) as runq_per_cpu latest(runnable_entities) as runnable_entities latest(online_cpus) as online_cpus latest(psi_cpu_some_avg10_pct) as psi_cpu_some_avg10_pct latest(event_epoch_s) as event_epoch_s count as samples by host _time\n| eval breached=if(runq_per_cpu>=1.5 AND psi_cpu_some_avg10_pct>=20,1,0)\n| sort 0 host _time\n| streamstats window=3 sum(breached) as breached_buckets range(_time) as breach_span_s by host\n| where breached_buckets=3 AND breach_span_s<=120\n| lookup linux_capacity_exceptions.csv host OUTPUT valid_until_utc reason AS exception_reason ticket AS exception_ticket\n| eval exception_expiry_epoch=strptime(valid_until_utc,\"%Y-%m-%dT%H:%M:%SZ\")\n| where isnull(exception_expiry_epoch) OR exception_expiry_epoch<now()\n| stats latest(_time) as last_breach_time latest(runq_per_cpu) as runq_per_cpu latest(runnable_entities) as runnable_entities latest(online_cpus) as online_cpus latest(psi_cpu_some_avg10_pct) as psi_cpu_some_avg10_pct latest(samples) as samples max(breached_buckets) as breached_buckets by host\n| fieldformat last_breach_time=strftime(last_breach_time,\"%Y-%m-%d %H:%M:%S UTC\")",
+  "description": "Detects sustained host-level Linux CPU contention when both the instantaneous count of runnable scheduling entities per online CPU and the kernel's ten-second CPU Pressure Stall Information `some` percentage remain elevated for three consecutive completed minute buckets. PSI quantifies time in which at least one task is delayed by CPU scarcity; it is a scheduler-pressure proxy, not a direct measurement of an individual task's scheduling latency.",
+  "value": "A deep run queue alone can be normal for short parallel jobs, while a pressure percentage alone lacks capacity context. Requiring both signals helps operations teams prioritize persistent CPU contention that can reduce application throughput and increase response time, while preserving the raw measurements needed to tune host-class-specific capacity limits and verify whether scaling, workload placement, or process investigation improved the condition.",
+  "implementation": "Deploy the supplied Python collector in `TA-linux-scheduler-pressure` on each Linux Universal Forwarder, extract its one-line JSON as `sourcetype=linux:scheduler_pressure`, and schedule the SPL once per minute. Start with simultaneous thresholds of 1.5 runnable entities per online CPU and 20% CPU PSI `some` avg10 for three consecutive minute buckets; these are explicit initial operating values, not Linux or Splunk vendor recommendations, and must be baselined by workload class before paging.",
+  "scriptExample": "#!/usr/bin/env python3\n\"\"\"Emit one Linux scheduler-pressure JSON event to stdout.\"\"\"\nimport json\nimport os\nimport time\n\n\ndef read_loadavg():\n    with open(\"/proc/loadavg\", \"r\", encoding=\"ascii\") as handle:\n        fields = handle.read().split()\n    runnable, total = fields[3].split(\"/\", 1)\n    return int(runnable), int(total)\n\n\ndef read_cpu_psi():\n    with open(\"/proc/pressure/cpu\", \"r\", encoding=\"ascii\") as handle:\n        some = next(line for line in handle if line.startswith(\"some \"))\n    values = dict(item.split(\"=\", 1) for item in some.split()[1:])\n    return {\n        \"psi_cpu_some_avg10_pct\": float(values[\"avg10\"]),\n        \"psi_cpu_some_avg60_pct\": float(values[\"avg60\"]),\n        \"psi_cpu_some_avg300_pct\": float(values[\"avg300\"]),\n        \"psi_cpu_some_total_us\": int(values[\"total\"]),\n    }\n\n\nevent = {\n    \"event_epoch_s\": int(time.time()),\n    \"collector_schema\": 1,\n    \"collection_status\": \"ok\",\n}\ntry:\n    event[\"runnable_entities\"], event[\"total_entities\"] = read_loadavg()\n    event[\"online_cpus\"] = int(os.sysconf(\"SC_NPROCESSORS_ONLN\"))\nexcept (OSError, IndexError, ValueError):\n    event[\"collection_status\"] = \"read_error\"\nelse:\n    try:\n        event.update(read_cpu_psi())\n    except FileNotFoundError:\n        event[\"collection_status\"] = \"psi_unavailable\"\n    except (OSError, StopIteration, KeyError, ValueError):\n        event[\"collection_status\"] = \"read_error\"\nprint(json.dumps(event, separators=(\",\", \":\"), sort_keys=True))",
+  "visualization": "Use a host-by-time line chart with `runq_per_cpu` and `psi_cpu_some_avg10_pct` on separate axes and reference lines at 1.5 and 20%. Add a table for active alerts showing host, last breach time, runnable entities, online CPUs, ratio, PSI percentage, samples, and breached buckets. A separate collection-health single value should count `collection_status!=\"ok\"`; do not hide unsupported PSI hosts from the dashboard.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Linux kernel documentation — Pressure Stall Information",
+      "url": "https://www.kernel.org/doc/html/latest/accounting/psi.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Linux man-pages — proc_loadavg(5)",
+      "url": "https://man7.org/linux/man-pages/man5/proc_loadavg.5.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "procps-ng manual — vmstat(8)",
+      "url": "https://man7.org/linux/man-pages/man8/vmstat.8.html",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise 9.3 — Get data through scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/9.3/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise 9.3 — Configure automatic key-value field extraction",
+      "url": "https://help.splunk.com/en/splunk-enterprise/manage-knowledge-objects/knowledge-management-manual/9.3/use-the-configuration-files-to-configure-field-extractions/configure-automatic-key-value-field-extraction",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Enterprise 9.3 — savedsearches.conf",
+      "url": "https://help.splunk.com/en/splunk-enterprise/administer/admin-manual/9.3/configuration-file-reference/9.3.13-configuration-file-reference/savedsearches.conf",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunkbase — Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "retrieved": "2026-07-28"
+    }
+  ],
+  "knownFalsePositives": "1. **Parallel build or analytics launch** — GNU Make, Ninja, JVM workers, or scientific runtimes can intentionally keep more runnable entities than CPUs while CPU PSI rises. Distinguish an approved batch window by job-scheduler or process telemetry; suppress only the affected host and bounded window through `linux_capacity_exceptions.csv`.\n\n2. **Virtual-machine CPU entitlement or steal** — A guest can show sustained runnable work and PSI when its vCPUs are descheduled by the hypervisor. Compare `vmstat` CPU `st` and hypervisor ready-time before adding guest capacity; do not suppress recurring entitlement contention as an application exception.\n\n3. **Container CPU limits** — `online_cpus` describes online host CPUs, not a container's `cpu.max` quota or effective cpuset. A host-level ratio can understate pressure inside a constrained cgroup. Route container-specific cases to a cgroup PSI search rather than lowering the host threshold.\n\n4. **CPU hot-plug or maintenance** — Offlining CPUs can legitimately increase `runq_per_cpu` and PSI during a controlled change. Confirm `online_cpus` changed in the source events and use a time-bound exception tied to the change ticket; the lookup deliberately fails open when `valid_until_utc` is absent or malformed.\n\n5. **Short-lived runnable-count observer effect** — `/proc/loadavg` reports currently runnable scheduling entities and can include the collector itself. This is material on one-CPU systems and during otherwise idle periods, but the simultaneous 20% PSI requirement and three consecutive minute buckets should reject an isolated sample. Baseline one-vCPU hosts separately.\n\n6. **Expected capacity test** — Stress tools such as `stress-ng` should fire this detection during an approved exercise. Record the test as expected evidence or use a lookup exception with owner, reason, ticket, and UTC expiry; never create a permanent wildcard suppression.",
+  "mitreAttack": [
+    "N/A (operational Linux performance monitoring; no ATT&CK technique claimed)"
+  ],
+  "requiredFields": [
+    "_time",
+    "host",
+    "event_epoch_s",
+    "collection_status",
+    "runnable_entities",
+    "online_cpus",
+    "psi_cpu_some_avg10_pct"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_nix, custom scripted input`.\n• Ensure the following data sources are available: `sourcetype=vmstat, top, custom:sched_latency`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMonitor run queue (r) field from vmstat and correlate with process count. When run queue exceeds 2x CPU count, alert on scheduler saturation. Create SPL to identify top CPU-consuming processes during high latency periods.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=vmstat host=*\n| eval runq_to_cpu=r/procs_cpu\n| stats avg(runq_to_cpu) as avg_ratio by host\n| where avg_ratio > 2\n```\n\nUnderstanding this SPL\n\n**Scheduler Latency and Run Queue Depth** — High run queue depth with elevated scheduling latency causes visible application performance degradation.\n\nDocumented **Data sources**: `sourcetype=vmstat, top, custom:sched_latency`. **App/TA** (typical add-on context): `Splunk_TA_nix, custom scripted input`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: os; **sourcetype**: vmstat. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=os, sourcetype=vmstat. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **runq_to_cpu** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_ratio > 2` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nOn the host, compare with `top`, `htop`, `vmstat`, `iostat`, or `sar` as appropriate to this use case. For log-only detections, compare with the relevant file under `/var/log` (or `journalctl`) on a test host. Confirm that indexed event counts and field values line up with what you see on the system and that your role can search the right indexes and fields.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Timechart, Multi-series Line Chart",
-  "grandmaExplanation": "High run queue depth with elevated scheduling latency causes visible application performance degradation — so you find out before users do when something is slowing down or breaking.",
+  "detailedImplementation": "Prerequisites\n\nUse a Linux kernel that exposes `/proc/pressure/cpu`; verify with `test -r /proc/pressure/cpu && sed -n '1p' /proc/pressure/cpu`. The system-level CPU `some` line is the supported signal: Linux defines it as the percentage of time at least one task is stalled by CPU contention. Do not use the system-level CPU `full` line, which the kernel documentation says is undefined and reports zero for compatibility. The collector also needs readable `/proc/loadavg` and Python 3. The fourth `/proc/loadavg` field supplies the current runnable and total scheduling-entity counts; the first three load averages include uninterruptible I/O wait and are therefore not substitutes for run-queue depth. No root privilege or premium Splunk license is required. The Splunk service account needs search access to `index=os`, permission to read `linux_capacity_exceptions.csv`, and permission to create or run the saved alert.\n\nStep 1 — Configure the synchronized collector\n\nCreate `$SPLUNK_HOME/etc/apps/TA-linux-scheduler-pressure/bin/collect_scheduler_pressure.py` from `scriptExample`, make it executable, and run it once as the forwarder account. It must print exactly one compact JSON object. On a supported host, `collection_status` is `ok`; `runnable_entities` and `total_entities` are counts, `online_cpus` is a count, each `psi_cpu_some_avg*_pct` field is a percentage in the closed interval 0–100, and `psi_cpu_some_total_us` is the cumulative microsecond counter documented by the Linux kernel. The script deliberately emits `psi_unavailable` or `read_error` instead of inventing zero measurements.\n\nAdd this stanza to the deployment app's `local/inputs.conf`:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA-linux-scheduler-pressure/bin/collect_scheduler_pressure.py]\ndisabled = 0\ninterval = 30\nindex = os\nsourcetype = linux:scheduler_pressure\n```\n\nA 30-second interval produces about 2,880 small events per host per day and normally gives two samples in each minute bucket. Splunk schedules the next numeric-interval invocation after the prior invocation completes, so monitor event gaps rather than assuming exact wall-clock alignment. Put timestamp parsing on the first full parsing tier and JSON search-time extraction wherever searches run:\n\n```ini\n[linux:scheduler_pressure]\nSHOULD_LINEMERGE = false\nTIME_PREFIX = \"event_epoch_s\"\\s*:\\s*\nTIME_FORMAT = %s\nMAX_TIMESTAMP_LOOKAHEAD = 10\nKV_MODE = json\n```\n\nDo not combine `KV_MODE=json` with `INDEXED_EXTRACTIONS=JSON`; Splunk documents that this extracts fields twice. In a Splunk Cloud deployment, run the script on a customer-managed Universal Forwarder and package the permitted parsing/search-time configuration for the appropriate Cloud tiers.\n\nStep 2 — Create and understand the alert\n\nSave the primary SPL as `linux_scheduler_pressure_and_run_queue_depth`. Schedule it once per minute after data arrival, trigger when result count is greater than zero, and throttle by `host` for an operationally chosen interval. The search examines six completed minutes, converts JSON values to numbers, divides the current runnable-entity count by the CPU count from the same event, and retains the latest sample in each minute. `streamstats window=3` requires three consecutive rows; `range(_time)<=120` prevents missing minute buckets from masquerading as three consecutive minutes. The lookup is evaluated only after a breach and suppresses a host only when `valid_until_utc` parses as `%Y-%m-%dT%H:%M:%SZ` and remains in the future. Create the lookup with headers `host,valid_until_utc,reason,ticket`; malformed or expired rows fail open.\n\nThe initial alert requires `runq_per_cpu>=1.5` and `psi_cpu_some_avg10_pct>=20` at the same time. Neither Linux nor Splunk prescribes those values. Treat them as transparent starting points: baseline each hardware/workload class for at least two representative business cycles, then set the ratio and PSI limits above expected peaks while preserving the dual-signal and persistence tests. The title retains the catalogue identity, but the alert does not directly time scheduler wake-ups; CPU PSI is the supported contention-related latency proxy.\n\nStep 3 — Validate fields, units, and outcomes\n\nOn two representative hosts, compare `runnable_entities` with the numerator in the fourth field of `cat /proc/loadavg`, `online_cpus` with `getconf _NPROCESSORS_ONLN`, and the PSI percentages with the `some` line from `/proc/pressure/cpu`. A near-simultaneous `vmstat 1 2` is useful corroboration: discard the first report for interval-based CPU fields, and remember that its `r` field is an instantaneous runnable-process count. Small differences are expected because the commands do not sample atomically and `/proc/loadavg` counts scheduling entities, including threads.\n\nValidate ingestion with `index=os sourcetype=linux:scheduler_pressure | stats count latest(_time) as last_event values(collection_status) as status by host`. Investigate hosts with fewer than roughly 2,700 events over a full day rather than treating that number as a hard SLA. Check numeric ranges with `where online_cpus<1 OR runnable_entities<0 OR psi_cpu_some_avg10_pct<0 OR psi_cpu_some_avg10_pct>100`; it should return no `ok` events. Execute the positive and all negative `controlTest` scenarios. For an end-to-end host test, `stress-ng --cpu 0 --timeout 4m` is one possible load generator if it is already approved and installed; it is not a prerequisite, and success means the source values cross the locally chosen limits and the saved search returns the test host—not that every platform must cross the example thresholds.\n\nStep 4 — Operationalize evidence and response\n\nBuild the dashboard described in `visualization` and a collection-health panel using `index=os sourcetype=linux:scheduler_pressure collection_status!=\"ok\" | stats latest(_time) as last_seen values(collection_status) as status by host`. Route an alert first to platform operations. The runbook should check workload/process telemetry, CPU utilization and steal time, deployment activity, cgroup limits, and service response time before choosing to scale, rebalance, renice, or stop work. Preserve source events according to the organization's operational retention policy. If evidence is exported, retain the saved-search revision and dispatch identifiers with the result; this sidecar does not assert that an `audit_evidence` index or weekly export already exists.\n\nStep 5 — Troubleshoot specific failures\n\nNo events usually means the `inputs.conf` stanza is disabled, the executable bit or Python interpreter is missing, or the deployment app did not reach the Universal Forwarder; scripted-input stderr is written to `splunkd.log`. `psi_unavailable` means `/proc/pressure/cpu` is absent or hidden, so exclude the host rather than converting the condition to zero. `read_error` means a procfs field was unreadable or did not match the documented format. Populated raw JSON with null search fields indicates `KV_MODE=json` is not active in the search context. Wrong `_time` values indicate that `TIME_PREFIX` and `TIME_FORMAT` are absent from the parsing tier. A lookup error means `linux_capacity_exceptions.csv` is missing or not shared with the saved-search app; create it with the exact headers before enabling alert actions. If a cgroup-limited workload is slow while the host remains below threshold, collect that cgroup's `cpu.pressure` and effective CPU quota in a separate use case rather than changing these host-wide field meanings.",
+  "grandmaExplanation": "We watch whether too many jobs are waiting for limited processor time and whether that waiting persists. This helps the operations team act before a busy machine causes noticeable slowdowns.",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
