@@ -1,68 +1,115 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.13",
-  "title": "vCenter Alarm Correlation",
+  "title": "vCenter Alarm Transitions to Yellow or Red",
   "criticality": "medium",
-  "difficulty": "beginner",
+  "difficulty": "intermediate",
   "monitoringType": [
+    "Fault",
     "Anomaly"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'vCenter Alarm Correlation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vcenter_alarm_correlation` (UC-2.1.13), SOC dashboard panel \"Linux — vCenter Alarm Correlation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Returns complete vCenter `AlarmStatusChangedEvent` records whose destination state is `yellow` or `red`, one row per vCenter event key. It does not reconstruct the current active-alarm inventory, prove the underlying condition still exists, identify a root cause, score vendor severity beyond the recorded state, correlate separate alarms into one incident, or detect alarms that were never configured, were disabled, were removed before collection, or occurred during a collection gap. Green and gray transitions remain available in raw retention but do not alert. Alarm definitions, acknowledgement, entity status, performance, topology, maintenance and source health are separate contracts. There is no count threshold: each qualifying transition is surfaced. This documentation-only rule changes no alarm, entity or vCenter setting and makes no availability or regulatory claim.",
+  "evidence": "After deployment, retain governed vCenter/entity and alarm-definition inventories; add-on/DCN revisions and `event` task configuration; representative raw `vmware_inframon:events` records with eventClass, key, createdTime, alarm.name, entity.name/type, from, to, fullFormattedMessage, host/vCenter, `_time` and `_indextime`; independent event-pipeline and current-alarm reconciliation health; version-controlled `vcenter_alarm_degrading_transition`, ACL, schedule, dispatches and rows; maintenance/exception lookup history; incident disposition; and dated yellow, red, green, gray, blank-field, duplicate, delayed, wrong-source and collection-gap tests. This editorial review produced no vCenter event, active-alarm snapshot, Splunk execution, alert, incident, dashboard or production validation evidence.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.13 positive (vCenter, Alarm, Correlation): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `alarm_name`, `new_status` satisfies detection threshold for 'vCenter Alarm Correlation'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.13 negative (Alarm Correlation): ingest benign `vmware` / `vmware:events` events where `alarm_name`, `new_status` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'vCenter Alarm Correlation'."
+    "positiveScenario": "In a fixed isolated event bucket, ingest two complete `vmware_inframon:events` fixtures with eventClass `vim.event.AlarmStatusChangedEvent`, distinct numeric keys, alarm names, entity names/types, `from=green`, and respectively `to=yellow` and `to=red`. Expect exactly two rows preserving both transitions, event identities, messages and times, with UC-2.1.13.",
+    "negativeScenario": "Expect zero rows for `to=green`, `to=gray`, unrelated eventClass values, wrong index/sourcetype, blank event key, alarm name, entity name, or destination state, events outside the closed bucket, and exact replay of the same vCenter/key. A separate health/reconciliation test must expose a missing event task, stale vCenter, delayed records, schema drift and disagreement with the current triggered-alarm view."
   },
-  "dataSources": "`sourcetype=vmware:events` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:events\" event_type=\"AlarmStatusChangedEvent\"\n| stats count by alarm_name, new_status\n| sort -count",
-  "description": "Alerts on UC-2.1.13 for vCenter, Alarm, Correlation over `index=vmware` sourcetype `vmware:events` with thresholds configured threshold. Groups `count` by `alarm_name`, `new_status` each `the scheduled window`. Centered on Alarm Correlation indicators. Supports repeatable linux triage for 'vCenter Alarm Correlation'.",
-  "value": "For 'vCenter Alarm Correlation', UC-2.1.13 converts `activity` on `vmware:events` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Splunk_TA_vmware automatically collects vCenter events including alarm state changes. Create a dashboard showing all active alarms. Correlate with time of changes, DRS events, and host health.",
-  "visualization": "Table of active alarms, Bar chart by alarm type, Timeline.",
+  "dataSources": "Primary source is vCenter Events API data collected by Splunk Add-on for VMware Metrics with pool task `event` into the deployment-selected events index (documented default `index=vmware-taskevent`) and `sourcetype=vmware_inframon:events`. Required vSphere properties are event class, unique `key`, created time, `alarm.name`, `entity.name`, managed-entity type, `from`, `to`, `fullFormattedMessage`, and collector vCenter/host; `_time` and `_indextime` establish search and delay. Current triggered alarms, definitions, acknowledgement, topology, maintenance, and owner data are supporting sources.",
+  "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter task/event API data through its scheduler and Data Collection Nodes. A local operations app owns the saved search, source-health and current-state reconciliation, maintenance lookup, dashboard, routing, tests and runbook.",
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=vmware-taskevent sourcetype=\"vmware_inframon:events\" eventClass=\"vim.event.AlarmStatusChangedEvent\" earliest=-15m@m latest=-10m@m\n| spath path=alarm.name output=alarm_name\n| spath path=entity.name output=entity_name\n| spath path=entity.entity.type output=entity_type\n| eval vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), event_key=trim(tostring(key)), old_status=lower(trim('from')), new_status=lower(trim('to'))\n| where len(vcenter)>0 AND len(event_key)>0 AND len(alarm_name)>0 AND len(entity_name)>0 AND len(new_status)>0 AND in(new_status,\"yellow\",\"red\")\n| eval event_identity=vcenter.\"|\".event_key\n| dedup event_identity\n| eval local_severity=if(new_status=\"red\",\"high\",\"medium\"), use_case=\"UC-2.1.13\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\")\n| table _time vcenter event_key alarm_name entity_name entity_type old_status new_status local_severity fullFormattedMessage event_time _indextime use_case\n| sort 0 -_time vcenter event_key",
+  "description": "Surfaces each complete vCenter alarm-status event that moves an entity into yellow or red state during a closed five-minute event-time bucket. Results remain at unique vCenter event grain and preserve the alarm, entity, prior/new state and formatted message for reconciliation.",
+  "value": "Consistent transition records let operations teams route deteriorating infrastructure conditions quickly and measure recurring alarm noise without scraping localized message text. Preserving event identity and state direction also helps distinguish new degradation from recovery, replay and stale active-alarm displays.",
+  "implementation": "Enable the add-on's vCenter `event` collection, prove the nested AlarmStatusChangedEvent schema and independent pipeline health, then schedule the delayed nonoverlapping search every five minutes. Reconcile every result with current triggered alarms, topology and maintenance before escalation; never treat multiple alarms as one root cause without corroboration.",
+  "visualization": "Use a transition table with event time, vCenter, alarm, entity/type, old/new state, local severity, message, indexing delay, maintenance, current-alarm state, owner and disposition. Add trends by alarm/entity and repeated transition pairs plus separate collection-health and unresolved-current-state panels. Avoid a single 'active alarms' count derived only from historical transitions.",
   "cimModels": [
     "N/A"
   ],
+  "schema": "Native vSphere AlarmStatusChangedEvent JSON properties indexed as vmware_inframon:events",
+  "dataModelAcceleration": "No published CIM dataset preserves vSphere alarm name, entity argument, transition direction and event key. Keep the raw event rule authoritative; summary indexing may support trends only after event-identity and state parity tests.",
+  "requiredFields": [
+    "eventClass",
+    "key",
+    "alarm.name",
+    "entity.name",
+    "entity.entity.type",
+    "from",
+    "to",
+    "fullFormattedMessage",
+    "host",
+    "_time",
+    "_indextime"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: AlarmStatusChangedEvent",
+      "url": "https://developer.broadcom.com/xapis/virtual-infrastructure-json-api/latest/data-structures/AlarmStatusChangedEvent/",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: base Event properties",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.Event.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Splunk: VMware Metrics source types",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/Sourcetypes",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk: VMware Metrics collection configuration",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Lantern: Recently triggered vSphere alarms",
+      "url": "https://lantern.splunk.com/Observability_Use_Cases/Monitor_Business/Monitoring_VMware_virtualization_infrastructure/Recently_triggered_vSphere_alarms",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: spath",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/spath",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `alarm_name` metrics for 'vCenter Alarm Correlation'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `alarm_name`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `alarm_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `alarm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `alarm_name`, `valid_until`.",
+  "knownFalsePositives": "A matching event is a real recorded transition, but paging may be unnecessary after context review.\n\n1. **Approved maintenance** — patching, evacuation, failover or device work can trigger expected alarms. Match exact entity, alarm and approved interval; retain the transition.\n\n2. **Transient threshold crossing** — a short resource spike can move green→yellow→green. Inspect duration, underlying metric and recurrence rather than suppressing all recoveries.\n\n3. **Cascading symptoms** — one datastore, network or host fault can trigger many VM alarms. Use topology and timing to group investigation while retaining each event; do not claim root cause from count.\n\n4. **Stale or desynchronized alarm state** — vCenter can display a triggered alarm after the condition clears. Compare the current triggered-alarm view and alarm definition; preserve evidence of UI/state drift.\n\n5. **Custom alarm semantics** — administrators can define different thresholds and actions. Resolve the exact alarm definition revision before assigning operational severity.\n\n6. **Collector replay or overlap** — checkpoint reset, duplicate routes or overlapping windows can repeat keys. The rule deduplicates vCenter/key inside the bucket; health must identify recurrence across buckets.\n\n7. **Entity rename or movement** — names and topology can change after the event. Use the event argument plus managed-object identity where available and current inventory, not name alone.\n\n8. **Gray/unknown transitions** — excluded from paging by this rule but may indicate unavailable status or collection issues. Monitor them separately rather than relabeling them red.\n\n**Suppression mechanism:** apply a governed post-result lookup keyed by vCenter, exact alarm name, stable entity identity and approved time interval, with owner, reason, ticket and finite expiry. Never discard raw transitions or suppress by all alarms on a cluster.",
+  "mitreAttack": [
+    "N/A (vSphere operational alarm transition; no adversary behavior asserted)"
+  ],
+  "detectionType": "Raw vCenter alarm degradation transition",
   "equipment": [
-    "m365",
     "vmware"
   ],
   "equipmentModels": [
-    "vmware_esxi",
-    "vmware_ta_vmware",
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSplunk_TA_vmware automatically collects vCenter events including alarm state changes. Create a dashboard showing all active alarms. Correlate with time of changes, DRS events, and host health.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" event_type=\"AlarmStatusChangedEvent\"\n| stats count by alarm_name, new_status\n| sort -count\n```\n\nUnderstanding this SPL\n\n**vCenter Alarm Correlation** — Centralizing vCenter alarms in Splunk reduces mean-time-to-repair during compound failures (e.g. datastore latency + host memory pressure) that appear as separate alarms in vSphere. Alarm storm correlation by shared datastore or maintenance window prevents alert fatigue and highlights the root cause rather than symptoms.\n\nDocumented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by alarm_name, new_status** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of active alarms, Bar chart by alarm type, Timeline.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`alarm_name, new_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on alarm Correlation and raise the alarm before it drags down real work or real outages start.",
+  "hardware": "vCenter-managed datacenters, clusters, hosts, virtual machines, datastores, networks and other managed entities with configured vSphere alarms.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Five-minute bounded event search over one eventClass; current-state reconciliation is separate.",
+    "tstats_eligible": false,
+    "storage_class": "hot"
+  },
+  "detailedImplementation": "## Prerequisites and semantic boundary\n\nAssign vCenter, infrastructure-domain, Splunk and incident owners. Inventory governed vCenters, alarm definitions, entity ownership, maintenance calendars and routing. Broadcom defines AlarmStatusChangedEvent as a status change for an alarm; its object contains alarm and entity arguments plus `from` and `to`, while the base Event carries unique key, created time and formatted message. A transition is historical evidence, not a live alarm inventory or root-cause verdict.\n\n## Step 1 — Collect and prove events\n\nDeploy supported Splunk Add-on for VMware Metrics components. Configure vCenter API access over TCP 443 with a read-only account and include `event` in `inframon_ta_vmware_pool.conf`. Verify output in the real events index; this contract uses the documented default `vmware-taskevent` and `vmware_inframon:events`.\n\nCompare representative events with vSphere Client > Monitor > Tasks and Events and Triggered Alarms. Prove `eventClass=vim.event.AlarmStatusChangedEvent`, `key`, nested `alarm.name`, `entity.name`, `entity.entity.type`, `from`, `to`, `fullFormattedMessage`, vCenter/host, `_time` and `_indextime`. Keep the structured properties authoritative; messages can be localized. Build separate health for expected vCenters, event-task success/records_written, authentication, DCN workers, last event time across ordinary event classes, field completeness, delay, duplicate keys and clock drift. Quiet alarms do not imply broken collection.\n\n## Step 2 — Save and schedule the SPL\n\nSave the sidecar query as `vcenter_alarm_degrading_transition`, every five minutes. At 12:15 its `earliest=-15m@m latest=-10m@m` bucket covers 12:00 through but not including 12:05. Measure p99 event delay and move both bounds together if necessary; create a reviewed late-event reconciliation instead of overlapping schedules.\n\nThe base search fixes index, sourcetype, exact event class and closed range. `spath` extracts documented nested properties. Required-field checks prevent rows that cannot be investigated. Only destination yellow/red survives. Event identity is vCenter plus vSphere event key, not message text. Local severity maps red to high and yellow to medium for routing only; it is not a Broadcom severity or impact guarantee.\n\n## Step 3 — Validate logic and current-state reconciliation\n\nUse fixed JSON fixtures for every from/to combination among green, yellow, red and gray. Test two alarms on one entity, one alarm on two entities, same key on different vCenters, duplicate key on one vCenter, blank nested fields, localized messages, rename, delayed/future time, wrong eventClass/source and rerun. Assert no count threshold or root-cause label appears.\n\nIn a nonproduction vCenter, use owner-approved benign alarm thresholds to cause and clear yellow/red transitions. Compare API event key/time/properties, vSphere Client history, current Triggered Alarms and Splunk. Do not induce host, datastore or production failure. Verify acknowledgement and alarm reset do not get confused with the recorded condition transition.\n\n## Step 4 — Operationalize and respond\n\nRoute by exact alarm definition and entity owner. Include raw structured fields, event/index time and delay, current state, maintenance, topology, related metrics/events and a restricted vCenter link. Triage: verify record/source; inspect alarm definition and transition; reconcile current status; correlate entity dependencies and contemporaneous metrics; identify maintenance/change; then assign root-cause investigation. Close only with documented disposition, current state and healthy collection.\n\nDo not reset alarms, disable definitions, migrate/power VMs, enter maintenance, restart services or change thresholds automatically from this row. Those actions require domain evidence, approval and rollback.\n\n## Step 5 — Troubleshoot\n\n- No events: verify pool `event` task, vCenter credentials/443, scheduler/DCN/forwarding, index/RBAC and independent common-event health.\n- Null alarm/entity: inspect raw JSON, add-on version, truncation and `spath`; do not parse the localized message as the sole fallback.\n- Duplicate rows: compare vCenter/key, windows, collector checkpoints and routes.\n- Persistent active alarm but no new row: expected when no new transition occurred; use current-alarm reconciliation.\n- Many alarms at once: inspect shared host/datastore/network topology before paging each symptom independently.\n- State differs from UI: align event time, current-state query time, acknowledgement/reset, alarm-definition revision and vCenter clock.\n\nKeep status draft until production owners sign off source coverage, fixtures, routing and safe response. Documentation review is not runtime validation.",
+  "grandmaExplanation": "We show when the virtualization manager says an alarm has changed into a warning or serious state. The team still checks whether the problem is current and what actually caused it before taking action.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
