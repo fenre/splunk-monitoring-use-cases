@@ -1,54 +1,93 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.11",
-  "title": "ESXi Host Hardware Alerts",
+  "title": "ESXi Host Triggered Alarm Review",
   "criticality": "high",
-  "difficulty": "beginner",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'ESXi Host Hardware Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_esxi_host_hardware_alerts` (UC-2.1.11), SOC dashboard panel \"Linux — ESXi Host Hardware Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Covers active yellow/red triggered alarms attached to governed ESXi HostSystem entities. It does not assert every row is hardware-related, identify a failed component, replace vendor BMC/sensor diagnostics, cover cleared historical alarms, or prove service impact. Gray/unknown and source failures are separate health findings. Alarm acknowledgement does not equal remediation. No alarm is reset and no host action occurs.",
+  "evidence": "Retain the PowerCLI script/module hash, role/credential design, heartbeat and raw current-state JSON, matching vSphere host Triggered Alarms and alarm definition, optional AlarmStatusChangedEvent history, BMC/sensor evidence when hardware is suspected, versioned search/rows/disposition, and dated yellow/red/green/gray, acknowledged, stale, duplicate, removed-between-polls and source-failure tests. Editorial review created no alarm or runtime proof.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.11 positive (ESXi, Host, Hardware, Alerts): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `entity` satisfies detection threshold for 'ESXi Host Hardware Alerts'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.11 negative (Hardware Alerts): ingest benign `vmware` / `vmware:events` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 0 confirms zero alert rows for 'ESXi Host Hardware Alerts'."
+    "positiveScenario": "Index two fresh complete rows: a yellow alarm `alarm-10` and a red alarm `alarm-11` on host `host-22`, with distinct keys and valid observed timestamps. Expect two rows with high and critical local severity respectively, preserving acknowledgement values.",
+    "negativeScenario": "Expect zero primary rows for green state, blank alarm/host identity, stale collection over 20 minutes, invalid observed time, wrong source/index, or exact replay. Gray/unknown and a missing heartbeat must generate separate source/unknown-state findings, not a green result."
   },
-  "dataSources": "`sourcetype=vmware:events` (vCenter alarms) Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:events\" (event_type=\"AlarmStatusChangedEvent\") alarm_name=\"Host hardware*\"\n| table _time host alarm_name old_status new_status\n| where new_status=\"red\" OR new_status=\"yellow\"\n| sort -_time",
-  "description": "Identifies 'ESXi Host Hardware Alerts' (UC-2.1.11) using `index=vmware` sourcetype `vmware:events` by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold. Keywords: ESXi, Host, Hardware, Alerts. Focuses on Hardware Alerts behaviour so linux teams can triage UC-2.1.11 without ad-hoc log review.",
-  "value": "UC-2.1.11 accelerates insight into Hardware Alerts ('ESXi Host Hardware Alerts') by tracking `activity` on `vmware:events` feeds, reducing capacity incidents, patch regressions, and service outages before spreadsheet checks hide regressions.",
-  "implementation": "vCenter triggers hardware alarms via CIM providers on ESXi hosts. Splunk_TA_vmware collects these alarm events. Alert on red/yellow hardware alarms. Ensure CIM providers are installed on ESXi (vendor-specific VIBs).",
-  "visualization": "Host health grid (red/yellow/green), Events table, Alert panel.",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "Local VMware PowerCLI scripted input with Splunk Add-on for VMware (Splunkbase 3215) event/inventory corroboration. `index=vmware-ops`, `sourcetype=vmware:powercli:host_alarm`; required fields: alarm_key, host_id, host_name, alarm_name, overall_status, acknowledged, acknowledged_by, observed_at, vcenter. These map to vSphere AlarmState key, entity, overallStatus, acknowledged, acknowledgedByUser and current host identity.",
+  "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'ESXi Host Hardware Alerts'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=vmware-ops sourcetype=\"vmware:powercli:host_alarm\" earliest=-30m\n| eval alarm_key=trim(alarm_key), host_id=trim(host_id), host_name=trim(host_name), alarm_name=trim(alarm_name), overall_status=lower(trim(overall_status)), observed_epoch=strptime(observed_at,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(alarm_key)>0 AND len(host_id)>0 AND len(host_name)>0 AND len(alarm_name)>0 AND overall_status IN (\"yellow\",\"red\") AND isnotnull(observed_epoch)\n| stats latest(overall_status) as overall_status latest(acknowledged) as acknowledged latest(acknowledged_by) as acknowledged_by latest(observed_epoch) as observed_epoch latest(_time) as collection_time latest(vcenter) as vcenter by alarm_key host_id host_name alarm_name\n| eval collection_age_minutes=round((now()-collection_time)/60,1)\n| where collection_age_minutes<=20\n| eval use_case_id=\"UC-2.1.11\", finding=\"active_esxi_triggered_alarm\", local_severity=if(overall_status=\"red\",\"critical\",\"high\")\n| convert ctime(observed_epoch)\n| table host_name host_id alarm_name alarm_key overall_status acknowledged acknowledged_by observed_epoch vcenter collection_age_minutes finding local_severity use_case_id\n| sort 0 -local_severity host_name alarm_name",
+  "description": "Reports fresh current yellow or red triggered-alarm states for ESXi host managed entities from an explicit PowerCLI inventory, preserving stable alarm/host identity, acknowledgement context, and observed time.",
+  "value": "Current host alarms can surface hardware, connectivity, configuration, capacity, or other conditions before a host fails or loses resilience. A state-based queue directs owners to the exact alarm while avoiding unsupported assumptions that every alarm is a physical sensor fault.",
+  "implementation": "Deploy a PowerCLI scripted input that enumerates each governed VMHost's `ExtensionData.TriggeredAlarmState`, resolves the alarm object name, and emits documented AlarmState properties to `vmware:powercli:host_alarm` every 10 minutes. Alert on fresh yellow/red states; classify physical hardware only after checking the exact alarm definition, host sensors and vendor BMC. Keep vCenter `AlarmStatusChangedEvent` as optional historical context, not current-state proof.",
+  "visualization": "Dashboard `ESXi Triggered Alarms`: script heartbeat and governed-host coverage first; red/yellow host counts; matrix of host by alarm status; table with host/alarm IDs and names, status, acknowledgement, observed/collection age, vCenter, owner, maintenance, incident and hardware corroboration. Default current state with 30-day transition trend; drill to vSphere Host > Monitor > Issues and Alarms > Triggered Alarms, raw JSON and BMC.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for VMware (Splunkbase 3215)",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.0/get-data-from-files-and-directories/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API ManagedEntity triggeredAlarmState and status",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.ManagedEntity.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API AlarmState",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.alarm.AlarmState.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API ManagedEntityStatus values",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.ManagedEntity.Status.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API AlarmStatusChangedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.AlarmStatusChangedEvent.html",
+      "retrieved": "2026-07-29"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved host maintenance** — a real yellow/red triggered alarm can remain during patching, evacuation or hardware service. Verify exact alarm key/name, maintenance task, ticket, owner and end time; suppress notification only with a finite host/alarm exception in `vmware_uc_dispositions.csv`.\n\n2. **Alarm remains acknowledged after triage** — acknowledgement is workflow context, not recovery. Compare current status, acknowledgement user/time, incident and underlying condition; keep the row until status clears or risk is explicitly accepted.\n\n3. **Vendor sensor or CIM provider refresh lag** — host health may recover before a hardware-related alarm clears. Compare current vCenter sensor view, BMC/iDRAC/iLO/IPMI state, provider health and a later poll; do not reset the alarm merely to quiet Splunk.\n\n4. **Duplicate vCenter visibility or collector route** — linked/multiple vCenters or repeated scripted execution can duplicate an alarm. Key the entity by vCenter, host ID and alarm key, compare raw observations and fix routing; never allow all alarms with the same display name.\n\nDelivery suppression uses the governed lookup table `vmware_uc_dispositions.csv` only after the base result is retained; each entry requires the exact UC/entity keys, owner, ticket, reason, start, and finite expiry.",
+  "requiredFields": [
+    "alarm_key",
+    "host_id",
+    "host_name",
+    "alarm_name",
+    "overall_status",
+    "acknowledged",
+    "acknowledged_by",
+    "observed_at",
+    "vcenter"
+  ],
   "equipment": [
-    "hyperv",
     "vmware"
   ],
   "equipmentModels": [
@@ -60,8 +99,11 @@
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events` (vCenter alarms).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nvCenter triggers hardware alarms via CIM providers on ESXi hosts. Splunk_TA_vmware collects these alarm events. Alert on red/yellow hardware alarms. Ensure CIM providers are installed on ESXi (vendor-specific VIBs).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" (event_type=\"AlarmStatusChangedEvent\") alarm_name=\"Host hardware*\"\n| table _time host alarm_name old_status new_status\n| where new_status=\"red\" OR new_status=\"yellow\"\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**ESXi Host Hardware Alerts** — CIM-based hardware health detects physical component failures (fans, PSU, temperature) at the hypervisor level before they cause host failure.\n\nDocumented **Data sources**: `sourcetype=vmware:events` (vCenter alarms). **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **ESXi Host Hardware Alerts**): table _time host alarm_name old_status new_status\n• Filters the current rows with `where new_status=\"red\" OR new_status=\"yellow\"` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Host health grid (red/yellow/green), Events table, Alert panel.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on host Hardware Alerts and raise the alarm before it drags down real work or real outages start.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nOn a controlled Heavy Forwarder, run an approved PowerCLI script every 600 seconds. Enumerate governed `Get-VMHost` objects, read each host managed entity's `TriggeredAlarmState`, resolve each Alarm managed-object name, and serialize explicit contract fields plus vCenter. VMware documents AlarmState key/entity/overallStatus and acknowledgement properties; statuses are gray, green, yellow and red. Emit a run heartbeat and an empty-success count so no active alarms is distinguishable from failed collection.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-ops (sourcetype=\"vmware:powercli:host_alarm\" OR sourcetype=\"vmware:powercli:host_alarm:heartbeat\") earliest=-30m\n| stats count latest(_time) as latest_poll dc(host_id) as host_count dc(alarm_key) as alarm_count values(overall_status) as statuses by sourcetype\n| convert ctime(latest_poll)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_esxi_triggered_alarm_review` after substituting only an approved local index name. Poll and search every 10 minutes with a completion offset. Reject observations older than 20 minutes; trigger per vCenter/host/alarm key and retain state transitions separately.\n\n```spl\nindex=vmware-ops sourcetype=\"vmware:powercli:host_alarm\" earliest=-30m\n| eval alarm_key=trim(alarm_key), host_id=trim(host_id), host_name=trim(host_name), alarm_name=trim(alarm_name), overall_status=lower(trim(overall_status)), observed_epoch=strptime(observed_at,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(alarm_key)>0 AND len(host_id)>0 AND len(host_name)>0 AND len(alarm_name)>0 AND overall_status IN (\"yellow\",\"red\") AND isnotnull(observed_epoch)\n| stats latest(overall_status) as overall_status latest(acknowledged) as acknowledged latest(acknowledged_by) as acknowledged_by latest(observed_epoch) as observed_epoch latest(_time) as collection_time latest(vcenter) as vcenter by alarm_key host_id host_name alarm_name\n| eval collection_age_minutes=round((now()-collection_time)/60,1)\n| where collection_age_minutes<=20\n| eval use_case_id=\"UC-2.1.11\", finding=\"active_esxi_triggered_alarm\", local_severity=if(overall_status=\"red\",\"critical\",\"high\")\n| convert ctime(observed_epoch)\n| table host_name host_id alarm_name alarm_key overall_status acknowledged acknowledged_by observed_epoch vcenter collection_age_minutes finding local_severity use_case_id\n| sort 0 -local_severity host_name alarm_name\n```\n\nUnderstanding this SPL: The primary search validates explicit normalized fields, admits only documented yellow/red statuses, keeps the latest state per stable alarm and host, and rejects stale collection. It intentionally searches current triggered state rather than guessing hardware from a localized alarm-name wildcard.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nFor two hosts, compare the script output with vSphere Client **Host > Monitor > Issues and Alarms > Triggered Alarms** and PowerCLI/managed-object views. Confirm key, resolved name, entity, overall status and acknowledgement. Use synthetic JSON and a historical approved alarm; do not induce a production hardware fault. Validate a no-active-alarm heartbeat and gray/unknown path.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nValidate heartbeat/current row; open exact vCenter alarm definition and triggering expression; determine whether the condition concerns hardware, connectivity, configuration, capacity or another subsystem; for suspected hardware compare host sensors and vendor BMC; assess VM/service impact and evacuation safety; coordinate repair/change; verify alarm clears and host/service health. Acknowledging or resetting without fixing is not closure.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf no alarms and no heartbeat appear, repair script/DCN before declaring health. If alarm names are blank, resolve the Alarm managed object using its reference and verify privileges. If status differs from vCenter, refresh the managed entity because VMware notes update-notification caveats for overallStatus. If only historical events exist, do not treat them as active state. If BMC disagrees, preserve both and investigate provider/sensor freshness.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
+  "grandmaExplanation": "We list serious warnings that are still active on virtualization hosts, then help the team open the exact warning and check whether it is hardware or another kind of problem.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
