@@ -1,67 +1,120 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.12",
-  "title": "VM Resource Over-Allocation",
+  "title": "Sustained Low VM CPU and Memory Utilization",
   "criticality": "medium",
   "difficulty": "advanced",
   "monitoringType": [
-    "Capacity"
-  ],
-  "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'VM Resource Over-Allocation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vm_resource_over_allocation` (UC-2.1.12), SOC dashboard panel \"Linux — VM Resource Over-Allocation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "controlTest": {
-    "positiveScenario": "UC-2.1.12 positive (Resource, Over, Allocation): ingest synthetic events into `index=vmware` sourcetype='vmware:perf:cpu' where `avg_cpu` grouped by `vm_name` satisfies `avg_cpu` < 20 for 'VM Resource Over-Allocation'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.12 negative (Over Allocation): ingest benign `vmware` / `vmware:perf:cpu` events where `vm_name` stays below `avg_cpu` < 20, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'VM Resource Over-Allocation'."
-  },
-  "dataSources": "`sourcetype=vmware:perf:cpu`, `sourcetype=vmware:perf:mem`, `sourcetype=vmware:inv:vm` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.usage.average\"\n| stats avg(Value) as avg_cpu by vm_name\n| join max=1 vm_name [search index=vmware sourcetype=\"vmware:inv:vm\" | table vm_name numCpu memoryMB]\n| where avg_cpu < 20\n| sort avg_cpu\n| table vm_name numCpu memoryMB avg_cpu",
-  "description": "Identifies risk tied to Resource, Over, Allocation through UC-2.1.12 on `index=vmware` sourcetype `vmware:perf:cpu`. Summarises `avg_cpu` grouped by `vm_name` across `the scheduled window` before applying `avg_cpu` < 20. Operators tune 'VM Resource Over-Allocation' using UC-2.1.12 runbook steps.",
-  "value": "Tracking `avg_cpu` via UC-2.1.12 on `vmware:perf:cpu` feeds improves response to 'VM Resource Over-Allocation' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Analyze 30-day average CPU and memory utilization vs. allocated resources. Generate monthly right-sizing report. Include peak utilization to avoid right-sizing below burst needs.",
-  "visualization": "Scatter plot (allocated vs. used), Table with recommendations, Bar chart of waste by team.",
-  "cimModels": [
+    "Capacity",
     "Performance"
   ],
-  "cimSpl": "| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1d\n| where avg_cpu < 20",
-  "dataModelAcceleration": "Enable data model acceleration for the CIM Performance data model; align field aliases to the same dataset the example uses (here: Performance).",
-  "references": [
+  "splunkPillar": "Observability",
+  "exclusions": "Returns powered-on vSphere virtual machines whose 30 complete daily buckets contain both average CPU usage below 20 percent and peak CPU usage below 50 percent, and whose average and peak consumed-memory percentages are below the same limits. VMware defines `cpu.usage` as host-view active CPU percentage and `mem.usage` as consumed host memory percentage; neither proves application demand, guest working set, future burst need, licensing constraints, NUMA fit, reservation requirements, or that a smaller VM is safe. The 20/50-percent values and 30-day observation period are local starting points, not VMware recommendations. Missing metrics, powered-off periods, new VMs, sparse buckets, snapshots, backup windows, maintenance, disaster-recovery capacity, and business calendars require separate treatment. This documentation-only rule proposes review candidates; it does not resize, power off, delete, migrate, reclaim, approve savings, or assert waste.",
+  "evidence": "After deployment, retain governed VM inventory and owner/service tier; vCenter and add-on versions; metric allowlists and collection interval; raw metric-name, unit, aggregation, UUID, VM, cluster, hypervisor, vCenter, event and index times for representative samples; independent metric/index/DCN health; version-controlled `vsphere_vm_sustained_low_utilization` SPL, ACL, schedule, dispatch history, result rows, dashboard and runbook; approved exception and business-calendar revisions; owner decisions and any separately approved change records; and dated positive, negative, sparse-data, boundary, replay, delayed-data, powered-off, new-VM, maintenance, and field-drift tests. This editorial review created no vCenter sample, Splunk search execution, right-sizing recommendation approval, savings evidence, or production validation.",
+  "controlTest": {
+    "positiveScenario": "In an isolated metrics test index, provide one powered-on VM UUID with 30 complete UTC daily buckets for both documented metric names. Set every bucket's `vmware.vm.cpu.usage` average to 10.00 and maximum to 35.00 percent, and `vmware.vm.mem.usage` average to 15.00 and maximum to 40.00 percent; preserve `name`, `uuid`, `vcenter`, `cluster_name`, `hypervisor_name`, and `unit=percent`. Expect exactly one row with `observed_days=30`, the four stated values, `review_candidate=true`, and UC-2.1.12.",
+    "negativeScenario": "Expect zero rows when either 30-day peak is exactly 50.00 percent, either average is exactly 20.00 percent, fewer than 30 distinct daily buckets exist, one required metric is absent, UUID/name is blank, the entity is powered off according to authoritative inventory, the metric name/index is wrong, or the event lies outside the closed 30-day range. Separately expose collection and inventory-health failures; do not interpret zero candidates as proof that sizing is efficient."
+  },
+  "dataSources": "Primary data is vCenter API performance telemetry collected by Splunk Add-on for VMware Metrics into the deployment-selected metrics index (example `index=vmware-perf-metrics`). Required documented metric names are `vmware.vm.cpu.usage` and `vmware.vm.mem.usage`, both percentages, from `VMPerf:VirtualMachine`; dimensions are `name`, `uuid`, `vcenter`, `cluster_name`, `hypervisor_name`, `entity_type`, `unit`, and metric time. Authoritative VM power state and configuration come from `source=VMInv:VirtualMachine`, `sourcetype=vmware_inframon:inv:vm` in the deployment-selected events index. Owner, service tier, lifecycle state, exception, maintenance, and business calendar are governed local lookups, never vendor fields.",
+  "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter performance, inventory, tasks, and events through Data Collection Nodes. Splunk Add-on for VMware Metrics Indexes (5602) supplies default index definitions where deployed; a local app owns the saved search, exact index names, inventory/state reconciliation, lookups, dashboard, tests, routing, and runbook.",
+  "splunkbaseApps": [
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "id": 5602,
+      "name": "Splunk Add-on for VMware Metrics Indexes",
+      "url": "https://splunkbase.splunk.com/app/5602",
+      "role": "optional"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `vm_name` metrics for 'VM Resource Over-Allocation'. Correlate with apt/yum logs in the same `vmware:perf:cpu` window.\n\n2. **Nightly backup I/O on `vm_name`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:perf:cpu`** — Nagios/Zabbix polls `vm_name` and mimics sustained load without crossing `avg_cpu` < 20.\n\n4. **New host onboarding** — `vm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vm_name`, `valid_until`.",
+  "spl": "| mstats avg(vmware.vm.cpu.usage) AS avg_cpu_pct max(vmware.vm.cpu.usage) AS peak_cpu_pct avg(vmware.vm.mem.usage) AS avg_mem_pct max(vmware.vm.mem.usage) AS peak_mem_pct WHERE index=vmware-perf-metrics earliest=-30d@d latest=@d BY name uuid vcenter cluster_name hypervisor_name span=1d\n| stats count AS observed_days avg(avg_cpu_pct) AS avg_cpu_pct max(peak_cpu_pct) AS peak_cpu_pct avg(avg_mem_pct) AS avg_mem_pct max(peak_mem_pct) AS peak_mem_pct latest(vcenter) AS vcenter latest(cluster_name) AS cluster_name latest(hypervisor_name) AS hypervisor_name BY uuid name\n| where observed_days=30 AND avg_cpu_pct<20 AND peak_cpu_pct<50 AND avg_mem_pct<20 AND peak_mem_pct<50 AND len(uuid)>0 AND len(name)>0\n| eval avg_cpu_pct=round(avg_cpu_pct,2), peak_cpu_pct=round(peak_cpu_pct,2), avg_mem_pct=round(avg_mem_pct,2), peak_mem_pct=round(peak_mem_pct,2), review_candidate=\"true\", use_case=\"UC-2.1.12\"\n| table uuid name vcenter cluster_name hypervisor_name observed_days avg_cpu_pct peak_cpu_pct avg_mem_pct peak_mem_pct review_candidate use_case\n| sort 0 avg_cpu_pct avg_mem_pct name",
+  "description": "Identifies VM UUIDs with complete daily CPU and consumed-memory telemetry across the last 30 complete UTC days where both averages remain below 20 percent and both observed peaks remain below 50 percent. Each row is a conservative right-sizing review candidate at VM grain, not an automated resize recommendation.",
+  "value": "A repeatable candidate list lets platform and workload owners focus expensive sizing analysis on persistently quiet VMs while retaining peak and coverage evidence. Requiring complete dual-metric history reduces impulsive downsizing based on a short lull and supports safer capacity, license, and hosting-cost decisions.",
+  "implementation": "Collect the two documented VM percentage metrics and VM inventory through the supported vCenter API path, prove units and dimensions, and run the search daily over 30 complete days. Reconcile rows to current powered-on inventory, owners, business calendars, reservations and application evidence; require workload approval and a separate reversible change before resizing.",
+  "visualization": "Use a review table keyed by VM UUID with VM, vCenter, cluster, host, observed days, four percentage statistics, power state, age, service tier, owner, exception, recommendation decision, and last review. Add distributions by cluster and owner plus separate metric-coverage and stale-inventory panels. Do not label aggregate capacity or projected savings as reclaimed until an approved change is completed and measured.",
+  "cimModels": [
+    "N/A"
+  ],
+  "schema": "Splunk metrics-index series emitted by Splunk Add-on for VMware Metrics plus vCenter VM inventory reconciliation",
+  "dataModelAcceleration": "Not applicable. The primary measurements are metrics-index series searched with `mstats`; CIM Performance does not document these VMware metric names, dimensions, dual averages/peaks, or daily completeness contract. Do not substitute `tstats` over a generic host dataset.",
+  "requiredFields": [
+    "metric_name:vmware.vm.cpu.usage",
+    "metric_name:vmware.vm.mem.usage",
+    "_value",
+    "_time",
+    "name",
+    "uuid",
+    "vcenter",
+    "cluster_name",
+    "hypervisor_name",
+    "unit"
+  ],
+  "references": [
+    {
+      "title": "Splunk: Performance metrics reference for Splunk Add-on for VMware Metrics",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/PerformanceRef",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk: Configure data collection for Splunk Add-on for VMware Metrics",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk: Configure VMware API collection and network paths",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/VMwareAPI",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: mstats",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/mstats",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom vSphere Web Services API: CPU performance counters",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/cpu_counters.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom vSphere Web Services API: Memory performance counters",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/memory_counters.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
+    }
+  ],
+  "knownFalsePositives": "This search produces review candidates, so a technically correct row can still be unsuitable for resizing.\n\n1. **Scheduled monthly or quarterly workload** — payroll, close, reporting, patch, test, or enrollment peaks may not occur in the 30-day window. Compare at least one full business cycle and owner calendar.\n\n2. **Disaster-recovery or failover reserve** — a quiet standby VM can be intentionally sized for takeover. Verify service architecture, recovery plan, last exercise, and required recovery load.\n\n3. **Licensing or support topology** — software licensing, appliance certification, vNUMA, fault tolerance, reservation, or vendor support can require present sizing. Obtain product-owner evidence rather than inferring waste from utilization.\n\n4. **New or rebuilding VM** — deployment, migration, warm-up, restoration, or seasonal ramp can yield quiet history. Require authoritative creation/change date and an owner-defined minimum age.\n\n5. **Powered-off or suspended intervals** — stale metrics can satisfy numeric limits while the VM was unavailable. Reconcile each bucket with current and historical runtime state; the primary metric search does not prove powered-on continuity.\n\n6. **Metric coverage or unit drift** — allowlist changes, collection gaps, mixed vCenters, renamed dimensions, or unexpected units can create misleading aggregates. The 30-day count helps but does not replace independent per-metric health and unit tests.\n\n7. **Burst hidden by rollup** — vCenter collection and historical rollups can smooth short peaks. Compare the configured interval, available maximum rollup, application SLOs, CPU ready, memory reclamation, and guest telemetry before proposing change.\n\n8. **Application bottleneck or external wait** — low host-view CPU and consumed memory can reflect blocked I/O, network dependency, queueing, or a broken service rather than excess allocation. Confirm application health and demand.\n\n**Suppression mechanism:** maintain a governed post-result lookup keyed by immutable VM UUID plus vCenter, with reason, evidence link, owner, approved_by, start_time, and finite expiry. Retain unsuppressed candidates and metric-health results; never suppress by VM-name wildcard, cluster, or low percentage alone.",
+  "mitreAttack": [
+    "N/A (capacity-planning review; no adversary behavior asserted)"
+  ],
+  "detectionType": "Thirty-day dual-metric low-utilization review candidate",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
-    "vmware_esxi",
-    "vmware_ta_vmware"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:cpu`, `sourcetype=vmware:perf:mem`, `sourcetype=vmware:inv:vm`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nAnalyze 30-day average CPU and memory utilization vs. allocated resources. Generate monthly right-sizing report. Include peak utilization to avoid right-sizing below burst needs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.usage.average\"\n| stats avg(Value) as avg_cpu by vm_name\n| join max=1 vm_name [search index=vmware sourcetype=\"vmware:inv:vm\" | table vm_name numCpu memoryMB]\n| where avg_cpu < 20\n| sort avg_cpu\n| table vm_name numCpu memoryMB avg_cpu\n```\n\nUnderstanding this SPL\n\n**VM Resource Over-Allocation** — VMs consistently using <20% of allocated CPU/memory waste resources that other VMs could use. Right-sizing saves money and improves cluster capacity.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:cpu`, `sourcetype=vmware:perf:mem`, `sourcetype=vmware:inv:vm`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:cpu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:cpu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vm_name** so each row reflects one combination of those dimensions.\n• Joins to a subsearch with `join` — set `max=` to match cardinality and avoid silent truncation.\n• Filters the current rows with `where avg_cpu < 20` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **VM Resource Over-Allocation**): table vm_name numCpu memoryMB avg_cpu\n\nOptional CIM / accelerated variant (same use case, normalized fields via Common Information Model):\n\n```spl\n| tstats `summariesonly` avg(Performance.cpu_load_percent) as avg_cpu\n  from datamodel=Performance where nodename=Performance.CPU\n  by Performance.host span=1d\n| where avg_cpu < 20\n```\n\nUnderstanding this CIM / accelerated SPL\n\n**VM Resource Over-Allocation** — VMs consistently using <20% of allocated CPU/memory waste resources that other VMs could use. Right-sizing saves money and improves cluster capacity.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:cpu`, `sourcetype=vmware:perf:mem`, `sourcetype=vmware:inv:vm`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThis **CIM or accelerated** block uses normalized field names and/or `tstats` over data models. Enable **acceleration** on the referenced models (and correct CIM knowledge objects) or the search may return nothing.\n\n**Pipeline walkthrough**\n\n• Uses `tstats` against accelerated summaries for data model `Performance` — enable acceleration for that model.\n• Filters the current rows with `where avg_cpu < 20` — typically the threshold or rule expression for this monitoring goal.\n\nEnable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Scatter plot (allocated vs. used), Table with recommendations, Bar chart of waste by team.",
-  "grandmaExplanation": "We keep an eye on resource Over-Allocation and raise the alarm before it drags down real work or real outages start.",
+  "hardware": "VMware vSphere virtual machines managed by vCenter. Rightsizing decisions depend on guest/workload behavior, virtual hardware, reservations, limits, NUMA, storage/network demand, service tier, and cluster failover policy.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "search_load_notes": "Daily mstats aggregation of two VM metrics over 30 complete days; cardinality follows VM UUID count and dimensions.",
+    "tstats_eligible": false,
+    "storage_class": "warm"
+  },
+  "detailedImplementation": "## Prerequisites and evidence boundary\n\nAssign vSphere, capacity, workload, finance/licensing, Splunk, and change owners. Inventory governed vCenters and VMs by immutable UUID, service, environment, owner, criticality, business calendar, disaster-recovery role, reservation/limit, vCPU/memory allocation, age, migration state, and exception. Define the local observation period and thresholds. The supplied 30 days, average below 20 percent, and peak below 50 percent are deliberately conservative examples, not VMware sizing guidance; change them only through a measured capacity policy.\n\nBroadcom documents `cpu.usage` as the host view of active virtual CPU percentage. Splunk indexes it as `vmware.vm.cpu.usage`. Splunk documents `vmware.vm.mem.usage` as average memory usage percentage for VM performance. Confirm `unit=percent`, entity type, aggregation, VM UUID, and rollup behavior in your own vCenter/add-on versions. These metrics do not reveal application latency, blocked work, guest cache value, licensing minima, or future demand.\n\n## Step 1 — Configure and prove collection\n\nDeploy a supported Splunk Add-on for VMware Metrics (5089), its required scheduler/Data Collection Nodes, and index packages appropriate to the topology. The add-on uses the VMware API over TCP 443; scheduler/DCN and forwarding paths also require the documented management, gateway, and forwarding ports. Use a least-privilege vCenter read account and Splunk roles restricted to the selected metrics and events indexes.\n\nIn `inframon_ta_vmware_pool.conf`, ensure the pool includes `hostvmperf` and `vminv`. In the template configuration, allow `cpu.average.usage.percent` and `mem.average.usage.percent` for VM collection. Use the deployment's real metrics index; `vmware-perf-metrics` is the default/example contract here, not a universal name. Inventory events should retain `source=VMInv:VirtualMachine` and `sourcetype=vmware_inframon:inv:vm`.\n\nFor representative VMs, compare vSphere Client performance charts and inventory with Splunk. Prove metric names `vmware.vm.cpu.usage` and `vmware.vm.mem.usage`, numeric `_value`, percent units, UTC `_time`, UUID/name, vCenter, cluster, and hypervisor dimensions. Record the configured sampling and historical intervals. Build independent health for expected VM UUIDs, each required metric, last metric time, daily bucket coverage, duplicate routes, future/stale timestamps, DCN scheduler/worker errors, vCenter authentication, API latency, and inventory freshness.\n\n## Step 2 — Create the bounded candidate search\n\nSave the sidecar SPL as `vsphere_vm_sustained_low_utilization`. Run it once daily after the complete prior UTC day is indexed. The range `earliest=-30d@d latest=@d` contains 30 closed calendar days. If p99 collection delay extends past the run time, delay dispatch or move both bounds to an earlier closed range; do not overlap runs silently.\n\n`mstats` calculates daily average and maximum for both named metrics by stable VM and environment dimensions. The second aggregation requires exactly 30 daily rows, averages the daily means, and retains the highest daily maxima. The strict comparisons exclude values equal to 20 or 50. Rounding happens after filtering. A surviving row means only that the indexed host-view series met this local candidate rule.\n\nReconcile each result after the primary search with current `VMInv:VirtualMachine` state, allocation, authoritative owner and service tier. Keep this reconciliation outside the base metric query unless field names and temporal semantics are fixture-tested. Reject powered-off, suspended, deleted, template, orphaned, recently created, or stale-inventory entities. Do not use a subsearch that silently truncates a large inventory.\n\n## Step 3 — Validate controls and semantics\n\nCreate fixed metric fixtures with 30 distinct days and both metric names. Test well-below, exact-boundary, one-high-day, missing-day, missing-metric, duplicate point, duplicate day, mixed UUID, renamed VM, missing name/UUID, wrong unit, wrong index, late point, and future point cases. Confirm one VM renamed during the period remains keyed by UUID and investigate how changing name dimensions affect daily rows.\n\nCompare daily values for selected VMs with vSphere Client charts using the same interval and aggregation. Explain expected differences caused by chart rollup, timezone, real-time versus historical samples, and collection delay. Validate that a short burst visible only at finer granularity is not lost from the owner review. Exercise the inventory reconciliation for powered-off, template, moved, deleted, and newly created VMs.\n\nMeasure expected versus observed VM/metric coverage, bucket completeness, duplicate rate, p95/p99 delay, search runtime, skipped schedules, result stability, owner response, accepted candidates, rejected reasons, post-change performance, and rollback rate. Keep `status=draft` until vSphere, workload, capacity, and Splunk owners approve data semantics and safe workflow in production.\n\n## Step 4 — Operationalize review, not automation\n\nPresent a restricted candidate queue with UUID, current name, vCenter, cluster, host, current allocation, reservation/limit, four utilization measures, coverage, VM age, service/owner, business cycle, DR role, exception, decision, and evidence links. Add separate panels for missing metric days, stale inventory, DCN errors, and VMs without owners. Use a 90-day drilldown where retention permits.\n\nRoute candidates to capacity analysts first, then workload owners. Before proposing size changes, inspect application SLOs, guest and host CPU ready, memory ballooning/swapping, disk/network demand, backup and batch windows, reservation and HA admission-control impact, license/support constraints, and at least one relevant business cycle. Document a proposed target, rollback point, maintenance window, approver, and observation plan.\n\nNever let this search automatically reconfigure CPU or memory, remove reservations, power off/delete a VM, change DRS/resource pools, or book savings. Execute any approved resize through the authoritative change system. Validate service health and vSphere contention after change, preserve before/after evidence, and roll back on owner-defined SLO or capacity regression.\n\n## Step 5 — Troubleshoot safely\n\n- **No metrics:** verify index name, metrics-index type, vCenter registration, pool task `hostvmperf`, VM metric allowlist, scheduler/DCN health, TCP 443, forwarding, and RBAC.\n- **Only one metric appears:** confirm both allowlist entries, vCenter counter availability, metric name spelling, and add-on Performance Reference for the deployed version.\n- **Observed days exceed or miss 30:** inspect span timezone, duplicate dimensions, collection gaps, delayed ingestion, and range boundaries. Do not relax completeness merely to produce candidates.\n- **VM names split:** key ownership and exceptions by UUID; reconcile rename and vMotion history rather than merging unrelated names.\n- **Values differ from vSphere Client:** align entity, time range, sampling interval, rollup, aggregation, unit, and timezone. Preserve both comparisons.\n- **Low utilization but complaints exist:** investigate latency, I/O, network waits, CPU ready, NUMA, guest telemetry, and dependency health. Low host-view usage can describe a constrained or idle-because-broken workload.\n- **Many candidates after collection change:** treat allowlist, rollup, dimension, or unit drift as a source-health incident before capacity action.\n\nRetention and review cadence follow local capacity, privacy, and audit policy. A documentation review and passing fixtures do not establish production safety or realized savings.",
+  "grandmaExplanation": "We find virtual machines that have stayed unusually quiet for a full month so people can check whether they were given more computing power than they need. Nothing is changed automatically, and the workload owner must confirm that quiet periods and future busy days are understood.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
