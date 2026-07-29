@@ -1,66 +1,115 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.1",
-  "title": "ESXi Host CPU Contention",
+  "title": "VM CPU Ready Contention on ESXi Hosts",
   "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
+    "Capacity",
+    "Performance",
+    "Reliability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'ESXi Host CPU Contention' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_esxi_host_cpu_contention` (UC-2.1.1), SOC dashboard panel \"Linux — ESXi Host CPU Contention\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports an individual numeric vCPU instance whose native `vmware.vm.cpu.readiness` percentage is above 5% for at least three consecutive complete five-minute buckets, with local critical classification when the run peaks above 10%. Broadcom describes these as per-vCPU investigate/action bands; CPU Ready alone does not prove user-visible slowness or identify host saturation as the cause. The rule does not divide a summation by a hard-coded 20-second interval, use aggregate VM/host readiness as if it were per-vCPU, diagnose CPU limits/reservations/shares, co-stop, NUMA, over-sizing, host utilization, power policy, noisy neighbors, or application impact. Missing VM/vCPU metrics, changing vCPU topology, collection gaps, and stale dimensions are data-health findings. No VM resize, migration, resource-policy, host-power, or DRS action is performed and no compliance claim is made.",
+  "evidence": "After deployment, retain vCenter/cluster/ESXi/VM/MOID/vCPU/workload ownership and resource-policy inventory; vSphere/vCenter and Splunk VMware Metrics add-on/DCN/DCS configuration and supported versions; enabled `cpu.average.readiness.percent` metric and dimensions; representative metric points; inventory/performance coverage, interval, delay, duplicate, dimension, and topology health; version-controlled `vmware_vcpu_ready_sustained` search, ACL, schedule, dispatches, and rows; vSphere advanced chart/esxtop plus application corroboration; exception/change disposition; and dated 5%/10% boundaries, three-bucket persistence, interruption, aggregate-instance exclusion, missing bucket, vCPU resize, late data, recovery, and routing tests. This documentation-only review collected no VMware metric, executed no SPL, and validated no production contention or application impact.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.1 positive (ESXi, Host, CPU, Contention): ingest synthetic events into `index=vmware` sourcetype='vmware:perf:cpu' where `avg_ready` grouped by `host`, `vm_name` satisfies `avg_ready` > 5 for 'ESXi Host CPU Contention'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.1 negative (CPU Contention): ingest benign `vmware` / `vmware:perf:cpu` events where `host`, `vm_name` stays below `avg_ready` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'ESXi Host CPU Contention'."
+    "positiveScenario": "In an isolated metrics index and fixed completed 20-minute slice, write native `vmware.vm.cpu.readiness` points for `vcenter=vc01`, `moid=vm-101`, and numeric `instance=0` in three adjacent five-minute buckets with averages 5.1%, 6.0%, and 7.0%; expect one warning row with `consecutive_buckets=3`, peak 7, average 6.033, run bounds, and `use_case=UC-2.1.1`. Repeat at 10.0%, 10.1%, and 11.0%; expect critical because peak is strictly above 10.",
+    "negativeScenario": "Expect zero rows when all buckets are <=5%; exactly 5%; only one or two buckets exceed 5%; three breaches include a five-minute gap or an intervening <=5 bucket; instance is `_Total`, aggregate, blank, or nonnumeric; MOID/vCenter is blank; metric name/index is wrong; or points fall outside the window. Exactly 10% remains warning. Separate health must expose a missing expected VM/vCPU/bucket, DCN/DCS failure, collection-interval drift, duplicate series, stale inventory/dimension, vCPU topology change, and delayed metrics rather than treating silence as low contention."
   },
-  "dataSources": "`sourcetype=vmware:perf:cpu`, vCenter performance metrics Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready by host, vm_name\n| where avg_ready > 5\n| sort -avg_ready",
-  "description": "Identifies UC-2.1.1 — ESXi, Host, CPU, Contention — using `index=vmware` sourcetype `vmware:perf:cpu`, grouped by `host`, `vm_name`. Outputs `avg_ready` each `the scheduled window`; alert when `avg_ready` > 5. Primary focus: CPU Contention. Purpose-built for 'ESXi Host CPU Contention' in Linux workflows.",
-  "value": "Operators running UC-2.1.1 on `vmware:perf:cpu` feeds shorten triage for CPU Contention tied to 'ESXi Host CPU Contention', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Install `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.",
-  "visualization": "Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).",
-  "cimModels": [
-    "N/A"
+  "dataSources": "Primary data is the metric `vmware.vm.cpu.readiness` (`cpu.average.readiness.percent`) collected by Splunk Add-on for VMware Metrics through vCenter into the deployment's metrics index, shown here as `index=vmware-perf-metrics`. Required dimensions are stable `vcenter`, VM `moid`, and numeric per-vCPU `instance`; retain `host`, pool/cluster/ESXi placement and VM display name through qualified metrics dimensions or time-correct inventory enrichment. `_time` is required. Companion `vmware.vm.cpu.costop`, CPU utilization/demand/entitlement, VM limits/shares/reservations, host readiness/utilization, topology, and application telemetry support diagnosis.",
+  "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) with its supported Data Collection Scheduler/Data Collection Node architecture collects vCenter metrics. A local observability app owns source-health and inventory reconciliation, the saved search, enrichment, fixtures, exceptions, dashboard, alerting, and runbook. Splunk Add-on for VMware ESXi Logs is not the performance-metric collector for this contract.",
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
+  "spl": "| mstats avg(vmware.vm.cpu.readiness) as ready_pct WHERE index=vmware-perf-metrics earliest=-25m@m latest=-5m@m BY vcenter moid host instance span=5m\n| eval vcenter=lower(trim(vcenter)), vm_moid=lower(trim(moid)), vcpu=trim(instance), ready_pct=round(ready_pct,3)\n| where len(vcenter)>0 AND len(vm_moid)>0 AND match(vcpu,\"^\\\\d+$\") AND isnotnull(ready_pct) AND ready_pct>5\n| sort 0 vcenter vm_moid vcpu _time\n| streamstats current=f window=1 last(_time) as previous_breach by vcenter vm_moid vcpu\n| eval new_run=if(isnull(previous_breach) OR _time-previous_breach!=300,1,0)\n| streamstats sum(new_run) as run_id by vcenter vm_moid vcpu\n| eventstats count as consecutive_buckets min(_time) as run_start max(_time) as run_end avg(ready_pct) as run_avg_ready_pct max(ready_pct) as run_peak_ready_pct by vcenter vm_moid vcpu run_id\n| where consecutive_buckets>=3\n| sort 0 vcenter vm_moid vcpu -run_end\n| dedup vcenter vm_moid vcpu\n| eval severity=if(run_peak_ready_pct>10,\"critical\",\"warning\"), warning_threshold_pct=5, critical_threshold_pct=10, persistence_minutes=15, run_start_utc=strftime(run_start,\"%Y-%m-%dT%H:%M:%SZ\"), run_end_utc=strftime(run_end+300,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-2.1.1\"\n| table vcenter vm_moid host vcpu severity run_avg_ready_pct run_peak_ready_pct consecutive_buckets run_start_utc run_end_utc warning_threshold_pct critical_threshold_pct persistence_minutes use_case\n| sort 0 -run_peak_ready_pct vcenter vm_moid vcpu",
+  "description": "Detects an individual VM vCPU that remains above Broadcom's 5% CPU Ready investigation band for at least three consecutive complete five-minute buckets. It uses Splunk's native readiness-percentage metric, labels a run critical only above 10%, and preserves VM/vCPU identity and run duration for workload and host-level correlation.",
+  "value": "Sustained CPU Ready means a runnable vCPU waited for physical scheduling time and can contribute to application latency. A persistent per-vCPU signal helps virtualization and workload owners distinguish transient scheduling noise from conditions worth checking for host demand, VM over-sizing, limits, co-stop, placement, or resource policy—without assuming CPU Ready alone proves user impact.",
+  "implementation": "Deploy and qualify Splunk Add-on for VMware Metrics with supported DCS/DCNs and a read-only vCenter account, enable host/VM performance plus inventory collection, and verify the native per-vCPU readiness-percent series and dimensions in the metrics index. Build independent VM/vCPU/interval coverage, save the delayed four-bucket search, test strict 5%/10% boundaries and three adjacent buckets, then enrich and route findings with current placement, resource policy, application SLO, and owner.",
+  "visualization": "Lead with expected vCenter/DCN/VM/vCPU metric coverage, collection interval, indexing delay, duplicates, and stale inventory. Show per-vCPU Ready timecharts with 5% and 10% lines, a VM-by-vCPU heatmap, sustained-run table with MOID/name/current host/cluster/pool/resource settings, companion co-stop/utilization/entitlement and application latency, and placement/change overlays. Never merge VM aggregate, host aggregate, and per-vCPU percentages on one unlabeled series.",
+  "cimModels": [],
+  "schema": "Splunk VMware Metrics native per-vCPU readiness percentage with vCenter, VM MOID, instance, and five-minute time buckets",
+  "dataModelAcceleration": "Not applicable. The source is a metrics index queried with `mstats`; no CIM data model supplies the native VMware per-vCPU readiness percentage and dimensions used by this detector.",
+  "requiredFields": [
+    "_time",
+    "vcenter",
+    "moid",
+    "host",
+    "instance",
+    "vmware.vm.cpu.readiness"
   ],
   "references": [
     {
-      "title": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom: Rightsizing virtual machines on ESXi 8.0",
+      "url": "https://knowledge.broadcom.com/external/article/438023/rightsizing-virtual-machines-on-esxi-80.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "vSphere API",
-      "url": "https://developer.vmware.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom: Troubleshooting ESX/ESXi virtual machine performance issues",
+      "url": "https://knowledge.broadcom.com/external/article?articleNumber=304594",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk Enterprise Documentation",
-      "url": "https://docs.splunk.com/Documentation/Splunk",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom: Understanding CPU Ready values in vSphere Client",
+      "url": "https://knowledge.broadcom.com/external/article/387750/understanding-the-cpu-ready-values-in-th.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk Search Reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for VMware Metrics: Performance metrics reference",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/PerformanceRef",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Add-on for VMware Metrics: Configure collection",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Add-on for VMware Metrics: Source types and dimensions",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/Sourcetypes",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: mstats",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/mstats",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'ESXi Host CPU Contention'. Correlate with apt/yum logs in the same `vmware:perf:cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:perf:cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_ready` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A sustained per-vCPU Ready run is real, but Ready alone does not prove an incident or identify cause.\n\n1. **Approved batch, backup, analytics, or load-test window** — genuine demand can raise Ready without violating the workload objective. Match exact VM/MOID, job/change, owner, bounded interval, expected SLO, and expiry; do not suppress every nightly period.\n\n2. **CPU limit or resource-pool policy** — a VM can wait because of its own limit or parent pool rather than host physical exhaustion. Inspect limits, reservations, shares, entitlement and `%MLMTD`/equivalent before adding host capacity.\n\n3. **Oversized multi-vCPU VM and co-stop** — too many vCPUs can increase scheduling difficulty. Review per-vCPU Ready, co-stop, usage/demand, NUMA topology and workload scaling; never remove vCPUs automatically.\n\n4. **Short placement transition** — vMotion, DRS, host maintenance, power management, or restart can coincide with genuine transient scheduling delay. This rule requires 15 minutes; still correlate exact placement/change and current state.\n\n5. **Metric instance or topology drift** — vCPU resize, MOID lifecycle, duplicate vCenter collection, aggregate instance, or stale inventory can misidentify series. Reconcile current VM/vCPU inventory and repair source health.\n\n6. **Application unaffected** — Broadcom cautions that CPU Ready is one troubleshooting input. Correlate guest/application response, demand, co-stop, host utilization/latency and business SLO before declaring impact.\n\n7. **Custom collection interval or rollup** — the native percentage avoids the old fixed-20-second divisor, but missing/irregular points and rollup still affect persistence. Display interval/coverage and test the deployed series.\n\nSuppress notification only by exact vCenter/MOID/vCPU and condition with owner, reason, change, start, and finite expiry. Never suppress DCN/DCS, expected VM/vCPU/bucket, duplicate series, stale inventory, interval, or delay health.",
+  "mitreAttack": [
+    "N/A (operational VMware CPU scheduling performance monitoring)"
+  ],
+  "detectionType": "three consecutive five-minute per-vCPU CPU Ready breaches",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_ta_vmware",
     "vmware_vcenter"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:cpu`, vCenter performance metrics.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstall `Splunk_TA_vmware` (Splunkbase 3215) on a Heavy Forwarder. Create a read-only vCenter service account with `System.View` and `VirtualMachine.Interact.ConsoleInteract` privileges. Configure collection intervals in the TA setup UI: 300s for performance metrics, 600s for inventory, 3600s for events. Set the `host_segment` to resolve ESXi hostnames. Verify data flow with `index=vmware sourcetype=vmware:perf:cpu | head 5`. Alert when CPU ready exceeds 5% per VM.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready by host, vm_name\n| where avg_ready > 5\n| sort -avg_ready\n```\n\nUnderstanding this SPL\n\n**ESXi Host CPU Contention** — CPU ready time measures how long a VM waits for physical CPU. High values (>5%) mean the host is overcommitted and VMs are starved for compute.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:cpu`, vCenter performance metrics. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:cpu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:cpu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ready_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, vm_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_ready > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (VMs vs. hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (trending).",
-  "grandmaExplanation": "We track when your virtual machines wait too long for CPU time, so we can catch overload or unfair resource shares before the slowness hits real work.",
+  "hardware": "vCenter-managed ESXi hosts and virtual machines whose per-vCPU readiness-percent metric and stable vCenter/MOID/instance dimensions are collected. Preserve cluster/host placement over time, VM name/MOID, vCPU count/topology, limits/reservations/shares/pool, NUMA, workload/SLO, maintenance, and owner; display-name or host alone is not durable VM identity.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Broadcom CPU Ready interpretation, percentage conversion and per-vCPU 5%/10% guidance plus Splunk VMware Metrics native metric/dimension, DCS/DCN, collection and mstats documentation; vSphere/add-on/Splunk versions, account privileges, metrics/dimensions, inventory, SPL, fixtures, source health, thresholds, alerts, dashboard, application correlation, rightsizing/placement response, and production behavior were specified but not executed or Broadcom/Splunk/virtualization/workload/SME signed",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "search_load_notes": "A 20-minute `mstats` scan over one per-vCPU percentage metric with five-minute bucketing; metric cardinality scales with vCenters, VMs, vCPUs, and retained dimensions.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and corrected metric contract\n\nAssign vCenter/ESXi, capacity/DRS, workload/application, Splunk VMware collection, Splunk content, and incident owners. Inventory each vCenter, cluster, host, VM MOID/name, current placement, numeric vCPU instances/count/topology, CPU limits/reservations/shares/resource pool, NUMA, criticality, workload SLO, maintenance and owner. Deploy a currently supported Splunk Add-on for VMware Metrics architecture with Data Collection Scheduler and sized Data Collection Nodes according to Splunk guidance. Use a vendor-documented read-only vCenter collection role qualified for the deployed add-on; the old invented `System.View` plus console-interact recipe is neither established here nor required by this search. This review ran no versions, so no `splunkVersions` claim is made.\n\nBroadcom defines CPU Ready as time a VM/vCPU was ready but waiting to be scheduled. It documents under about 5% per vCPU as benign, 5–10% investigate, and above 10% noticeable/action territory, while warning that Ready must be interpreted with actual performance and related metrics. The add-on publishes native `cpu.average.readiness.percent` as `vmware.vm.cpu.readiness`. Use that percentage. The removed query divided a summation by 20,000, which is valid only for a 20-second interval; Broadcom's correct summation formula requires the actual sample interval.\n\n## Step 1 — Configure and prove VMware metrics collection\n\nEnable `hostvmperf` and VM/host inventory in the supported collection configuration and ensure `cpu.average.readiness.percent` is allowed. Confirm data lands in the chosen metrics index (the example uses `vmware-perf-metrics`) with `metric_name=vmware.vm.cpu.readiness` and stable `vcenter`, VM `moid`, numeric per-vCPU `instance`, `_time`, and qualified placement/name dimensions. Inspect actual metric dimensions from each supported add-on version; enrich from inventory by vCenter/MOID and event-time-valid placement rather than assuming `host` always means ESXi hostname.\n\nSet/verify a five-minute performance interval if this detector uses five-minute buckets, and ensure vCenter statistics level/retention supplies the metric. Splunk documents collection-interval mismatch as a failure mode. Build independent health for DCS/DCN heartbeat/job errors, vCenter auth/TLS/API, expected vCenter/host/VM/vCPU series, numeric versus aggregate instance, missing five-minute bucket, interval drift, duplicate vCenter/DCN series, stale VM/placement inventory, MOID lifecycle, vCPU resize, future time, and indexing delay. Silence is unknown, not low Ready.\n\n## Step 2 — Save and understand the mstats search\n\nSave sidecar SPL as `vmware_vcpu_ready_sustained`. Run every 20 minutes over `earliest=-25m@m latest=-5m@m`, a completed 20-minute slice after five minutes of measured metric-index delay. Adjust delay and schedule together without gaps/overlap. `mstats` directly averages the readiness-percentage metric into five-minute buckets by vCenter/MOID/host/instance. The post-filter requires numeric vCPU instances and strict `>5`.\n\nAfter sorting, the first `streamstats` finds the preceding breached bucket. A bucket starts a new run when no previous breach exists or timestamps differ by 300 seconds. The second `streamstats` assigns a run ID; `eventstats` calculates count, bounds, average and peak. At least three adjacent buckets means 15 minutes sustained. The latest qualifying run per vCPU is retained. Peak strictly >10 is critical; exactly 10 remains warning and exactly 5 does not breach. These are transparent interpretations of the documented bands, not workload SLOs.\n\n## Step 3 — Validate percentage, identity, and persistence\n\nUse an isolated metrics index with absolute times. Test 0, 4.999, 5.0, 5.001, 9.999, 10.0 and 10.001; one/two/three/four breached buckets; interruption and missing bucket; multiple vCPUs/VMs/vCenters; aggregate and nonnumeric instance; duplicate series; out-of-order/late points; old versus current MOID/name; vCPU resize; placement change; and exact dispatch boundaries. Assert average/peak, run interval, severity and idempotence.\n\nIn a nonproduction cluster or approved historical incident, compare the native Splunk metric with vSphere Client advanced performance charts and `esxtop` `%RDY` for the same per-vCPU entity and aligned interval. If only summation is available, prove `(ready_ms/(interval_seconds*1000))*100` with the actual interval and vCPU aggregation semantics in a separately reviewed search. Capture co-stop, usage/demand/entitlement, limits/shares/reservations/pool, host utilization/readiness, placement, NUMA, application latency and source health. Do not create production contention solely to test. Keep draft until owners approve metric/dimensions, inventory, fixtures, source health, timing, dashboard, routes, and response.\n\n## Step 4 — Investigate before rightsizing or moving workloads\n\nAlert text says `per-vCPU Ready sustained above 5%`, with vCenter, MOID/name, vCPU, current/time-correct host/cluster/pool, run average/peak/duration, metric interval/health, vCPU topology, limits/reservations/shares, co-stop, demand/utilization, application SLO, maintenance and owner. Responder sequence: verify metric identity/buckets and source health; confirm VM placement and resource policy at event time; compare sibling vCPUs and co-stop; inspect VM demand/usage/entitlement and host capacity/readiness/utilization; review NUMA and over-sizing; correlate DRS/vMotion/maintenance and noisy-neighbor demand; then confirm guest/application latency and business impact.\n\nNever automatically remove/add vCPUs, change limits/reservations/shares, move a VM, enter host maintenance, change DRS/power policy, or add capacity from one result. Rightsizing can require guest reboot and application testing; migration can move contention; reservations affect admission/capacity. Use approved workload/vendor/change procedures with rollback.\n\n## Step 5 — Troubleshoot and close\n\n- **No metric:** verify DCS/DCN and vCenter configuration, `hostvmperf`, allow/deny lists, statistics level, metric index/RBAC, exact metric name, collection jobs and interval mismatch.\n- **Only aggregate instance:** inspect collected dimensions/metric level and vCenter configuration. Do not apply per-vCPU thresholds to VM aggregate or host readiness.\n- **Values differ from vSphere:** align VM/MOID/vCPU, timestamps/timezone, aggregation interval/rollup, percentage versus summation, and placement. Never reintroduce a fixed divisor.\n- **Runs break unexpectedly:** inspect missing buckets, interval drift, late points and collection health; do not weaken persistence to mask gaps.\n- **Ready high but host CPU low:** inspect VM/pool limits, entitlement, co-stop, NUMA, transient placement and power policy; host utilization alone is insufficient.\n- **Ready high without app impact:** record workload/SLO evidence and tune routing with owners, while retaining capacity trend; Broadcom explicitly treats Ready as one troubleshooting tool.\n\nClose after collection and inventory are healthy, per-vCPU identity and run math are verified, resource/placement and application impact are assessed, approved rightsizing/policy/placement/capacity work or risk acceptance is documented, and an owner-approved observation interval shows acceptable Ready and workload outcome.",
+  "grandmaExplanation": "We watch each virtual processor to see how often it is ready to work but cannot get a turn on the real processor. We wait for the problem to persist and then check the virtual machine, its host, and the application before changing resources.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
