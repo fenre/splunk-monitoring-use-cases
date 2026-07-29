@@ -3,64 +3,107 @@
   "id": "2.1.35",
   "title": "VM Guest OS Disk Space via VMware Tools",
   "criticality": "high",
-  "difficulty": "beginner",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Capacity"
+    "Capacity",
+    "Reliability",
+    "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'VM Guest OS Disk Space via VMware Tools' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vm_guest_os_disk_space_via_vmware_tools` (UC-2.1.35), SOC dashboard panel \"Linux — VM Guest OS Disk Space via VMware Tools\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports a guest filesystem returned by vSphere `GuestInfo.DiskInfo` whose calculated used percentage is strictly above local 85% warning or 95% critical policy. Broadcom defines `capacity` and `freeSpace` in bytes and states that free space is retrieved by VMware Tools. This is guest-visible filesystem state, not VMDK provisioned/committed bytes, datastore free space, physical storage, inode/file-count capacity, quota, thin-provisioning risk, growth forecast, application write failure, or root cause. Unsupported filesystems, powered-off VMs, missing/not-running Tools, inaccessible guest data, excluded ephemeral mounts, and VMs absent from authoritative inventory require separate coverage findings. Thresholds, a 20-minute freshness limit, and local severities are deployment policy, not VMware defaults. The search does not delete files, expand disks, resize filesystems, consolidate snapshots, start Tools, power on a VM, or attest availability.",
+  "evidence": "After deployment retain governed VM, filesystem, owner, criticality, Tools, power-state, and exclusion-policy inventory; collector code/hash; vCenter/ESXi/VCF PowerCLI/Splunk versions and privileges; effective scripted-input/JSON configuration; representative raw `GuestDiskInfo`; complete snapshot manifest and errors; expected-VM, Tools/power, filesystem-cardinality, schema, duplicate, timestamp, and freshness health; exact threshold/exclusion policy; `vmware_guest_filesystem_capacity` saved search, ACL, schedule, dispatch history, rows, delivery, and dispositions; and dated byte/unit, 85/95-boundary, zero-capacity, free-greater-than-capacity, duplicate, stale, missing-Tools, and excluded-mount tests. Preserve stable VM identity, disk path, filesystem type, capacity/free bytes, calculated used bytes/percent, Tools state, snapshot identity/epoch, source health, and change record. This documentation-only review created no vCenter poll, event, alert, disk expansion, cleanup, or production validation evidence.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.35 positive (Guest, Disk, Space, via, VMware): ingest synthetic events into `index=vmware` sourcetype='vmware:inv:vm' where `count` grouped by `entity` satisfies `used_pct` > 85 for 'VM Guest OS Disk Space via VMware Tools'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.35 negative (VMware Tools): ingest benign `vmware` / `vmware:inv:vm` events where `entity` stays below `used_pct` > 85, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'VM Guest OS Disk Space via VMware Tools'."
+    "positiveScenario": "At a fixed search time, ingest a complete latest snapshot for a running-Tools VM. For disk `C:\\`, set capacity_bytes=107374182400 and free_bytes=16106127360; expect 85.0% exactly and no row because warning is strict. Change free_bytes to 16106127359; expect one warning just above 85%. For `/var`, set 100000000000 capacity and 4999999999 free; expect one critical row above 95%. Assert decimal percentage uses byte ratios without converting units, while displayed capacity/free GiB use 2^30.",
+    "negativeScenario": "Expect zero rows at or below 85%; for zero/negative capacity, negative free, free greater than capacity, blank VM/disk/snapshot identity, Tools not running, failed/partial status, future or older-than-20-minute snapshots, excluded filesystem policy, an older high value superseded by a newer healthy value, and duplicate delivery. Separate health controls must expose a governed powered-on VM with missing/stale guest disks, unsupported Tools/filesystem, collector failure, and cardinality collapse."
   },
-  "dataSources": "`sourcetype=vmware:inv:vm` (guest disk info) Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:inv:vm\" guest_disk_path=*\n| eval used_pct=round((guest_disk_capacity - guest_disk_freeSpace) / guest_disk_capacity * 100, 1)\n| where used_pct > 85\n| sort -used_pct\n| table vm_name, host, guest_disk_path, used_pct, guest_disk_capacity, guest_disk_freeSpace",
-  "description": "Surfaces UC-2.1.35 for Guest, Disk, Space, via, VMware over `index=vmware` sourcetype `vmware:inv:vm` with thresholds `used_pct` > 85. Groups `count` by `entity` each `the scheduled window`. Centered on VMware Tools indicators. Supports repeatable linux triage for 'VM Guest OS Disk Space via VMware Tools'.",
-  "value": "For 'VM Guest OS Disk Space via VMware Tools', UC-2.1.35 converts `activity` on `vmware:inv:vm` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Requires VMware Tools running in the guest. Splunk_TA_vmware collects guest disk info as part of VM inventory. Alert at 85% (warning) and 95% (critical). Note: this is less granular than an in-guest agent — it reports per-partition but with slower refresh intervals (typically 5-10 minutes).",
-  "visualization": "Table (VM, disk, usage), Gauge per critical VM, Bar chart (top full disks).",
-  "cimModels": [
-    "N/A"
+  "dataSources": "A reviewed VCF PowerCLI/vSphere API collector reads each governed VM's `GuestInfo.disk` array and emits one normalized JSON event per guest filesystem per complete 5-10 minute snapshot to local `index=vmware`, `sourcetype=vmware:guest_disk_snapshot`. Required fields are `vcenter`, stable `vm_moid`, `vm_name`, `esxi_host`, `guest_disk_path`, optional `filesystem_type`, integer `capacity_bytes`, integer `free_bytes`, `tools_running_status=guestToolsRunning`, integer `snapshot_epoch`, unique `snapshot_id`, and `collector_status=ok`. Broadcom documents capacity/free space as bytes and free space as VMware Tools data. Splunk Add-on for VMware Metrics documents `guest.disk` as an optional VM inventory field under `vmware_inframon:inv:vm`, but its deployed multivalue serialization must be inspected before substituting that source for this explicit normalized contract.",
+  "app": "A locally maintained `TA_vmware_guest_inventory` collector and JSON source type, or a separately qualified normalizer over Splunk Add-on for VMware Metrics (Splunkbase 5089) VM inventory. The add-on can collect optional `guest.disk`; this page does not claim undocumented flattened field names. A local observability app owns coverage, saved search, dashboard, policy, tests, routing, and runbook.",
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "optional"
+    }
+  ],
+  "spl": "index=vmware sourcetype=\"vmware:guest_disk_snapshot\" collector_status=\"ok\" tools_running_status=\"guestToolsRunning\" earliest=-20m\n| eval vcenter=lower(trim(vcenter)), vm_moid=trim(vm_moid), vm_name=trim(vm_name), esxi_host=lower(trim(esxi_host)), guest_disk_path=trim(guest_disk_path), capacity_bytes=tonumber(capacity_bytes), free_bytes=tonumber(free_bytes), snapshot_epoch=tonumber(snapshot_epoch), snapshot_id=trim(snapshot_id)\n| where len(vcenter)>0 AND len(vm_moid)>0 AND len(vm_name)>0 AND len(guest_disk_path)>0 AND capacity_bytes>0 AND free_bytes>=0 AND free_bytes<=capacity_bytes AND isnotnull(snapshot_epoch) AND len(snapshot_id)>0\n| sort 0 vcenter vm_moid guest_disk_path -snapshot_epoch -_indextime\n| dedup vcenter vm_moid guest_disk_path\n| eval snapshot_age_seconds=now()-snapshot_epoch\n| where snapshot_age_seconds>=0 AND snapshot_age_seconds<=1200\n| lookup vmware_guest_disk_exclusions.csv vcenter vm_moid guest_disk_path OUTPUT valid_until_epoch\n| eval valid_until_epoch=tonumber(valid_until_epoch)\n| where isnull(valid_until_epoch) OR valid_until_epoch<=now()\n| eval used_bytes=capacity_bytes-free_bytes, used_pct=round(100*used_bytes/capacity_bytes,3)\n| where used_pct>85\n| eval local_severity=if(used_pct>95,\"critical\",\"warning\"), warning_threshold_pct=85, critical_threshold_pct=95, capacity_gib=round(capacity_bytes/1073741824,3), free_gib=round(free_bytes/1073741824,3), use_case=\"UC-2.1.35\", observed_utc=strftime(snapshot_epoch,\"%Y-%m-%dT%H:%M:%SZ\")\n| table vcenter vm_moid vm_name esxi_host guest_disk_path filesystem_type used_pct capacity_bytes free_bytes capacity_gib free_gib local_severity warning_threshold_pct critical_threshold_pct observed_utc snapshot_age_seconds snapshot_id use_case\n| sort 0 -used_pct vcenter vm_name guest_disk_path",
+  "description": "Monitors guest filesystems reported through VMware Tools by using vSphere's documented capacity and free-space byte values. It selects the newest complete per-VM/per-path observation, rejects impossible or stale measurements, calculates used percentage, and reports strict local warning and critical thresholds with source identity.",
+  "value": "Guest filesystems can fill even when their datastore and virtual disk appear healthy. This agentless vCenter view is especially useful where an in-guest monitor is unavailable, while explicit Tools and coverage checks prevent teams from mistaking absent guest data for available space or confusing filesystem utilization with datastore capacity.",
+  "implementation": "Deploy and qualify the five-to-ten-minute GuestInfo collector, prove raw bytes and Tools semantics against guest and vSphere views, and maintain exact finite mount exclusions. Save the bounded search, validate 85/95 strict boundaries and binary display units, monitor every expected VM and disk for freshness, and route results with guest/VM/storage ownership. Use guest-native diagnostics before cleanup or expansion.",
+  "visualization": "Use a table of VM, host, guest path, filesystem type, used percent, raw capacity/free bytes, displayed GiB, snapshot age, Tools/source health, owner, and disposition; a per-filesystem trend; and separate expected-VM, Tools-state, stale-disk, and cardinality panels. Keep guest filesystem, VMDK, and datastore units on separate panels.",
+  "cimModels": [],
+  "schema": "Purpose-built flattened vSphere GuestDiskInfo JSON snapshot; no applicable CIM dataset",
+  "dataModelAcceleration": "Not applicable. CIM does not preserve vSphere VM managed-object identity, guest disk path, Tools provenance, exact capacity/free bytes, and complete snapshot status.",
+  "requiredFields": [
+    "vcenter",
+    "vm_moid",
+    "vm_name",
+    "esxi_host",
+    "guest_disk_path",
+    "capacity_bytes",
+    "free_bytes",
+    "tools_running_status",
+    "snapshot_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: GuestDiskInfo",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.vm.GuestInfo.DiskInfo.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: GuestInfo",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.vm.GuestInfo.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for VMware Metrics: Inventory fields reference",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/InventoryRef",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for VMware Metrics: Collection configuration",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'VM Guest OS Disk Space via VMware Tools'. Correlate with apt/yum logs in the same `vmware:inv:vm` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:inv:vm`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `used_pct` > 85.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A threshold result is a real Tools-reported ratio under the collector contract, but urgency can differ:\n\n1. **Approved software deployment or patching** — temporary staging can consume space. Correlate exact VM/path, change, expected peak, cleanup owner, and finite window.\n\n2. **Log, backup, database, or package maintenance** — legitimate growth can be bounded and recoverable. Confirm application policy and trend; do not delete files from vCenter evidence alone.\n\n3. **Ephemeral or intentionally full filesystem** — caches, ISO mounts, immutable images, and scratch volumes may have special policy. Exclude only exact stable VM/path with owner and expiry; device names can be reused.\n\n4. **VMware Tools freshness** — a valid-looking value can be old after Tools, guest, or VM state changes. Snapshot and expected-disk health must identify stale/cardinality loss.\n\n5. **Filesystem reporting semantics** — guest reserved blocks, thin files, compression, sparse allocation, snapshots, and quotas can make guest free space differ from VMDK/datastore views. The guest ratio remains a different layer, not necessarily wrong.\n\n6. **Disk-path identity change** — drive letters, mount points, clones, and restore operations can change identity. Reconcile stable VM moid and guest path before carrying suppressions forward.\n\n7. **Duplicate collection** — repeated snapshots can duplicate a row. The search keeps the newest identity; source health must remove duplicate routes.\n\nSuppress only exact vCenter, VM moid, and guest path with owner, reason, start, and finite expiry. Never suppress missing Tools, expected-VM/disk freshness, impossible byte values, or collector failure.",
+  "mitreAttack": [
+    "N/A (operational guest-filesystem capacity monitoring)"
+  ],
+  "detectionType": "Newest fresh VMware Tools guest-filesystem observation above local capacity threshold",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "hardware": "Powered-on vSphere VMs with a compatible, running VMware Tools version and a guest filesystem type for which GuestInfo supplies disk data.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed documentation-only editorial review; production VMware, guest OS, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:inv:vm` (guest disk info).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nRequires VMware Tools running in the guest. Splunk_TA_vmware collects guest disk info as part of VM inventory. Alert at 85% (warning) and 95% (critical). Note: this is less granular than an in-guest agent — it reports per-partition but with slower refresh intervals (typically 5-10 minutes).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:inv:vm\" guest_disk_path=*\n| eval used_pct=round((guest_disk_capacity - guest_disk_freeSpace) / guest_disk_capacity * 100, 1)\n| where used_pct > 85\n| sort -used_pct\n| table vm_name, host, guest_disk_path, used_pct, guest_disk_capacity, guest_disk_freeSpace\n```\n\nUnderstanding this SPL\n\n**VM Guest OS Disk Space via VMware Tools** — VMware Tools reports guest OS filesystem utilization to vCenter, enabling disk space monitoring without an in-guest agent. Particularly valuable for appliances, embedded systems, and VMs where you cannot install a Splunk forwarder. Catches disk-full conditions before they crash applications.\n\nDocumented **Data sources**: `sourcetype=vmware:inv:vm` (guest disk info). **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:inv:vm. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:inv:vm\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **used_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where used_pct > 85` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **VM Guest OS Disk Space via VMware Tools**): table vm_name, host, guest_disk_path, used_pct, guest_disk_capacity, guest_disk_freeSpace\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (VM, disk, usage), Gauge per critical VM, Bar chart (top full disks).",
-  "grandmaExplanation": "We keep an eye on guest OS Disk Space via VMware Tools and raise the alarm before it drags down real work or real outages start.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "Bounded latest-state search; ingest and vCenter load scale with VM/filesystem cardinality and poll interval.",
+    "tstats_eligible": false,
+    "storage_class": "hot"
+  },
+  "detailedImplementation": "## Prerequisites and measurement boundary\n\nAssign VMware, guest-OS, application, storage, Splunk, and incident owners. Inventory every governed VM by vCenter and stable managed-object ID, power state, Tools state/version, guest owner, expected filesystem paths, criticality, ephemeral mounts, application objectives, and exclusion policy. Broadcom defines GuestDiskInfo `capacity` as total disk capacity in bytes and `freeSpace` as free bytes retrieved by VMware Tools. It is not datastore or VMDK capacity.\n\nRun supported VCF PowerCLI on a hardened collection tier with vCenter TLS access and least-privilege read rights. The Splunk role needs index, lookup, search, and alert rights only. If using Splunk Add-on for VMware Metrics, enable `vminv` and optional `guest.disk`, inspect actual raw serialization, and build a tested normalizer; do not assume the old fields in this sidecar are native add-on fields.\n\n## Step 1 — Collect and prove guest disk snapshots\n\nImplement `TA_vmware_guest_inventory` to enumerate the governed VM set and flatten each `GuestInfo.disk` element into one JSON event. Preserve VM moid, VM name, current ESXi host, diskPath, filesystemType when present, raw capacity/free integers, exact Tools running status, shared snapshot ID, and UTC snapshot epoch. Mark `collector_status=ok` only for a complete intended enumeration; emit powered-off, Tools-not-running, unavailable guest data, permission, and partial-run records to a separate health source.\n\nConfigure the scripted input every five to ten minutes with explicit JSON source type in `local/inputs.conf`. Compare at least two Windows/Linux filesystems with vSphere Client VM > Monitor > VMware Tools/guest storage views where available and guest-native `Get-Volume`/`df -B1` at the same time. Small differences can arise from sampling; prove units, path identity, and freshness rather than demanding byte-for-byte simultaneity.\n\nBuild health from expected VM/path inventory: missing VM, powered-on VM without running Tools, missing expected path, unexpected cardinality drop, impossible bytes, stale/future snapshot, duplicate route, and collector failure. Keep exclusions in `vmware_guest_disk_exclusions.csv` keyed by vCenter, VM moid, and exact path with reason, owner, and finite epoch.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_guest_filesystem_capacity` and run every five minutes. It searches only successful running-Tools snapshots from 20 minutes, validates identities and `capacity>0`, `0<=free<=capacity`, selects newest per VM/path, and rejects future/stale snapshots. An active exact exclusion suppresses alert output only. `used_bytes=capacity-free`; `used_pct=100*used/capacity`. The ratio is unitless, so no byte conversion is needed. Display GiB divides bytes by 1,073,741,824.\n\nUsed percentage must be strictly greater than 85; exactly 85 does not alert. Critical is strictly greater than 95, so exactly 95 remains warning. These comparisons and 20-minute freshness are local policy. Retain raw bytes so responders can reproduce math and distinguish a tiny filesystem from a large one.\n\n## Step 3 — Validate data, units, and boundaries\n\nUse fixed fixtures for 0, exactly 85, just above 85, exactly 95, just above 95, 100%; decimal and binary capacities; zero/negative capacity; negative free; free greater than capacity; huge integer values; blank identity; duplicate delivery; older high/newer healthy; stale/future snapshots; failed/partial status; Tools not running; active/expired exclusion; and rerun determinism. Assert raw byte preservation and exact three-decimal output.\n\nIn a lab, fill a disposable filesystem with a bounded file, compare guest-native, vSphere API, and Splunk values, then remove it. Stop well before guest or application safety limits. Test Tools stop/start, VM power off, mount add/remove, clone/restore identity, and unsupported filesystem behavior; these must create coverage transitions, not false healthy status. Keep draft until owners approve supported guests and health controls.\n\n## Step 4 — Operationalize and respond\n\nAlert title should say `VMware Tools reports guest filesystem above local threshold`. Include VM/path, percentage, raw/display capacity/free, Tools and snapshot health, application owner, growth trend, change context, and links to guest/vSphere/storage views. Route warning to service owner and critical according to local availability policy; do not call the datastore full.\n\nResponder sequence: verify latest raw event and math; verify Tools/power/source health; compare guest-native filesystem/inode/quota state; identify growth by directory/application using approved guest tools; inspect log rotation, temp/package/backup/database jobs; check VMDK/datastore and snapshot headroom separately; forecast time to full; then choose owner-approved cleanup, retention correction, application repair, filesystem/VMDK expansion, or accepted bounded behavior.\n\nNever automatically delete data, resize a partition/filesystem/VMDK, detach storage, take snapshots, reboot, or stop services. Expansion has guest, partition, filesystem, backup, snapshot, and datastore prerequisites. Close only after cause/action is documented, source is healthy, guest-native state is acceptable, and a fresh snapshot confirms recovery.\n\n## Step 5 — Troubleshoot\n\n- **No guest disks:** verify VM power, Tools installed/running/compatible, supported filesystem, GuestInfo API, permissions, collector completeness, input, and index/RBAC.\n- **Fields are arrays or JSON blobs:** the optional add-on inventory field was not flattened; inspect deployed raw data and normalize it before using this SPL.\n- **Values appear 1,024 or 1,000 times wrong:** preserve API bytes; divide only display GiB by 2^30. Percentage uses raw byte ratio.\n- **Guest and vSphere differ:** align clocks/poll time, Tools freshness, reserved blocks, mounts, quotas, and filesystem semantics.\n- **Path disappeared:** check VM power/Tools, mount state, clone/restore, drive-letter change, and cardinality health before closing an alert.\n- **Persistent alerts after cleanup:** verify guest-native free space, Tools update, snapshot time, collector route, and newest-record selection.\n- **Too many alerts:** review actual workload objectives and exact finite exclusions; do not hide Tools or coverage failures.\n\nRetention and thresholds follow local policy. This contract provides an agentless guest view and does not replace guest-native filesystem monitoring where deeper fidelity is required.",
+  "grandmaExplanation": "We ask the helper software inside each virtual machine how much room is left on every drive. If a drive is nearly full, the team sees which machine and drive need attention, while missing helper data is shown as a separate problem.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
