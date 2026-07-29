@@ -2,66 +2,92 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.33",
   "title": "ESXi Host Lockdown Mode Compliance",
-  "criticality": "medium",
-  "difficulty": "beginner",
+  "criticality": "high",
+  "difficulty": "advanced",
   "monitoringType": [
     "Security",
-    "Compliance"
+    "Configuration",
+    "Risk"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'ESXi Host Lockdown Mode Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_esxi_host_lockdown_mode_compliance` (UC-2.1.33), SOC dashboard panel \"Linux — ESXi Host Lockdown Mode Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Compares the newest complete read of each governed ESXi host's `HostAccessManager` lockdown mode with an exact, approved host or cluster policy. It recognizes only Broadcom's `lockdownDisabled`, `lockdownNormal`, and `lockdownStrict` values. It does not claim that normal mode is always sufficient or strict mode is always appropriate; test DCUI emergency-access consequences before policy approval. It does not audit lockdown exception users, DCUI/SSH/ESXi Shell service state, local accounts, permissions, host profiles, vCenter RBAC, firewall rules, management-plane availability, or successful enforcement. A matching value is not a compliance attestation. Missing policy, host, fields, or fresh snapshots and failed/partial collection are health or governance defects, not compliant results. No host setting, service, account, permission, or exception is changed.",
+  "evidence": "After deployment retain governed vCenter, cluster, host, ownership, emergency-access, and approved expected-mode inventory; the exact `vmware_lockdown_policy.csv` revision, hash, approver, and change record; reviewed collector and hash; VCF PowerCLI/vCenter/ESXi/Splunk versions; least-privilege vCenter role; scripted-input and JSON extraction configuration; raw snapshots and collector errors; expected-host, policy-preflight, schema, duplicate, and freshness reports; `vmware_esxi_lockdown_mode_drift` search, ACL, schedule, dispatch history, result rows, alert delivery, and disposition; and dated mismatch, match, unknown-mode, missing-policy, stale, duplicate, and emergency-access tests. Preserve vCenter, cluster, host, managed-object ID, actual/expected modes, policy ID/version, snapshot/collector epochs, source health, and approval. These artifacts establish observed configuration drift only. This documentation-only review created no vCenter query, policy, event, alert, mode change, or production proof.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.33 positive (ESXi, Host, Lockdown, Mode, Compliance): ingest synthetic events into `index=vmware` sourcetype='vmware:inv:hostsystem' where `count` grouped by `host`, `cluster` satisfies detection threshold for 'ESXi Host Lockdown Mode Compliance'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.33 negative (Mode Compliance): ingest benign `vmware` / `vmware:inv:hostsystem` events where `host`, `cluster` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'ESXi Host Lockdown Mode Compliance'."
+    "positiveScenario": "In a fixed 36-hour test window, ingest a newest complete snapshot for `esx01` with `actual_mode=lockdownDisabled`, then provide an exact lookup row requiring `lockdownNormal`. Expect one high-severity `mode_mismatch` row. Repeat with actual normal and expected strict; expect one mismatch. Assert vCenter, cluster, host, managed-object ID, actual and expected enum values, policy ID/version, snapshot, collector age, and UC ID.",
+    "negativeScenario": "Expect zero drift rows when actual equals expected normal or strict; when an older mismatch is superseded by a newer matching snapshot; and for duplicate delivery of the newest snapshot. Reject blank identities, non-enum modes, failed/partial status, future/stale collector epochs, and events outside the window. Separate governance/health controls must expose a governed host missing an exact policy, duplicate/conflicting policy rows, an unknown mode, a missing expected host, and failed or stale collection."
   },
-  "dataSources": "`sourcetype=vmware:inv:hostsystem` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:inv:hostsystem\"\n| stats latest(lockdownMode) as lockdown, latest(sshEnabled) as ssh by host, cluster\n| where lockdown!=\"lockdownNormal\" OR ssh=\"true\"\n| table host, cluster, lockdown, ssh",
-  "description": "Identifies Mode Compliance anomalies for UC-2.1.33 with window `the scheduled window` on `index=vmware` sourcetype `vmware:inv:hostsystem`. Combines `count` by `host`, `cluster` and compares against configured threshold. Mapped to keywords ESXi, Host, Lockdown, Mode, Compliance for dashboard routing.",
-  "value": "Alerting on ESXi, Host, Lockdown, Mode, Compliance through UC-2.1.33 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
-  "implementation": "Collect host inventory via Splunk_TA_vmware. Define expected lockdown mode per cluster (lockdownNormal or lockdownStrict). Alert when any production host has lockdown disabled or SSH enabled outside a maintenance window. Generate weekly compliance reports for security audits.",
-  "visualization": "Status grid (lockdown compliance), Table (non-compliant hosts), Pie chart (compliance rate).",
-  "cimModels": [
-    "N/A"
+  "dataSources": "A reviewed VCF PowerCLI collector enumerates governed hosts and reads `HostAccessManager.QueryLockdownMode` through the vSphere API, emitting one normalized JSON event per host per daily complete snapshot to local `index=vmware`, `sourcetype=vmware:host_lockdown`. Required fields are `vcenter`, `cluster`, `host`, stable `host_moid`, `actual_mode`, integer `collector_epoch`, unique `snapshot_id`, and `collector_status=ok`. `vmware_lockdown_policy.csv` supplies exact `vcenter`, `host_moid`, `expected_mode`, `policy_id`, `policy_version`, `owner`, and effective dates. Splunk Add-on for VMware Metrics does not document lockdown mode among its published HostSystem inventory fields; ESXi Logs parses syslog and is not a current-state inventory source.",
+  "app": "A locally maintained `TA_vmware_host_security_state` containing the reviewed VCF PowerCLI collector and JSON source type, plus a governed Splunk search app containing `vmware_lockdown_policy.csv`, preflight/coverage searches, alert, dashboard, tests, and runbook. Splunk Add-on for VMware Metrics (5089) and Splunk Add-on for VMware ESXi Logs (5603) are optional context, not asserted data sources for this contract.",
+  "spl": "index=vmware sourcetype=\"vmware:host_lockdown\" collector_status=\"ok\" earliest=-36h\n| eval vcenter=lower(trim(vcenter)), cluster=trim(cluster), esxi_host=lower(trim(host)), host_moid=trim(host_moid), actual_mode=trim(actual_mode), collector_epoch=tonumber(collector_epoch), snapshot_id=trim(snapshot_id)\n| where len(vcenter)>0 AND len(esxi_host)>0 AND len(host_moid)>0 AND len(snapshot_id)>0 AND in(actual_mode,\"lockdownDisabled\",\"lockdownNormal\",\"lockdownStrict\") AND isnotnull(collector_epoch)\n| sort 0 vcenter host_moid -collector_epoch -_indextime\n| dedup vcenter host_moid\n| eval collector_age_seconds=now()-collector_epoch\n| where collector_age_seconds>=0 AND collector_age_seconds<=129600\n| lookup vmware_lockdown_policy.csv vcenter host_moid OUTPUT expected_mode policy_id policy_version owner valid_from_epoch valid_until_epoch\n| eval valid_from_epoch=tonumber(valid_from_epoch), valid_until_epoch=tonumber(valid_until_epoch), expected_mode=trim(expected_mode)\n| where in(expected_mode,\"lockdownNormal\",\"lockdownStrict\") AND (isnull(valid_from_epoch) OR valid_from_epoch<=now()) AND (isnull(valid_until_epoch) OR valid_until_epoch>now())\n| where actual_mode!=expected_mode\n| eval finding=\"mode_mismatch\", local_severity=if(actual_mode=\"lockdownDisabled\",\"high\",\"medium\"), use_case=\"UC-2.1.33\", collected_utc=strftime(collector_epoch,\"%Y-%m-%dT%H:%M:%SZ\")\n| table vcenter cluster esxi_host host_moid actual_mode expected_mode finding local_severity policy_id policy_version owner collected_utc collector_age_seconds snapshot_id use_case\n| sort 0 -local_severity vcenter cluster esxi_host",
+  "description": "Detects an ESXi host whose current vSphere lockdown enum differs from the exact mode approved for that host. A purpose-built collector reads HostAccessManager state, and the search compares the newest complete snapshot with versioned policy while preserving the identities and evidence needed to investigate drift.",
+  "value": "Lockdown mode limits direct host administration and helps keep management through governed vCenter paths, but strict and normal modes have different emergency-access consequences. Explicit policy comparison lets security and platform owners find disabled or weaker-than-required state without declaring one mode universally correct or silently treating missing telemetry as compliant.",
+  "implementation": "Deploy and qualify the daily HostAccessManager collector, govern an exact one-row-per-host expected-mode lookup, and run separate policy/coverage health checks. Save the drift search, validate all three vendor enum values and policy boundaries, compare results with vSphere Client, then route mismatches jointly to VMware security and availability owners. Change lockdown mode only through an approved procedure with tested emergency access.",
+  "visualization": "Use a status table with vCenter, cluster, host, actual/expected mode, policy version, owner, snapshot age, and disposition; counts by mismatch transition; and separate missing-policy, conflicting-policy, missing-host, and stale-collector panels. Do not combine SSH/DCUI service findings into the lockdown KPI or show absence as green.",
+  "cimModels": [],
+  "schema": "Purpose-built JSON HostAccessManager lockdown snapshot joined to governed host policy",
+  "dataModelAcceleration": "Not applicable. No documented CIM dataset preserves HostAccessManager's three lockdown enums, vCenter/managed-object identity, complete snapshot status, and versioned expected mode.",
+  "requiredFields": [
+    "vcenter",
+    "cluster",
+    "host",
+    "host_moid",
+    "actual_mode",
+    "collector_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: HostLockdownMode enum",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.host.HostAccessManager.LockdownMode.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom Virtual Infrastructure API: Change Lockdown Mode",
+      "url": "https://developer.broadcom.com/xapis/virtual-infrastructure-json-api/latest/sdk/vim25/release/HostAccessManager/moId/ChangeLockdownMode/post/",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for VMware Metrics: Inventory fields reference",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/InventoryRef",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk: Get data through scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.4/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'ESXi Host Lockdown Mode Compliance'. Correlate with apt/yum logs in the same `vmware:inv:hostsystem` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:inv:hostsystem`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A result is a real mismatch between two qualified records, but it can be expected or mis-governed:\n\n1. **Approved break-glass change** — a host can be moved from strict to normal or disabled during recovery. Require exact host, incident/change, operator, approved interval, restoration check, and finite suppression.\n\n2. **Host onboarding or evacuation** — temporary state may precede policy assignment. Missing or future-dated policy belongs on the governance panel; do not invent an expected mode from cluster naming.\n\n3. **Policy rollout lag** — Host Profile or desired-state remediation may be approved but incomplete. Keep the mismatch open until live state and a fresh snapshot converge.\n\n4. **Moved host** — a cluster transfer can make inherited intent ambiguous. Because lookup keys use stable vCenter and managed-object ID, update policy explicitly and retain prior approval.\n\n5. **Duplicate or stale collector route** — two collectors or delayed delivery can surface old state. The search selects newest collector epoch, while health reporting must repair duplication and lag.\n\n6. **Emergency-access design error** — strict mode intentionally stops DCUI; a security-preferred setting can be unsafe if vCenter is unavailable. Escalate policy design rather than automatically forcing strict.\n\nSuppress only exact vCenter/host identity and approved transition with owner, reason, start, and finite expiry. Never suppress missing policy, conflicting policy, expected-host, or collector-health checks.",
+  "mitreAttack": [
+    "N/A (ESXi configuration-policy drift; no adversary behavior asserted)"
+  ],
+  "detectionType": "Newest complete HostAccessManager mode differs from exact approved mode",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "hardware": "vCenter-managed ESXi hosts. Normal mode leaves DCUI running; strict mode stops it, so emergency-access and vCenter availability design are part of policy approval.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed documentation-only editorial review; production VMware security and availability validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:inv:hostsystem`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect host inventory via Splunk_TA_vmware. Define expected lockdown mode per cluster (lockdownNormal or lockdownStrict). Alert when any production host has lockdown disabled or SSH enabled outside a maintenance window. Generate weekly compliance reports for security audits.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:inv:hostsystem\"\n| stats latest(lockdownMode) as lockdown, latest(sshEnabled) as ssh by host, cluster\n| where lockdown!=\"lockdownNormal\" OR ssh=\"true\"\n| table host, cluster, lockdown, ssh\n```\n\nUnderstanding this SPL\n\n**ESXi Host Lockdown Mode Compliance** — Lockdown mode restricts direct ESXi access, forcing all management through vCenter. Hosts not in lockdown mode can be accessed directly via SSH or the DCUI, bypassing vCenter audit trails and RBAC. Required by security frameworks like CIS, DISA STIG, and PCI DSS.\n\nDocumented **Data sources**: `sourcetype=vmware:inv:hostsystem`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:inv:hostsystem. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:inv:hostsystem\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by host, cluster** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where lockdown!=\"lockdownNormal\" OR ssh=\"true\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **ESXi Host Lockdown Mode Compliance**): table host, cluster, lockdown, ssh\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (lockdown compliance), Table (non-compliant hosts), Pie chart (compliance rate).",
-  "grandmaExplanation": "We keep an eye on host Lockdown Mode and raise the alarm before it drags down real work or real outages start.",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Daily one-row-per-host state with a small exact policy lookup and bounded latest-state search.",
+    "tstats_eligible": false,
+    "storage_class": "hot"
+  },
+  "detailedImplementation": "## Prerequisites and policy semantics\n\nAssign VMware security, platform, availability, emergency-access, Splunk, and change owners. Inventory governed vCenters and hosts by stable managed-object ID, cluster, service owner, host profile, emergency access, and decommission state. Broadcom defines `lockdownDisabled`, `lockdownNormal` (lockdown enabled with DCUI running), and `lockdownStrict` (lockdown enabled with DCUI stopped). Approve expected mode per host only after testing loss-of-vCenter procedures; this UC does not decide that policy.\n\nRun supported VCF PowerCLI on a hardened collector with TLS access to vCenter and a least-privilege read role. Prove the exact API path and privileges in a lab. The Splunk role needs only index, lookup, scheduled-search, and alert rights. Keep collector credentials out of events and scripts.\n\n## Step 1 — Collect complete HostAccessManager state\n\nBuild `TA_vmware_host_security_state` to enumerate the authoritative host set and call the host's `HostAccessManager.QueryLockdownMode`. Emit one JSON event per host using only the documented enum plus stable IDs. Use one unique snapshot ID and mark success only after all intended hosts return; send permission, connection, and partial-enumeration errors to a separate health source. Configure a daily scripted input and explicit JSON source type in the app's `local` directory.\n\nCompare at least two hosts with vSphere Client Host > Configure > System > Security Profile/Lockdown Mode as exposed by the deployed release and a direct API read. Verify vCenter, managed-object ID, FQDN, cluster, enum, collector time, and snapshot. Do not infer SSH or DCUI state from lockdown mode; collect those separately if required.\n\nCreate `vmware_lockdown_policy.csv` with exactly one effective row per vCenter/host_moid. Preflight enum, duplicate keys, effective dates, owner, version, and orphan/missing inventory. A missing row is a governance defect, not an implicit `lockdownNormal` default.\n\n## Step 2 — Create and understand the SPL\n\nSave sidecar `spl` as `vmware_esxi_lockdown_mode_drift` and run after collection. It accepts only complete successful observations from 36 hours, validates identities and one of the three enums, sorts by collector time, and retains the newest host record. It rejects future/stale collectors. The exact lookup supplies expected mode and ownership; only currently effective normal/strict policies enter comparison. A mismatch from disabled receives local high priority, while normal-versus-strict receives medium pending local risk review. These are routing labels, not Broadcom event severities.\n\nRun separate searches for missing expected hosts, missing/duplicate/expired policy, unknown modes, collector errors, and stale snapshots. The primary zero-row result is meaningful only when those controls are healthy.\n\n## Step 3 — Validate modes and governance\n\nUse fixed fixtures for all actual/expected combinations, exact case, blank/unknown enum, duplicate snapshot, older mismatch followed by newer match, stale/future epochs, failed/partial status, duplicate policy, missing policy, expired/future policy, moved host, and rerun determinism. Assert that the search never calls a match compliant and never rewrites actual mode.\n\nIn a nonproduction cluster, compare API, vSphere Client, and Splunk. Under an approved change, exercise normal and strict only after documenting DCUI behavior and a recovery path; capture task/audit events separately. Test vCenter unavailability and break-glass procedures without creating production lockout. Keep draft status until security and availability owners approve both desired state and tests.\n\n## Step 4 — Triage and safe response\n\nAlert text should say `ESXi lockdown mode differs from approved policy`. Include actual/expected values, stable identity, policy version/owner, collector age, source health, raw link, and change context. First verify raw snapshot and live UI/API; then verify policy applicability, host movement, emergency change, Host Profile remediation, exception users, DCUI/SSH state, and vCenter health. Classify approved temporary change, rollout lag, policy defect, unauthorized drift, collector defect, or unresolved.\n\nNever automatically enable strict mode from this result. Broadcom states strict mode stops DCUI; an untested automated change can remove emergency recovery when vCenter is lost. Use an approved VMware procedure with console access, impact review, rollback, and post-change API/UI proof. Close only when policy is still approved, live state and a fresh complete snapshot match, emergency access remains tested, source health is green, and the disposition is retained.\n\n## Step 5 — Troubleshoot\n\n- **No records:** verify inventory, collector permissions, vCenter TLS/session, HostAccessManager access, scripted input, index/RBAC, and separate error events.\n- **Unknown value:** preserve the native response and verify API/release mapping; do not coerce it to disabled.\n- **UI and API differ:** align host identity, vCenter, refresh time, pending task, and cached session; repeat a fresh read.\n- **Policy disappears:** inspect exact vCenter/moid key, effective dates, CSV parsing, duplicate rows, host replacement, and lookup deployment.\n- **Mode changes back:** inspect Host Profiles, desired-state automation, API tasks/events, emergency procedures, and policy ownership.\n- **Many mismatches:** validate policy revision and host movement before bulk remediation; never suppress an entire cluster indefinitely.\n\nRetention follows local policy. This documentation specifies detection and evidence boundaries, not a universal lockdown requirement or compliance conclusion.",
+  "grandmaExplanation": "We compare each virtualization host's direct-access safety setting with the setting its owners approved. If they differ, the team investigates without assuming the strictest option is always the safest during an emergency.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
