@@ -1,65 +1,147 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.42",
-  "title": "VM CPU Ready Time Percentage",
+  "title": "VM CPU Ready Percentage from vSphere Summation Samples",
   "criticality": "high",
   "difficulty": "advanced",
   "monitoringType": [
-    "Performance"
+    "Performance",
+    "Reliability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'VM CPU Ready Time Percentage' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vm_cpu_ready_time_percentage` (UC-2.1.42), SOC dashboard panel \"Linux — VM CPU Ready Time Percentage\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Measures vSphere virtual-machine aggregate CPU ready time only from collected `VMPerf:VirtualMachine` CPU samples whose `p_summation_cpu_ready_millisecond` and `samp_int` fields are valid. A result means ready time averaged above the local 10-percent investigation threshold during one five-minute bucket; it does not prove user-visible latency, identify the contending physical CPU or workload, measure guest CPU use, distinguish host overcommit from a VM CPU limit or scheduling constraint, or authorize an automatic resource change. It does not inventory VMs absent from the feed, detect a silent Data Collection Node, cover host-level records, validate per-vCPU instance semantics, provide security attribution, or establish regulatory compliance. This record overlaps the older CPU-contention intent of UC-2.1.1 but preserves the requested catalogue identity and explicitly implements percentage conversion.",
+  "evidence": "After deployment, retain the version-controlled `UC-2.1.42 - VM CPU Ready Percentage` saved-search definition, ACL, five-minute schedule, dispatch history, triggered rows, exact add-on and extraction-package versions, effective collection preferences, vCenter target and VM scope, field-contract and source-freshness reports, approved threshold and exception revisions, and dated positive and negative control outputs. For each finding preserve the contributing raw events, `host`, `moid` or `uuid`, resolved VM label, `samp_int`, ready milliseconds, calculated percentages, sample count, bucket time, responder disposition, and same-window vSphere chart comparison. These artifacts document collected evidence and search logic; this documentation-only review did not run the collector or SPL, approve the threshold for a production workload, or supply VMware, Splunk, or customer-SME sign-off.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.42 positive (CPU, Ready, Time, Percentage): ingest synthetic events into `index=vmware` sourcetype='vmware:perf:cpu' where `avg_ready_pct`, `peak_ready_pct` grouped by `host`, `vm_name` satisfies `avg_ready_pct` > 5 for 'VM CPU Ready Time Percentage'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.42 negative (Time Percentage): ingest benign `vmware` / `vmware:perf:cpu` events where `host`, `vm_name` stays below `avg_ready_pct` > 5, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 15 confirms zero alert rows for 'VM CPU Ready Time Percentage'."
+    "positiveScenario": "In an isolated test index, place six events inside one five-minute bucket with `sourcetype=vmware:perf:cpu`, `source=VMPerf:VirtualMachine`, `host=vcsa-lab-01`, `moid=vm-42`, `vm_name=cpu-ready-positive`, `instance=` (aggregate), `samp_int=20`, and `p_summation_cpu_ready_millisecond=2400`. Run the catalogue SPL with only the index changed. Each event represents 2,400 ms ready during a 20-second sample, so expect exactly one row with `entity_id=vm-42`, `vm_name=cpu-ready-positive`, `sample_count=6`, `avg_ready_pct=12.00`, `peak_ready_pct=12.00`, and `threshold_pct=10`.",
+    "negativeScenario": "Run three isolated cases. First, use six otherwise identical aggregate events with `p_summation_cpu_ready_millisecond=2000` and `samp_int=20`; exactly 10.00 percent must return no row because the rule is strictly greater than 10. Second, use only two 2,400-ms events; expect no row because `sample_count>=3` is not met. Third, provide null, zero, or nonnumeric `samp_int`, a negative ready value, or no `moid`/`uuid`; expect zero findings because malformed measurement contracts are rejected rather than converted to zero or divided by an assumed interval."
   },
-  "dataSources": "`sourcetype=vmware:perf:cpu` (counter=cpu.ready.summation) Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready_pct, max(ready_pct) as peak_ready_pct by host, vm_name\n| where avg_ready_pct > 5\n| sort -avg_ready_pct\n| table vm_name, host, avg_ready_pct, peak_ready_pct",
-  "description": "Alerts on UC-2.1.42 — CPU, Ready, Time, Percentage — using `index=vmware` sourcetype `vmware:perf:cpu`, grouped by `host`, `vm_name`. Outputs `avg_ready_pct`, `peak_ready_pct` each `the scheduled window`; alert when `avg_ready_pct` > 5. Primary focus: Time Percentage. Purpose-built for 'VM CPU Ready Time Percentage' in Linux workflows.",
-  "value": "UC-2.1.42 operationalises 'VM CPU Ready Time Percentage' against `vmware:perf:cpu` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
-  "implementation": "Splunk_TA_vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.",
-  "visualization": "Heatmap (VMs vs hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (ready % trend).",
-  "cimModels": [
-    "N/A"
+  "dataSources": "API performance events from the Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) and its compatible VMware field-extraction package, collected by the Data Collection Scheduler/Data Collection Node path from vCenter over TCP 443. The deployment-local event index is `vmware`; the vendor source contract queried is `source=VMPerf:VirtualMachine` and `sourcetype=vmware:perf:cpu`. Required measurement fields are `_time`, `host`, `moid` or `uuid`, `instance`, `samp_int`, and `p_summation_cpu_ready_millisecond`; `vm_name` is an optional resolved label. Broadcom defines CPU ready summation as milliseconds that the VM was ready but could not be scheduled during the measurement interval. The SPL converts only aggregate samples (`instance` empty or `aggregate`) by dividing ready milliseconds by `samp_int * 1000`; confirm those exact extraction values in the installed release before enablement. The index name and saved-search names on this page are local choices.",
+  "app": "Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) version 4.2.1, plus the compatible Splunk Add-on for VMware Indexes and Splunk Add-on for VMware Extractions packages required by that release. Use the Splunkbase compatibility matrix for the exact Splunk platform and package combination; this documentation review does not generalize compatibility beyond the listed release. The API collector runs through a Data Collection Scheduler and dedicated Data Collection Node, not a Universal Forwarder-only scripted input.",
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215/",
+      "minVersion": "4.2.1",
+      "role": "primary"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640/",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641/",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=vmware source=\"VMPerf:VirtualMachine\" sourcetype=\"vmware:perf:cpu\" p_summation_cpu_ready_millisecond=* samp_int=* earliest=-15m@m latest=@m\n| eval ready_ms=tonumber(p_summation_cpu_ready_millisecond), sample_seconds=tonumber(samp_int), entity_id=coalesce(moid,uuid), vm_name=coalesce(vm_name,entity_id), instance=coalesce(instance,\"\")\n| where len(entity_id)>0 AND ready_ms>=0 AND sample_seconds>0 AND (instance=\"\" OR lower(instance)=\"aggregate\")\n| eval ready_pct=round((ready_ms/(sample_seconds*1000))*100,2)\n| where ready_pct>=0 AND ready_pct<=100\n| bin _time span=5m\n| stats count as sample_count avg(ready_pct) as avg_ready_pct max(ready_pct) as peak_ready_pct latest(sample_seconds) as sample_seconds values(instance) as instances by _time host entity_id vm_name\n| eval avg_ready_pct=round(avg_ready_pct,2), peak_ready_pct=round(peak_ready_pct,2), threshold_pct=10\n| where sample_count>=3 AND avg_ready_pct>threshold_pct\n| sort 0 - avg_ready_pct\n| table _time host entity_id vm_name sample_count sample_seconds avg_ready_pct peak_ready_pct threshold_pct",
+  "description": "Returns one row per virtual machine and five-minute bucket when at least three valid aggregate vSphere CPU samples show mean CPU ready time above 10 percent. The search converts the add-on's documented ready-time summation from milliseconds using each event's sampling interval, preserves the peak, and rejects malformed, nonaggregate, or physically impossible samples.",
+  "value": "Sustained CPU ready time shows that a virtual machine wanted processor time but was not scheduled. Exposing the affected VM, measured interval, average, and peak helps virtualization teams distinguish a compute-scheduling bottleneck from guest-only CPU observations and investigate limits, sizing, placement, and host demand before prolonged contention degrades a service.",
+  "implementation": "Deploy Splunk Add-on for VMware 4.2.1 and its compatible index/extraction packages on the vendor-documented Scheduler, Data Collection Node, index, and search tiers. Configure a least-privilege vCenter account with the documented `System.Anonymous`, `System.Read`, and `System.View` permissions, enable `hostvmperf`, and qualify aggregate virtual-machine CPU records. Verify `p_summation_cpu_ready_millisecond`, `samp_int`, `moid`/`uuid`, `instance`, and optional `vm_name` before saving the five-minute alert. Treat 10 percent as an investigation threshold from Broadcom operational guidance, not a universal outage boundary; baseline by workload and retain threshold approval. Alert only after the positive, boundary, sparse-sample, malformed-field, duplicate, and source-freshness controls pass.",
+  "visualization": "Use a current-findings table with bucket time, VM label and immutable entity ID, vCenter/collection host, sample count, sampling interval, average ready percentage, peak ready percentage, and threshold. Add a 24-hour line per selected VM using all valid samples, with the 10-percent policy line and deployment-approved warning/critical overlays. Add a host/cluster correlation panel only after hierarchy enrichment has been separately qualified, and a source-health panel for expected VMs, last event, invalid intervals, nonaggregate instances, duplicates, and missing labels. Label the unit `CPU ready (%)`; do not call it CPU utilization, packet wait, guest load, or application latency.",
+  "cimModels": [],
+  "dataModelAcceleration": "No generic CIM variant is asserted. The rule depends on VMware's ready-time summation, its measurement interval, aggregate-instance identity, and a stable VM identifier; the generic CIM Performance model does not guarantee that semantic tuple. A deployment may build a purpose-specific summary or metrics contract after validating parity, but must retain ready milliseconds, sample seconds, VM identity, and aggregate/per-instance scope.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "source",
+    "sourcetype",
+    "moid",
+    "uuid",
+    "instance",
+    "samp_int",
+    "p_summation_cpu_ready_millisecond",
+    "vm_name"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Splunkbase — Splunk Add-on for VMware 4.2.1, components and platform compatibility",
+      "url": "https://splunkbase.splunk.com/app/3215/",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Splunk — Source types for the Splunk Add-on for VMware",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Splunk — Performance metrics reference for the Splunk Add-on for VMware",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Performancemetricsreference",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk — VMware Collection Configuration, aggregate versus instance data, and task intervals",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/UsetheCollectionconfigurationpage",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk — VMware add-on requirements, vCenter permissions, DCN sizing, and API data volume",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Hardwareandsoftwarerequirements",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom vSphere Web Services API — CPU performance counters",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/cpu_counters.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom vSphere — Virtual-machine CPU percentage chart and CPU ready interpretation",
+      "url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsphere/vsphere/9-1/vsphere-monitoring-and-performance/monitoring-inventory-objects/overview-performance-charts/virtual-machines/cpu-vm.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom VMware Cloud Foundation — Virtual Machine Metrics, CPU Ready guidance",
+      "url": "https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vcf-9-0-and-later/9-0/infrastructure-operations/metric-property-and-alert-definitions/metrics-definitions-in-vrealize-operations-manager/metrics-for-vcenter-server-components/virtual-machine-metrics.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise and Cloud — Evaluation functions including tonumber and round",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/evaluation-functions/evaluation-functions",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Repository integration guide — VMware vSphere",
+      "url": "https://github.com/Fernerkundung/splunk-monitoring-use-cases/blob/main/docs/guides/vmware-vsphere.md",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'VM CPU Ready Time Percentage'. Correlate with apt/yum logs in the same `vmware:perf:cpu` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `avg` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:perf:cpu`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `avg_ready_pct` > 5.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A row is evidence of sustained ready time under the qualified field contract. \"False positive\" means the measurement is expected, the local threshold is unsuitable, or collection identity is wrong—not that an unrelated Linux package or network probe mimicked a vSphere counter.\n\n1. **Approved load, failover, or disaster-recovery exercise** — A stress tool, application capacity test, or recovery exercise can intentionally saturate a cluster. Match the exact VM IDs, test owner, target load, change record, and bounded UTC window; keep the result as test evidence and suppress only notification routing for those entities and times.\n\n2. **Backup, antivirus, compilation, or analytics batch** — A scheduled Veeam guest-processing phase, endpoint scan, build farm wave, or data-processing job can create a legitimate demand burst. Compare the VM's guest workload schedule, CPU usage, service objective, and completion status. Recurring ready time that breaches service tolerance remains a capacity or scheduling problem.\n\n3. **Maintenance evacuation and DRS rebalance** — Entering an ESXi host into maintenance mode or applying a planned DRS action can temporarily concentrate demand on remaining hosts. Correlate with vCenter tasks/events and the approved maintenance record; suppress exact VM IDs only for the migration window, not the whole cluster.\n\n4. **Deliberate CPU limit, shares, or reservation policy** — A VM can accumulate ready time because an approved resource policy constrains it even when the host has spare capacity. Verify the VM resource settings and policy owner in vCenter. If the service is meeting objectives, tune policy for that workload; do not reinterpret ready time as host-wide overcommit.\n\n5. **Oversized symmetric-multiprocessing VM** — A VM with more virtual CPUs than its workload can wait for co-scheduling opportunities. Confirm virtual CPU count, co-stop, actual demand, and vendor/application sizing guidance. Right-sizing requires owner approval and performance testing; it is not an automatic alert action.\n\n6. **Duplicate collectors or mixed aggregate/per-instance data** — Two DCNs querying the same scope, source collisions, or newly enabled instance-level collection can inflate sample counts or mix incompatible grains. Compare `host`, `moid`, `uuid`, `instance`, raw event identity, scheduler scope, and effective collection preferences. Correct collection; do not suppress a data-quality defect.\n\n**Safe suppression:** keep the base SPL independent of an invented lookup. If local policy requires maintenance suppression, apply a governed lookup after condition formation, keyed by exact `entity_id` and use-case ID with `valid_from_epoch`, `valid_until_epoch`, owner, ticket, and reason. Reject wildcards, expired/open-ended rows, and any exception that hides source-health failures. Preserve raw samples and unsuppressed results.",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_ta_vmware"
+    "vmware_ta_vmware",
+    "vmware_vcenter"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
+  "mitreAttack": [
+    "N/A (operational vSphere CPU scheduling measurement; elevated ready time alone does not establish adversary behavior)"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:cpu` (counter=cpu.ready.summation).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSplunk_TA_vmware collects cpu.ready.summation (milliseconds VM waited per 20s interval). Formula: ready_pct = Value / 20000 * 100 (20s = 20000ms). Alert when avg_ready_pct >5% over 10 minutes. Use rolling 15-min average to smooth spikes. Correlate with cluster CPU utilization and DRS migrations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:cpu\" counter=\"cpu.ready.summation\"\n| eval ready_pct = round(Value / 20000 * 100, 2)\n| stats avg(ready_pct) as avg_ready_pct, max(ready_pct) as peak_ready_pct by host, vm_name\n| where avg_ready_pct > 5\n| sort -avg_ready_pct\n| table vm_name, host, avg_ready_pct, peak_ready_pct\n```\n\nUnderstanding this SPL\n\n**VM CPU Ready Time Percentage** — Measures time VMs wait for physical CPU — distinct from host utilization. High CPU ready time indicates over-committed CPU; VMs are queued waiting for scheduler time even when host CPU % appears acceptable. Critical for identifying latent contention invisible from guest metrics.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:cpu` (counter=cpu.ready.summation). **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:cpu. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:cpu\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **ready_pct** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, vm_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where avg_ready_pct > 5` — typically the threshold or rule expression for this monitoring goal.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **VM CPU Ready Time Percentage**): table vm_name, host, avg_ready_pct, peak_ready_pct\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Heatmap (VMs vs hosts, colored by ready %), Bar chart (top VMs by ready time), Line chart (ready % trend).",
-  "grandmaExplanation": "We track when your virtual machines wait too long for CPU time, so we can catch overload or unfair resource shares before the slowness hits real work.",
+  "detectionType": "Baseline",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only editorial review against Splunk Add-on for VMware 4.2.1 source-type, metric, topology, permissions, and collection documentation plus Broadcom vSphere CPU-counter and performance guidance; field contract, SPL, controls, threshold, alerting, dashboard, and response specified but not executed on vCenter, a Data Collection Node, or live Splunk; no version-matrix, production, VMware, Splunk, performance-SME, or customer sign-off",
+  "cost": {
+    "tier": "medium",
+    "search_load": "moderate",
+    "search_load_notes": "A five-minute transforming search scans fifteen minutes of virtual-machine CPU performance events, validates aggregate samples, calculates one percentage per event, and groups by VM and five-minute bucket. Actual ingest depends on VM count, collection interval, selected metrics, and whether instance-level data is enabled.",
+    "tstats_eligible": false,
+    "storage_class": "warm",
+    "retention_days": 30,
+    "sources": [
+      "vCenter PerformanceManager CPU ready summation",
+      "Splunk Add-on for VMware API collection",
+      "VMPerf:VirtualMachine vmware:perf:cpu events"
+    ],
+    "last_estimated": "2026-07-29",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and measurement boundary\n\nAssign a VMware platform owner, a Splunk VMware-collection owner, a search-content owner, and an application owner for each paged VM. Install Splunk Add-on for VMware 4.2.1 and the compatible VMware Indexes and VMware Extractions packages on exactly the tiers documented for the deployment. The current Splunkbase listing must be checked before rollout because add-on/platform compatibility changes independently of this content. Use a dedicated Data Collection Scheduler and appropriately sized Data Collection Nodes; this API collector is not a Universal Forwarder-only input. Allow the DCN to reach vCenter on TCP 443 and its normal Splunk management/forwarding paths. The vCenter collection account requires the documented `System.Anonymous`, `System.Read`, and `System.View` permissions. Do not grant VM reconfiguration or host-administration privilege to a read-only measurement account.\n\nThe signal is the vSphere `cpu.ready.summation` counter. Broadcom defines it as milliseconds during the last measurement interval when a VM was ready but could not be scheduled. Splunk exposes the legacy event field as `p_summation_cpu_ready_millisecond`; `samp_int` supplies the sample interval in seconds. Therefore `ready_ms / (samp_int * 1000) * 100` is the percentage for that sample. Never divide by a hard-coded 20, average lifetime totals, or sum percentages across VMs. Restrict this record to the aggregate VM instance. If collection emits per-vCPU instances, qualify a separate rule because summing or averaging them changes the measurement grain.\n\n## Step 1 — Configure and qualify VMware data collection\n\nIn the add-on's Collection Configuration page, register the DCN, add the vCenter, validate credentials, enable the `hostvmperf` task, and start the scheduler. Use the VM metric allowlist/denylist only after proving that CPU ready is retained. The `vmware` index in this page is a deployment choice; if another index is used, update collection routing and the SPL together. Do not install Splunk Add-on for VMware ESXi Logs as a substitute: syslog does not supply the PerformanceManager samples queried here.\n\nAfter at least ten minutes, verify `source=VMPerf:VirtualMachine sourcetype=vmware:perf:cpu`. Inspect raw events from two known VMs and confirm numeric `p_summation_cpu_ready_millisecond`, positive numeric `samp_int`, stable `moid` or `uuid`, and aggregate `instance` represented as empty or `aggregate`. Confirm whether the compatible extraction package supplies `vm_name`; if not, leave the immutable ID as the operational identity and qualify a versioned hierarchy lookup before adding a display label. Check for duplicate samples by `_time`, `host`, entity ID, and instance. Reconcile expected powered-on VMs with last-seen performance records in a separate source-health search. A missing VM is unknown coverage, not zero ready time.\n\n## Step 2 — Create and understand the search\n\nSave the catalogue SPL as `UC-2.1.42 - VM CPU Ready Percentage`. Schedule it every five minutes after measuring normal ingest delay. Its fifteen-minute lookback tolerates delayed samples and creates up to three five-minute buckets; alert actions should act only on the newest completed bucket if local scheduling can redispatch older buckets. Trigger when result count is greater than zero and throttle notifications by immutable `entity_id`, not the changeable VM label.\n\nThe base search fixes the vendor source and source type and requires both measurement fields. `tonumber` makes malformed strings null. `coalesce(moid,uuid)` forms a stable entity key from fields observed in this add-on family; no fabricated `entity` field is assumed. The first `where` rejects missing identity, nonpositive interval, negative ready milliseconds, and nonaggregate instances. Percentage conversion uses each event's interval. The physical-range check rejects values outside 0–100 for this aggregate contract instead of clipping them. `bin` fixes a five-minute aggregation window. `stats` produces one row per bucket, collection host, and VM, preserving average and peak. Requiring three samples prevents a single record from being called a five-minute sustained average when 20-second or similarly frequent data is expected; deployments with 300-second historical samples must author and test a different persistence rule rather than reducing this silently.\n\nThe threshold is strictly above 10 percent. Broadcom operational guidance says ready above 10 percent warrants checking host load and VM allocation, while other vSphere chart guidance discusses higher values in conjunction with CPU usage. Consequently this rule is an investigation trigger, not proof of impact. Baseline representative business cycles and record an owner-approved threshold by service tier before paging. Do not auto-vMotion, raise limits, add vCPUs, or power off workloads from this result.\n\n## Step 3 — Validate semantics and controls\n\nRun the positive control in an isolated index. Six events at 2,400 ready milliseconds over 20 seconds each produce `2400 / 20000 * 100 = 12.00`; the five-minute aggregate must remain 12.00 and return one row. Run the exact-boundary negative control: 2,000 milliseconds produces 10.00 and must not satisfy `>10`. Verify that two samples fail the minimum-count rule and malformed intervals, negative values, and missing identity are rejected. Add tests for 0 and 20,000 ready milliseconds (0 and 100 percent accepted), 20,001 rejected, duplicate events, both allowed aggregate spellings, and a nonaggregate instance.\n\nIn a nonproduction or change-approved vCenter, select two known VMs and compare the same time bucket with vSphere's VM CPU performance chart. Match VM identity, time zone, chart rollup, interval, and aggregate versus per-vCPU view. Small display-rounding differences are acceptable; a factor-of-15 or factor-of-100 discrepancy indicates interval or fixed-point confusion. Retain raw events, chart export or screenshot, SPL job ID, arithmetic, add-on version, and control outputs. This editorial review defines those tests but does not claim they ran.\n\nBuild source-health checks for missing expected VMs, stale latest `_time`, nonnumeric or zero `samp_int`, negative/out-of-range results, multiple aggregate records per entity/time, unexpected instances, unresolved names, DCN scheduler health, and field disappearance after upgrades. Keep those checks separate so collection failure cannot appear as healthy CPU ready.\n\n## Step 4 — Operationalize response and evidence\n\nBuild the table, trend, and health panels described in `visualization`. Default the operational trend to 24 hours and provide seven-day baseline and 30-day capacity views. Restrict raw vCenter topology and lookup changes to the VMware/Splunk operations roles. Route a sustained critical-service result to the virtualization and application owners; route lower-tier findings to a capacity queue until local policy defines urgency.\n\nThe responder first confirms source freshness, aggregate instance, sample count, and percentage arithmetic. Then compare VM CPU usage/demand, CPU limit, shares, reservation, vCPU count, co-stop, ESXi host demand, peer-VM ready time, DRS tasks, maintenance activity, and application latency/error objectives. High ready with many peers affected supports host or cluster contention; one constrained VM with healthy peers can support a VM-specific limit or sizing hypothesis. These are hypotheses requiring corroboration. Record the disposition and any approved suppression or threshold revision.\n\nRetain the artifacts listed in `evidence` under the organization's operational retention policy. Evidence must preserve the raw summation and interval so reviewers can reproduce the percentage. A dashboard screenshot without source-health state, search revision, and contributing events is insufficient. Keep `status=draft` until the installed release, extraction contract, positive/negative controls, vSphere comparison, alert action, threshold, exception process, and runbook are validated in the target environment.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No VMware performance events:** verify scheduler state, DCN registration checks, vCenter credentials, TCP 443, `hostvmperf` capability, selected VM scope, index routing, and worker status. ESXi syslog collection cannot replace API performance data.\n- **CPU events exist but ready is absent:** inspect VM metric allow/deny expressions, vCenter counter availability and collection level, add-on/extraction package compatibility, and raw `p_*` fields. Do not alias CPU usage or readiness from another product to ready summation.\n- **`samp_int` is null or zero:** inspect raw event format and extraction-package compatibility. Stop the alert until the measurement interval is proven; do not assume 20 or 300 seconds.\n- **Percentages exceed 100:** verify aggregate scope, interval units, duplicate/instance records, and whether the field is already percentage-valued. The SPL rejects those rows; do not cap them to 100.\n- **VM names are absent or wrong:** use `moid`/`uuid` as the stable key and qualify the hierarchy/extraction package. Names can change and are not safe throttle keys.\n- **Too few samples:** compare the configured task interval and vCenter rollup with the five-minute rule. A 300-second feed needs a separately tested latest-sample or longer-window policy; lowering `sample_count` changes detection semantics.\n- **Dashboard disagrees with vSphere:** align entity, time zone, chart rollup, aggregate/per-vCPU selection, and interval. Verify fixed-point or millisecond conversion only against the exact counter being displayed.\n- **Duplicate rows:** check overlapping DCN scopes, scheduler retries, duplicate forwarding, and aggregate plus instance collection. Correct collection before tuning thresholds.\n- **Persistent findings after adding CPU:** CPU ready can be driven by limits, co-scheduling, host contention, power management, or allocation policy. More vCPUs can worsen scheduling. Follow VMware performance analysis and change control rather than applying a generic resource increase.",
+  "grandmaExplanation": "We watch how long each virtual computer waits for a turn on the real processors. If that wait stays unusually high, the team can check whether the machine is constrained or the shared host is too busy before work slows down.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
