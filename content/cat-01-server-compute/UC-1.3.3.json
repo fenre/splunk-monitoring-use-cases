@@ -1,63 +1,78 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.3.3",
-  "title": "Gatekeeper and SIP Status",
-  "criticality": "medium",
+  "title": "Expected Mac Reports System Integrity Protection Disabled",
+  "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Configuration",
+    "Data Quality"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Gatekeeper and SIP Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_gatekeeper_and_sip_status` (UC-1.3.3), SOC dashboard panel \"Linux — Gatekeeper and SIP Status\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Compares expected Macs with normalized Apple MDM security/device-information query results for System Integrity Protection (SIP). It reports no result in 48 hours, a result older than 24 hours, an unknown value, or explicit `sip_enabled=false`. It deliberately removes Gatekeeper from this UC because Apple documents SIP as a queryable yes/no state while Gatekeeper is a separately managed security-payload policy. SIP enabled does not attest Secure Boot policy, Gatekeeper policy/effective assessment, kernel-extension approval, malware absence, or regulatory compliance.",
+  "evidence": "Retain the `expected_macos_sip_disabled` saved search, daily schedule, results and alerts; expected-device and exception lookup revisions; redacted MDM query/response IDs, SIP boolean, status and collection times; API/command health; fixtures; dashboard/case history; recovery response; and approved exception or lifecycle evidence. This documentation-only review queried no Mac or MDM and produced no production evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.3.3 positive (Gatekeeper, and, SIP, Status): ingest synthetic events into `index=os` sourcetype='macos_security' where `count` grouped by `host` satisfies detection threshold for 'Gatekeeper and SIP Status'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.3.3 negative (SIP Status): ingest benign `os` / `macos_security` events where `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 9 confirms zero alert rows for 'Gatekeeper and SIP Status'."
+    "positiveScenario": "At 2026-07-29T12:00:00Z add expected IDs `sip-off`, `sip-stale`, and `sip-missing`. Index `sip-off` at 11:00 with `sip_enabled=false`; index `sip-stale` true at 2026-07-28T11:59:59Z; index nothing for missing. Expect exactly three rows: `sip_disabled`, `status_stale` age 86401, and `not_observed_in_48h`.",
+    "negativeScenario": "Require zero rows for true SIP status exactly 86400 seconds old or newer; inactive/future/expired/non-macOS inventory; an observed but unexpected ID; or a finding with an exact future exception containing reason, ticket, and owner. Expiry equal to dispatch does not suppress. A Gatekeeper-anywhere policy or reduced Secure Boot state remains separate."
   },
-  "dataSources": "Custom scripted inputs (`spctl --status`, `csrutil status`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=macos_security host=*\n| stats latest(gatekeeper) as gk, latest(sip) as sip by host\n| where gk!=\"enabled\" OR sip!=\"enabled\"",
-  "description": "Surfaces UC-1.3.3 — Gatekeeper, and, SIP, Status — using `index=os` sourcetype `macos_security`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: SIP Status. Purpose-built for 'Gatekeeper and SIP Status' in Linux workflows.",
-  "value": "Operators running UC-1.3.3 on `macos_security` feeds shorten triage for SIP Status tied to 'Gatekeeper and SIP Status', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Scripted inputs for `spctl --status` and `csrutil status`. Run daily. Dashboard showing fleet-wide compliance.",
-  "visualization": "Pie chart (compliant vs. not), Table of non-compliant endpoints.",
+  "dataSources": "Apple MDM SecurityInfo or device-information query exported through the selected device-management service's documented API/webhook. Required normalized fields are `_time`, exact `device_id`, `platform`, boolean `sip_enabled`, `response_status`, `command_id`, `collector_time`, `tenant`, and `collector_version`; retain vendor request/pagination health. `index=endpoint_posture`, `sourcetype=local:apple:security_status`, aliases, and lookup names are local conventions. A local `csrutil status` parser is not mixed into this remote source without a separate qualified contract.",
+  "app": "Apple device management protocol and the selected MDM vendor supply SIP query state. A deployment-owned collector and Splunk search app provide normalization, inventory, exceptions, fixtures, search, dashboard, and runbook. Gatekeeper payload compliance belongs in a separate policy control; no Splunkbase add-on is asserted.",
+  "spl": "| inputlookup expected_macos_sip.csv\n| eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), monitor_from_epoch=tonumber(monitor_from_epoch), monitor_until_epoch=tonumber(monitor_until_epoch), expected_row=1\n| where lower(trim(monitor_enabled))=\"true\" AND platform=\"macos\" AND len(device_id)>0 AND monitor_from_epoch<=now() AND monitor_until_epoch>now()\n| fields device_id expected_row device_name serial_number owner criticality runbook\n| append [ search index=endpoint_posture sourcetype=local:apple:security_status earliest=-48h latest=now\n    | eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), sip_enabled=case(sip_enabled=true() OR lower(trim(sip_enabled))=\"true\",1,sip_enabled=false() OR lower(trim(sip_enabled))=\"false\",0,true(),null()), observed_row=1\n    | where platform=\"macos\" AND len(device_id)>0\n    | stats latest(_time) AS status_time latest(sip_enabled) AS sip_enabled latest(response_status) AS response_status latest(command_id) AS command_id latest(collector_time) AS collector_time by device_id ]\n| stats max(expected_row) AS expected_row max(observed_row) AS observed_row values(device_name) AS device_name values(serial_number) AS serial_number values(owner) AS owner values(criticality) AS criticality values(runbook) AS runbook max(status_time) AS status_time max(sip_enabled) AS sip_enabled values(response_status) AS response_status values(command_id) AS command_id max(collector_time) AS collector_time by device_id\n| where expected_row=1\n| eval status_age_seconds=if(isnull(status_time),null(),now()-status_time), finding=case(isnull(observed_row),\"not_observed_in_48h\",isnull(sip_enabled),\"unknown_sip_value\",sip_enabled=0,\"sip_disabled\",status_age_seconds>86400,\"status_stale\",true(),\"healthy\")\n| where finding!=\"healthy\"\n| lookup macos_sip_exceptions.csv device_id OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval stale_threshold_seconds=86400, observation_window_hours=48, use_case_id=\"UC-1.3.3\"\n| table device_id device_name serial_number finding sip_enabled status_time status_age_seconds response_status command_id collector_time owner criticality runbook stale_threshold_seconds observation_window_hours use_case_id\n| sort 0 finding -status_age_seconds device_id",
+  "description": "Runs daily and emits one row per active expected Mac when its latest MDM-reported SIP state is absent for 48 hours, unknown, false, or strictly older than 24 hours. The grain is exact lowercased device-management ID and each row retains response, command, age, inventory, and owner context.",
+  "value": "Disabled SIP weakens macOS protections against modification of protected system components, while absent or stale posture data creates a separate visibility gap. Exact inventory-first findings let endpoint and security teams distinguish deliberate recovery/development work, identity drift, and collection failure without claiming Gatekeeper or Secure Boot coverage.",
+  "implementation": "Export Apple's queryable SIP boolean through the MDM's supported API, preserve query and collection health, normalize booleans without guessing, and reconcile exact expected device IDs. Run daily with 48-hour observation and strict 24-hour freshness, alert by device/finding, and use finite exact exceptions. Validate against a controlled Mac and MDM console; investigate recoveryOS/security-policy changes through approved endpoint procedures.",
+  "visualization": "Put MDM query freshness, failures, expected coverage, unknown values, and duplicate IDs first. Then show SIP disabled/stale/absent by owner, model, site, and status age with trend history. Drill down to redacted MDM response, startup-security evidence, approved recovery/developer change, exception, incident, and restored status. Keep Gatekeeper and Secure Boot panels separate.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM data model for Gatekeeper and SIP state.",
+  "dataModelAcceleration": "Not applicable; no CIM mapping is asserted for Apple SIP state or expected-device absence.",
+  "requiredFields": [
+    "_time",
+    "device_id",
+    "platform",
+    "sip_enabled",
+    "response_status",
+    "command_id",
+    "collector_time"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Security queries—System Integrity Protection turned on",
+      "url": "https://support.apple.com/guide/deployment/security-queries-dep5872f7b3c/web",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Device-information query for SIP",
+      "url": "https://support.apple.com/guide/deployment/device-information-queries-depa9e8e14a4/web",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Startup security and SIP",
+      "url": "https://support.apple.com/guide/deployment/startup-security-dep5810e849c/web",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Gatekeeper security payload settings (separate control)",
+      "url": "https://support.apple.com/guide/deployment/security-payload-settings-dep61dc030/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: Scheduled alerts",
+      "url": "https://help.splunk.com/en/splunk-enterprise/alert-and-respond/alerting-manual/10.2/create-alerts/create-scheduled-alerts",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Gatekeeper and SIP Status'. Correlate with apt/yum logs in the same `macos_security` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_security`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A finding is valid under the evidence contract but can have an approved cause.\n\n1. **Authorized recoveryOS or developer work** — SIP may be disabled for tightly controlled diagnostics. Verify physical/recovery authorization, owner, device, purpose, start/end, rollback, and post-change query; never accept an indefinite exception.\n\n2. **OS repair, migration, or re-enrollment** — Device ID/status can change. Reconcile serial, old/new MDM IDs, enrollment and asset lifecycle before updating inventory.\n\n3. **MDM command or API failure** — Timeout, permission loss, pagination, or collector outage creates stale/absent results. Check response status, command ID, canary, totals, and collection time before endpoint action.\n\n4. **Boolean normalization defect** — Null, localized UI text, or vendor enum mapped incorrectly can become unknown/false. Compare raw redacted response, vendor schema, parser version, and fixtures.\n\n**Suppression mechanism:** the SPL uses `lookup macos_sip_exceptions.csv` on exact `device_id` and requires future expiry, reason, ticket, and owner. Expired, wildcard, fleet-wide, MDM-outage, Gatekeeper, or Secure-Boot exceptions do not suppress.",
   "equipment": [
     "macos"
   ],
   "equipmentModels": [
     "macos_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder, custom scripted input.\n• Ensure the following data sources are available: Custom scripted inputs (`spctl --status`, `csrutil status`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted inputs for `spctl --status` and `csrutil status` on a daily schedule. Normalize output into `gatekeeper` and `sip` fields (the example search expects a value of `enabled` for healthy).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_security host=*\n| stats latest(gatekeeper) as gk, latest(sip) as sip by host\n| where gk!=\"enabled\" OR sip!=\"enabled\"\n```\n\nUnderstanding this SPL\n\n**Gatekeeper and SIP Status** — Disabled Gatekeeper or System Integrity Protection weakens macOS security posture. May indicate developer override or tampering.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_security`.\n• `stats` keeps the latest `gk` and `sip` per **host**.\n• `where` flags any host where either value is not `enabled` per your normalizer.\n\n\nStep 3 — Validate\nOn a test Mac, run the two commands and compare the parsed fields in Search. `csrutil` only reports meaningful SIP state from a normal boot, not from Recovery; document that in your runbook if you use this field.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Document visualizations: Pie chart (compliant vs. not), Table of non-compliant endpoints. See the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_security into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We make sure the Mac’s built-in protections for what software can run and what the system can change are still on, so the machine is not left wide open to tampering or sneaky installs.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Apple SIP security/device-information queries, startup security, system-extension behavior and separate Gatekeeper payload guidance plus Splunk lookup/scheduled-alert documentation; MDM/macOS/Splunk versions, API, fields, inventory, SPL, fixtures, freshness, exceptions, source health, alert delivery, startup-security response, and production behavior were specified but not executed or Apple/MDM/Splunk/endpoint/security/SME signed",
+  "detailedImplementation": "## Scope and prerequisites\n\nAssign MDM, macOS/startup-security, asset, security, Splunk, service-desk, and change owners. Qualify MDM API, macOS, collector, and Splunk versions; this review ran none. Give the collector only device/security-query read access and protect tenant/request metadata. Apple documents SIP as a yes/no security query. Gatekeeper is configured through separate security payloads and is intentionally excluded instead of combining unlike fields.\n\nExport each query result with exact tenant/device/command identity, SIP boolean, response status, device status time, API collection time, pagination and collector version. Normalize true/false/null through vendor-schema fixtures; do not parse a UI label. Keep a local `csrutil` collector separate if adopted because boot context, command output, and endpoint trust differ. Monitor newest successful query, canary, errors, object totals, pagination, null rate, duplicate IDs, and indexing delay.\n\nCreate `expected_macos_sip.csv` with unique device ID, platform, enabled flag, lifecycle epochs, serial, owner, criticality, and runbook. Reconcile against MDM and asset records. Govern `macos_sip_exceptions.csv` by exact ID, finite UTC expiry, purpose, ticket, and owner.\n\n## Search and validation\n\nSave `expected_macos_sip_disabled`, run daily, and trigger per device/finding. The lookup creates absence; the event branch keeps newest 48-hour state; exactly 86400 seconds is accepted and 86401 is stale. Route a broad stale/absent burst to MDM/data owners before endpoint teams.\n\nRun fixed controls plus true/false/null/string values, 86399/86400/86401 ages, no event, newer duplicate, wrong platform, lifecycle and exception equality, re-enrollment, API failure, late indexing, and multiple OS/security-policy configurations. On a lab Mac, compare MDM state before and after an approved SIP change performed through Apple's required startup-security process; do not disable production SIP merely to test. Keep draft until owners accept source semantics, versions, tests, freshness, alerting, and response.\n\n## Response and troubleshooting\n\nVerify collector/query health and a canary first; then exact identity/lifecycle; latest MDM response; approved recovery/developer work; startup security, Secure Boot, OS instance, system-extension requirements, and recent repair/reinstall. SIP can differ from Gatekeeper and, on Apple silicon, security policy is associated with an installed OS, so preserve boot-volume context in the runbook.\n\nDo not automate SIP changes, recoveryOS entry, Secure Boot reduction, kernel-extension approval, Gatekeeper changes, restart, wipe, or re-enrollment from Splunk. Those require physical/endpoint authority and rollback. Close after a new authoritative true SIP result and separate validation of any affected extension/application. If all devices stale, repair MDM/query collection; if one device false, investigate device/change; if true but Gatekeeper weak, use the separate policy control; if status is unknown, fix extraction rather than treating unknown as disabled or healthy.",
+  "grandmaExplanation": "We ask the Mac management service whether each expected Mac still has System Integrity Protection on. Missing, old, or off answers are investigated; Gatekeeper and startup security are checked separately.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
