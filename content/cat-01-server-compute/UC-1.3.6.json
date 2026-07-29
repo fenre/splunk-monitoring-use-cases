@@ -1,63 +1,83 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.3.6",
-  "title": "macOS Gatekeeper and XProtect Status",
-  "criticality": "medium",
+  "title": "Expected Mac Has Automatic Security Updates Disabled",
+  "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Configuration",
+    "Data Quality"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'macOS Gatekeeper and XProtect Status' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_macos_gatekeeper_and_xprotect_status` (UC-1.3.6), SOC dashboard panel \"Linux — macOS Gatekeeper and XProtect Status\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Compares expected Macs with the Apple operating-system query value for whether automatic security updates—System Settings' installation of system data files and security updates—are enabled. It reports false, unknown, older-than-24-hour, or missing-within-48-hour state. Apple documents XProtect security-configuration updates as part of this background mechanism, but an enabled preference does not prove the newest XProtect payload installed, Gatekeeper policy is enforced, malware was blocked/remediated, or a particular update succeeded. The obsolete undocumented bundle-path/version-age and erroneous seconds-as-days logic were removed.",
+  "evidence": "Retain `expected_macos_automatic_security_updates_disabled`, schedule/results/alerts; expected-device and exception lookup revisions; redacted MDM query responses with automatic-security-update boolean, command/response and collection times; API/collector health; fixtures; dashboard/case; and restored true state plus separate update evidence. This documentation-only review changed no setting, queried no device, and observed no XProtect payload.",
   "controlTest": {
-    "positiveScenario": "UC-1.3.6 positive (macOS, Gatekeeper, and, XProtect, Status): ingest synthetic events into `index=os` sourcetype='macos_gatekeeper' where `count` grouped by `entity` satisfies `xprotect_age_days` > 30 for 'macOS Gatekeeper and XProtect Status'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.3.6 negative (XProtect Status): ingest benign `os` / `macos_gatekeeper` events where `entity` stays below `xprotect_age_days` > 30, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'macOS Gatekeeper and XProtect Status'."
+    "positiveScenario": "At 2026-07-29T12:00:00Z add expected IDs `asu-off`, `asu-stale`, `asu-missing`. Index `asu-off` at 11:00 with `automatic_security_updates_enabled=false`; `asu-stale` true at 2026-07-28T11:59:59Z; and nothing for missing. Expect exactly `automatic_security_updates_disabled`, `status_stale` age 86401, and `not_observed_in_48h`.",
+    "negativeScenario": "Require zero rows for true state exactly 86400 seconds old or newer; inactive/future/expired/non-macOS inventory; unexpected observed IDs; or an exact future exception with reason, ticket, and owner. Expiry equal to dispatch does not suppress. A true preference with a failed/pending XProtect update remains outside this rule."
   },
-  "dataSources": "`spctl --status`, `system_profiler SPInstallHistoryDataType` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Universal Forwarder, custom scripted input (parsing the same `spctl` and `system_profiler` output you might template from add-on for Unix and Linux in a mixed environment) — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=macos_gatekeeper host=*\n| eval xprotect_age_days = now() - strptime(xprotect_date, \"%Y-%m-%d\")\n| where xprotect_age_days > 30\n| table host xprotect_ver xprotect_date xprotect_age_days",
-  "description": "Alerts on UC-1.3.6 — macOS, Gatekeeper, and, XProtect, Status — using `index=os` sourcetype `macos_gatekeeper`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `xprotect_age_days` > 30. Primary focus: XProtect Status. Purpose-built for 'macOS Gatekeeper and XProtect Status' in Linux workflows.",
-  "value": "Tracking `activity` via UC-1.3.6 on `macos_gatekeeper` feeds improves response to 'macOS Gatekeeper and XProtect Status' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Create a scripted input that runs `spctl --status` (expect \"assessments enabled\" for Gatekeeper on). For XProtect, run `system_profiler SPInstallHistoryDataType` and parse XProtect/XProtect Remediator entries, or check `/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/version.plist`. Run daily. Alert when Gatekeeper is disabled; alert when XProtect definitions are older than 30 days.",
-  "visualization": "Table (host, Gatekeeper status, XProtect version), Single value (non-compliant count), Pie chart (enabled vs. disabled).",
+  "dataSources": "Apple MDM operating-system/device-information query whose documented result corresponds to “Install system data files and security updates,” exported through the management service's supported API. Normalize `_time`, exact `device_id`, `platform`, boolean `automatic_security_updates_enabled`, `response_status`, `command_id`, `collector_time`, `tenant`, and `collector_version`. `index=endpoint_posture`, `sourcetype=local:apple:update_settings`, aliases, and lookups are local conventions. Collect declarative software-update status/error and actual XProtect/background-update evidence separately; do not parse undocumented XProtect bundle paths as an authoritative fleet API.",
+  "app": "Apple device management and the chosen MDM vendor provide the update-setting query. A deployment-owned collector and Splunk search app provide normalization, expected inventory, exceptions, fixtures, search, dashboard, and runbook. Splunk Add-on for Unix and Linux (Splunkbase 833) is not a macOS XProtect source for this UC.",
+  "spl": "| inputlookup expected_macos_security_updates.csv\n| eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), monitor_from_epoch=tonumber(monitor_from_epoch), monitor_until_epoch=tonumber(monitor_until_epoch), expected_row=1\n| where lower(trim(monitor_enabled))=\"true\" AND platform=\"macos\" AND len(device_id)>0 AND monitor_from_epoch<=now() AND monitor_until_epoch>now()\n| fields device_id expected_row device_name serial_number owner criticality runbook\n| append [ search index=endpoint_posture sourcetype=local:apple:update_settings earliest=-48h latest=now\n    | eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), automatic_security_updates_enabled=case(automatic_security_updates_enabled=true() OR lower(trim(automatic_security_updates_enabled))=\"true\",1,automatic_security_updates_enabled=false() OR lower(trim(automatic_security_updates_enabled))=\"false\",0,true(),null()), observed_row=1\n    | where platform=\"macos\" AND len(device_id)>0\n    | stats latest(_time) AS status_time latest(automatic_security_updates_enabled) AS automatic_security_updates_enabled latest(response_status) AS response_status latest(command_id) AS command_id latest(collector_time) AS collector_time by device_id ]\n| stats max(expected_row) AS expected_row max(observed_row) AS observed_row values(device_name) AS device_name values(serial_number) AS serial_number values(owner) AS owner values(criticality) AS criticality values(runbook) AS runbook max(status_time) AS status_time max(automatic_security_updates_enabled) AS automatic_security_updates_enabled values(response_status) AS response_status values(command_id) AS command_id max(collector_time) AS collector_time by device_id\n| where expected_row=1\n| eval status_age_seconds=if(isnull(status_time),null(),now()-status_time), finding=case(isnull(observed_row),\"not_observed_in_48h\",isnull(automatic_security_updates_enabled),\"unknown_update_setting\",automatic_security_updates_enabled=0,\"automatic_security_updates_disabled\",status_age_seconds>86400,\"status_stale\",true(),\"healthy\")\n| where finding!=\"healthy\"\n| lookup macos_security_update_exceptions.csv device_id OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval stale_threshold_seconds=86400, observation_window_hours=48, observation_semantics=\"preference_state_not_XProtect_payload_freshness_or_Gatekeeper_attestation\", use_case_id=\"UC-1.3.6\"\n| table device_id device_name serial_number finding automatic_security_updates_enabled status_time status_age_seconds response_status command_id collector_time owner criticality runbook stale_threshold_seconds observation_window_hours observation_semantics use_case_id\n| sort 0 finding -status_age_seconds device_id",
+  "description": "Runs daily and emits one row per active expected Mac when the latest MDM-reported automatic-security-update setting is absent for 48 hours, unknown, false, or strictly older than 24 hours. The grain is exact lowercased device-management ID, with command, collection, lifecycle, and owner context.",
+  "value": "Disabling automatic security-configuration updates can delay XProtect and other system security data, while stale/absent status hides whether the preference is governed. The result gives endpoint teams a precise settings gap without inventing an unsupported XProtect-definition age or conflating Gatekeeper policy with update delivery.",
+  "implementation": "Collect the documented automatic-security-update setting through MDM, preserve command/API health, normalize booleans without guessing, and reconcile exact expected devices. Run daily with 48-hour observation and 24-hour freshness, use finite exact exceptions, and alert by device/finding. Verify update settings and actual background/XProtect update outcomes separately before closure; manage Gatekeeper through its security payload control.",
+  "visualization": "Show query/collector freshness, response failures, expected coverage, unknowns, and duplicate IDs first. Then display disabled/stale/absent by owner/site/model and trend setting changes. Drill down to redacted MDM response, software-update configuration/status/error, Apple background-update evidence, exception, case, and restored state. Label the panel preference state—not XProtect currency.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM mapping for XProtect or Gatekeeper inventory.",
+  "dataModelAcceleration": "Not applicable; no CIM mapping is asserted for Apple automatic-security-update preference or XProtect payload freshness.",
+  "requiredFields": [
+    "_time",
+    "device_id",
+    "platform",
+    "automatic_security_updates_enabled",
+    "response_status",
+    "command_id",
+    "collector_time"
+  ],
   "references": [
     {
-      "title": "Splunk_TA_nix",
+      "title": "Apple Platform Deployment: Operating-system query for automatic security updates",
+      "url": "https://support.apple.com/guide/deployment/operating-system-queries-dep8b8b23369/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Apple Support: Background updates and XProtect configuration data",
+      "url": "https://support.apple.com/en-us/101591",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Apple Platform Security: XProtect updates and behavior",
+      "url": "https://support.apple.com/guide/security/protecting-against-malware-sec469d47bd8/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Apple Platform Deployment: Gatekeeper security payload settings (separate policy)",
+      "url": "https://support.apple.com/guide/deployment/security-payload-settings-dep61dc030/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Apple Platform Deployment: Declarative software-update status and errors",
+      "url": "https://support.apple.com/guide/deployment/declarative-status-reports-depd90ee8a5f/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux listing (not the macOS source)",
       "url": "https://splunkbase.splunk.com/app/833",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'macOS Gatekeeper and XProtect Status'. Correlate with apt/yum logs in the same `macos_gatekeeper` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_gatekeeper`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `xprotect_age_days` > 30.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A finding is real setting/visibility evidence but can reflect an approved temporary state.\n\n1. **Compatibility troubleshooting** — An owner may temporarily pause system data/security updates during a documented incident. Confirm exact device, reason, risk, start/end, compensating control, and restoration test.\n\n2. **MDM migration or re-enrollment** — Device ID and query history can change. Reconcile serial, old/new IDs, tenant, enrollment, and asset lifecycle before editing inventory.\n\n3. **Query/API/collector failure** — Permission, command timeout, pagination, or indexing failure causes stale/absent rows. Check canary, response/command ID, totals, collector time, and MDM console before endpoint action.\n\n4. **Vendor normalization mismatch** — Some services expose a nested update-settings object or null on unsupported releases. Verify vendor schema, supported OS, raw redacted response, parser version, and fixture; do not map missing to false.\n\n**Suppression mechanism:** the SPL uses `lookup macos_security_update_exceptions.csv` on exact `device_id` and requires future expiry, reason, ticket, and owner. Expired, wildcard, fleet-wide, collector-outage, Gatekeeper-policy, or XProtect-payload exceptions do not suppress.",
   "equipment": [
     "macos"
   ],
   "equipmentModels": [
     "macos_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install the Universal Forwarder on the Mac; place scripts in an app or `deployment-apps` as you do for other custom inputs.\n• Data sources: `spctl --status`, and XProtect version/date from `system_profiler` or the XProtect `version.plist` (your parser must set `xprotect_date` in the format the search expects).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate a scripted input that runs `spctl --status` and collects XProtect metadata. The sample search expects fields `xprotect_date`, and optionally `xprotect_ver` for the table. Run daily. Do not rely on Windows or Linux performance counters (no Perfmon, no `/proc` load) — this is macOS-only.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust the 30-day window as needed):\n\n```spl\nindex=os sourcetype=macos_gatekeeper host=*\n| eval xprotect_age_days = now() - strptime(xprotect_date, \"%Y-%m-%d\")\n| where xprotect_age_days > 30\n| table host xprotect_ver xprotect_date xprotect_age_days\n```\n\nAdd a second alert for Gatekeeper if you parse `spctl` into the same or a companion sourcetype.\n\nUnderstanding this SPL\n\n**macOS Gatekeeper and XProtect Status** — Verify Gatekeeper and XProtect are enabled and definitions are current. Disabled or outdated security controls increase malware risk.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_gatekeeper`.\n• `eval` turns `xprotect_date` into `xprotect_age_days`.\n• `where` flags definitions older than 30 days; `table` shows detail for remediation.\n\n\nStep 3 — Validate\nCompare `xprotect_date` in Search to `system_profiler` and Apple’s current release notes for your build. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 4 — Operationalize\nDocument how often Apple ships definition updates in your environment and tune the 30-day threshold. Consider visualizations: Table (host, status, XProtect version), count of non-compliant hosts.",
-  "grandmaExplanation": "We help you see when a Mac’s built-in file checks and malware list are out of date, so the machine is not left running with last month’s protection.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Apple automatic-security-update query, background-update/XProtect, Platform Security, Gatekeeper-payload and declarative update-status guidance plus Splunk lookup and Splunkbase 833 documentation; MDM/macOS/Splunk versions, API, fields, inventory, SPL, fixtures, freshness, exceptions, source health, alerting, setting remediation, actual update verification, and production behavior were specified but not executed or Apple/MDM/Splunk/endpoint/security/SME signed",
+  "detailedImplementation": "## Source contract and policy boundary\n\nAssign MDM, macOS security/update, asset, Splunk, service-desk, and change owners. Qualify the device-management query across supported releases; this review ran none. Apple documents an operating-system query that returns whether “Install system data files and security updates” is on. Apple also documents XProtect updates as automatically delivered security-configuration/system-data updates. That supports a settings control—not the previous claim that `system_profiler` or an undocumented bundle date proves XProtect freshness.\n\nExport exact device/tenant/command identity, query boolean, response status, device status time, API collection time, pagination, and collector version. Normalize true/false/null using vendor-schema fixtures. Create `expected_macos_security_updates.csv` with unique device ID, macOS platform, lifecycle epochs, serial, owner, criticality, and runbook. Reconcile MDM/asset state daily. Create `macos_security_update_exceptions.csv` with exact ID and finite approval.\n\nMonitor query success, command errors, canary, object/page totals, duplicate IDs, null rate by OS, event/index delay, and collector version. Separately ingest declarative software-update status/errors where supported and maintain an approved method to inspect actual security-configuration/background-update outcomes. Do not store a guessed `xprotect_date` or divide raw seconds incorrectly.\n\n## Search, tests, and alerting\n\nSave `expected_macos_automatic_security_updates_disabled` and schedule daily. Inventory-first logic detects absence; exact 86400 seconds is fresh. Route broad stale/missing waves to MDM/data owners before endpoint responders. Trigger by device/finding and include source-health and update-status drilldowns.\n\nRun fixed controls plus true/false/null/string, 86399/86400/86401 ages, no observation, duplicate/newer state, wrong platform, unsupported OS, lifecycle/exception equality, MDM migration, API failure, delayed indexing, and preference toggling in a managed lab. Verify the MDM result against System Settings and vendor documentation. A true setting must not clear a fixture representing failed/pending actual update status. Keep draft until owners accept versions, source semantics, freshness, tests, alert delivery, and response.\n\n## Response and troubleshooting\n\nVerify collector/query health and a canary; exact identity/lifecycle; latest response and supported OS; MDM-enforced Software Update settings; device network/power/storage; deferral/restriction policy; actual background-update and declarative status/error; and recent compatibility incident. Determine whether this is disabled preference, unsupported/missing field, collection failure, or update-delivery failure.\n\nDo not automatically toggle updates, invoke `softwareupdate` or `xprotect`, change Gatekeeper, remove a security update, restart, or re-enroll from Splunk. Use staged MDM change control and application compatibility review. Close this rule after a fresh true query; close the operational risk only after separate evidence that relevant background/security updates are current and functioning. If true but XProtect evidence is stale, route the separate update-delivery control; if Gatekeeper policy is weak, route the security-payload control; if every device is missing, repair the collector.",
+  "grandmaExplanation": "We check whether each expected Mac is still set to receive Apple’s background security data, including XProtect updates. The setting being on is useful, but we verify actual update delivery separately.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
