@@ -1,66 +1,86 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.3.1",
-  "title": "System Resource Monitoring",
+  "title": "Sustained High CPU or Critical Memory Pressure on macOS",
   "criticality": "medium",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Performance"
+    "Performance",
+    "Capacity"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'System Resource Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_system_resource_monitoring` (UC-1.3.1), SOC dashboard panel \"Linux — System Resource Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports sustained host-wide CPU busy percentage above 85% or collector-reported macOS memory pressure `critical` in at least three distinct one-minute buckets during a closed five-minute window. CPU busy is the sum of user and system percentages, not a sum of per-process percentages. Memory pressure is a collector classification validated against Apple semantics, not a fabricated `mem_pct`; free memory alone is not used. The local thresholds, JSON fields, index, source type, and exception lookup are deployment policy. This UC does not diagnose the responsible process, detect missing telemetry, measure disk, establish user impact, or map the custom feed to CIM.",
+  "evidence": "Retain the `macos_sustained_cpu_or_memory_pressure` saved search, five-minute schedule, dispatch rows and alerts; signed collector package and formula/version tests; raw `local:macos:host_resource` JSON; source-freshness and field-quality panels; fixed-time control fixtures; `macos_resource_exceptions.csv` history; dashboard and incident timeline; Activity Monitor or approved diagnostic comparison; and recovery samples. These artifacts demonstrate collected resource measurements and search behavior only. This documentation-only review ran no collector, workload, search, alert, or remediation.",
   "controlTest": {
-    "positiveScenario": "UC-1.3.1 positive (System, Resource, Monitoring): ingest synthetic events into `index=os` sourcetype='macos_top' where `count` grouped by `host` satisfies `cpu` > 80, or `memory` > 90 for 'System Resource Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.3.1 negative (Resource Monitoring): ingest benign `os` / `macos_top` events where `host` stays below `cpu` > 80, or `memory` > 90, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'System Resource Monitoring'."
+    "positiveScenario": "At fixed dispatch 2026-07-29T12:05:00Z, ingest `mac-load-01` samples in separate buckets at 12:00, 12:01, and 12:02 with `cpu_user_pct=70`, `cpu_system_pct=20`, and `memory_pressure=normal`; ingest `mac-memory-01` in those buckets with CPU busy 20% and `memory_pressure=critical`. Expect exactly two host rows: CPU with `violating_buckets=3,max_cpu_busy_pct=90` and memory with `violating_buckets=3,critical_memory_buckets=3`.",
+    "negativeScenario": "Require zero rows for CPU busy exactly 85%; only two violating buckets; multiple violating events in one minute; `memory_pressure=warning`; null/out-of-range CPU components; events outside the closed window; or an exact host with a future exception containing reason, ticket, and owner. Exception expiry equal to dispatch does not suppress. A host with no recent sample belongs to source freshness, not this result."
   },
-  "dataSources": "Custom scripted inputs (`top -l 1`, `vm_stat`, `df`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Universal Forwarder for macOS, custom scripted inputs — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=macos_top host=*\n| stats latest(cpu_pct) as cpu, latest(mem_pct) as memory by host\n| where cpu > 80 OR memory > 90",
-  "description": "Detects UC-1.3.1 — System, Resource, Monitoring — using `index=os` sourcetype `macos_top`, grouped by `host`. Outputs `count` each `the scheduled window`; alert when `cpu` > 80, or `memory` > 90. Primary focus: Resource Monitoring. Purpose-built for 'System Resource Monitoring' in Linux workflows.",
-  "value": "Alerting on System, Resource, Monitoring through UC-1.3.1 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
-  "implementation": "Install Splunk UF on macOS endpoints. Create scripted inputs for `top -l 1 -s 0`, `vm_stat`, and `df -h`. Run every 60-300 seconds. Parse key metrics.",
-  "visualization": "Table of endpoints, Gauge panels, Line chart trending.",
-  "cimModels": [
-    "Performance"
+  "dataSources": "A signed deployment-owned macOS collector samples host CPU counters over a documented interval and Apple memory-state inputs every 60 seconds, then emits JSON containing `_time`, `host`, `cpu_user_pct`, `cpu_system_pct`, `cpu_idle_pct`, `memory_pressure` (`normal|warning|critical`), `memory_used_bytes`, `swap_used_bytes`, `sample_interval_seconds`, `collector_version`, and `collection_id`. Validate CPU percentages sum to approximately 100 and memory pressure against Activity Monitor on supported releases. `index=macos_metrics`, `sourcetype=local:macos:host_resource`, fields, thresholds, and lookup are local conventions. Universal Forwarder scripted input is the collection transport; Splunk Add-on for Unix and Linux (Splunkbase 833) is not asserted to supply this macOS schema.",
+  "app": "A deployment-owned signed macOS resource collector plus Splunk Universal Forwarder scripted input and a search app supply the event contract, tests, exception lookup, saved search, dashboard, and runbook. Apple Activity Monitor and Mach VM documentation define comparison semantics. Splunk Add-on for Unix and Linux (Splunkbase 833) is explicitly not the data contract for this UC.",
+  "spl": "index=macos_metrics sourcetype=local:macos:host_resource earliest=-5m@m latest=@m\n| eval host=lower(trim(host)), cpu_user_pct=tonumber(cpu_user_pct), cpu_system_pct=tonumber(cpu_system_pct), cpu_idle_pct=tonumber(cpu_idle_pct), memory_pressure=lower(trim(memory_pressure))\n| where len(host)>0 AND isnotnull(cpu_user_pct) AND isnotnull(cpu_system_pct) AND cpu_user_pct>=0 AND cpu_system_pct>=0 AND cpu_user_pct<=100 AND cpu_system_pct<=100 AND in(memory_pressure,\"normal\",\"warning\",\"critical\")\n| eval cpu_busy_pct=cpu_user_pct+cpu_system_pct\n| where cpu_busy_pct<=100\n| bin _time span=1m\n| stats latest(cpu_busy_pct) AS cpu_busy_pct latest(memory_pressure) AS memory_pressure latest(memory_used_bytes) AS memory_used_bytes latest(swap_used_bytes) AS swap_used_bytes latest(collector_version) AS collector_version by host _time\n| eval violating=if(cpu_busy_pct>85 OR memory_pressure=\"critical\",1,0), critical_memory=if(memory_pressure=\"critical\",1,0)\n| where violating=1\n| stats count AS violating_buckets max(cpu_busy_pct) AS max_cpu_busy_pct sum(critical_memory) AS critical_memory_buckets latest(memory_pressure) AS latest_memory_pressure latest(memory_used_bytes) AS latest_memory_used_bytes latest(swap_used_bytes) AS latest_swap_used_bytes values(collector_version) AS collector_versions min(_time) AS first_bucket max(_time) AS last_bucket by host\n| where violating_buckets>=3\n| lookup macos_resource_exceptions.csv host OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval cpu_threshold_pct=85, required_buckets=3, search_window_minutes=5, use_case_id=\"UC-1.3.1\"\n| table host violating_buckets max_cpu_busy_pct critical_memory_buckets latest_memory_pressure latest_memory_used_bytes latest_swap_used_bytes collector_versions first_bucket last_bucket cpu_threshold_pct required_buckets search_window_minutes use_case_id\n| sort 0 -critical_memory_buckets -max_cpu_busy_pct host",
+  "description": "Runs every five minutes over the preceding closed five minutes and emits one row per lowercased Mac hostname when valid resource samples show CPU user plus system above 85%, or memory pressure `critical`, in at least three distinct one-minute buckets. It preserves peak CPU, count of critical-memory buckets, latest memory/swap values, collector version, and first/last violating buckets.",
+  "value": "Persistent host saturation can explain slow interactive work, missed jobs, and application instability. A bounded host-level signal lets support teams prioritize affected Macs and correlate workload, swap, deployment, and user reports without mislabeling a single spike or low free-memory reading as a capacity incident.",
+  "implementation": "Deploy a signed least-privilege collector that calculates host CPU over a real sample interval and emits a tested Apple-aligned memory-pressure class every minute. Validate units, ranges, package version, source freshness, and Activity Monitor comparison before enabling the search. Run on closed five-minute windows, require three violating buckets, route by asset owner, and keep exact time-bounded exceptions. Diagnose process workload, thermal state, swap, updates, backups, and telemetry health before taking action.",
+  "visualization": "Show collector freshness/version and invalid-field rates first. Plot CPU busy with an 85% line, memory-pressure state, memory/swap bytes, and violation persistence by host; summarize affected hosts by owner/model/site. Drill down to minute samples, process and thermal diagnostics, Activity Monitor comparison, recent software/change data, exception, incident, and recovery. Avoid a pie chart that treats available RAM as wasted or healthy by itself.",
+  "cimModels": [],
+  "dataModelAcceleration": "Not applicable. The local collector fields and Apple memory-pressure class are not asserted to map to a CIM Performance dataset; raw events remain primary.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "cpu_user_pct",
+    "cpu_system_pct",
+    "cpu_idle_pct",
+    "memory_pressure",
+    "memory_used_bytes",
+    "swap_used_bytes",
+    "sample_interval_seconds",
+    "collector_version",
+    "collection_id"
   ],
-  "cimSpl": "| tstats `summariesonly` avg(Performance.cpu_load_percent) as cpu from datamodel=Performance where nodename=Performance.CPU by Performance.host span=5m\n| join type=outer Performance.host [ | tstats `summariesonly` avg(Performance.mem_used_percent) as memory from datamodel=Performance where nodename=Performance.Memory by Performance.host span=5m ]\n| where cpu > 80 OR memory > 90",
-  "dataModelAcceleration": "Enable acceleration on the Performance data model for nodes Performance.CPU and Performance.Memory (summary range covering the alert lookback, for example 30 days).",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Apple Activity Monitor: CPU system, user, and idle percentages",
+      "url": "https://support.apple.com/guide/activity-monitor/view-cpu-activity-actmntr43452/mac",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "CIM: Performance",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
-      "retrieved": "2026-04-25"
+      "title": "Apple Activity Monitor: Memory pressure, memory used, and swap used",
+      "url": "https://support.apple.com/guide/activity-monitor/view-memory-usage-actmntr1004/mac",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Apple Developer: vm_statistics64_t",
+      "url": "https://developer.apple.com/documentation/kernel/vm_statistics64_t",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Open Source XNU: virtual-memory counter definitions",
+      "url": "https://opensource.apple.com/source/xnu/xnu-4903.221.2/osfmk/mach/vm_statistics.h.auto.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: Scripted inputs",
+      "url": "https://help.splunk.com/en/data-management/get-data-in/get-data-into-splunk-cloud-platform/10.2.2510/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Add-on for Unix and Linux listing (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'System Resource Monitoring'. Correlate with apt/yum logs in the same `macos_top` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_top`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing `cpu` > 80.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A row is a real sustained resource observation, but the load may be planned or harmless.\n\n1. **Managed software update or indexing** — OS/app update, Spotlight, antivirus, or backup can consume CPU/memory. Correlate process sample, deployment/change ID, start/end, user impact, and recurrence; suppress only the approved host/window.\n\n2. **Approved rendering, build, analytics, or test workload** — Intensive work may be expected. Confirm process owner, job ID, service objective, thermal/swap behavior, and completion; create a separate governed workload cohort if routine.\n\n3. **Wake, login, or onboarding burst** — Startup agents and first-run indexing can persist briefly. Correlate boot/login/enrollment time and measure normal convergence before tuning.\n\n4. **Collector calculation defect** — Zero interval, counter reset, double-counted per-core percentages, stale replay, or unsupported memory mapping can create false saturation. Verify collection ID, interval, raw counters, version, range checks, and Activity Monitor.\n\n**Suppression mechanism:** the SPL uses `lookup macos_resource_exceptions.csv` by exact lowercase `host`; a future epoch, reason, ticket, and owner are mandatory. Expired, wildcard, fleet-wide, missing-telemetry, or collector-version exceptions do not suppress.",
   "equipment": [
     "macos"
   ],
   "equipmentModels": [
     "macos_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder for macOS, custom scripted inputs.\n• Ensure the following data sources are available: Custom scripted inputs (`top -l 1`, `vm_stat`, `df`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nInstall the Universal Forwarder on macOS. Create scripted inputs for `top -l 1 -s 0`, `vm_stat`, and `df -h`. Run every 60–300 seconds. Parse `cpu_pct`, `mem_pct` (or equivalent) into fields your search expects.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_top host=*\n| stats latest(cpu_pct) as cpu, latest(mem_pct) as memory by host\n| where cpu > 80 OR memory > 90\n```\n\nUnderstanding this SPL\n\n**System Resource Monitoring** — Endpoint performance visibility helps IT support triage user complaints and identify machines needing replacement or upgrades.\n\nDocumented **Data sources**: Custom scripted inputs (`top -l 1`, `vm_stat`, `df`). The SPL targets **index** `os` and your macOS process/resource sourcetype; rename if your deployment differs. If you normalize the same host metrics through the add-on for Unix and Linux, you can also express this use case with the Performance data model and `tstats` (see the **cimSpl** field) once mapping is in place.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_top`. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` keeps the latest `cpu` and `memory` per **host**.\n• `where` applies the high-utilization condition for alerting.\n\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with Activity Monitor for CPU and memory on a test Mac. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of endpoints, Gauge panels, Line chart trending.\n\nScripted input (generic example)\nIn the app’s `local/inputs.conf` add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/macos_top.sh]\ninterval = 60\nsourcetype = macos_top\nindex = os\ndisabled = 0\n```\n\nThe script should emit one line per snapshot with parseable key=value fields. For full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We watch each Mac’s processor and memory use so we can see which ones are under heavy load before people complain that their computer feels slow or frozen.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Apple Activity Monitor CPU/memory semantics and Mach VM counters plus Splunk scripted-input and Splunkbase 833 documentation; collector formulas, macOS/forwarder/Splunk versions, fields, units, SPL, fixtures, thresholds, source health, exceptions, alerting, workload diagnosis, and production response were specified but not executed or Apple/Splunk/endpoint/workload/SME signed",
+  "detailedImplementation": "## Prerequisites and collection contract\n\nAssign macOS, application/workload, service desk, Splunk, security/privacy, and change owners. Qualify every OS/collector/forwarder release; this review ran none. Run a signed read-only collector with no process-control privilege. CPU must be measured from host counters across a nonzero interval and emitted as user, system, and idle percentages that total approximately 100; never sum per-process `%CPU` on multicore Macs. Derive `memory_pressure` with a versioned, tested Apple-aligned method that considers VM behavior; free RAM alone is not pressure.\n\nInstall the collector in a controlled deployment app and a 60-second scripted input. Emit deterministic JSON, one event per sample, with the required fields and unique collection ID. Reject/flag negative or >100 CPU components, impossible totals, invalid pressure classes, duplicate IDs, stale `_time`, missing version, and zero interval. Keep a separate expected-host freshness search because this SPL cannot alert on absent events. Compare lab outputs to Activity Monitor CPU percentages, memory-pressure color/state, memory used, and swap under idle, CPU load, memory allocation, compression, and swap.\n\n## Search, alert, and validation\n\nSave the sidecar SPL as `macos_sustained_cpu_or_memory_pressure`, schedule every five minutes with the exact closed range, and alert once per host. `bin` ensures retries in one minute count once; strict `>85` and three buckets define persistence. The memory branch requires `critical`, not warning. Use `macos_resource_exceptions.csv` with exact host and finite approval. Include collector/source-health links in every notification.\n\nRun fixed-time positive and negative fixtures plus boundaries 84.999/85/85.001, all pressure classes, one/two/three buckets, duplicate events, missing fields, bad units, clock/index delay, exception expiry, sleep/wake, Intel/Apple silicon, VM, OS upgrade, and collector upgrade. Load-test cardinality and verify schedule/action delivery. Keep draft until owners accept formulas, versions, thresholds, telemetry health, dashboards, and runbook.\n\n## Triage and safety\n\nFirst verify source freshness, collector version/ranges, and a canary. Then inspect the five minute series, CPU sign/total, memory pressure, memory/swap, process CPU/memory, thermal pressure, power mode, uptime, login/wake, software update, backup, antivirus, build/render job, and user/service impact. Compare Activity Monitor or approved diagnostics. Determine whether CPU, memory, telemetry, or a planned workload is causal before remediation.\n\nDo not automatically kill processes, purge memory, disable security tooling, delete caches, change power/thermal settings, restart, or reboot from an alert. Use application and endpoint change control. Close only after repeated healthy samples and affected-workload validation; preserve the violating interval and action record.\n\nTroubleshooting: no events belongs to source health; CPU total above 100 indicates collector semantics; critical pressure with modest memory used can still be legitimate because Apple pressure considers more than free bytes; high CPU without user impact may be planned; warning pressure does not meet this rule; exactly 85% is intentionally healthy at the strict boundary.",
+  "grandmaExplanation": "We watch each Mac for processor overload or serious memory pressure that lasts several minutes, then help the owner find the workload instead of reacting to one harmless spike.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
