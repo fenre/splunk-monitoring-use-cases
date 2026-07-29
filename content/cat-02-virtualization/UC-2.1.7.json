@@ -1,54 +1,85 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.7",
-  "title": "HA Failover Events",
+  "title": "vSphere HA Host Failure and VM Restart Events",
   "criticality": "critical",
-  "difficulty": "beginner",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Availability"
+    "Availability",
+    "Fault"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'HA Failover Events' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_ha_failover_events` (UC-2.1.7), SOC dashboard panel \"Linux — HA Failover Events\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Covers two documented HA event identifiers, not all cluster failures, isolation responses, VM Monitoring resets, restart failures, application recovery, data integrity, or root cause. A host-failure event does not prove every VM restarted; a restart event does not prove the application recovered. Missing events/fields are source-health failures. No host or VM action is automated.",
+  "evidence": "Retain `vmware_ha_failure_restart_events`, raw event JSON/keys, collection config and delay health, matching vSphere Tasks and Events/HA state, failed-host and governed-VM inventory, restart coverage and service checks, incident/change disposition, and dated host-failure, HA-restart EventEx, unrelated power-on, duplicate, missing-field, late-data and source-gap tests. Editorial review induced no failure or runtime proof.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.7 positive (Failover, Events): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `entity` satisfies detection threshold for 'HA Failover Events'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.7 negative (Failover Events): ingest benign `vmware` / `vmware:events` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'HA Failover Events'."
+    "positiveScenario": "Index one DasHostFailedEvent with key 7001 and host `esx-03`, plus two EventEx records with distinct keys and eventTypeId `com.vmware.vc.ha.VmRestartedByHAEvent` for VMs `app01` and `app02`, inside the bucket. Expect three rows with one critical host-failure and two high restart rows.",
+    "negativeScenario": "Expect zero rows for ordinary VmPoweredOnEvent or DrsVmPoweredOnEvent, wrong EventEx identifier, blank event key, wrong source/index, events outside the bucket, and exact replay. Do not claim full restart coverage unless independent governed-VM reconciliation proves it."
   },
-  "dataSources": "`sourcetype=vmware:events` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:events\" (event_type=\"DasVmPoweredOnEvent\" OR event_type=\"DasHostFailedEvent\" OR event_type=\"ClusterFailoverActionTriggered\")\n| table _time event_type host vm_name message\n| sort -_time",
-  "description": "Alerts on UC-2.1.7 — Failover, Events — using `index=vmware` sourcetype `vmware:events`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Failover Events. Purpose-built for 'HA Failover Events' in Linux workflows.",
-  "value": "Tracking `activity` via UC-2.1.7 on `vmware:events` feeds improves response to 'HA Failover Events' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Collect vCenter events via Splunk_TA_vmware. Create critical real-time alert on HA failover events. Correlate with host hardware health and ESXi syslog for root cause.",
-  "visualization": "Events timeline (critical alert), Table of affected VMs, Host status panel.",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "Splunk Add-on for VMware (Splunkbase 3215) vCenter API `event` task into documented default `index=vmware-taskevent`, `sourcetype=vmware:events`. Required contract: raw DasHostFailedEvent or EventEx eventTypeId `com.vmware.vc.ha.VmRestartedByHAEvent`, event key and `_time`; host.name, vm.name, vm.moid, fullFormattedMessage and collector host are context. ESXi FDM/vmkernel and hardware/BMC data are corroboration.",
+  "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'HA Failover Events'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "spl": "index=vmware-taskevent sourcetype=\"vmware:events\" earliest=-20m@m latest=-5m@m (\"DasHostFailedEvent\" OR \"com.vmware.vc.ha.VmRestartedByHAEvent\")\n| spath path=key output=event_key\n| spath path=host.name output=failed_host\n| spath path=vm.name output=vm_name\n| spath path=vm.moid output=vm_moid\n| eval event_class=case(searchmatch(\"DasHostFailedEvent\"),\"DasHostFailedEvent\",searchmatch(\"com.vmware.vc.ha.VmRestartedByHAEvent\"),\"com.vmware.vc.ha.VmRestartedByHAEvent\"), event_key=coalesce(event_key,key), failed_host=coalesce(failed_host,'host.name'), vm_name=coalesce(vm_name,'vm.name'), message=coalesce(fullFormattedMessage,message,_raw)\n| where isnotnull(event_class) AND len(tostring(event_key))>0\n| eval event_identity=host.\"|\".event_key\n| dedup event_identity\n| eval use_case_id=\"UC-2.1.7\", local_severity=if(event_class=\"DasHostFailedEvent\",\"critical\",\"high\")\n| table _time event_key event_class failed_host vm_name vm_moid message host local_severity use_case_id\n| sort 0 -_time event_key",
+  "description": "Reports documented vSphere HA host-failure events and current HA VM-restart EventEx identifiers from a delayed closed window, preserving event identity and available host, VM, message, and collection context.",
+  "value": "A host failure and HA restart sequence can leave workloads unavailable, degraded, or running with reduced cluster headroom. Fast, source-faithful notification helps operations verify restart coverage, prioritize service checks, and preserve incident evidence.",
+  "implementation": "Enable the VMware add-on `event` task and validate raw `vmware:events` serialization. Run every 15 minutes over a five-minute-delayed window and trigger on any row. Use `DasHostFailedEvent` for a detected HA host failure and `com.vmware.vc.ha.VmRestartedByHAEvent` for current HA restart evidence; do not use the nonexistent `DasVmPoweredOnEvent`. Correlate restart coverage, current VM state, admission capacity, FDM/host logs, BMC and application health.",
+  "visualization": "Dashboard `vSphere HA Incident`: collection/cluster inventory health first; active incident banner; timeline of host-failure and restart events; expected-versus-observed restart table by VM; failed host/cluster headroom; table with event key, class, host, VM, times, owner and service check. Default 6 hours, 30-day incident history; drill to raw event, vSphere Cluster > Monitor > vSphere HA, VM state, FDM/vmkernel and BMC.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for VMware (Splunkbase 3215)",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Add-on for VMware source types",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API DasHostFailedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.DasHostFailedEvent.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API VmRestartedOnAlternateHostEvent deprecation and EventEx identifier",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.VmRestartedOnAlternateHostEvent.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "vSphere API base Event fields",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.Event.html",
+      "retrieved": "2026-07-29"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved HA failover test** — a controlled cluster exercise produces genuine failure/restart evidence. Confirm test plan, exact host/VM set, safety approvals, start/end and service checks; suppress delivery only for the exact finite window through `vmware_uc_dispositions.csv`.\n\n2. **Host maintenance fault injection in a lab** — automated resilience tooling may deliberately isolate or fail a disposable lab host. Verify environment classification and run ID; production identifiers must never be covered by a lab wildcard.\n\n3. **Event replay after collector recovery** — a DCN checkpoint reset or restored event history can re-ingest old HA events. Compare collector plus event key, created/index times and incident history; repair checkpoint/routing rather than allowing the host.\n\n4. **Multiple events for one incident** — one host failure legitimately yields many VM restart EventEx rows. This is not duplicate noise. Group for incident routing while retaining every VM row and reconcile expected versus restarted VM identities.\n\nDelivery suppression uses the governed lookup table `vmware_uc_dispositions.csv` only after the base result is retained; each entry requires the exact UC/entity keys, owner, ticket, reason, start, and finite expiry.",
+  "requiredFields": [
+    "key",
+    "eventTypeId",
+    "host.name",
+    "vm.name",
+    "vm.moid",
+    "fullFormattedMessage"
+  ],
   "equipment": [
-    "syslog",
     "vmware"
   ],
   "equipmentModels": [
@@ -60,8 +91,11 @@
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollect vCenter events via Splunk_TA_vmware. Create critical real-time alert on HA failover events. Correlate with host hardware health and ESXi syslog for root cause.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" (event_type=\"DasVmPoweredOnEvent\" OR event_type=\"DasHostFailedEvent\" OR event_type=\"ClusterFailoverActionTriggered\")\n| table _time event_type host vm_name message\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**HA Failover Events** — HA failover means a host failed and VMs were restarted on surviving hosts. Indicates hardware failure and potential capacity risk on remaining hosts.\n\nDocumented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Pipeline stage (see **HA Failover Events**): table _time event_type host vm_name message\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Events timeline (critical alert), Table of affected VMs, Host status panel.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on hA Failover Events and raise the alarm before it drags down real work or real outages start.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nEnable `event` at its documented 300-second default and inventory all governed HA clusters/VMs independently. VMware defines DasHostFailedEvent as a host failure detected by HA. The old VmRestartedOnAlternateHostEvent is deprecated; current servers emit EventEx with `eventTypeId=com.vmware.vc.ha.VmRestartedByHAEvent`. Validate the add-on raw representation before production use and keep ESXi FDM logs as supporting, not substitute, evidence.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-taskevent sourcetype=\"vmware:events\" earliest=-30m\n| eval ha_event=if(searchmatch(\"DasHostFailedEvent\") OR searchmatch(\"com.vmware.vc.ha.VmRestartedByHAEvent\"),1,0)\n| stats count sum(ha_event) as ha_events latest(_time) as latest_event by host\n| convert ctime(latest_event)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_ha_failure_restart_events` after substituting only an approved local index name. Run every 15 minutes over a delayed closed bucket and trigger on any row. Use incident grouping downstream; do not suppress individual VM evidence from storage.\n\n```spl\nindex=vmware-taskevent sourcetype=\"vmware:events\" earliest=-20m@m latest=-5m@m (\"DasHostFailedEvent\" OR \"com.vmware.vc.ha.VmRestartedByHAEvent\")\n| spath path=key output=event_key\n| spath path=host.name output=failed_host\n| spath path=vm.name output=vm_name\n| spath path=vm.moid output=vm_moid\n| eval event_class=case(searchmatch(\"DasHostFailedEvent\"),\"DasHostFailedEvent\",searchmatch(\"com.vmware.vc.ha.VmRestartedByHAEvent\"),\"com.vmware.vc.ha.VmRestartedByHAEvent\"), event_key=coalesce(event_key,key), failed_host=coalesce(failed_host,'host.name'), vm_name=coalesce(vm_name,'vm.name'), message=coalesce(fullFormattedMessage,message,_raw)\n| where isnotnull(event_class) AND len(tostring(event_key))>0\n| eval event_identity=host.\"|\".event_key\n| dedup event_identity\n| eval use_case_id=\"UC-2.1.7\", local_severity=if(event_class=\"DasHostFailedEvent\",\"critical\",\"high\")\n| table _time event_key event_class failed_host vm_name vm_moid message host local_severity use_case_id\n| sort 0 -_time event_key\n```\n\nUnderstanding this SPL: The base search admits only two authoritative identifiers, `spath` extracts available inherited arguments, event key plus collector removes replay, and local severity distinguishes a cluster host-failure event from an individual HA restart record. The query deliberately makes no complete-recovery claim.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nUse vendor-supported lab procedures and change control; do not fail a production host merely to test Splunk. Compare exact event keys/classes with vSphere Client **Cluster > Monitor > Tasks and Events** and HA views. For a safe historical incident or simulation fixture, reconcile expected VMs, observed HA restart EventEx records, current power/host state and application checks.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nOpen an incident; validate raw event/time; determine failed host and cluster; reconcile all governed VMs previously on it against restart records/current state; check admission control and surviving headroom; inspect FDM/vmkernel, network/storage and BMC evidence; test application/service health; isolate root cause and remediation under platform/hardware ownership; close only after complete reconciliation.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf legacy `DasVmPoweredOnEvent` searches return nothing, replace them because that class is not documented. If restart EventEx is missing, inspect raw eventTypeId and collection scope. If host/VM arguments are null, use raw event and vSphere inventory rather than message regex. If no events arrive, test event task/DCN and vCenter event retention. If duplicates appear, compare immutable event keys and collection routes.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
+  "grandmaExplanation": "We show when the virtual platform detects a failed host and when it records machines restarting elsewhere, so the team can check that every service really came back.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
