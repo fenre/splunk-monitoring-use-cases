@@ -1,65 +1,88 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.4.2",
-  "title": "RAID Degradation Alerts",
+  "title": "Latest Broadcom StorCLI Virtual Drive Is Non-Optimal",
   "criticality": "critical",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Availability",
+    "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'RAID Degradation Alerts' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_raid_degradation_alerts` (UC-1.4.2), SOC dashboard panel \"Linux — RAID Degradation Alerts\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports the latest valid Broadcom StorCLI virtual-drive state per exact controller and VD when it is `partially_degraded`, `degraded`, or `offline`, mapped from documented `Pdgd`, `Dgrd`, and `Ofln`; `Optl` is healthy for this rule. It does not combine MegaCLI, HPE ssacli, software RAID, ZFS, SAN, physical-drive predictive failure, consistency-check progress, cache/BBU state, or missing polls. Non-optimal impact and remaining fault tolerance depend on RAID layout and failure pattern; this UC does not claim the next drive failure always causes data loss.",
+  "evidence": "Retain `storcli_latest_nonoptimal_virtual_drive`, five-minute schedule/results/alerts; signed collector/normalizer and fixtures; protected raw StorCLI JSON, command status/exit, controller/VD IDs, state, RAID type, drive group, physical-drive counts, firmware and collection ID; expected VD/exception revisions; source-health panel; controller UI/physical-drive/backup evidence; incident/action; and restored optimal state. This documentation-only review ran no StorCLI command and changed no array.",
   "controlTest": {
-    "positiveScenario": "UC-1.4.2 positive (RAID, Degradation, Alerts): ingest synthetic events into `index=hardware` sourcetype='raid_status' where `count` grouped by `entity` satisfies detection threshold for 'RAID Degradation Alerts'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.4.2 negative (Degradation Alerts): ingest benign `hardware` / `raid_status` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 3 confirms zero alert rows for 'RAID Degradation Alerts'."
+    "positiveScenario": "At 2026-07-29T12:10:00Z ingest valid events for `server-01/c0`: VD `v0` at 12:06 raw `Dgrd`, canonical `degraded`, RAID5, one failed drive; VD `v1` raw `Pdgd`, canonical `partially_degraded`, RAID6; and VD `v2` raw `Ofln`, canonical `offline`. Expect exactly three rows preserving distinct VD state and severity.",
+    "negativeScenario": "Require zero rows for latest `optimal`; an older degraded event followed by optimal; invalid command/parse; unknown canonical state; a controller/VD absent from enabled expected inventory; events outside ten minutes; or an exact future exception with reason, ticket, and owner. Expiry equal to dispatch does not suppress. Missing polls and physical-drive predictive failure remain separate."
   },
-  "dataSources": "Custom sourcetype (RAID controller output) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Custom scripted input (`megacli`, `storcli`, `ssacli`) — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=hardware sourcetype=raid_status\n| where state!=\"Optimal\" AND state!=\"Online\"\n| table _time host vd_name state disks_failed\n| sort -_time",
-  "description": "Monitors when Degradation Alerts criteria fire for 'RAID Degradation Alerts' (UC-1.4.2) in `index=hardware` sourcetype `raid_status`. Pipeline aggregates `count` by `entity` over `the scheduled window`. Alert logic enforces configured threshold. Title terms: RAID, Degradation, Alerts. Eliminates manual hunting for UC-1.4.2 conditions.",
-  "value": "UC-1.4.2 helps teams contain RAID, Degradation, Alerts scenarios and reduce capacity incidents, patch regressions, and service outages before incidents compound.",
-  "implementation": "Create scripted input for the RAID controller CLI tool: `storcli /c0/v0 show` or `megacli -LDInfo -Lall -aAll`. Run every 300 seconds. Alert immediately on any non-Optimal state.",
-  "visualization": "Status indicator per array, Table, Alert panel (critical).",
+  "dataSources": "Broadcom StorCLI virtual-drive show output from supported MegaRAID controllers, preferably JSON using the documented `J` output option and `/cx/vall show`. A versioned normalizer emits `_time`, `asset_id`, `controller_id`, `vd_id`, `vd_name`, `drive_group`, `raid_type`, `raw_state`, canonical `vd_state` (`optimal|partially_degraded|degraded|offline|unknown`), `access`, `size_bytes`, `failed_drive_count`, `controller_model`, `firmware_version`, `storcli_version`, `command_success`, `parser_version`, and `collection_id`. `index=hardware_health`, `sourcetype=local:broadcom:storcli_vd`, inventory, and exceptions are local conventions. No credentials should appear in events or process arguments.",
+  "app": "Broadcom StorCLI is authoritative for the covered controller/VD state. A signed deployment-owned read-only wrapper/normalizer, Splunk Universal Forwarder scripted input, and search app provide machine-output collection, schema, expected inventory, fixtures, exceptions, search, dashboard, and runbook. MegaCLI, PERCCLI, ssacli, mdadm, and vendor UI require separate validated mappings.",
+  "spl": "index=hardware_health sourcetype=local:broadcom:storcli_vd earliest=-10m@m latest=@m\n| eval asset_id=lower(trim(asset_id)), controller_id=lower(trim(controller_id)), vd_id=lower(trim(vd_id)), vd_state=lower(trim(vd_state)), command_success=if(command_success=true() OR lower(trim(command_success))=\"true\",1,0)\n| where len(asset_id)>0 AND len(controller_id)>0 AND len(vd_id)>0 AND command_success=1 AND in(vd_state,\"optimal\",\"partially_degraded\",\"degraded\",\"offline\",\"unknown\")\n| stats latest(_time) AS state_time latest(vd_name) AS vd_name latest(drive_group) AS drive_group latest(raid_type) AS raid_type latest(raw_state) AS raw_state latest(vd_state) AS vd_state latest(access) AS access latest(size_bytes) AS size_bytes latest(failed_drive_count) AS failed_drive_count latest(controller_model) AS controller_model latest(firmware_version) AS firmware_version latest(storcli_version) AS storcli_version latest(parser_version) AS parser_version latest(collection_id) AS collection_id by asset_id controller_id vd_id\n| lookup expected_storcli_virtual_drives.csv asset_id controller_id vd_id OUTPUT vd_enabled owner criticality runbook backup_service\n| where lower(trim(vd_enabled))=\"true\" AND in(vd_state,\"partially_degraded\",\"degraded\",\"offline\")\n| lookup storcli_vd_exceptions.csv asset_id controller_id vd_id OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval finding_severity=case(vd_state=\"offline\",\"critical\",vd_state=\"degraded\",\"high\",vd_state=\"partially_degraded\",\"high\"), observation_window_minutes=10, use_case_id=\"UC-1.4.2\"\n| table asset_id controller_id vd_id vd_name drive_group raid_type vd_state raw_state finding_severity access size_bytes failed_drive_count controller_model firmware_version storcli_version parser_version collection_id state_time owner criticality runbook backup_service observation_window_minutes use_case_id\n| sort 0 finding_severity asset_id controller_id vd_id",
+  "description": "Runs every five minutes over a closed ten-minute range, retains the latest successful normalized state per lowercased `(asset_id,controller_id,vd_id)`, joins enabled expected virtual drives, and emits one row for partially degraded, degraded, or offline. It preserves array layout, raw state, failed-drive count, versions, ownership, and collection identity.",
+  "value": "A non-optimal virtual drive can mean reduced redundancy, impaired access, or complete unavailability depending on its state and RAID design. Current controller evidence routes urgent work to the storage owner while avoiding stale alarms, vendor-state guessing, and the unsafe assumption that every non-`Online` physical-drive label describes a virtual drive.",
+  "implementation": "Deploy a signed read-only StorCLI wrapper on supported controller hosts, request documented virtual-drive JSON, retain command/controller versions, and normalize only tested state codes. Poll every five minutes; govern exact expected controller/VD identities and missing-source health. Run latest-state search, alert immediately on Pdgd/Dgrd/Ofln, and correlate physical drives, hot spare/rebuild, cache/BBU, controller log, workload, and backup/restore readiness. Use Broadcom/vendor procedures and change control for remediation.",
+  "visualization": "Show poll/parse freshness, expected VD coverage, unknown state, firmware/StorCLI/parser versions, and inventory drift first. Then display current non-optimal VDs by state/RAID/owner, failed drives, access, and duration; include physical-drive, rebuild, cache/BBU, controller event, and backup panels. Drill down to protected raw JSON, controller UI, incident, exception, and optimal recovery. Never merge vendors without explicit state mapping.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM data model for RAID state events.",
+  "dataModelAcceleration": "Not applicable; no CIM dataset is asserted for Broadcom controller/virtual-drive identity, StorCLI state, RAID layout, or collection validity.",
+  "requiredFields": [
+    "_time",
+    "asset_id",
+    "controller_id",
+    "vd_id",
+    "raid_type",
+    "raw_state",
+    "vd_state",
+    "command_success",
+    "firmware_version",
+    "storcli_version",
+    "parser_version",
+    "collection_id"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom StorCLI: Virtual drive show commands",
+      "url": "https://techdocs.broadcom.com/us/en/storage-and-ethernet-connectivity/enterprise-storage-solutions/storcli-12gbs-megaraid-tri-mode/1-0/v11869215/v11673749/v11676358/v11676755.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom StorCLI: Tool syntax and JSON J output",
+      "url": "https://techdocs.broadcom.com/us/en/storage-and-ethernet-connectivity/enterprise-storage-solutions/storcli-12gbs-megaraid-tri-mode/1-0/v11869215/v11673539.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom StorCLI2: Virtual drive state values Ofln/Pdgd/Dgrd/Optl",
+      "url": "https://techdocs.broadcom.com/us/en/storage-and-ethernet-connectivity/enterprise-storage-solutions/storcli2-user-interface/1-0/virtual-drive/virtual-drive-information-display.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom MegaRAID Configuration Software: Logical drive state definitions",
+      "url": "https://docs.broadcom.com/doc/12353347",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: Scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-data-in/get-started-with-getting-data-in/10.2/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: stats latest semantics",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/stats",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'RAID Degradation Alerts'. Correlate with apt/yum logs in the same `raid_status` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `raid_status`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A non-optimal controller state is real, but it may be expected during an authorized storage operation.\n\n1. **Approved drive replacement/rebuild** — Degraded state can persist while redundancy rebuilds. Confirm exact controller/VD/drive, replacement/change ID, rebuild progress/rate, estimated completion, remaining fault tolerance, backup, and owner; suppress only notification for the bounded window.\n\n2. **Controller firmware or host maintenance** — Restart, import, or failover can briefly report non-optimal/offline. Verify approved procedure, multipath/application impact, controller events, and current state; never assume maintenance makes an offline VD harmless.\n\n3. **Delayed healthy poll** — A new optimal state may not yet be indexed. Compare event/index time, current StorCLI and controller UI, preserve the alert, and close only after a fresh optimal event.\n\n4. **Parser/version mismatch** — JSON structure, `Optl/Pdgd/Dgrd/Ofln` spelling, controller generation, or locale/output mode can yield wrong mappings. Compare protected raw JSON, command status, StorCLI/parser versions, and fixtures; unknown must go to data quality, not be silently healthy.\n\n**Suppression mechanism:** the SPL uses `lookup storcli_vd_exceptions.csv` on exact `asset_id,controller_id,vd_id` and requires future expiry, reason, ticket, and owner. Expired, wildcard, controller-wide, missing-poll, unknown-state, backup-failure, or physical-drive predictive exceptions do not suppress.",
   "equipment": [
     "hardware_bmc"
   ],
   "equipmentModels": [
-    "hardware_bmc_megacli",
-    "hardware_bmc_ssacli",
     "hardware_bmc_storcli"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`megacli`, `storcli`, `ssacli`).\n• Ensure the following data sources are available: Custom sourcetype (RAID controller output).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn the host OS (typically Linux with vendor CLI), create a scripted input for the RAID tool: e.g. `storcli` or `megacli`. Run every 300 seconds. Parse virtual disk name, state, and failed disk count. Alert on any non-Optimal or policy-defined state.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hardware sourcetype=raid_status\n| where state!=\"Optimal\" AND state!=\"Online\"\n| table _time host vd_name state disks_failed\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**RAID Degradation Alerts** — A degraded RAID has lost redundancy — another disk failure means data loss. Requires immediate attention.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=raid_status`.\n• `where` keeps rows that are not in your healthy set.\n• `table` and `sort` list recent problem arrays.\n\n\nStep 3 — Validate\nOn a test host, run the vendor CLI and compare to indexed fields. If your vendor never emits `Optimal` but uses a different “OK” string, change the **where** clause accordingly.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. See the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`megacli`, `storcli`, `ssacli`) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=raid_status into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, user, action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on your disk groups so you know the moment a mirror or parity setup is no longer fully healthy and another drive failure could lose data.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Broadcom StorCLI command/JSON and virtual/logical-drive state documentation plus Splunk scripted-input and stats/latest documentation; controller/firmware/StorCLI/forwarder/Splunk versions, wrapper, fields, state mapping, inventory, SPL, fixtures, freshness, exceptions, alerting, RAID/backup response, and production behavior were specified but not executed or Broadcom/controller/vendor/Splunk/storage/application/backup/SME signed",
+  "detailedImplementation": "## Collector and exact state contract\n\nAssign storage/controller, server, application, backup/recovery, datacenter, Splunk, and change owners. Qualify controller firmware, driver, StorCLI, OS, forwarder, and Splunk combinations; this review ran none. Install a signed read-only wrapper under a constrained account. It may execute show commands only; prevent arbitrary arguments and never expose credentials.\n\nPoll `storcli /call/vall show J` or the version-qualified equivalent every five minutes. Broadcom documents `/cx/vx show`, `/call`/`/vall`, JSON `J`, and virtual-drive states Offline/Ofln, Partially Degraded/Pdgd, Degraded/Dgrd, Optimal/Optl. Parse controller command success before rows. Preserve raw state and map only those tested codes; unknown output creates source-quality status. Emit one JSON event per VD with stable asset/controller/VD keys, RAID type, drive group, access, size, failed-drive count when reliably available, model/firmware/StorCLI/parser versions, and collection ID.\n\nCreate `expected_storcli_virtual_drives.csv` with exact keys, enabled state, asset/service, RAID design, owner, criticality, runbook, backup service, and lifecycle. Reconcile after controller replacement/import/VD creation. Monitor expected-host/controller/VD freshness, command timeout/exit, partial JSON, zero VDs, unknown state, duplicate keys, version drift, and index delay. Maintain exact finite `storcli_vd_exceptions.csv`.\n\n## Search and validation\n\nSave `storcli_latest_nonoptimal_virtual_drive`, schedule every five minutes over ten closed minutes, and trigger per exact VD/state. `latest` ensures a newer Optl clears an older Dgrd. Only enabled inventory and three documented non-optimal states alert. Unknown and missing data remain visible in companion controls.\n\nRun fixed controls plus each raw/canonical state, older degraded/newer optimal, failed command, malformed/partial JSON, duplicate events, multiple controllers/VDs, state case/whitespace, unknown, lifecycle/exception equality, collector overlap, firmware/StorCLI upgrade, controller reboot, drive pull simulation supplied by a vendor lab, rebuild and recovery. Do not pull production disks for evidence. Compare events to direct StorCLI and controller UI. Keep draft until owners accept versions, identity, state map, freshness, alerting, and response.\n\n## Triage, action, and recovery\n\nVerify newest successful poll and exact identity; inspect VD state/access/RAID layout and remaining tolerance; enumerate physical-drive state/slot/serial, hot spare, rebuild/copyback, foreign configuration, consistency/background initialization, cache/BBU, controller logs/firmware/temperature, OS path/multipath, application I/O, and backup/restore status. Offline is service-critical; degraded and partially degraded urgency depends on layout, failures, workload, and backup.\n\nDo not automatically set drives online/offline/good, import/clear foreign configuration, start/stop rebuild or consistency check, change cache, delete/create VD, clear logs, reset controller, power-cycle, or reboot from Splunk. Incorrect controller writes can destroy data. Follow Broadcom/server-vendor and backup/application change procedures with rollback. Close only after a new successful poll reports Optl, physical-drive/rebuild state is understood, application I/O is healthy, and backup/restore risk is dispositioned. MegaCLI, PERCCLI, HPE ssacli, mdadm, ZFS, and SAN arrays need separate schemas and tests.",
+  "grandmaExplanation": "We ask supported Broadcom RAID controllers for each virtual drive’s current state. Degraded, partly degraded, or offline drives are routed urgently, but repair commands are never run automatically.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
