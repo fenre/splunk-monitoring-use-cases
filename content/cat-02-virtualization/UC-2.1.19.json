@@ -1,68 +1,119 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.19",
-  "title": "Distributed vSwitch Port Health and Errors",
+  "title": "vSphere Distributed Port Blocked or Disconnected",
   "criticality": "high",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
     "Fault",
-    "Performance"
+    "Availability",
+    "Change"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Distributed vSwitch Port Health and Errors' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_distributed_vswitch_port_health_and_errors` (UC-2.1.19), SOC dashboard panel \"Linux — Distributed vSwitch Port Health and Errors\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Returns complete native `DvsPortBlockedEvent` and `DvsPortDisconnectedEvent` records at vCenter event-key grain. Broadcom defines the first as a port blocked in a distributed virtual switch and the second as a port disconnected; the event does not by itself prove packet loss, an outage, VLAN/MTU mismatch, uplink failure, malicious action, current port state or root cause. The former can provide status detail, runtime information and previous block state; the latter can provide port key and connectee, but optional properties may be absent. The rule intentionally excludes nonexistent `VmnicDisconnectedEvent` and does not represent VDS health-check results, physical NIC state, ordinary VM disconnect events, distributed-switch configuration drift, or performance counters. Every complete qualifying event is returned without a count threshold. It changes no port or switch.",
+  "evidence": "After deployment, retain vCenter/DVS/dvPort/connectee/VM/host/uplink inventory; add-on event-task and DCN revisions; representative raw blocked/disconnected events with eventClass, key, createdTime, dvs.name/reference, portKey, connectee or runtime/status fields, userName, message, vCenter, event/index times; independent pipeline and current-port/topology health; maintenance/change records; version-controlled `vcenter_dvs_port_connectivity_events` SPL, ACL, schedule, dispatches and rows; runbook/dashboard and disposition; and dated blocked, disconnected, wrong-class, optional-field, duplicate, delayed, migration and current-state tests. This editorial review generated no DVS event, port change, Splunk execution, alert, incident or production validation evidence.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.19 positive (Distributed, vSwitch, Port, Health, and): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `event_type`, `host`, `dvs_name` satisfies detection threshold for 'Distributed vSwitch Port Health and Errors'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.19 negative (and Errors): ingest benign `vmware` / `vmware:events` events where `event_type`, `host`, `dvs_name` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 7 confirms zero alert rows for 'Distributed vSwitch Port Health and Errors'."
+    "positiveScenario": "In one closed isolated bucket, ingest a complete `vim.event.DvsPortBlockedEvent` with DVS `Prod-VDS`, portKey `101`, statusDetail, previous state and unique key, plus a complete `vim.event.DvsPortDisconnectedEvent` for portKey `102` and a connectee with another key. Expect exactly two rows labeled `blocked` and `disconnected`, preserving vCenter/DVS/port/event identity and UC-2.1.19.",
+    "negativeScenario": "Expect zero rows for `VmDisconnectedEvent`, HostDisconnectedEvent, arbitrary event names/wildcards, wrong source/index/sourcetype, blank vCenter/key/DVS/portKey/action, outside-bucket data and exact replay. Separate health must expose missing event collection, optional schema drift, stale topology and disagreement with current DVPort state."
   },
-  "dataSources": "`sourcetype=vmware:events`, VDS health check results, vCenter network events Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:events\" (event_type=\"*Dvs*\" OR event_type=\"*dvPort*\" OR event_type=\"*VmnicDisconnectedEvent*\")\n| stats count by event_type, host, dvs_name\n| sort -count\n| table event_type, host, dvs_name, count",
-  "description": "Identifies UC-2.1.19 — Distributed, vSwitch, Port, Health, and — using `index=vmware` sourcetype `vmware:events`, grouped by `event_type`, `host`, `dvs_name`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: and Errors. Purpose-built for 'Distributed vSwitch Port Health and Errors' in Linux workflows.",
-  "value": "UC-2.1.19 operationalises 'Distributed vSwitch Port Health and Errors' against `vmware:events` feeds so operators reduce capacity incidents, patch regressions, and service outages without manual correlation.",
-  "implementation": "Enable VDS health checks in vCenter (VLAN/MTU check, Teaming/Failover check). Collect vCenter events via Splunk_TA_vmware. Alert on VmnicDisconnectedEvent (physical uplink loss), DvsPortBlockedEvent, and any health check failure. Create a network topology dashboard showing VDS → uplink → VLAN mapping.",
-  "visualization": "Status grid (VDS health per host), Events table, Network topology diagram.",
+  "dataSources": "Primary source is vCenter Events API data collected by Splunk Add-on for VMware Metrics with pool task `event` into the deployment-selected event index (documented default `index=vmware-taskevent`) and `sourcetype=vmware_inframon:events`. Required native properties are exact `eventClass`, unique `key`, `createdTime`, `dvs.name`, `portKey`, vCenter/host and event/index time; `statusDetail`, `runtimeInfo`, `prevBlockState`, `connectee`, `userName` and `fullFormattedMessage` are event-specific context. Current DVS/DVPort/uplink topology, VDS health checks, performance counters, maintenance and change records corroborate.",
+  "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter event objects through DCNs. A local network-operations app owns source/current-state health, topology/change enrichment, saved search, dashboard, tests, routing and runbook.",
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=vmware-taskevent sourcetype=\"vmware_inframon:events\" (eventClass=\"vim.event.DvsPortBlockedEvent\" OR eventClass=\"vim.event.DvsPortDisconnectedEvent\") earliest=-15m@m latest=-10m@m\n| spath path=dvs.name output=dvs_name\n| spath path=connectee.connectedEntity.value output=connectee_moid\n| eval vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), event_key=trim(tostring(key)), port_key=trim(tostring(portKey)), actor=coalesce(nullif(trim(userName),\"\"),\"unknown\"), port_event=case(eventClass=\"vim.event.DvsPortBlockedEvent\",\"blocked\",eventClass=\"vim.event.DvsPortDisconnectedEvent\",\"disconnected\")\n| where len(vcenter)>0 AND len(event_key)>0 AND len(dvs_name)>0 AND len(port_key)>0 AND len(port_event)>0\n| eval event_identity=vcenter.\"|\".event_key\n| dedup event_identity\n| eval use_case=\"UC-2.1.19\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\")\n| table _time vcenter event_key port_event dvs_name port_key connectee_moid actor statusDetail prevBlockState fullFormattedMessage event_time _indextime use_case\n| sort 0 -_time vcenter event_key",
+  "description": "Surfaces each complete vCenter event recording that a distributed-switch port became blocked or disconnected during a closed five-minute bucket. Results preserve DVS, port, event and available connectee/status context without inferring network impact or cause.",
+  "value": "Exact native event monitoring gives virtualization and network teams an early, searchable record of distributed-port connectivity changes. Avoiding wildcard and invented event classes reduces false investigations and directs responders to current topology, policy, uplink and performance evidence.",
+  "implementation": "Enable vCenter event collection, prove the two event schemas and source health, and schedule the fixed delayed search every five minutes. Reconcile each row with current DVPort/VDS/connectee/uplink state, maintenance and related changes/metrics before escalation; never unblock or reconnect a port automatically.",
+  "visualization": "Use an event table with time, vCenter, event class/action, DVS, port key, connectee, status detail, previous block state, actor, current DVPort state, topology, maintenance, owner and disposition. Add trends by DVS/port/action plus separate event-pipeline and stale-topology panels. Do not label the table `uplink failures` or `packet loss`.",
   "cimModels": [
     "N/A"
   ],
+  "schema": "Native vSphere DvsPortBlockedEvent and DvsPortDisconnectedEvent objects",
+  "dataModelAcceleration": "No CIM dataset documents vSphere DVS event subclasses, port keys, connectees or block-state details. Raw event identity remains authoritative.",
+  "requiredFields": [
+    "eventClass",
+    "key",
+    "createdTime",
+    "dvs.name",
+    "portKey",
+    "connectee",
+    "statusDetail",
+    "prevBlockState",
+    "userName",
+    "fullFormattedMessage",
+    "host",
+    "_time",
+    "_indextime"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: DvsPortBlockedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.DvsPortBlockedEvent.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: DvsPortDisconnectedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.DvsPortDisconnectedEvent.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: base Event properties",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.Event.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk: VMware Metrics collection configuration",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk: VMware Metrics source types",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/Sourcetypes",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: spath",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/spath",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `event_type` metrics for 'Distributed vSwitch Port Health and Errors'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `event_type`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `event_type` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `event_type` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `event_type`, `valid_until`.",
+  "knownFalsePositives": "The event is genuine, but the condition may be expected or transient.\n\n1. **Approved VM/vNIC reconfiguration** — disconnect/reconnect workflows can produce port events. Match exact VM/connectee, change and interval.\n\n2. **vMotion or host maintenance** — topology transitions may disconnect or recreate port relationships. Correlate migration and maintenance events.\n\n3. **Intentional administrative block** — security, quarantine or decommission policy may block a port. Verify actor, policy, approval, scope and current state.\n\n4. **DVS/port-group maintenance** — switch upgrade or policy deployment can create expected transitions. Check change record and all affected ports.\n\n5. **Transient control-plane state** — a port can recover quickly. Compare current DVPort runtime and subsequent events rather than assuming continuing outage.\n\n6. **Optional-field absence** — connectee or status detail may legitimately be absent for an event subtype/version. Preserve raw event; required DVS/port identity still governs detection.\n\n7. **Collector replay** — duplicate route/checkpoint can repeat event keys. Dedup covers one bucket; health must detect cross-bucket replay.\n\n8. **Port-key/topology reuse or drift** — a port key is interpreted in DVS/vCenter scope and mappings change. Use vCenter+DVS+port and event-time inventory.\n\n**Suppression mechanism:** use a governed post-result lookup keyed by vCenter, DVS identity, port key, exact eventClass and approved interval, with owner, reason and finite expiry. Retain raw events and source/current-state health; never suppress an entire DVS.",
+  "mitreAttack": [
+    "N/A (distributed virtual-switch connectivity event; no adversary behavior asserted)"
+  ],
+  "detectionType": "Raw vCenter DVS port blocked/disconnected event",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
-    "vmware_esxi",
-    "vmware_ta_vmware",
     "vmware_vcenter",
-    "vmware_vsphere"
+    "vmware_vsphere",
+    "vmware_esxi"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`, VDS health check results, vCenter network events.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable VDS health checks in vCenter (VLAN/MTU check, Teaming/Failover check). Collect vCenter events via Splunk_TA_vmware. Alert on VmnicDisconnectedEvent (physical uplink loss), DvsPortBlockedEvent, and any health check failure. Create a network topology dashboard showing VDS → uplink → VLAN mapping.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" (event_type=\"*Dvs*\" OR event_type=\"*dvPort*\" OR event_type=\"*VmnicDisconnectedEvent*\")\n| stats count by event_type, host, dvs_name\n| sort -count\n| table event_type, host, dvs_name, count\n```\n\nUnderstanding this SPL\n\n**Distributed vSwitch Port Health and Errors** — VDS port errors indicate VLAN misconfiguration, MTU mismatches, uplink failures, or teaming policy problems. VDS health check results (available since vSphere 5.1) detect common misconfigurations that cause intermittent connectivity issues that are extremely hard to troubleshoot from the guest OS.\n\nDocumented **Data sources**: `sourcetype=vmware:events`, VDS health check results, vCenter network events. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by event_type, host, dvs_name** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n• Pipeline stage (see **Distributed vSwitch Port Health and Errors**): table event_type, host, dvs_name, count\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status grid (VDS health per host), Events table, Network topology diagram.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dvs_name, event_type, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on distributed vSwitch Port Health and Errors and raise the alarm before it drags down real work or real outages start.",
+  "hardware": "vSphere Distributed Switches and distributed virtual ports managed by vCenter; physical NICs and external switches are corroborating layers.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/network/Splunk SME validation pending",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Bounded event search over two exact event classes; topology reconciliation is separate.",
+    "tstats_eligible": false,
+    "storage_class": "hot"
+  },
+  "detailedImplementation": "## Prerequisites and event scope\n\nAssign vSphere networking, physical network, workload and Splunk owners. Inventory vCenters, DVS identities, port keys, port groups, connectees, ESXi hosts/uplinks, maintenance and owner routing. Broadcom documents exact DvsPortBlockedEvent and DvsPortDisconnectedEvent classes. Do not use a wildcard or nonexistent VmnicDisconnectedEvent as a production contract.\n\n## Step 1 — Collect and prove event objects\n\nDeploy supported Splunk Add-on for VMware Metrics, configure read-only vCenter API access over TCP 443 and include `event` in the collection pool. Verify the actual event index, documented default `vmware-taskevent`, and `vmware_inframon:events`.\n\nCompare representative raw JSON with vSphere Client Tasks and Events. Prove `eventClass`, event `key`, `dvs.name`, `portKey`, vCenter/host, `_time` and `_indextime`. For blocked events validate statusDetail/runtimeInfo/prevBlockState when present; for disconnected events validate connectee when present. Preserve `fullFormattedMessage` for operators but do not parse localized text as primary identity.\n\nBuild independent health for expected vCenters, event-job success/records_written, ordinary event flow, field completeness, schema/version drift, p99 delay, duplicate keys, API/auth and DCN failures, and current topology freshness.\n\n## Step 2 — Save the closed-bucket search\n\nSave sidecar SPL as `vcenter_dvs_port_connectivity_events`, every five minutes. At 12:15 it searches 12:00–12:05. Shift both time bounds together after delay measurement and reconcile late events separately.\n\nThe query filters two exact classes, uses `spath` for structured DVS/connectee properties, requires vCenter/event/DVS/port/action, and deduplicates vCenter+event key. It records unknown actor rather than discarding system events. No count threshold or root-cause mapping is added.\n\n## Step 3 — Validate event and current state\n\nUse fixtures for blocked and disconnected events with and without optional fields; unrelated DVS, VM and host events; blank required fields; duplicate/same key across vCenters; same port key across DVSs; localized message; delayed/future time; replay and wrong source. Assert no uplink/packet-loss claim.\n\nIn a nonproduction DVS, perform owner-approved reversible port block/unblock and vNIC disconnect/reconnect tests. Capture vCenter event, current DVPort runtime, connectee, topology and Splunk timing. Do not disrupt production or infer that the event persists after recovery.\n\n## Step 4 — Operationalize and respond\n\nEnrich after detection with current/event-time DVS port, connectee VM/vNIC, host/uplink, port group, VLAN/MTU/team policy, maintenance and change. Triage: verify raw event; inspect current DVPort state and subsequent events; resolve actor/change; map topology; correlate VM/host/network metrics and application SLOs; then identify administrative action, migration, policy, control-plane or path fault.\n\nNever automatically unblock, reconnect, migrate, reconfigure VDS/port group, alter VLAN/MTU/teaming or restart networking. Require VMware/network/workload approval, out-of-band access, rollback and service validation.\n\n## Step 5 — Troubleshoot\n\n- No events: verify pool `event`, vCenter credentials/443, scheduler/DCN, event index/RBAC and common-event health.\n- DVS or port null: inspect native JSON and subtype; validate `spath` and add-on version, not message regex alone.\n- Connectee null: it is optional; use event/current topology and do not drop a valid blocked event.\n- Current port healthy: classify recovered/transient after checking subsequent events and impact.\n- Many ports affected: inspect shared DVS, host/uplink, policy deployment and control-plane changes.\n- Duplicate events: compare vCenter/key, windows, routes and checkpoints.\n- Physical uplink suspected: collect physical NIC and external-switch evidence; these two DVPort events do not prove it.\n\nKeep draft status until VMware, network and Splunk owners validate source, fixtures, current-state reconciliation and response. Documentation review is not runtime assurance.",
+  "grandmaExplanation": "We show when the virtualization manager records that a port on its shared virtual switch was blocked or disconnected. The team then checks whether the change was planned, whether the port recovered, and whether anyone actually lost connectivity.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
