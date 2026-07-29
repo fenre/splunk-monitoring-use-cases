@@ -1,109 +1,79 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.3.4",
-  "title": "Software Update Compliance",
-  "criticality": "medium",
-  "difficulty": "intermediate",
+  "title": "Expected Mac Running a Build Outside Approved Update Policy",
+  "criticality": "high",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Compliance"
+    "Security",
+    "Vulnerability",
+    "Data Quality"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Software Update Compliance' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_software_update_compliance` (UC-1.3.4), SOC dashboard panel \"Linux — Software Update Compliance\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "compliance": [
-    {
-      "regulation": "asd-e8",
-      "version": "Nov 2023",
-      "clause": "E8.06",
-      "clauseUrl": "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "ASD Essential Eight E8.06 Patch operating systems — fleet-wide software update compliance is precisely what E8 maturity levels measure.",
-      "controlObjective": "Evidence that ASD E8 E8.06 (Patch operating systems) is enforced — Splunk UC-1.3.4: Software Update Compliance.",
-      "evidenceArtifact": "Saved search 'UC-1.3.4' running on Custom scripted input (softwareupdate -l, sw_vers), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "apra-cps-234",
-      "version": "current",
-      "clause": "15",
-      "clauseUrl": "https://www.apra.gov.au/information-security",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "APRA CPS 234 15 Policy framework — update compliance evidences policy-enforcement posture under the APRA framework.",
-      "controlObjective": "Evidence that APRA CPS 234 15 (Policy framework) is enforced — Splunk UC-1.3.4: Software Update Compliance.",
-      "evidenceArtifact": "Saved search 'UC-1.3.4' running on Custom scripted input (softwareupdate -l, sw_vers), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "ASD E8",
-      "version": "Nov 2023",
-      "clause": "E8.06",
-      "clauseUrl": "https://www.cyber.gov.au/resources-business-and-government/essential-cyber-security/essential-eight/essential-eight-maturity-model",
-      "mode": "satisfies",
-      "assurance": "partial",
-      "assurance_rationale": "ASD Essential Eight E8.06 Patch operating systems — fleet-wide software update compliance is precisely what E8 maturity levels measure.",
-      "controlObjective": "Evidence that ASD E8 E8.06 is enforced — Splunk UC-1.3.4: Software Update Compliance.",
-      "evidenceArtifact": "Saved search 'UC-1.3.4' running on Custom scripted input (softwareupdate -l, sw_vers), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    },
-    {
-      "regulation": "APRA CPS 234",
-      "version": "current",
-      "clause": "15",
-      "clauseUrl": "https://www.apra.gov.au/information-security",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "APRA CPS 234 15 Policy framework — update compliance evidences policy-enforcement posture under the APRA framework.",
-      "controlObjective": "Evidence that APRA CPS 234 15 is enforced — Splunk UC-1.3.4: Software Update Compliance.",
-      "evidenceArtifact": "Saved search 'UC-1.3.4' running on Custom scripted input (softwareupdate -l, sw_vers), archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required."
-    }
-  ],
+  "exclusions": "Compares the newest MDM-reported `OSVersion` and `BuildVersion` for expected Macs with an exact, deployment-owned approved-build policy keyed by cohort and build. It reports missing 48-hour inventory, status older than 24 hours, missing version/build, or a build not currently approved. Exact build matching avoids incorrect lexicographic version comparison. This UC does not prove an update is available/applicable, inspect pending-update state, cover apps or Background Security Improvements, enforce a deadline, assess vulnerabilities, or satisfy any regulation. The previous duplicate ASD/APRA mappings and seven-year evidence claim were removed as unsupported.",
+  "evidence": "Retain `expected_macos_approved_build_posture`, its schedule/results/alerts; signed expected-device, approved-build, and exception lookup revisions with source URL, decision, effective/expiry dates and approver; redacted MDM DeviceInformation responses and collection health; fixtures; dashboard/case history; and a later approved build or lifecycle disposition. This documentation-only review installed no update, executed no search, and created no regulatory evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.3.4 positive (Software, Update, Compliance): ingest synthetic events into `index=os` sourcetype='macos_sw_vers' where `count` grouped by `host`, `is_current` satisfies detection threshold for 'Software Update Compliance'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.3.4 negative (Update Compliance): ingest benign `os` / `macos_sw_vers` events where `host`, `is_current` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 6 confirms zero alert rows for 'Software Update Compliance'."
+    "positiveScenario": "At 2026-07-29T12:00:00Z configure cohort `standard` to approve build `25G86`. Add expected IDs `mac-old`, `mac-stale`, and `mac-missing`. Index `mac-old` at 11:00 with OS `26.5`, build `25F90`; `mac-stale` at 2026-07-28T11:59:59Z with approved build; and no event for missing. Expect `build_not_approved`, `inventory_stale` age 86401, and `not_observed_in_48h`.",
+    "negativeScenario": "Require zero rows for exact approved build `25G86` exactly 86400 seconds old or newer; inactive/future/expired inventory; an unexpected observed device; or an exact future exception with reason, ticket, and owner. Expiry equal to dispatch does not suppress. A lexically higher but unlisted build remains unapproved, and a listed OS version with a different build remains unapproved."
   },
-  "dataSources": "Custom scripted input (`softwareupdate -l`, `sw_vers`) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=macos_sw_vers host=*\n| stats latest(ProductVersion) as os_version by host\n| eval is_current = if(os_version >= \"14.3\", \"Yes\", \"No\")\n| stats count by is_current",
-  "description": "Detects Update Compliance anomalies for UC-1.3.4 with window `the scheduled window` on `index=os` sourcetype `macos_sw_vers`. Combines `count` by `host`, `is_current` and compares against configured threshold. Mapped to keywords Software, Update, Compliance for dashboard routing.",
-  "value": "Alerting on Software, Update, Compliance through UC-1.3.4 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
-  "implementation": "Scripted input for `sw_vers` (weekly) and `softwareupdate -l` (daily). Track OS versions and pending updates. Alert when critical security updates are pending >7 days.",
-  "visualization": "Table (host, OS version, pending updates), Pie chart (version distribution).",
+  "dataSources": "Apple MDM `DeviceInformation` query for `OSVersion` and `BuildVersion`, exported by the selected management service with exact device ID, model identifier, response/command ID, status time, tenant, collection time, API/pagination status, and collector version. Normalize to `index=endpoint_inventory`, `sourcetype=local:apple:device_information`, `device_id`, `platform`, `os_version`, `os_build`, and `model_identifier`; these are local storage/alias conventions. Policy comes from `approved_macos_builds.csv`, curated from Apple security releases, Apple update declarations/status, hardware support, testing, and organizational risk—not scraped blindly from a latest-version label.",
+  "app": "Apple device management and the selected MDM vendor provide OS/build inventory. A deployment-owned collector and Splunk search app provide exact-build policy, expected inventory, exceptions, fixtures, search, dashboard, and runbook. No Universal Forwarder endpoint command or Splunkbase add-on is required.",
+  "spl": "| inputlookup expected_macos_update_policy.csv\n| eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), policy_cohort=lower(trim(policy_cohort)), monitor_from_epoch=tonumber(monitor_from_epoch), monitor_until_epoch=tonumber(monitor_until_epoch), expected_row=1\n| where lower(trim(monitor_enabled))=\"true\" AND platform=\"macos\" AND len(device_id)>0 AND len(policy_cohort)>0 AND monitor_from_epoch<=now() AND monitor_until_epoch>now()\n| fields device_id policy_cohort expected_row device_name serial_number owner criticality runbook\n| append [ search index=endpoint_inventory sourcetype=local:apple:device_information earliest=-48h latest=now\n    | eval device_id=lower(trim(device_id)), platform=lower(trim(platform)), observed_row=1\n    | where platform=\"macos\" AND len(device_id)>0\n    | stats latest(_time) AS inventory_time latest(os_version) AS os_version latest(os_build) AS os_build latest(model_identifier) AS model_identifier latest(response_status) AS response_status latest(collector_time) AS collector_time by device_id ]\n| stats max(expected_row) AS expected_row max(observed_row) AS observed_row values(policy_cohort) AS policy_cohort values(device_name) AS device_name values(serial_number) AS serial_number values(owner) AS owner values(criticality) AS criticality values(runbook) AS runbook max(inventory_time) AS inventory_time values(os_version) AS os_version values(os_build) AS os_build values(model_identifier) AS model_identifier values(response_status) AS response_status max(collector_time) AS collector_time by device_id\n| where expected_row=1\n| lookup approved_macos_builds.csv policy_cohort os_build OUTPUT build_approved policy_revision policy_source policy_valid_until_epoch\n| eval inventory_age_seconds=if(isnull(inventory_time),null(),now()-inventory_time), policy_valid_until_epoch=tonumber(policy_valid_until_epoch), finding=case(isnull(observed_row),\"not_observed_in_48h\",inventory_age_seconds>86400,\"inventory_stale\",len(os_version)=0 OR len(os_build)=0,\"missing_version_or_build\",lower(trim(build_approved))!=\"true\",\"build_not_approved\",policy_valid_until_epoch<=now(),\"approval_expired\",true(),\"healthy\")\n| where finding!=\"healthy\"\n| lookup macos_update_policy_exceptions.csv device_id OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval inventory_stale_seconds=86400, observation_window_hours=48, use_case_id=\"UC-1.3.4\"\n| table device_id device_name serial_number policy_cohort finding os_version os_build model_identifier inventory_time inventory_age_seconds build_approved policy_revision policy_source policy_valid_until_epoch response_status collector_time owner criticality runbook inventory_stale_seconds observation_window_hours use_case_id\n| sort 0 finding policy_cohort os_build device_id",
+  "description": "Runs daily and emits one row per active expected Mac when MDM OS/build inventory is missing for 48 hours, older than 24 hours, incomplete, not an exact approved `(policy_cohort,os_build)` pair, or matched to an expired approval. It preserves policy revision/source, build/model, collection evidence, lifecycle, and owner.",
+  "value": "Exact build posture identifies Macs outside a reviewed update ring without treating version strings as numbers or assuming every model can run the newest release. Owners get a reproducible policy decision and evidence needed to plan updates, resolve unsupported hardware, or repair inventory collection.",
+  "implementation": "Collect Apple DeviceInformation OS/build state through MDM, preserve API and device identity, and govern expected devices by tested update cohort. Maintain exact approved builds with Apple source, model support, effective/expiry dates, approver, and policy revision. Run daily, alert by device/finding, and use finite exceptions. Manage update enforcement and declarative status separately; verify successful installation with a fresh DeviceInformation response.",
+  "visualization": "Lead with MDM inventory freshness/errors and policy-table health. Show unapproved, stale, absent, incomplete, and expired approval by cohort/model/owner; build distribution and age; policy revision/source. Drill down to Apple release, update declaration/status, hardware eligibility, exception, incident, and post-update build. Do not call all non-latest supported builds vulnerable or noncompliant.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM mapping for this OS-version inventory use case.",
+  "dataModelAcceleration": "Not applicable; no CIM mapping is asserted for Apple OS/build inventory and local exact-build policy.",
+  "requiredFields": [
+    "_time",
+    "device_id",
+    "platform",
+    "os_version",
+    "os_build",
+    "model_identifier",
+    "response_status",
+    "collector_time"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Apple Developer: DeviceInformation command",
+      "url": "https://developer.apple.com/documentation/devicemanagement/device-information-command",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Install and enforce software updates",
+      "url": "https://support.apple.com/guide/deployment/test-and-defer-software-updates-depd30715cbb/web",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Software Update declarative target version/build",
+      "url": "https://support.apple.com/guide/deployment/software-update-declarative-configuration-depca14ecd4d/web",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple security releases",
+      "url": "https://support.apple.com/en-us/100100",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: lookup command",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/lookup",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Software Update Compliance'. Correlate with apt/yum logs in the same `macos_sw_vers` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_sw_vers`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A row is outside the current local policy but may have an approved operational cause.\n\n1. **Phased rollout or compatibility hold** — A ring can intentionally remain on an older build. Confirm cohort, tested application/driver issue, owner, risk acceptance, deadline, and replacement/upgrade plan; encode an approved build or exact finite exception.\n\n2. **Unsupported hardware** — A model may not support the target release. Verify Apple's model support and asset plan; assign a distinct governed cohort rather than suppress all old hardware.\n\n3. **Recent update awaiting next inventory** — The Mac may already have restarted into the approved build after dispatch. Confirm current MDM DeviceInformation and collect a new event; preserve the original row.\n\n4. **MDM query/policy-table defect** — Missing page, stale collector, typo/case/whitespace, expired policy row, or wrong cohort can create findings. Check canary, response status, exact build, policy revision/signature, and lookup ACL before endpoint action.\n\n**Suppression mechanism:** the SPL uses `lookup macos_update_policy_exceptions.csv` on exact `device_id` with future expiry, reason, ticket, and owner. Expired, wildcard, fleet-wide, collector-outage, or unsigned policy exceptions do not suppress.",
   "equipment": [
     "macos"
   ],
   "equipmentModels": [
     "macos_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder, custom scripted input.\n• Ensure the following data sources are available: Custom scripted input (`softwareupdate -l`, `sw_vers`).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nScripted input for `sw_vers` (weekly) and `softwareupdate -l` (daily). Track OS versions and pending updates. Alert when critical security updates are pending longer than your policy allows.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_sw_vers host=*\n| stats latest(ProductVersion) as os_version by host\n| eval is_current = if(os_version >= \"14.3\", \"Yes\", \"No\")\n| stats count by is_current\n```\n\nReplace the `14.3` string with a lookup or a field from your own policy. Use `| inputlookup` for approved versions per model if the fleet is mixed.\n\nUnderstanding this SPL\n\n**Software Update Compliance** — Unpatched macOS endpoints are vulnerable. Tracking update levels across the fleet supports vulnerability management.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_sw_vers`.\n• `stats` takes the latest `os_version` per **host**.\n• `eval` labels current vs. not against your example threshold.\n• Final `stats` gives fleet counts for reporting (not a per-host alert as written—split into a per-host form if alerting).\n\n\nStep 3 — Validate\nOn a test Mac, compare `sw_vers -productVersion` to the indexed `ProductVersion`. Verify index permissions and time zones for daily rollups.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions as required. Document your minimum supported version. Consider visualizations: Table (host, OS version, pending updates), Pie chart (version distribution). See the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder, custom scripted input — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_sw_vers into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, is_current`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We track which version of the system each Mac is running so you can see which ones still need a security update before a known problem hits your whole team.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Apple DeviceInformation OS/build fields, declarative update target/status guidance and security-release records plus Splunk exact lookup/scheduled-search documentation; MDM/macOS/Splunk versions, hardware support, policy, fields, inventory, SPL, fixtures, freshness, exceptions, alerting, update response, and production behavior were specified but not executed or Apple/MDM/Splunk/endpoint/application/vulnerability/regulatory-SME signed",
+  "detailedImplementation": "## Build policy and collection\n\nAssign Apple endpoint, MDM, application compatibility, vulnerability, asset, Splunk, and change owners. Qualify MDM/macOS/Splunk versions; this review ran none. Use MDM DeviceInformation to collect exact `OSVersion`, `BuildVersion`, model, device/command identity, status time, and API collection health. Do not compare versions as strings: for example, lexical ordering does not express Apple's release support or model applicability.\n\nCreate `expected_macos_update_policy.csv` with exact device ID, `policy_cohort`, platform, lifecycle epochs, serial, owner, criticality, and runbook. Create signed `approved_macos_builds.csv` keyed by exact `policy_cohort,os_build`, with `build_approved=true`, policy revision, Apple source, approver, effective date, expiry, tested models, and rationale. Review Apple security releases and declarative update documentation, but require compatibility/risk owners to approve each cohort. Reconcile daily and reject duplicate keys, blank builds, expired approval, unknown cohorts, and stale sources.\n\nCollect at least daily into the local source type and monitor API pagination, response failures, canary, object count, duplicate IDs, missing OS/build/model, index delay, and collector version. `macos_update_policy_exceptions.csv` is exact, finite, and separately approved.\n\n## Search and tests\n\nSave `expected_macos_approved_build_posture`, schedule daily, and trigger per device/finding. Inventory starts the search, so absence is visible. Exact lookup match defines approval; no hard-coded `14.3` and no fleet count hides the device row. Exactly 86400 seconds is fresh. Route broad missing/stale findings to MDM data owners; route isolated build findings to cohort owners.\n\nRun the specified controls plus same version/different build, same build/different cohort, blank/null/case/whitespace, policy expiry equality, 86399/86400/86401 freshness, newer duplicate, lifecycle/exception boundaries, unsupported model, re-enrollment ID, collector page loss, policy rollback, and update/restart. Compare a lab Mac's `OSVersion`/`BuildVersion` with MDM and Apple's release record. Keep draft until owners accept policy governance, versions, fixtures, alerting, and response.\n\n## Response and limits\n\nTriage collector and policy health first; then exact device/cohort/lifecycle; MDM inventory; model eligibility; update declaration/status/error; power, disk, network, deferral, deadline, and compatibility hold. Use Apple's declarative software-update configuration/status for enforcement and progress where supported; this inventory rule only evaluates the resulting build.\n\nDo not automatically install, force restart, clear deferrals, change cohort, approve a build, or remove security improvements from Splunk. Use staged update change control and rollback. Close after a fresh MDM response reports an exact approved build and the affected applications pass validation. Track apps, browser versions, Background Security Improvements, vulnerability exposure, and regulatory evidence separately.",
+  "grandmaExplanation": "We compare each expected Mac’s exact system build with the builds approved for its rollout group. Missing, old, or unapproved records are reviewed without assuming every Mac can run the same newest version.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
