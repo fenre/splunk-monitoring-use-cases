@@ -3,62 +3,116 @@
   "id": "2.3.1",
   "title": "Guest VM Resource Monitoring",
   "criticality": "medium",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Performance"
+    "Performance",
+    "Capacity",
+    "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Guest VM Resource Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_guest_vm_resource_monitoring` (UC-2.3.1), SOC dashboard panel \"Linux — Guest VM Resource Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Calculates host-observed KVM/QEMU guest CPU utilization between two valid libvirt `domstats --raw` samples and reports current balloon allocation. It does not measure guest process CPU, application latency, memory demand, working set, cache, swap pressure, host steal/ready time, NUMA locality, disk latency, or network throughput. `balloon.current` is memory currently used from libvirt's host-side perspective, not proof of guest demand. CPU counters can reset on VM restart, migration, restore, or QEMU process replacement; those intervals are rejected. Inactive guests and unsupported/missing statistic groups are unknown, not zero.",
+  "evidence": "Retain libvirt/QEMU/host and Splunk versions; read-only connection and service-account policy; collector script, effective scripted-input stanza, and one redacted raw `virsh domstats --raw` sample; expected-domain inventory; `kvm_guest_resource_monitoring` search/schedule/ACL; telemetry-health dashboard; threshold and exception revisions; and positive, negative, reset, duplicate, gap, and boundary outputs. Result evidence preserves domain UUID/name, host, two sample epochs, elapsed time, CPU-time delta, vCPU count, normalized CPU percentage, current/maximum balloon KiB, and indexing time. This documentation-only review created no libvirt connection, guest sample, input, search, alert, or runtime evidence.",
   "controlTest": {
-    "positiveScenario": "UC-2.3.1 positive (Guest, Resource, Monitoring): ingest synthetic events into `index=virtualization` sourcetype='virsh_stats' where `count` grouped by `vm_name`, `host` satisfies detection threshold for 'Guest VM Resource Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.3.1 negative (Resource Monitoring): ingest benign `virtualization` / `virsh_stats` events where `vm_name`, `host` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 1 confirms zero alert rows for 'Guest VM Resource Monitoring'."
+    "positiveScenario": "In an isolated index, ingest two unique valid events for one `domain_uuid`, at epochs 1000 and 1060, with `cpu_time_ns` 10,000,000,000 and 124,000,000,000, `vcpu_current=2`, and valid balloon values. Expect one latest result with `elapsed_seconds=60`, `cpu_delta_ns=114000000000`, and `cpu_pct=95.0`; with a configured alert policy of 90%, that row qualifies.",
+    "negativeScenario": "Run separate fixtures and expect no utilization row for one sample only, duplicate domain/epoch, conflicting values at one epoch, zero/negative elapsed time, null/zero vCPU count, negative counter, counter regression/reset, elapsed interval outside 45..90 seconds, missing UUID, or stale latest sample. Boundary tests accept exactly 90.0 only when alert policy uses `>=90`; balloon-only changes do not manufacture CPU. A VM migration that resets `cpu.time` must be rejected for that interval."
   },
-  "dataSources": "Custom sourcetype from `virsh domstats` or `virt-top` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Custom scripted input (`virsh domstats`) — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=virtualization sourcetype=virsh_stats\n| stats latest(cpu_pct) as cpu, latest(mem_used_mb) as memory by vm_name, host\n| sort -cpu",
-  "description": "Alerts on Resource Monitoring activity in UC-2.3.1 ('Guest VM Resource Monitoring') from `index=virtualization` sourcetype `virsh_stats`. Rolls up `count` by `vm_name`, `host` across `the scheduled window` and pages when configured threshold. Covers Guest, Resource, Monitoring. Linux operators treat UC-2.3.1 as the canonical signal.",
-  "value": "Operators running UC-2.3.1 on `virsh_stats` feeds shorten triage for Resource Monitoring tied to 'Guest VM Resource Monitoring', lowering capacity incidents, patch regressions, and service outages.",
-  "implementation": "Create scripted input: `virsh domstats --cpu-total --balloon --interface --block`. Run every 60 seconds. Parse per-VM CPU time, balloon current, block read/write, and net rx/tx.",
-  "visualization": "Table, Line chart per VM, Heatmap.",
-  "cimModels": [
-    "N/A"
+  "dataSources": "A version-controlled scripted input on each KVM/libvirt host runs `virsh domstats --raw --state --cpu-total --balloon --vcpu --list-active`. Parse libvirt's domain identity and emit one JSON event per active domain to `index=kvm sourcetype=libvirt:domstats`. Collector-owned fields used here are `sample_id`, `sample_epoch`, `host`, `domain_uuid`, `domain_name`, `state`, `cpu_time_ns` from `cpu.time` (nanoseconds), `vcpu_current` from `vcpu.current`, `balloon_current_kib` from `balloon.current`, and `balloon_maximum_kib` from `balloon.maximum`. The snake-case JSON schema is local; raw virsh keys contain dots. Splunk Add-on for Unix and Linux does not natively parse libvirt domstats.",
+  "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) for supported host context, plus a custom signed scripted input and explicit JSON parsing for libvirt `domstats`. The add-on does not ship this collector. No premium Splunk app or CIM acceleration is required.",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=kvm sourcetype=\"libvirt:domstats\" earliest=-20m latest=now\n| eval sample_epoch=tonumber(sample_epoch), cpu_time_ns=tonumber(cpu_time_ns), vcpu_current=tonumber(vcpu_current), balloon_current_kib=tonumber(balloon_current_kib), balloon_maximum_kib=tonumber(balloon_maximum_kib)\n| where isnotnull(domain_uuid) AND isnotnull(sample_epoch) AND sample_epoch<=now() AND cpu_time_ns>=0 AND vcpu_current>0\n| stats count AS raw_event_count values(cpu_time_ns) AS cpu_values latest(cpu_time_ns) AS cpu_time_ns latest(vcpu_current) AS vcpu_current latest(balloon_current_kib) AS balloon_current_kib latest(balloon_maximum_kib) AS balloon_maximum_kib latest(domain_name) AS domain_name latest(host) AS host max(_indextime) AS last_indextime by domain_uuid sample_epoch\n| where raw_event_count=1 AND mvcount(cpu_values)=1\n| sort 0 domain_uuid sample_epoch\n| streamstats current=f window=1 last(cpu_time_ns) AS previous_cpu_time_ns last(sample_epoch) AS previous_sample_epoch by domain_uuid\n| eval elapsed_seconds=sample_epoch-previous_sample_epoch, cpu_delta_ns=cpu_time_ns-previous_cpu_time_ns\n| where elapsed_seconds>=45 AND elapsed_seconds<=90 AND cpu_delta_ns>=0\n| eval cpu_pct=round((cpu_delta_ns/(elapsed_seconds*1000000000*vcpu_current))*100,2), balloon_current_mib=round(balloon_current_kib/1024,2), balloon_maximum_mib=round(balloon_maximum_kib/1024,2)\n| where cpu_pct>=0 AND cpu_pct<=100\n| eventstats max(sample_epoch) AS latest_sample_epoch by domain_uuid\n| where sample_epoch=latest_sample_epoch\n| eval threshold_pct=90, use_case=\"UC-2.3.1\"\n| table domain_uuid domain_name host sample_epoch previous_sample_epoch elapsed_seconds cpu_delta_ns vcpu_current cpu_pct threshold_pct balloon_current_kib balloon_maximum_kib balloon_current_mib balloon_maximum_mib last_indextime use_case\n| sort 0 -cpu_pct domain_uuid",
+  "description": "Derives each active KVM guest's normalized CPU utilization from the increase in libvirt's nanosecond `cpu.time` counter over a bounded sample interval and reports current/maximum balloon allocation. It rejects duplicates, resets, invalid cadence, and impossible percentages before returning the latest valid VM measurement.",
+  "value": "A counter- and cadence-aware guest view helps virtualization teams find sustained CPU pressure and compare VM behavior without trusting invented percentage fields. Stable UUID identity, explicit reset handling, and source-health separation prevent migrations, collector gaps, or malformed data from being mistaken for idle guests.",
+  "implementation": "Deploy a least-privileged signed collector that runs `virsh domstats --raw` every 60 seconds, transforms documented dotted keys into the JSON contract, and writes one event per active domain. Validate raw units and UUIDs on canaries, maintain expected inventory and missing/duplicate/reset health, then save `kvm_guest_resource_monitoring`. Use the output for trends; apply a service-specific persistence policy before paging on the example 90% threshold.",
+  "visualization": "Dashboard `KVM — Guest Resources`: health tiles show expected domains missing current data, duplicate/reset intervals, unsupported statistic groups, and collection lag. Plot `cpu_pct` per selected UUID over 24 hours with threshold bands and gaps left blank; show a host-by-domain heat map, a table of latest CPU/vCPU/balloon values, and current-versus-maximum balloon bars. Drill down to raw counters, guest/host CPU, libvirt state, migration/restart history, host contention, and service latency. Never display rejected intervals as zero.",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "sample_id",
+    "sample_epoch",
+    "host",
+    "domain_uuid",
+    "domain_name",
+    "state",
+    "cpu_time_ns",
+    "vcpu_current",
+    "balloon_current_kib",
+    "balloon_maximum_kib"
   ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "libvirt virsh manual: domstats and returned statistic units",
+      "url": "https://www.libvirt.org/manpages/virsh.html#domstats",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "libvirt domain API: bulk domain statistics",
+      "url": "https://libvirt.org/html/libvirt-libvirt-domain.html#virConnectGetAllDomainStats",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "libvirt domain API: CPU statistics",
+      "url": "https://libvirt.org/html/libvirt-libvirt-domain.html#virDomainGetCPUStats",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise: scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.4/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: streamstats",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/streamstats",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `virtualization`** — Package managers spike `vm_name` metrics for 'Guest VM Resource Monitoring'. Correlate with apt/yum logs in the same `virsh_stats` window.\n\n2. **Nightly backup I/O on `vm_name`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `virsh_stats`** — Nagios/Zabbix polls `vm_name` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `vm_name` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `vm_name`, `valid_until`.",
+  "knownFalsePositives": "A high accepted percentage means the VM accumulated real host CPU time near its vCPU-normalized capacity during the interval. False positives are authorized load or unsuitable policy.\n\n1. **Batch, build, analytics, or scheduled reporting** — verify exact job/run, expected duration, owner, latency, and completion. Use a bounded UUID/time exception only if service objectives permit it.\n\n2. **Backup, security scan, package update, or inventory** — correlate guest/host process evidence and job records. Repeated impact remains a scheduling/capacity issue even when authorized.\n\n3. **Boot, failover, or cache warm-up** — CPU can legitimately rise after restart/migration. Correlate libvirt lifecycle and service readiness; do not suppress later unrelated load.\n\n4. **CPU topology or policy change** — changing vCPU count alters normalization. Verify `vcpu_current`, domain XML/change record, and comparable pre/post periods before concluding workload growth.\n\n5. **Migration/restart counter reset** — this is not a false alert because negative deltas are rejected. Surface it in telemetry health and wait for two valid post-reset samples; never apply absolute value or clamp the delta.\n\n6. **Host contention** — low VM CPU percentage can coexist with poor guest performance when the VM is not scheduled. This UC cannot measure steal/ready time; correlate host scheduler and guest latency.\n\n7. **Balloon interpretation** — high `balloon.current/maximum` does not alone mean pressure, and host-side balloon current is not guest working set. Use guest memory statistics and service evidence before action.\n\n**Safe suppression:** after a persistence policy, use exact `domain_uuid`, policy ID, inclusive start/exclusive end epochs, owner, approver, ticket, and reason. Reject names, host wildcards, and open-ended entries. Never suppress missing, duplicate, reset, invalid-cadence, or unsupported-statistic health.",
+  "mitreAttack": [
+    "N/A (operational KVM guest resource measurement; no adversary behavior is asserted)"
+  ],
+  "detectionType": "Counter-delta utilization with cadence and reset gates",
   "equipment": [
-    "splunk"
+    "linux"
   ],
   "equipmentModels": [
-    "splunk_platform"
+    "linux_generic"
   ],
+  "hardware": "KVM/QEMU domains managed by libvirt on Linux hosts. Statistics are host-side libvirt observations and support varies by hypervisor driver/version. This contract excludes containers, VMware, Hyper-V, non-libvirt QEMU, inactive-domain utilization, and guest application telemetry.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only editorial review against current libvirt virsh domstats/domain statistics APIs and Splunk Unix/Linux add-on and scripted-input/streamstats documentation; no KVM host, QEMU guest, libvirt connection, virsh command, collector, forwarder, index, fixture, search, dashboard, alert, threshold, or production sample was executed; no libvirt, Red Hat, SUSE, Canonical, Splunk, runtime, version, platform, or SME sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`virsh domstats`).\n• Ensure the following data sources are available: Custom sourcetype from `virsh domstats` or `virt-top`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCreate scripted input: `virsh domstats --cpu-total --balloon --interface --block`. Run every 60 seconds. Parse per-VM CPU time, balloon current, block read/write, and net rx/tx.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=virtualization sourcetype=virsh_stats\n| stats latest(cpu_pct) as cpu, latest(mem_used_mb) as memory by vm_name, host\n| sort -cpu\n```\n\nUnderstanding this SPL\n\n**Guest VM Resource Monitoring** — Per-VM resource tracking for capacity planning and performance troubleshooting in KVM environments.\n\nDocumented **Data sources**: Custom sourcetype from `virsh domstats` or `virt-top`. **App/TA** (typical add-on context): Custom scripted input (`virsh domstats`). The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: virtualization; **sourcetype**: virsh_stats. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=virtualization, sourcetype=virsh_stats. Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by vm_name, host** so each row reflects one combination of those dimensions.\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table, Line chart per VM, Heatmap.\n\nScripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main\ndisabled = 0\n```\n\nThe script should print one event per line (e.g. key=value). Example minimal script (bash):\n\n```bash\n#!/usr/bin/env bash\n# Output metrics or events, one per line\necho \"metric=value timestamp=$(date +%s)\"\n```\n\nFor full details (paths, scheduling, permissions), see the Implementation guide: docs/implementation-guide.md",
-  "grandmaExplanation": "We keep an eye on how hard each virtual machine is working on the host (CPU and memory) and raise the alarm before it drags down real work or real outages start.",
+  "cost": {
+    "tier": "medium",
+    "search_load": "light",
+    "search_load_notes": "At 60-second cadence, one event per active domain creates 1,440 compact events per VM daily. The search scans 20 minutes, deduplicates, sorts by UUID/time, and calculates one prior-sample delta.",
+    "tstats_eligible": false,
+    "storage_class": "warm",
+    "retention_days": 30,
+    "sources": [
+      "libvirt virsh domstats CPU_TOTAL",
+      "libvirt virsh domstats BALLOON",
+      "expected libvirt domain inventory"
+    ],
+    "last_estimated": "2026-07-29",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites, identity, and units\n\nAssign libvirt/KVM, Linux, Splunk collection, capacity, and service owners. Inventory every host, libvirt URI, domain UUID, domain name, service, expected state, and collection authority. Qualify the exact libvirt, QEMU, kernel, distribution, Universal Forwarder, add-on, and Splunk versions on canaries. The `splunkVersions` tokens are intended search-platform families, not proof of collector compatibility.\n\nUse a local read-only libvirt connection where supported, normally `qemu:///system`, under a dedicated service account. Determine permissions through the distribution's libvirt socket/polkit model; do not blindly add the Splunk service to a privileged group. The collector needs statistics read access, not VM mutation, console, disk-file read, or guest credentials. Domain UUID is identity; names can change or be reused. In a clustered/orchestrated environment define one polling authority per active VM and reconcile migration.\n\nLibvirt documents `domstats --raw`: `cpu.time` is total domain CPU time in nanoseconds, `vcpu.current` is current vCPU count, `balloon.current` and `balloon.maximum` are KiB. CPU percentage requires two samples. For interval Δt and counter increase Δcpu, normalized percentage is `Δcpu / (Δt × 1e9 × vCPU) × 100`. Without vCPU normalization, a two-vCPU VM can reach 200%; this UC intentionally reports 0..100 of configured concurrent capacity. Counter resets, vCPU changes, and migration boundaries require explicit handling. Balloon values are allocation statistics, not workload-demand or free-memory truth.\n\n## Step 1 — Collect a strict JSON contract\n\nCreate a signed collector that records one UTC `sample_epoch` and UUID `sample_id`, executes:\n\n```bash\nvirsh --connect qemu:///system domstats --raw --state --cpu-total --balloon --vcpu --list-active\n```\n\nParse records structurally. Resolve the domain UUID with a libvirt API or `virsh domuuid` and emit one compact JSON line per domain. Map exact dotted raw keys to the documented snake-case fields. Preserve missing keys as null and emit a separate collector-health event naming unsupported/missing groups. Do not turn missing statistics into zero. Avoid shell iteration over whitespace-delimited names; names can contain spaces. Prefer libvirt bindings for robust production collection.\n\nConfigure a scripted input in a deployment app:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_kvm_local/bin/collect_domstats.sh]\ndisabled = 0\ninterval = 60\nindex = kvm\nsourcetype = libvirt:domstats\n```\n\nSplunk documents interval semantics: the next invocation is scheduled after completion, so a slow script causes cadence drift. Measure runtime and enforce a timeout/lock so invocations cannot overlap. Set JSON line breaking/timestamp extraction explicitly, or assign `_time` from the emitted epoch during parsing. Capture `btool inputs list --debug`, script hash/owner/mode, and effective libvirt permissions.\n\nValidate on idle and busy canaries. Compare raw virsh output to indexed fields, UUID count to active inventory, and `cpu.time` increments to an independently timed interval. Verify KiB→MiB conversion by dividing by 1024. Test missing balloon stats, paused guests, names with special characters, migration, restart, and collector timeout.\n\n## Step 2 — Operate telemetry health\n\nMaintain `kvm_expected_domains.csv` with UUID, active epochs, owner, service, expected host/poll authority, and expected state. Alert separately on expected active domains absent for two intervals plus p99 indexing delay; duplicate `(domain_uuid,sample_epoch)`; conflicting values at one epoch; one UUID from two hosts; sample gaps outside 45..90 seconds; negative/reset counters; vCPU count null/zero/change; unsupported statistic groups; future timestamps; indexing lag; collector duration approaching interval; and parse failures.\n\nA missing guest is not idle. A reset interval is not 0%. The primary search rejects both, while health preserves the reason. After migration/restart, require two valid post-boundary samples. If one-minute cadence is not reliable, increase interval and update bounds/tests instead of widening acceptance until arbitrary pairs qualify.\n\n## Step 3 — Create and tune the SPL\n\nSave `kvm_guest_resource_monitoring` and run every minute or five minutes. The 20-minute window supplies enough history while `eventstats max` returns only the latest valid interval per UUID. `stats` enforces one raw event and one counter value per identity/time. Ascending sort is mandatory before `streamstats current=f window=1`; otherwise the previous value is not temporally defined.\n\nThe elapsed gate accepts 45..90 seconds around a 60-second target. The delta must be nonnegative. Percentage must remain 0..100 after vCPU normalization. Slightly above 100 can occur from timing/counter realities, but this strict contract rejects it for review rather than clipping evidence. If qualified testing demonstrates a tolerance is necessary, document and regression-test it.\n\nThe embedded 90% is a display starting point, not a universal page. Build persistence from at least five valid consecutive intervals and service-specific latency/headroom objectives. Apply hysteresis, for example recover after five valid intervals below 70, in incident state tooling. Keep source health and capacity trends active during suppression.\n\n## Step 4 — Validate and operationalize\n\nCreate the exact positive fixture and assert 95.0. Test each negative independently, plus 45/90-second accepted boundaries, 44/91 rejection, 90.00 threshold acceptance, 89.99 policy rejection, vCPU change, migration reset, duplicate replay, late indexing, and newest-sample selection. Test events arriving out of order; the explicit sort must recover chronology. Test enough UUIDs to measure search memory and streamstats limits.\n\nOn a lab guest, run an approved CPU workload, compare normalized utilization to host tools and guest telemetry over matching epochs, then stop it and observe recovery. Differences are expected because host CPU time and guest tools measure different perspectives. Do not run stress workloads on production solely for control testing.\n\nPublish the health-first dashboard. Route persistent high CPU with service latency/error context to the service/capacity owner. Responder sequence: validate data/counter boundary; verify VM identity/state/vCPU count; correlate guest workload and service objectives; inspect host contention, scheduler, NUMA, power/frequency, migration and peer capacity; then choose authorized tuning, scheduling, migration, scale, or application remediation. Never automatically kill processes, balloon memory, change vCPU, migrate, pause, or restart from this signal alone.\n\n## Step 5 — Troubleshoot without falsifying data\n\n- **Permission denied:** run the exact command as the collector identity and inspect libvirt socket/polkit policy. Grant only statistics access; do not make the forwarder root by default.\n- **No domains:** verify URI, active inventory, libvirtd/virtqemud service, and `--list-active`. Distinguish no active VMs from failed connection with exit status/health event.\n- **Missing keys:** driver/version/state may not support a group. Preserve null and health status; do not default to zero.\n- **CPU always zero:** inspect raw `cpu.time` at two epochs and workload/state. Verify parser key and nanosecond integer precision.\n- **Percentage above 100:** verify elapsed epoch, vCPU count at both samples, duplicate authority, counter units, and clock. Do not cap it.\n- **Negative delta:** correlate QEMU restart, migration, restore, domain recreation, or counter rollover/parse precision. Reject and re-seed with two post-reset samples.\n- **Cadence gaps:** inspect script runtime, overlap lock, forwarder queues, host load, libvirt jobs, and indexing delay. Splunk intervals follow script completion.\n- **Balloon differs from guest free memory:** expected; fields represent different concepts. Use qualified guest-agent/OS memory telemetry for demand and pressure.\n- **Name/host changed:** retain UUID identity and correlate migration/rename. Never merge by name.\n- **Poor service but low VM CPU:** investigate host scheduling contention, memory, disk, network, guest locks, and application latency; this UC is not root-cause proof.",
+  "grandmaExplanation": "We compare two readings from each virtual machine to see how much of its available processor time it actually used. We also show its current memory allocation, while keeping missing or reset readings visible instead of pretending they mean zero.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
