@@ -1,67 +1,120 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.15",
-  "title": "VM Creation/Deletion Audit",
-  "criticality": "medium",
+  "title": "vCenter VM Create, Clone, and Inventory-Removal Events",
+  "criticality": "high",
   "difficulty": "intermediate",
   "monitoringType": [
-    "Compliance",
+    "Audit",
+    "Change",
     "Configuration"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'VM Creation/Deletion Audit' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vm_creation_deletion_audit` (UC-2.1.15), SOC dashboard panel \"Linux — VM Creation/Deletion Audit\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Returns complete vCenter `VmCreatedEvent`, `VmClonedEvent`, and `VmRemovedEvent` objects at unique event-key grain. Broadcom defines VmRemovedEvent as removal from VirtualCenter management; it does not by itself prove files or disks were deleted, data was destroyed, the VM was powered off, the action was unauthorized, or the displayed `userName` is a human. VmCreatedEvent and VmClonedEvent record successful creation/completion, not approval, secure configuration, application readiness or ownership. This rule does not cover registration, deployment, reconfiguration, relocation, destruction event types not listed, API/task failures, lifecycle actions during collection gaps, direct host activity invisible to the connected vCenter, or current inventory. There is no count threshold. It makes no compliance verdict and performs no rollback or containment.",
+  "evidence": "After deployment, retain vCenter/VM/identity inventory; add-on and event-task configuration; representative raw events with eventClass, key, createdTime, userName, vm.name and managed-object reference, datacenter, compute resource, host, message, vCenter, `_time` and `_indextime`; independent pipeline and current-inventory reconciliation health; approved change/ticket records; version-controlled `vcenter_vm_lifecycle_audit_events` SPL, ACL, schedule, dispatch history and rows; dashboard/runbook and disposition; and dated create, clone, removal, service-account, blank-field, wrong-class, replay, delayed, registration/destruction-boundary and collection-gap tests. This documentation-only review created no VM action, vCenter event, Splunk execution, audit report, alert, incident or production validation evidence.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.15 positive (Creation, Deletion, Audit): ingest synthetic events into `index=vmware` sourcetype='vmware:events' where `count` grouped by `entity` satisfies detection threshold for 'VM Creation/Deletion Audit'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.15 negative (Creation/Deletion Audit): ingest benign `vmware` / `vmware:events` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 4 confirms zero alert rows for 'VM Creation/Deletion Audit'."
+    "positiveScenario": "In one closed isolated bucket, ingest three complete `vmware_inframon:events` records with distinct keys and eventClass values `vim.event.VmCreatedEvent`, `vim.event.VmClonedEvent`, and `vim.event.VmRemovedEvent`. Set vCenter, `vm.name`, VM managed-object value, createdTime and userName. Expect exactly three rows labeled `created`, `cloned`, and `removed_from_vcenter_inventory`; preserve event identity and do not label the removal `deleted`.",
+    "negativeScenario": "Expect zero rows for unrelated VM event classes, failed tasks, wrong index/sourcetype, blank vCenter/key/VM name/class, outside-bucket events and exact replay. Separately test that registration, destruction and removal produce only the documented class-specific outcome, and that missing event collection or current-inventory disagreement is exposed by health/reconciliation rather than converted into an audit conclusion."
   },
-  "dataSources": "`sourcetype=vmware:events` Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:events\" (event_type=\"VmCreatedEvent\" OR event_type=\"VmRemovedEvent\" OR event_type=\"VmClonedEvent\")\n| eval action=case(event_type=\"VmCreatedEvent\",\"Created\", event_type=\"VmRemovedEvent\",\"Deleted\", event_type=\"VmClonedEvent\",\"Cloned\")\n| table _time action vm_name user host datacenter\n| sort -_time",
-  "description": "Surfaces risk tied to Creation, Deletion, Audit through UC-2.1.15 on `index=vmware` sourcetype `vmware:events`. Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold. Operators tune 'VM Creation/Deletion Audit' using UC-2.1.15 runbook steps.",
-  "value": "Tracking `activity` via UC-2.1.15 on `vmware:events` feeds improves response to 'VM Creation/Deletion Audit' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Collected automatically via Splunk_TA_vmware vCenter events. Create daily report. Correlate with change management tickets. Alert on deletions of production VMs.",
-  "visualization": "Table (timeline), Bar chart (create/delete by user), Line chart (VM count trending).",
+  "dataSources": "Primary source is vCenter Events API data collected with the Splunk Add-on for VMware Metrics pool task `event` into the deployment-selected event index (documented default `index=vmware-taskevent`) and `sourcetype=vmware_inframon:events`. Required native properties are `eventClass`, unique event `key`, `createdTime`, `userName`, `vm.name`, the VM managed-object reference, `fullFormattedMessage`, vCenter/host and event/index times; datacenter, compute resource and host arguments are optional routing context. Current VM inventory, vCenter tasks, identity resolution, approval/change records and source health are supporting contracts.",
+  "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter events through the API and DCNs. A local audit app owns identity and change-ticket enrichment, current-inventory reconciliation, source health, saved search, dashboard, tests, routing, retention and runbook.",
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
+  "spl": "index=vmware-taskevent sourcetype=\"vmware_inframon:events\" (eventClass=\"vim.event.VmCreatedEvent\" OR eventClass=\"vim.event.VmClonedEvent\" OR eventClass=\"vim.event.VmRemovedEvent\") earliest=-15m@m latest=-10m@m\n| spath path=vm.name output=vm_name\n| spath path=vm.vm.value output=vm_moid\n| eval vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), event_key=trim(tostring(key)), actor=coalesce(nullif(trim(userName),\"\"),\"unknown\"), lifecycle_action=case(eventClass=\"vim.event.VmCreatedEvent\",\"created\",eventClass=\"vim.event.VmClonedEvent\",\"cloned\",eventClass=\"vim.event.VmRemovedEvent\",\"removed_from_vcenter_inventory\")\n| where len(vcenter)>0 AND len(event_key)>0 AND len(vm_name)>0 AND len(eventClass)>0 AND len(lifecycle_action)>0\n| eval event_identity=vcenter.\"|\".event_key\n| dedup event_identity\n| eval use_case=\"UC-2.1.15\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\")\n| table _time vcenter event_key eventClass lifecycle_action vm_name vm_moid actor fullFormattedMessage event_time _indextime use_case\n| sort 0 -_time vcenter event_key",
+  "description": "Produces one auditable row for each complete vCenter event recording successful VM creation, completed cloning, or removal from vCenter inventory in a closed five-minute bucket. The output preserves actor and object context while explicitly avoiding the unsupported claim that inventory removal equals disk deletion.",
+  "value": "Reliable lifecycle-event records help platform, security and asset owners reconcile high-impact VM changes with approvals and current inventory. Correctly distinguishing inventory removal from destruction prevents false data-loss incidents while still exposing unmanaged assets and unexplained administrative activity.",
+  "implementation": "Enable and prove vCenter event collection, save the fixed delayed search, and reconcile every row with vCenter tasks/current inventory, identity ownership and an approved change. Route unexplained events for investigation; do not reverse, delete, isolate or recreate a VM from the event record alone.",
+  "visualization": "Use an audit table with event time, vCenter, action, VM name/MOID, actor, message, approval, current inventory state, owner and disposition. Add counts by action/actor/vCenter and separate panels for event-pipeline health, unknown actors, unmatched changes and removed-but-still-storage-present review. Do not chart `VM deletions` from VmRemovedEvent.",
   "cimModels": [
     "N/A"
   ],
+  "schema": "Native vSphere VM lifecycle Event objects indexed as vmware_inframon:events",
+  "dataModelAcceleration": "No published CIM dataset preserves these vSphere event subclasses, unique key and VM managed-object arguments. Raw event identity and semantics remain authoritative.",
+  "requiredFields": [
+    "eventClass",
+    "key",
+    "createdTime",
+    "userName",
+    "vm.name",
+    "vm.vm.value",
+    "fullFormattedMessage",
+    "host",
+    "_time",
+    "_indextime"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: VmCreatedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.VmCreatedEvent.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: VmClonedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.VmClonedEvent.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: VmRemovedEvent",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.VmRemovedEvent.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Broadcom vSphere API: base Event properties",
+      "url": "https://developer.broadcom.com/xapis/vsphere-web-services-api/latest/vim.event.Event.html",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk: VMware Metrics collection configuration",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/CollectionConfig",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk: VMware Metrics source types",
+      "url": "https://docs.splunk.com/Documentation/AddOns/released/VMWmetrics/Sourcetypes",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Search Reference: spath",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/spath",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunkbase: Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `host` metrics for 'VM Creation/Deletion Audit'. Correlate with apt/yum logs in the same `vmware:events` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:events`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "The event can be genuine while the activity is authorized.\n\n1. **Approved provisioning** — service-catalog, IaC or administrator workflows create VMs. Match immutable request/change ID, requester, target and execution interval.\n\n2. **Approved clone for patch/test/backup** — templates, test refreshes or backup verification can clone temporarily. Verify source/destination, owner, retention and later cleanup.\n\n3. **Decommission removal** — approved retirement can remove a VM from inventory. Confirm current inventory, datastore/files, backup/retention and disposal workflow; never infer destruction from VmRemovedEvent.\n\n4. **Inventory cleanup or re-registration workflow** — administrators may remove and later register an existing VM. Correlate registration/task events and managed-object changes.\n\n5. **Automation/service account** — `userName` can identify vCenter or orchestration services. Resolve credentials and originating workflow; service-account use is not automatically benign.\n\n6. **vCenter migration or recovery** — restore, cross-vCenter movement or inventory reconstruction can generate expected lifecycle events. Verify the migration/recovery plan and both vCenters.\n\n7. **Duplicate collection/replay** — overlapping collectors or checkpoint reset can repeat event keys. Dedup handles one bucket; health must detect recurrence across buckets.\n\n8. **Name/MOID reuse** — names can repeat and managed-object IDs are vCenter-scoped and can change. Use event key, vCenter, owner and inventory history.\n\n**Suppression mechanism:** use a post-result lookup keyed by vCenter, exact eventClass, VM managed-object identity or governed UUID, actor/workflow, approved change and finite interval. Retain raw audit events and never suppress all actions by a service account.",
+  "mitreAttack": [
+    "N/A (administrative VM lifecycle audit; authorization and adversary intent require corroboration)"
+  ],
+  "detectionType": "Raw vCenter VM lifecycle event audit",
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
-    "vmware_esxi",
-    "vmware_ta_vmware",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`.\n• Ensure the following data sources are available: `sourcetype=vmware:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nCollected automatically via Splunk_TA_vmware vCenter events. Create daily report. Correlate with change management tickets. Alert on deletions of production VMs.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:events\" (event_type=\"VmCreatedEvent\" OR event_type=\"VmRemovedEvent\" OR event_type=\"VmClonedEvent\")\n| eval action=case(event_type=\"VmCreatedEvent\",\"Created\", event_type=\"VmRemovedEvent\",\"Deleted\", event_type=\"VmClonedEvent\",\"Cloned\")\n| table _time action vm_name user host datacenter\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**VM Creation/Deletion Audit** — Tracks VM lifecycle for change management compliance and resource governance. Detects unauthorized VM creation or suspicious deletions.\n\nDocumented **Data sources**: `sourcetype=vmware:events`. **App/TA** (typical add-on context): `Splunk_TA_vmware`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:events. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:events\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **action** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Pipeline stage (see **VM Creation/Deletion Audit**): table _time action vm_name user host datacenter\n• Orders rows with `sort` — combine with `head`/`tail` for top-N patterns.\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table (timeline), Bar chart (create/delete by user), Line chart (VM count trending).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware` — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We track VM lifecycle for change management compliance and resource governance — so you catch performance or capacity problems before they hurt real work.",
+  "hardware": "vCenter-managed VMware virtual machines; current VM files, disks, backups and guest state are outside an Event object's lifecycle assertion.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Bounded query over three exact event classes; inventory, identity and change enrichment are separate.",
+    "tstats_eligible": false,
+    "storage_class": "warm"
+  },
+  "detailedImplementation": "## Prerequisites and event meaning\n\nAssign vCenter, asset, security, Splunk and change owners. Inventory vCenters, automation/service accounts, VM owners, current inventory, provisioning/decommission workflows and retention. Broadcom's definitions are precise: VmCreatedEvent records successful creation, VmClonedEvent completion of cloning, and VmRemovedEvent removal from VirtualCenter management. Preserve those meanings in titles, labels and runbooks.\n\n## Step 1 — Collect and verify vCenter events\n\nDeploy supported Splunk Add-on for VMware Metrics, configure read-only vCenter API access over TCP 443 and include `event` in the collection pool. Verify the actual events index; this contract uses documented default `vmware-taskevent` and sourcetype `vmware_inframon:events`.\n\nCompare fixtures and representative production records with vSphere Client Tasks and Events. Prove exact `eventClass`, numeric event `key`, created time, `userName`, nested `vm.name` and VM reference, message, vCenter/host, `_time` and `_indextime`. Test whether optional datacenter, computeResource and host arguments are present before routing on them. Create independent health for each governed vCenter, event job success/records_written, common event flow, field completeness, delay, duplicate keys, API/auth failures, DCN backlog and clock drift.\n\n## Step 2 — Save the closed-window search\n\nSave sidecar SPL as `vcenter_vm_lifecycle_audit_events` and dispatch every five minutes. The 12:15 run searches 12:00–12:05 using `earliest=-15m@m latest=-10m@m`. Shift both bounds together after measuring p99 delay and reconcile late events separately.\n\nThe query uses three exact native event classes. `spath` extracts structured VM fields; it does not parse localized message text. The lifecycle label deliberately says `removed_from_vcenter_inventory`. vCenter plus event key is the replay identity. Unknown actor is retained rather than dropping an otherwise complete event; actor attribution still requires identity and orchestration logs.\n\n## Step 3 — Validate boundaries and enrichment\n\nTest all three positive classes, unrelated creation/removal/destruction/registration/reconfiguration classes, blank user, blank VM, duplicate key, same key on two vCenters, same VM name with different references, rename, delayed/future timestamps, wrong source and reruns. Assert one row per event key and no `deleted` label.\n\nIn an isolated vCenter, create and clone disposable VMs and remove one from inventory through approved procedures. Capture task and event objects, current inventory and datastore state. Where safe, re-register the removed VM to demonstrate why inventory removal is not destruction. Never delete production data to validate monitoring.\n\nEnrich after base detection with identity directory/service-account ownership, service catalog/change records and current VM inventory. Missing ticket is an investigation state, not automatic unauthorized activity. Track enrichment freshness and one-to-many matches as health findings.\n\n## Step 4 — Triage and response\n\nFor each row, verify raw event identity/source/time; resolve actor; inspect vCenter task chain and related events; reconcile VM current inventory, storage and backups; match the approved workflow; and determine owner/business impact. For removals, explicitly determine unregister versus destroy/delete through tasks and datastore evidence. For creation/clone, review destination, template/source, network, owner, security baseline and lifecycle.\n\nNever automatically delete, recreate, power, isolate, snapshot, re-register or move a VM, disable an account, or roll back infrastructure from this event alone. Preserve evidence and use approved vCenter/asset/change procedures.\n\n## Step 5 — Troubleshoot\n\n- No events: verify pool `event`, credentials/443, scheduler/DCN, index/RBAC and ordinary event flow; do not generate a production VM just for heartbeat.\n- VM fields null: inspect raw JSON and `spath`; validate add-on/version and event subclass rather than parsing message only.\n- Actor unknown: retain the event and inspect task chain, vCenter SSO/API and automation logs.\n- Removal labeled deletion elsewhere: correct dashboards/runbooks and use native event definition.\n- Duplicate rows: compare vCenter/key, schedule overlap, collector routes and checkpoints.\n- Current VM exists after removal: investigate re-registration, restore, cross-vCenter movement, name reuse and event chronology.\n- Event missing but task exists: verify event collection range/permissions and task-event lag; tasks and events are distinct sources.\n\nKeep draft status until owners validate collection, fixtures, reconciliation, retention and response. Documentation review does not prove an audit control operates in production.",
+  "grandmaExplanation": "We keep a record when the virtualization manager says a virtual machine was created, copied, or removed from its list. Removal from the list does not necessarily mean its files were deleted, so the team checks the actual change before drawing that conclusion.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
