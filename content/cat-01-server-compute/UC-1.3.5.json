@@ -1,63 +1,80 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.3.5",
-  "title": "Application Crash Monitoring",
-  "criticality": "low",
-  "difficulty": "intermediate",
+  "title": "Repeated Fatal macOS Application Crash Reports",
+  "criticality": "medium",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Reliability"
   ],
-  "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Application Crash Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_application_crash_monitoring` (UC-1.3.5), SOC dashboard panel \"Linux — Application Crash Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "splunkPillar": "Observability",
+  "exclusions": "Counts distinct normalized fatal Apple `.ips` crash reports per Mac and process in a closed 15-minute window and reports three or more. Apple documents `.ips` JSON for macOS 12+; legacy `.crash`, hang/spindump, jetsam/resource reports marked nonfatal, and user force-quit without a fatal crash report are excluded unless separately normalized and tested. The threshold, local parser, index, source type, and exception lookup are deployment choices. A crash report does not prove malware, root cause, data loss, or user impact, and absence of reports does not prove healthy collection.",
+  "evidence": "Retain the `macos_repeated_fatal_application_crashes` search, five-minute schedule, result/alert; signed parser and schema fixtures; original protected `.ips` report or approved hash/object reference; normalized event with report ID, process, bundle, OS/build, exception and fatality; monitor/parser freshness; exception revision; case/dashboard; symbolication or developer disposition; and recovery window. Crash reports may contain sensitive paths/process/user context. This documentation-only review read no endpoint report and executed no search.",
   "controlTest": {
-    "positiveScenario": "UC-1.3.5 positive (Application, Crash, Monitoring): ingest synthetic events into `index=os` sourcetype='macos_crash' where `count` grouped by `host`, `process` satisfies detection threshold for 'Application Crash Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.3.5 negative (Crash Monitoring): ingest benign `os` / `macos_crash` events where `host`, `process` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 2 confirms zero alert rows for 'Application Crash Monitoring'."
+    "positiveScenario": "At 2026-07-29T12:15:00Z ingest three normalized fatal reports for `mac-crash-01`, `ExampleApp`, with distinct `report_id` values at 12:01, 12:06, and 12:11, exception types `EXC_BAD_ACCESS`, OS build `25G86`. Expect exactly one row with `crash_count=3`, three report IDs, and first/last times.",
+    "negativeScenario": "Require zero rows for two distinct reports; duplicate ingestion of one report ID; three reports split across different processes or hosts; `fatal=false`; missing process/report ID; events outside the closed range; or an exact host/process future exception with reason, ticket, and owner. Exception expiry equal to dispatch does not suppress. Missing collector data belongs to source health."
   },
-  "dataSources": "`/Library/Logs/DiagnosticReports/*.crash` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Splunk Universal Forwarder (monitor of DiagnosticReports) — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=os sourcetype=macos_crash host=*\n| rex \"Process:\\s+(?<process>\\S+)\"\n| stats count by host, process\n| sort -count",
-  "description": "Surfaces UC-1.3.5 for Application, Crash, Monitoring over `index=os` sourcetype `macos_crash` with thresholds configured threshold. Groups `count` by `host`, `process` each `the scheduled window`. Centered on Crash Monitoring indicators. Supports repeatable linux triage for 'Application Crash Monitoring'.",
-  "value": "For 'Application Crash Monitoring', UC-1.3.5 converts `activity` on `macos_crash` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Forward `~/Library/Logs/DiagnosticReports/` and `/Library/Logs/DiagnosticReports/`. Use `monitor` input in `inputs.conf`. Parse process name and exception type from crash reports.",
-  "visualization": "Table (process, host, count), Bar chart of top crashing apps.",
+  "dataSources": "Apple crash reports with `.ips` extension, which Apple documents as JSON beginning with macOS 12, collected from approved system/user DiagnosticReports locations by a signed parser or file-monitor pipeline. Normalize one event per report with `_time` from report timestamp, `host`, `report_id` (stable file/report identity), `proc_name`, `bundle_id`, `proc_path` if privacy-approved, `os_version`, `os_build`, `exception_type`, `exception_signal`, `exception_message`, `termination_reason`, `fatal`, `report_path_hash`, and `parser_version`. `index=macos_diagnostics` and `sourcetype=local:apple:crash_report` are local conventions. Collection scope and PPPC/Full Disk Access must be explicitly approved.",
+  "app": "Apple DiagnosticReports/Console and Xcode crash-report schema are authoritative. A deployment-owned signed `.ips` parser, Splunk Universal Forwarder file/script input, and search app provide privacy filtering, normalization, fixtures, exceptions, search, dashboard, and runbook. No Splunkbase add-on is asserted.",
+  "spl": "index=macos_diagnostics sourcetype=local:apple:crash_report earliest=-15m@m latest=@m\n| eval host=lower(trim(host)), proc_name=trim(proc_name), report_id=trim(report_id), fatal=if(fatal=true() OR lower(trim(fatal))=\"true\",1,0)\n| where fatal=1 AND len(host)>0 AND len(proc_name)>0 AND len(report_id)>0\n| dedup host report_id\n| stats dc(report_id) AS crash_count values(report_id) AS report_ids values(bundle_id) AS bundle_ids values(exception_type) AS exception_types values(exception_signal) AS exception_signals values(os_build) AS os_builds values(parser_version) AS parser_versions min(_time) AS first_crash_time max(_time) AS last_crash_time by host proc_name\n| where crash_count>=3\n| lookup macos_crash_exceptions.csv host proc_name OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval threshold_crashes=3, search_window_minutes=15, use_case_id=\"UC-1.3.5\"\n| table host proc_name crash_count report_ids bundle_ids exception_types exception_signals os_builds parser_versions first_crash_time last_crash_time threshold_crashes search_window_minutes use_case_id\n| sort 0 -crash_count host proc_name",
+  "description": "Runs every five minutes over the preceding closed 15 minutes and emits one row per lowercased Mac hostname and exact process name when at least three distinct normalized fatal `.ips` reports occur. It deduplicates report identity and preserves exception, bundle, OS build, parser, and first/last crash evidence.",
+  "value": "Repeated fatal crashes identify an unstable application/host combination worth triage while avoiding a page for every isolated termination. Stable report identity and Apple exception fields give support and developers reproducible evidence for release rollback, symbolication, compatibility, or hardware investigation.",
+  "implementation": "Approve system and per-user report scope, privacy retention, and PPPC access; deploy a signed parser tested against Apple's `.ips` JSON; emit one redacted normalized event per report and monitor parser/file coverage. Run the 15-minute search every five minutes, deduplicate report IDs, require three fatal reports, and alert by host/process. Correlate application version, OS build, exception, deployment, resource state, and user impact; send protected reports to authorized developers for symbolication.",
+  "visualization": "Show collection/parser freshness, path coverage, parse failures, duplicate IDs, and report volume first. Then rank fatal crashes by process/version/OS build/host, display exception types and recurrence, and trend deployment cohorts. Drill down to protected report reference, symbols/build, recent update, resource state, exception, incident, and recovery. Do not expose full user paths or raw reports broadly.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM data model for macOS crash logs.",
+  "dataModelAcceleration": "Not applicable; no CIM dataset is asserted for Apple `.ips` report identity and exception structure.",
+  "requiredFields": [
+    "_time",
+    "host",
+    "report_id",
+    "proc_name",
+    "bundle_id",
+    "os_build",
+    "exception_type",
+    "exception_signal",
+    "fatal",
+    "parser_version"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Apple Developer: Interpreting the JSON format of a crash report",
+      "url": "https://developer.apple.com/documentation/xcode/interpreting-the-json-format-of-a-crash-report",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Apple Developer: EXC_RESOURCE and nonfatal-condition distinction",
+      "url": "https://developer.apple.com/documentation/xcode/exc_resource",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Console: Crash reports use .ips",
+      "url": "https://support.apple.com/guide/console/reports-cnsl664be99a/mac",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "Apple Platform Deployment: Privacy Preferences Policy Control",
+      "url": "https://support.apple.com/guide/deployment/privacy-preferences-policy-control-payload-dep38df53c2a/web",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: Monitor files and directories with inputs.conf",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-data-in/get-started-with-getting-data-in/10.2/get-data-from-files-and-directories/monitor-files-and-directories-with-inputs.conf",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `os`** — Package managers spike `host` metrics for 'Application Crash Monitoring'. Correlate with apt/yum logs in the same `macos_crash` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `macos_crash`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A repeated-crash row is real, but it may be expected during controlled work.\n\n1. **Approved application test or fault injection** — QA may intentionally trigger a crash. Verify lab/device/process/build, test ID, owner, start/end, and expected report IDs; use only an exact finite exception.\n\n2. **Known bad rollout already being rolled back** — Many crashes during a controlled rollback remain operational evidence. Correlate package/version/ring/change and suppress notifications only for the bounded response window, not ingestion.\n\n3. **Duplicate collection or parser identity defect** — Re-read files, path changes, CRC configuration, or unstable report IDs can inflate counts. Check source/hash/report ID, fishbucket/input changes, parser version, and `dedup`; repair collection and retain provenance.\n\n4. **Nonfatal EXC_RESOURCE misclassified** — Apple notes some resource reports have `NON-FATAL CONDITION`. Compare raw exception note/termination semantics and parser fixture; correct `fatal` rather than suppressing the process.\n\n**Suppression mechanism:** the SPL uses `lookup macos_crash_exceptions.csv` on exact `host,proc_name` and requires future expiry, reason, ticket, and owner. Expired, wildcard, fleet-wide, parser-outage, or missing-source exceptions do not suppress.",
   "equipment": [
     "macos"
   ],
   "equipmentModels": [
     "macos_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Universal Forwarder with a file monitor of DiagnosticReports.\n• Ensure the following data sources are available: `/Library/Logs/DiagnosticReports/*.crash` (and optionally per-user paths if policy allows).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nUse `[monitor://]` stanzas for the crash log directories, with `sourcetype=macos_crash` (or your name). The forwarder on macOS reads these as text; ensure full-disk access if the OS requires it for the forwarder. This path is for Apple crash logs, not host CPU or memory metrics from other platforms.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=os sourcetype=macos_crash host=*\n| rex \"Process:\\s+(?<process>\\S+)\"\n| stats count by host, process\n| sort -count\n```\n\nUnderstanding this SPL\n\n**Application Crash Monitoring** — Frequent application crashes degrade user experience and may indicate malware, resource issues, or incompatible software.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=os`, `sourcetype=macos_crash`.\n• `rex` pulls the `Process:` name for grouping.\n• `stats` and `sort` list the hottest `(host, process)` pairs.\n\n\nStep 3 — Validate\nTrigger a test crash in a non-production app and confirm one event with an expected `process` in Search. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 4 — Operationalize\nSet thresholds on `count` per host and process for paging vs. triage. Consider visualizations: Table (process, host, count), Bar chart of top crashing apps.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Universal Forwarder (monitor of DiagnosticReports) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=macos_crash into os. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, process`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We count which apps are crashing and how often, so you can see unstable software or a troubled computer before it ruins someone’s workday or loses their data.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Apple .ips JSON crash schema, EXC_RESOURCE fatality notes, Console report types and PPPC guidance plus Splunk file-monitor/CRC and SPL dedup/stats documentation; macOS/forwarder/Splunk versions, paths, privacy, parser, fields, SPL, fixtures, thresholds, source health, exceptions, alerting, symbolication, response, and production behavior were specified but not executed or Apple/Splunk/privacy/application/developer/endpoint/SME signed",
+  "detailedImplementation": "## Collection and privacy\n\nAssign macOS, privacy/legal, application development, endpoint, Splunk, and incident owners. Qualify `.ips` schema by supported macOS release; this review ran none. Apple says modern crash reports use `.ips` JSON and documents `procName` and exception dictionary fields. Build a signed parser with versioned golden reports; do not use the old `rex Process:` against modern JSON or assume every EXC_RESOURCE report terminated a process.\n\nApprove system and user DiagnosticReports locations, retention, redaction, and access. Deploy the Universal Forwarder monitor or a bounded parser input through a managed app. If protected paths require PPPC/System Policy All Files, grant only the signed binary/code requirement after privacy review. Emit one event per complete file after close, with stable report ID/hash, report timestamp, process/bundle, OS/build, exception type/signal/message, termination data, explicit fatal classification, source reference, and parser version. Avoid raw stack, username, path, arguments, and document content in broad indexes.\n\nMonitor expected-host/path freshness, parser errors, unsupported schema, partial files, event/index delay, duplicate report IDs, source rename/CRC behavior, forwarder permission denial, package hash/version, and retained-object access. Test `crcSalt=<SOURCE>` only with full understanding of duplicate risk; DiagnosticReports filenames are normally unique, but moving/renaming into another monitored path can reread data.\n\n## Search and validation\n\nSave `macos_repeated_fatal_application_crashes`, run every five minutes over a closed 15 minutes, and trigger by host/process. `dedup host report_id` prevents retries from inflating count; `dc` requires three distinct reports. Keep process identity case behavior documented; if bundle ID is stable, add a separately tested grouping strategy rather than silently merging executables.\n\nRun fixed controls plus 2/3 reports, duplicate IDs, process case, multiple hosts/processes, fatal true/false, NON-FATAL EXC_RESOURCE, missing field, late event, legacy `.crash`, malformed/partial `.ips`, file rename, parser upgrade, exception expiry, application update/rollback, and symbol availability. Generate crashes only in an isolated test application with owner approval. Keep draft until owners accept privacy, parser/version coverage, threshold, alert delivery, and response.\n\n## Triage and recovery\n\nFirst verify parser/source health and distinct report IDs. Then inspect process/bundle/version/signature, OS/build/architecture, exception type/signal/codes, termination reason, crashing thread and symbols through authorized tools, recent application/OS/config rollout, CPU/memory/disk pressure, plug-ins, hardware diagnostics, and user impact. Apple crash fields guide diagnosis but do not establish maliciousness.\n\nDo not automatically kill/relaunch applications, delete reports/preferences/caches, upload reports externally, collect full user data, roll back software, or reboot from Splunk. Use application and endpoint change control. Close after the responsible build/config/hardware action and a monitored no-recurrence window, preserving original protected evidence. Missing crashes with user complaints indicate collection or a different hang/termination path; route to source health, hang/spindump, Unified Log, or application telemetry rather than declaring recovery.",
+  "grandmaExplanation": "We count distinct fatal crash reports for the same app on the same Mac. Three in fifteen minutes gets attention, while private report details stay restricted to the people fixing the app.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
