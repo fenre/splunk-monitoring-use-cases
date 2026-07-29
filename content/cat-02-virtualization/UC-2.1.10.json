@@ -1,52 +1,85 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "2.1.10",
-  "title": "vSAN Health Monitoring",
+  "title": "vSAN Cluster Health Test Findings",
   "criticality": "high",
-  "difficulty": "beginner",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Availability"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'vSAN Health Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_vsan_health_monitoring` (UC-2.1.10), SOC dashboard panel \"Linux — vSAN Health Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Covers the cached overall result returned by `Test-VsanClusterHealth`; it does not enumerate every failing test, prove data loss or application outage, monitor non-vSAN datastores, authorize repair, or equate gray/unknown with healthy. Cached result age and collection health matter. The legacy unsupported `vmware:perf:vsan` `health_status`/`disk_group` contract is not used.",
+  "evidence": "Retain PowerCLI script/module version and hash, credential/role design, scripted-input schedule/heartbeat, raw JSON and latest successful poll, matching vSphere Skyline Health/PowerCLI detail, versioned search and rows, incident disposition, and dated green/yellow/red/unknown, stale cache, null field, duplicate, unavailable service and recovery tests. Documentation review generated no vSAN fault or runtime proof.",
   "controlTest": {
-    "positiveScenario": "UC-2.1.10 positive (vSAN, Health, Monitoring): ingest synthetic events into `index=vmware` sourcetype='vmware:perf:vsan' where `count` grouped by `cluster`, `disk_group` satisfies detection threshold for 'vSAN Health Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-2.1.10 negative (Health Monitoring): ingest benign `vmware` / `vmware:perf:vsan` events where `cluster`, `disk_group` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 10 confirms zero alert rows for 'vSAN Health Monitoring'."
+    "positiveScenario": "Index a fresh complete fixture for cluster `domain-c8` with overall_status `yellow`, description `One or more health checks require attention`, score 80 and valid test time. Expect exactly one high-severity `non_green_vsan_health` row retaining description and score.",
+    "negativeScenario": "Expect zero primary rows for green status, collection older than 20 minutes, blank cluster identity/status, invalid test time, wrong source/index, or exact replay. Unknown/gray-like statuses must remain visible when fresh and must never be converted to green."
   },
-  "dataSources": "`sourcetype=vmware:perf:vsan`, vSAN health checks Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input or scripted poll into the index named in the SPL.",
-  "app": "`Splunk_TA_vmware`, vSAN health service — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)",
-  "spl": "index=vmware sourcetype=\"vmware:perf:vsan\"\n| stats latest(health_status) as health by cluster, disk_group\n| where health!=\"green\"\n| table cluster disk_group health",
-  "description": "Alerts on UC-2.1.10 — vSAN, Health, Monitoring — using `index=vmware` sourcetype `vmware:perf:vsan`, grouped by `cluster`, `disk_group`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Health Monitoring. Purpose-built for 'vSAN Health Monitoring' in Linux workflows.",
-  "value": "For 'vSAN Health Monitoring', UC-2.1.10 converts `activity` on `vmware:perf:vsan` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Splunk_TA_vmware collects vSAN metrics. Also enable vSAN health checks in vCenter. Monitor disk group health, resync progress, and capacity. Alert on any non-green health status.",
-  "visualization": "Status indicator per cluster, Table of health issues, Gauge (capacity).",
-  "cimModels": [
-    "N/A"
-  ],
-  "references": [
+  "dataSources": "Local VMware PowerCLI scripted input with Splunk Add-on for VMware (Splunkbase 3215) inventory/events as context. `index=vmware-ops`, `sourcetype=vmware:powercli:vsan_health`; required fields: cluster_id, cluster_name, overall_status, overall_description, health_score, time_of_test, vcenter. The fields map to documented VsanClusterHealthTestResult properties OverallHealthStatus, OverallHealthDescription, HealthScore, TimeOfTest.",
+  "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
+  "splunkbaseApps": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
     },
     {
-      "title": "Splunkbase app 3684",
-      "url": "https://splunkbase.splunk.com/app/3684",
-      "retrieved": "2026-04-25"
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `vmware`** — Package managers spike `cluster` metrics for 'vSAN Health Monitoring'. Correlate with apt/yum logs in the same `vmware:perf:vsan` window.\n\n2. **Nightly backup I/O on `cluster`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `vmware:perf:vsan`** — Nagios/Zabbix polls `cluster` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `cluster` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `cluster`, `valid_until`.",
+  "spl": "index=vmware-ops sourcetype=\"vmware:powercli:vsan_health\" earliest=-30m\n| eval cluster_id=trim(cluster_id), cluster_name=trim(cluster_name), overall_status=lower(trim(overall_status)), health_score=tonumber(health_score), test_epoch=strptime(time_of_test,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(cluster_id)>0 AND len(cluster_name)>0 AND len(overall_status)>0 AND isnotnull(test_epoch)\n| stats latest(overall_status) as overall_status latest(overall_description) as overall_description latest(health_score) as health_score latest(test_epoch) as test_epoch latest(_time) as collection_time latest(vcenter) as vcenter by cluster_id cluster_name\n| eval collection_age_minutes=round((now()-collection_time)/60,1)\n| where overall_status!=\"green\" AND collection_age_minutes<=20\n| eval use_case_id=\"UC-2.1.10\", finding=\"non_green_vsan_health\", local_severity=case(overall_status=\"red\",\"critical\",overall_status=\"yellow\",\"high\",true(),\"medium\")\n| convert ctime(test_epoch)\n| table cluster_name cluster_id vcenter overall_status overall_description health_score test_epoch collection_age_minutes finding local_severity use_case_id\n| sort 0 cluster_name",
+  "description": "Reports a vSAN cluster when a fresh PowerCLI `Test-VsanClusterHealth -UseCache` result has an overall status other than green, preserving the documented overall description, score, test time, and stable cluster identity.",
+  "value": "A non-green vSAN health summary can reveal degraded protection, disk, network, configuration, capacity, or health-service conditions that threaten storage resilience. A faithful summary routes teams to the exact test detail without inventing a disk-group status field.",
+  "implementation": "Deploy a local PowerCLI scripted input using the documented `Test-VsanClusterHealth` command with `-UseCache`; emit documented result properties to `vmware:powercli:vsan_health` every 10 minutes. Alert on fresh non-green overall status and route to vSAN operations. Drill into individual result components in vCenter/PowerCLI before remediation; use capacity, resync, disk, network and object health as separate supporting contracts.",
+  "visualization": "Dashboard `vSAN Health`: script heartbeat and cluster coverage first; current status tiles by cluster; table with status, description, score, test/collection age, vCenter, owner, maintenance and incident; drilldowns to individual NetworkHealth, DiskHealthResult, HclInfo, LimitHealth and resync/capacity panels. Default current state with 30-day status-transition history; link to vSphere Cluster > Monitor > vSAN > Skyline Health.",
+  "cimModels": [],
+  "references": [
+    {
+      "title": "Splunk Add-on for VMware (Splunkbase 3215)",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.0/get-data-from-files-and-directories/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "VMware PowerCLI Test-VsanClusterHealth",
+      "url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/test-vsanclusterhealth",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "VMware PowerCLI VsanClusterHealthTestResult structure",
+      "url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/structures/vmware.vimautomation.storage.types.v1.vsan.health.vsanclusterhealthtestresult",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Broadcom guidance for a full vSAN datastore",
+      "url": "https://knowledge.broadcom.com/external/article/372112/how-to-deal-with-a-full-vsan-datastore.html",
+      "retrieved": "2026-07-29"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved rolling maintenance or patching** — vSAN health can be genuinely non-green while a host or disk group is under maintenance. Confirm exact cluster, maintenance mode choice, task, data evacuation policy, resync state and end time; use a finite cluster exception in `vmware_uc_dispositions.csv` only for notification.\n\n2. **Health-check retest or cache lag** — the cached result may remain non-green briefly after correction. Compare TimeOfTest, run an owner-approved current test, inspect individual results and wait for proven green convergence; never overwrite stale status.\n\n3. **Documented unsupported hardware or HCL warning** — a genuine HCL finding may be accepted temporarily under a hardware plan. Verify the exact test, hardware/driver/firmware evidence, risk owner and expiry; keep the base finding.\n\n4. **Transient network or disk resync condition** — a short component event can produce a real summary warning. Check vSAN resyncing objects, network and disk health plus persistence; resolve the condition or document a bounded operational disposition rather than suppressing all non-green status.\n\nDelivery suppression uses the governed lookup table `vmware_uc_dispositions.csv` only after the base result is retained; each entry requires the exact UC/entity keys, owner, ticket, reason, start, and finite expiry.",
+  "requiredFields": [
+    "cluster_id",
+    "cluster_name",
+    "overall_status",
+    "overall_description",
+    "health_score",
+    "time_of_test",
+    "vcenter"
+  ],
   "equipment": [
     "vmware"
   ],
@@ -59,8 +92,11 @@
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_vmware`, vSAN health service.\n• Ensure the following data sources are available: `sourcetype=vmware:perf:vsan`, vSAN health checks.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSplunk_TA_vmware collects vSAN metrics. Also enable vSAN health checks in vCenter. Monitor disk group health, resync progress, and capacity. Alert on any non-green health status.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=vmware sourcetype=\"vmware:perf:vsan\"\n| stats latest(health_status) as health by cluster, disk_group\n| where health!=\"green\"\n| table cluster disk_group health\n```\n\nUnderstanding this SPL\n\n**vSAN Health Monitoring** — vSAN is the storage fabric for many VMware clusters. Degraded vSAN health can cause VM data loss and cluster-wide outages.\n\nDocumented **Data sources**: `sourcetype=vmware:perf:vsan`, vSAN health checks. **App/TA** (typical add-on context): `Splunk_TA_vmware`, vSAN health service. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: vmware; **sourcetype**: vmware:perf:vsan. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=vmware, sourcetype=\"vmware:perf:vsan\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `stats` rolls up events into metrics; results are split **by cluster, disk_group** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where health!=\"green\"` — typically the threshold or rule expression for this monitoring goal.\n• Pipeline stage (see **vSAN Health Monitoring**): table cluster disk_group health\n\nStep 3 — Validate\nConfirm that events are present in the index and that the search returns expected results. Compare with known good/bad scenarios if applicable. Verify field extractions and index permissions.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Status indicator per cluster, Table of health issues, Gauge (capacity).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_vmware`, vSAN health service — Splunk Add-on for VMware ESXi Logs (Splunkbase 3684)). Enable the modular input or HEC token that writes sourcetype=vmware:perf:vsan into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cluster, disk_group`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We keep an eye on vSAN Health and raise the alarm before it drags down real work or real outages start.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
+  "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nInstall a supported VMware PowerCLI module on a controlled Heavy Forwarder and create a local scripted input at 600 seconds. For each governed vSAN-enabled cluster, call `Test-VsanClusterHealth -Cluster <cluster> -UseCache`. Serialize the documented result properties and explicit cluster/vCenter IDs as one JSON event. Emit a separate successful-run heartbeat, because no finding can mean green clusters or failed collection. Do not use the nonexistent `Get-VsanClusterHealth` command.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-ops (sourcetype=\"vmware:powercli:vsan_health\" OR sourcetype=\"vmware:powercli:vsan_health:heartbeat\") earliest=-30m\n| stats count latest(_time) as latest_poll dc(cluster_id) as cluster_count values(overall_status) as statuses by sourcetype\n| convert ctime(latest_poll)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_vsan_non_green_health` after substituting only an approved local index name. Poll every 10 minutes and run the saved search every 10 minutes with enough offset for script completion. Reject observations older than 20 minutes and alert source health independently.\n\n```spl\nindex=vmware-ops sourcetype=\"vmware:powercli:vsan_health\" earliest=-30m\n| eval cluster_id=trim(cluster_id), cluster_name=trim(cluster_name), overall_status=lower(trim(overall_status)), health_score=tonumber(health_score), test_epoch=strptime(time_of_test,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(cluster_id)>0 AND len(cluster_name)>0 AND len(overall_status)>0 AND isnotnull(test_epoch)\n| stats latest(overall_status) as overall_status latest(overall_description) as overall_description latest(health_score) as health_score latest(test_epoch) as test_epoch latest(_time) as collection_time latest(vcenter) as vcenter by cluster_id cluster_name\n| eval collection_age_minutes=round((now()-collection_time)/60,1)\n| where overall_status!=\"green\" AND collection_age_minutes<=20\n| eval use_case_id=\"UC-2.1.10\", finding=\"non_green_vsan_health\", local_severity=case(overall_status=\"red\",\"critical\",overall_status=\"yellow\",\"high\",true(),\"medium\")\n| convert ctime(test_epoch)\n| table cluster_name cluster_id vcenter overall_status overall_description health_score test_epoch collection_age_minutes finding local_severity use_case_id\n| sort 0 cluster_name\n```\n\nUnderstanding this SPL: The search validates explicit contract fields and ISO test time, retains the latest result per cluster, rejects stale collection, and returns every fresh status other than exact green. Severity is a local routing map; description and detailed component objects remain authoritative for diagnosis.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nCompare every governed cluster with PowerCLI `Test-VsanClusterHealth -UseCache` and vSphere Client **Cluster > Monitor > vSAN > Skyline Health**. Confirm status, score, description and TimeOfTest. Use synthetic JSON for red/yellow/green boundaries; do not create a production vSAN fault solely to test monitoring. Validate a stale-cache/source-failure case separately.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nValidate heartbeat and test age; open the exact non-green health result; identify affected component/test and scope; check resyncing objects, capacity/slack space, disk groups/devices, network partitions, HCL/driver/firmware and cluster configuration; protect workload and data according to VMware/vSAN runbooks; coordinate repair; rerun health; close only after current green or an explicit risk-owned finite disposition.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf the script calls `Get-VsanClusterHealth`, correct it to documented `Test-VsanClusterHealth`. If module/cmdlet is unavailable, verify PowerCLI installation/version and vCenter connection. If health is null, inspect permissions and result serialization. If cached data is old, distinguish health-service/cache problems from Splunk delay. If vCenter shows detail but Splunk only summary, add separately reviewed component serialization rather than inventing disk_group fields.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
+  "grandmaExplanation": "We show when the storage system shared by a cluster says one or more of its health checks needs attention, then direct the team to the detailed check.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
