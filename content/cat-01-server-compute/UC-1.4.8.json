@@ -5,74 +5,87 @@
   "criticality": "medium",
   "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Configuration",
+    "Fault",
+    "Performance"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'PCIe Link Width and Speed Degradation' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_pcie_link_width_and_speed_degradation` (UC-1.4.8), SOC dashboard panel \"Linux — PCIe Link Width and Speed Degradation\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
-  "compliance": [
-    {
-      "regulation": "pci-dss",
-      "version": "v4.0",
-      "clause": "6.3.3",
-      "mode": "satisfies",
-      "assurance": "contributing",
-      "assurance_rationale": "Auto-generated from legacy markdown 'Regulations' line during the per-UC migration. Requires SME review to fill in version, clause, mode, and assurance for PCI DSS.",
-      "controlObjective": "Evidence that PCI DSS unknown is enforced — Splunk UC-1.4.8: PCIe Link Width and Speed Degradation.",
-      "evidenceArtifact": "Saved search 'UC-1.4.8' running on lspci -vv, /sys/bus/pci/devices/*/current_link_width_speed, archived to the restricted audit_evidence index (default 7-year retention). Auto-drafted — SME review required.",
-      "obligationRef": "pci-dss@v4.0#6.3.3",
-      "requires_sme_review": true,
-      "provenance": "maintainer"
-    }
-  ],
+  "exclusions": "Compares the newest normalized PCIe negotiated link width and transfer rate with an owner-approved per-host/per-device baseline. It does not assume nonexistent standard sysfs files named `current_link_width_speed`, compare textual `x16`/`16 GT/s` lexically, equate capability (`LnkCap`) with an always-valid operational baseline, diagnose slot/riser/cable/device/firmware/power-management cause, measure throughput or errors, or prove workload impact. Devices without PCI Express capability, transient low-power behavior, hot-plug lifecycle, BDF renumbering, absent baseline, missing device, and stale collection require separate handling. Daily polling, exact baseline, severity, retention, and exceptions are local policy. The unrelated PCI DSS mapping is removed; this operational rule makes no compliance claim and changes no PCI configuration.",
+  "evidence": "After deployment, retain host/chassis/slot/device/BDF inventory and stable device keys; kernel/pciutils/firmware versions; collector/parser/input revision; representative `lspci -D -vv` capability/status blocks and optional kernel `pcie_link_event` records; governed `pcie_link_baseline.csv` with numeric expected lanes/GT/s and provenance; expected-device, baseline, poll, BDF-remap, parse, and staleness health; version-controlled `linux_pcie_link_below_baseline` search, ACL, schedule, dispatches, and rows; vendor UI/diagnostic and workload disposition; and dated width-only, speed-only, both, equal, missing-baseline/device, renumber, low-power, hot-plug, duplicate, recovery, and routing tests. This documentation-only review read no PCI configuration and validated no production link.",
   "controlTest": {
-    "positiveScenario": "UC-1.4.8 positive (PCIe, Link, Width, and, Speed): ingest synthetic events into `index=hardware` sourcetype='pcie_link' where `count` grouped by `host`, `slot` satisfies detection threshold for 'PCIe Link Width and Speed Degradation'. Validate lookup `pcie_expected`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.4.8 negative (Speed Degradation): ingest benign `hardware` / `pcie_link` events where `host`, `slot` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 14 confirms zero alert rows for 'PCIe Link Width and Speed Degradation'."
+    "positiveScenario": "In a fixed completed-day window, ingest the newest sample for `host=server01`, `device_key=gpu-slot3`, `bdf=0000:65:00.0`, `current_width_lanes=8`, and `current_speed_gtps=16`. Provide an active baseline with `expected_width_lanes=16` and `expected_speed_gtps=16`. Expect one high `width_below_baseline` row preserving numeric values, BDF, slot, device IDs, capability, baseline approval, event/index time, and `use_case=UC-1.4.8`. Repeat 16 lanes at 8 GT/s and expect `speed_below_baseline`.",
+    "negativeScenario": "Expect zero rows when current width/speed equal or exceed the active numeric baseline; for an old degraded sample followed by a newer baseline-matching sample; wrong type; blank identity; nonnumeric/zero values; inactive baseline; or events outside the window. Separately prove missing expected device, missing/duplicate baseline, BDF remap, no PCIe capability, parser failure, and stale/no poll create coverage findings and are never counted as healthy."
   },
-  "dataSources": "`lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Custom scripted input (`lspci -vv` and sysfs on Linux; equivalent vendor PCI inventory on other OSes if used) — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=hardware sourcetype=pcie_link host=*\n| stats latest(link_width) as width, latest(link_speed) as speed by host, slot\n| lookup pcie_expected host slot OUTPUT expected_width expected_speed\n| where width < expected_width OR speed < expected_speed\n| table host slot width speed expected_width expected_speed",
-  "description": "Alerts on UC-1.4.8 — PCIe, Link, Width, and, Speed — using `index=hardware` sourcetype `pcie_link`, grouped by `host`, `slot`. Outputs `count` each `the scheduled window`; alert when configured threshold. Filter chain includes lookup `pcie_expected`. Purpose-built for 'PCIe Link Width and Speed Degradation' in Linux workflows.",
-  "value": "Alerting on PCIe, Link, Width, and, Speed through UC-1.4.8 reduces capacity incidents, patch regressions, and service outages by surfacing `activity` early.",
-  "implementation": "Parse `lspci -vv` for \"LnkCap\" and \"LnkSta\" or read sysfs. Run daily. Maintain lookup of expected width/speed per host and slot. Alert on downgrade.",
-  "visualization": "Table (host, slot, current vs. expected), Bar chart of link widths.",
+  "dataSources": "A host-local read-only collector runs a qualified `lspci -D -vv` from pciutils and parses each PCI Express capability's `LnkCap` maximum and `LnkSta` current negotiated speed/width into `index=hardware sourcetype=linux:pcie_link` fields: `host`, owner-assigned stable `device_key`, domain-qualified `bdf`, physical `slot`, vendor/device/subsystem IDs, driver, numeric `current_width_lanes`, `current_speed_gtps`, `capable_width_lanes`, `capable_speed_gtps`, `_time`, and `_indextime`. Optional kernel `pcie_link_event` tracepoint data records changes separately. Standard PCI sysfs documents configuration/resource files, not the previous invented combined path.",
+  "app": "A deployment-owned Splunk app containing PCIe inventory discovery, a read-only pciutils parser, scripted input, stable-device and baseline lookups, source/coverage health, saved search, fixtures, dashboard, exact maintenance lookup, and runbook. Universal Forwarder can run the collector but is not Splunkbase app 617; no generic add-on supplies this normalized contract.",
+  "spl": "index=hardware sourcetype=linux:pcie_link earliest=-2d@d latest=-1d@d\n| eval endpoint=lower(trim(host)), device_key=lower(trim(device_key)), width=tonumber(current_width_lanes), speed=tonumber(current_speed_gtps)\n| where len(endpoint)>0 AND len(device_key)>0 AND width>0 AND speed>0\n| sort 0 endpoint device_key -_time -_indextime\n| dedup endpoint device_key\n| lookup pcie_link_baseline.csv endpoint device_key OUTPUT expected_width_lanes expected_speed_gtps baseline_owner baseline_approval baseline_effective baseline_expires\n| eval expected_width=tonumber(expected_width_lanes), expected_speed=tonumber(expected_speed_gtps), baseline_active=if(isnotnull(expected_width) AND isnotnull(expected_speed) AND baseline_effective<=now() AND (isnull(baseline_expires) OR baseline_expires>now()),1,0)\n| where baseline_active=1 AND (width<expected_width OR speed<expected_speed)\n| eval condition=case(width<expected_width AND speed<expected_speed,\"width_and_speed_below_baseline\",width<expected_width,\"width_below_baseline\",speed<expected_speed,\"speed_below_baseline\"), severity=\"high\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-1.4.8\"\n| table event_time endpoint device_key bdf slot device_name vendor_id device_id driver condition severity width expected_width speed expected_speed capable_width_lanes capable_speed_gtps baseline_owner baseline_approval _indextime use_case\n| sort 0 endpoint device_key",
+  "description": "Reports a PCI Express device whose newest numeric negotiated lane width or transfer rate is below an active, owner-approved baseline for that exact host and stable device identity. It preserves current, expected, and capable values without relying on an invented sysfs path or lexical comparison.",
+  "value": "A downgraded PCIe link can constrain GPUs, NVMe devices, NICs, or storage adapters while the device remains online. A device-specific baseline and physical mapping help teams verify whether the change is expected, correlate errors and workload impact, and target slot/riser/device/vendor investigation without assuming that maximum capability is always the required operating state.",
+  "implementation": "Inventory every governed PCIe endpoint with stable device and physical slot mapping, qualify pciutils `LnkCap`/`LnkSta` parsing and numeric unit conversion, and collect daily. Govern expected width/rate per exact host/device from validated design and vendor evidence, monitor missing/remapped/stale data, save the completed-day mismatch search, and test downgrade/recovery plus low-power and hot-plug cases.",
+  "visualization": "Lead with expected-device/baseline coverage, BDF remaps, poll freshness, and parser health. Show a table of host, stable device, BDF/slot, device/driver, current/expected/capable lanes and GT/s, condition, sample age, owner, and workload; add separate width and speed timelines plus kernel link-change/AER context. Never compare string labels or show a missing device as compliant.",
   "cimModels": [],
   "dataModelAcceleration": "Not applicable — no CIM data model for PCIe link width.",
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Linux kernel documentation: Accessing PCI device resources through sysfs",
+      "url": "https://docs.kernel.org/PCI/sysfs-pci.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "PCI DSS Document Library",
-      "url": "https://www.pcisecuritystandards.org/document_library/",
-      "retrieved": "2026-04-25"
+      "title": "Linux kernel documentation: PCIe link event tracepoint",
+      "url": "https://docs.kernel.org/trace/events-pci.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "pciutils lspci manual page",
+      "url": "https://man7.org/linux/man-pages/man8/lspci.8.html",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk Enterprise Search Reference: lookup",
+      "url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/lookup",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise: Get data through scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-started/get-data-in/10.4/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'PCIe Link Width and Speed Degradation'. Correlate with apt/yum logs in the same `pcie_link` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `pcie_link`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A below-baseline observation is real for the sampled link, but the baseline or interpretation can be wrong.\n\n1. **Approved slot/device redesign** — hardware replacement, riser change, bifurcation, lane sharing, or platform topology can intentionally change width/rate. Update inventory and baseline through the exact hardware change, not an open-ended suppression.\n\n2. **Power-management or inactive-link behavior** — some platforms/devices can report a lower state when idle or during transitions. Qualify behavior under load and vendor guidance before setting the baseline; correlate power state and repeat samples.\n\n3. **BDF renumbering** — firmware, BIOS, hot-plug, or topology changes can move a device address. Join by governed stable device/slot identity and surface the remap; never transfer a baseline on BDF alone.\n\n4. **Capability versus required operation** — `LnkCap` is a capability, not proof that the topology should negotiate it. Use design/vendor-approved expected values, especially where upstream port sharing limits the endpoint.\n\n5. **Hot-plug, reset, firmware update, or maintenance** — transient retraining can produce a genuine temporary lower link. Require exact device/change, bounded interval, completion/recovery proof, and expiry.\n\n6. **Parser/unit drift** — pciutils output or locale/format changes can misparse `x8` or `16GT/s`. Retain raw blocks and fixture-test numeric extraction; malformed values are source-health findings.\n\nSuppress notification only by exact host/device/condition with owner, reason, change, start, and finite expiry. Never suppress missing expected device, baseline gaps/duplicates, remaps, parse errors, stale polls, or collection health.",
+  "mitreAttack": [
+    "N/A (operational PCI Express link monitoring)"
+  ],
+  "detectionType": "numeric PCIe negotiated link below approved device baseline",
+  "requiredFields": [
+    "host",
+    "device_key",
+    "bdf",
+    "current_width_lanes",
+    "current_speed_gtps",
+    "_time",
+    "_indextime"
+  ],
   "equipment": [
-    "hardware_bmc"
+    "linux"
   ],
   "equipmentModels": [
-    "hardware_bmc_generic"
+    "linux_generic"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`lspci -vv` and sysfs on Linux; vendor inventory scripts elsewhere).\n• Ensure the following data sources are available: `lspci -vv`, `/sys/bus/pci/devices/*/current_link_width_speed` (Linux typical).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux, parse `lspci -vv` for LnkCap/LnkSta and/or read sysfs for current link width and speed per device. On non-Linux hosts, use the vendor’s PCI reporting tool to emit the same `link_width` and `link_speed` fields. Populate the `pcie_expected` lookup with per-host, per-slot expectations.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust as needed):\n\n```spl\nindex=hardware sourcetype=pcie_link host=*\n| stats latest(link_width) as width, latest(link_speed) as speed by host, slot\n| lookup pcie_expected host slot OUTPUT expected_width expected_speed\n| where width < expected_width OR speed < expected_speed\n| table host slot width speed expected_width expected_speed\n```\n\nUnderstanding this SPL\n\n**PCIe Link Width and Speed Degradation** — PCIe links that downgrade (e.g. x16→x8) indicate slot or cable issues. Affects GPU, NVMe, and HBA performance and can precede full failure.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=pcie_link`.\n• `stats` and `lookup` compare current width/speed to `expected_*` from policy.\n\n\nStep 3 — Validate\nOn a test host, compare `lspci -vv` to indexed fields. For full details, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`lspci -vv` and sysfs on Linux; equivalent vendor PCI inventory on other OSes if used) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=pcie_link into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, slot`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We compare how wide and fast the plug-in cards’ data lanes are running to what they should be, so a loose slot or bad cable does not quietly slow down a whole server.",
+  "hardware": "Linux hosts with PCI Express endpoints visible through pciutils, including GPUs, NVMe controllers, NICs, and storage adapters. Stable device/serial and physical slot/riser mapping, upstream topology, bifurcation/lane-sharing design, driver/firmware, workload owner, and approved expected link are required; BDF alone is not durable identity.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against Linux PCI sysfs and PCIe link-event documentation, pciutils lspci guidance, and Splunk lookup/scripted-input documentation; platform topology, PCIe capability/status parsing, units, stable identity, inventory, baselines, SPL, fixtures, source health, alerts, dashboard, workload correlation, remediation, versions, and production behavior were specified but not executed or Linux/pciutils/device-vendor/Splunk/platform/SME signed",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Daily small inventory samples and a lookup comparison; ingest scales with PCIe functions, while optional tracepoint collection can add event volume.",
+    "tstats_eligible": false,
+    "storage_class": "warm",
+    "estimated_by": "ai-advisory"
+  },
+  "detailedImplementation": "## Prerequisites and corrected source contract\n\nAssign Linux/platform, hardware/device, performance/workload, Splunk data/content, and change owners. Inventory each governed endpoint's stable device key/serial, domain-qualified BDF, physical slot/riser, vendor/device/subsystem IDs, driver/firmware, upstream port/topology, lane sharing/bifurcation, designed width/rate, workload, maintenance, and escalation. Collector access is read-only PCI configuration visibility; it needs no `setpci`, driver unbind, retrain, reset, hot-remove, or firmware privilege. This review executed no host and asserts no product/version compatibility.\n\nLinux's documented generic PCI sysfs interface includes config/resource/vendor/device files but does not define the old `/sys/bus/pci/devices/*/current_link_width_speed` path. Use qualified pciutils output or an explicitly supported platform interface. `LnkCap` describes maximum link capability; `LnkSta` describes current negotiated speed/width. Capability is not automatically the approved operational baseline because topology, bifurcation, and upstream sharing can constrain a link.\n\n## Step 1 — Collect numeric link inventory\n\nRun `lspci -D -vv` under a reviewed locale-stable wrapper and parse each PCI Express capability. Emit stable device key, BDF, physical slot when available, IDs/name, driver, LnkCap width and GT/s, LnkSta width and GT/s, data-link-active/training/downtrain indicators when present, collector/parser/pciutils/kernel version, `_time`, and `_indextime`. Normalize `x16` to integer 16 and `16GT/s` to numeric 16.0; retain raw lines or a restricted raw reference for parser audit. Do not convert GT/s to payload bandwidth without generation/encoding/lane-overhead math and workload context.\n\nOptionally collect the kernel `pcie_link_event` tracepoint on supported kernels for retrain/enumeration/bandwidth/hot-plug changes, but keep event data separate from daily current-state inventory. Trace collection has privilege and volume implications and is not required by this sidecar search.\n\nMaintain expected devices and physical mapping. Health reports missing/unexpected device, BDF remap, no PCIe capability, duplicate stable key, blank/nonnumeric/zero width/rate, impossible current greater than qualified capability, parser-format change, stale/future poll, command/permission failure, duplicate route, and index delay. A missing endpoint is not a healthy link.\n\n## Step 2 — Govern expected link baselines\n\nStore unique `endpoint,device_key` rows with numeric expected lanes/GT/s, physical/topology rationale, device/platform vendor evidence, workload/design requirement, baseline owner/approver, change, effective time, optional expiry, and revision. Do not copy LnkCap automatically. Qualify expected values under the deployed slot, riser, CPU/socket, bifurcation, firmware, and upstream topology. Reject wildcard, duplicate active, zero/nonnumeric, impossible, expired, and unapproved baselines.\n\n## Step 3 — Save and understand the SPL\n\nSave sidecar SPL as `linux_pcie_link_below_baseline` and run daily over the previous completed day after measured delay. It validates positive numeric current values, keeps the newest sample per stable host/device, joins an active exact baseline, and reports current width or rate below expected. Equality is healthy for this contract; current above expected should trigger a separate baseline-quality review, not degradation. Missing baseline/device remains coverage health. The high severity is local policy; actual urgency depends on workload and redundancy.\n\n## Step 4 — Validate topology, parsing, and recovery\n\nReplay fixed lspci blocks for multiple generations/rates, x1/x4/x8/x16, width-only and speed-only downtrain, equal/capability values, multiple PCIe capabilities, no capability, unknown speed, domain-qualified BDF, localization/format change, blank slot, duplicate function, SR-IOV PF/VF, BDF renumber, late/duplicate samples, and dispatch boundaries. Assert numeric comparison, stable identity, and coverage behavior.\n\nIn a disposable platform, compare indexed LnkCap/LnkSta to `lspci -D -vv`, firmware/BMC or device-vendor UI/CLI, physical topology, and workload/device telemetry. Exercise only vendor-supported retrain, slot/device, power, or link tests under change control, out-of-band access, workload protection, stop conditions, and rollback. Never degrade a production link solely to test. Keep draft until owners approve parser fixtures, inventory/baselines, source health, timing, dashboard, alert routes, and response.\n\n## Step 5 — Operationalize and troubleshoot\n\nAlert text states `PCIe negotiated link below approved baseline`, with host/device/BDF/slot, current/expected/capable lanes and GT/s, parser/sample age, topology/workload, maintenance, source health, and owner. Responders verify current raw LnkSta and stable mapping; inspect kernel PCIe/AER and driver/device logs; compare upstream and endpoint link; review power state, firmware/BIOS, bifurcation, riser/cable/slot, recent hardware work, and workload impact; then follow platform/device vendor diagnostics. Never retrain/reset/unbind/remove a production device, modify ASPM, move a card, or reboot automatically.\n\n- **No LnkSta:** verify the function has PCIe capability, access permissions, pciutils output, parser, and whether a bridge/upstream function is the relevant link.\n- **False lexical result:** ensure both values are normalized numeric lanes and GT/s; never compare `x8` and `x16` strings.\n- **BDF changed:** reconcile IDs/serial/physical slot and topology; update mapping through change control, not by copying the old BDF key.\n- **Current below capability but baseline passes:** this can be intentional topology. Review baseline provenance rather than forcing capability.\n- **Idle-only downtrain:** correlate device power state and supported vendor behavior, then set sampling/load validation policy; do not broad-suppress all low states.\n- **Workload slow but link matches:** investigate utilization, errors, NUMA, driver, device, storage/network, and application evidence; link width/rate alone is not throughput.\n\nClose after current link and source health are verified, stable physical identity/topology is reconciled, workload impact and cause are documented, repair/change or accepted design is approved, baseline remains valid, and an observation interval shows expected negotiation.",
+  "grandmaExplanation": "We check how many data lanes each plug-in device actually negotiated and how fast they run, then compare those numbers with the approved design for that exact slot. We do not assume every device must always run at its maximum advertised capability.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
