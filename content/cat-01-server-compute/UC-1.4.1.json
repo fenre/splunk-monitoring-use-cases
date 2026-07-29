@@ -1,66 +1,83 @@
 {
   "$schema": "../../schemas/uc.schema.json",
   "id": "1.4.1",
-  "title": "Hardware Sensor Monitoring",
+  "title": "Latest IPMI Sensor Reading Is Critical or Non-Recoverable",
   "criticality": "high",
-  "difficulty": "intermediate",
+  "difficulty": "advanced",
   "monitoringType": [
-    "Fault"
+    "Fault",
+    "Physical",
+    "Data Quality"
   ],
   "splunkPillar": "Observability",
-  "exclusions": "Covers the detection logic documented for 'Hardware Sensor Monitoring' only. Does not supplant cross-domain SIEM playbooks for unrelated domains or regulatory attestation. Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
-  "evidence": "Saved search `linux_hardware_sensor_monitoring` (UC-1.4.1), SOC dashboard panel \"Linux — Hardware Sensor Monitoring\", and weekly export to `index=audit_evidence` sourcetype=csv:linux_controls.",
+  "exclusions": "Reports the latest valid normalized IPMI threshold sensor reading per exact BMC and sensor when upstream severity is `critical` or `non_recoverable`. IPMI/ipmitool also defines non-critical, OK, unspecified, discrete-state, unavailable, and invalid readings; those require separate policy. The index, source type, normalizer, 10-minute range, expected BMC inventory, and exceptions are local. A threshold state does not predict a failure with certainty, replace vendor diagnostics, cover RAID logical-drive state, or authorize BMC changes. No SNMP field equivalence is assumed.",
+  "evidence": "Retain `ipmi_latest_critical_sensor_reading`, five-minute schedule/results/alerts; exact BMC/sensor inventory and exception revisions; protected raw `ipmitool -c sensor` or vendor Redfish/IPMI response; normalized reading/status/thresholds, collector version and exit result; source-health fixtures; BMC UI/SEL comparison; incident/action; and restored readings. This documentation-only review polled no BMC, changed no threshold, and produced no runtime evidence.",
   "controlTest": {
-    "positiveScenario": "UC-1.4.1 positive (Hardware, Sensor, Monitoring): ingest synthetic events into `index=hardware` sourcetype='ipmi:sensor' where `count` grouped by `entity` satisfies detection threshold for 'Hardware Sensor Monitoring'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-1.4.1 negative (Sensor Monitoring): ingest benign `hardware` / `ipmi:sensor` events where `entity` stays below detection threshold, or exclude the test entity via `linux_capacity_exceptions.csv`. Variant 12 confirms zero alert rows for 'Hardware Sensor Monitoring'."
+    "positiveScenario": "At 2026-07-29T12:10:00Z ingest valid samples for `bmc-01`: `CPU1 Temp` at 12:01 severity `critical`, then 12:06 `non_recoverable`, reading 96 degrees C; and `Fan1` at 12:06 severity `critical`, 0 RPM. Expect exactly two rows, with CPU latest non-recoverable and Fan critical.",
+    "negativeScenario": "Require zero rows for latest severity `ok` or `non_critical`; an older critical followed by OK; `reading_valid=false`; severity `unspecified`; unknown BMC/sensor absent from enabled inventory; events outside ten minutes; or an exact future BMC/sensor exception with reason, ticket, and owner. Expiry equal to dispatch does not suppress. Missing polls belong to source health."
   },
-  "dataSources": "IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Custom scripted input (`ipmitool`), SNMP — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=hardware sourcetype=ipmi:sensor\n| eval is_critical = if(status=\"Critical\" OR status=\"Non-Recoverable\", 1, 0)\n| where is_critical=1\n| table _time host sensor_name reading unit status\n| sort -_time",
-  "description": "Identifies UC-1.4.1 — Hardware, Sensor, Monitoring — using `index=hardware` sourcetype `ipmi:sensor`, grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold. Primary focus: Sensor Monitoring. Purpose-built for 'Hardware Sensor Monitoring' in Linux workflows.",
-  "value": "Tracking `activity` via UC-1.4.1 on `ipmi:sensor` feeds improves response to 'Hardware Sensor Monitoring' and reduces capacity incidents, patch regressions, and service outages.",
-  "implementation": "Install `ipmitool` on hosts. Create scripted input: `ipmitool sensor list` (interval=300). Parse sensor name, reading, unit, and status. Alert on Critical/Non-Recoverable status. Alternatively, use SNMP to poll vendor-specific MIBs (Dell iDRAC, HP iLO, Lenovo IMM).",
-  "visualization": "Table of critical sensors, Gauge per sensor type, Heatmap across hosts.",
+  "dataSources": "Read-only IPMI sensor data from a supported BMC, commonly collected with upstream `ipmitool` `sensor`/`sdr` and CSV mode, or a separately qualified vendor API. A versioned normalizer emits `_time`, `bmc_id`, `sensor_id`, `sensor_name`, `sensor_type`, numeric `reading`, `unit`, `reading_valid`, `raw_status`, canonical `severity` (`ok|non_critical|critical|non_recoverable|unspecified`), lower/upper thresholds, collector host/version, BMC firmware, command exit, and collection ID. `index=hardware_health`, `sourcetype=local:ipmi:sensor`, aliases, inventory, and exceptions are local conventions. Keep credentials out of command lines/events and use a secret manager.",
+  "app": "Upstream ipmitool and the BMC vendor interface supply sensor/SDR readings; a deployment-owned read-only collector and normalizer plus Splunk scripted input/search app provide credentials integration, schema, inventory, fixtures, exceptions, search, dashboard, and runbook. SNMP/Redfish are separate contracts and are not mixed by name alone.",
+  "spl": "index=hardware_health sourcetype=local:ipmi:sensor earliest=-10m@m latest=@m\n| eval bmc_id=lower(trim(bmc_id)), sensor_id=lower(trim(sensor_id)), severity=lower(trim(severity)), reading=tonumber(reading), reading_valid=if(reading_valid=true() OR lower(trim(reading_valid))=\"true\",1,0)\n| where len(bmc_id)>0 AND len(sensor_id)>0 AND reading_valid=1 AND in(severity,\"ok\",\"non_critical\",\"critical\",\"non_recoverable\",\"unspecified\")\n| stats latest(_time) AS reading_time latest(sensor_name) AS sensor_name latest(sensor_type) AS sensor_type latest(reading) AS reading latest(unit) AS unit latest(raw_status) AS raw_status latest(severity) AS severity latest(lower_critical) AS lower_critical latest(upper_critical) AS upper_critical latest(lower_non_recoverable) AS lower_non_recoverable latest(upper_non_recoverable) AS upper_non_recoverable latest(bmc_firmware) AS bmc_firmware latest(collector_version) AS collector_version latest(collection_id) AS collection_id by bmc_id sensor_id\n| lookup expected_ipmi_sensors.csv bmc_id sensor_id OUTPUT sensor_enabled asset_name owner criticality runbook\n| where lower(trim(sensor_enabled))=\"true\" AND in(severity,\"critical\",\"non_recoverable\")\n| lookup ipmi_sensor_exceptions.csv bmc_id sensor_id OUTPUT exception_until_epoch exception_reason ticket exception_owner\n| eval exception_until_epoch=tonumber(exception_until_epoch), exception_active=if(exception_until_epoch>now() AND len(exception_reason)>0 AND len(ticket)>0 AND len(exception_owner)>0,1,0)\n| where exception_active=0\n| eval observation_window_minutes=10, use_case_id=\"UC-1.4.1\"\n| table bmc_id asset_name sensor_id sensor_name sensor_type reading unit raw_status severity lower_critical upper_critical lower_non_recoverable upper_non_recoverable reading_time bmc_firmware collector_version collection_id owner criticality runbook observation_window_minutes use_case_id\n| sort 0 severity bmc_id sensor_name",
+  "description": "Runs every five minutes over a closed ten-minute range, retains the latest valid event per lowercased `(bmc_id,sensor_id)`, joins enabled expected sensors, and emits one row when canonical severity is critical or non-recoverable. Rows retain reading/unit, raw status, configured thresholds, BMC/collector versions, asset ownership, and collection identity.",
+  "value": "BMC temperature, voltage, fan, power, and other threshold alarms can expose physical conditions before or during service disruption. Using the controller's threshold state and exact sensor identity gives hardware teams actionable evidence without inventing universal numeric limits or treating an old alarm as current.",
+  "implementation": "Poll supported BMCs read-only every five minutes with credentials from protected storage; capture machine-oriented ipmitool/vendor output, exit status, firmware, and collection ID; normalize documented threshold states and validity without changing thresholds. Govern exact expected sensors and source freshness. Run the latest-state SPL, route critical/non-recoverable rows by asset owner, correlate BMC UI and SEL, and use vendor hardware procedures for diagnosis and recovery.",
+  "visualization": "Show poll success/age, BMC coverage, invalid/unspecified readings, firmware/collector versions, unknown sensors, and inventory drift first. Then display current critical/non-recoverable sensors by asset/type/severity, reading versus BMC thresholds, and state history. Drill down to protected raw response, BMC UI, SEL, chassis/location, maintenance, exception, incident, and recovery. Avoid generic gauges across incompatible units.",
   "cimModels": [],
-  "dataModelAcceleration": "Not applicable — no CIM data model for raw IPMI sensor events.",
+  "dataModelAcceleration": "Not applicable; no CIM dataset is asserted for IPMI threshold validity, SDR identity, directional thresholds, or BMC firmware.",
+  "requiredFields": [
+    "_time",
+    "bmc_id",
+    "sensor_id",
+    "sensor_name",
+    "sensor_type",
+    "reading",
+    "unit",
+    "reading_valid",
+    "raw_status",
+    "severity",
+    "collector_version",
+    "collection_id"
+  ],
   "references": [
     {
-      "title": "Splunk Lantern — use case library",
-      "url": "https://lantern.splunk.com/",
-      "retrieved": "2026-04-25"
+      "title": "Upstream ipmitool manual: sensor/SDR and CSV output",
+      "url": "https://github.com/ipmitool/ipmitool/blob/master/doc/ipmitool.1.in",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
+      "title": "Upstream ipmitool source: threshold status mapping",
+      "url": "https://github.com/ipmitool/ipmitool/blob/master/lib/ipmi_sdr.c",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "IPMI v2.0 specification: sensor thresholds, event status, and readings",
+      "url": "https://www.intel.com/content/dam/www/public/us/en/documents/specification-updates/ipmi-intelligent-platform-mgt-interface-spec-2nd-gen-v2-0-spec-update.pdf",
+      "retrieved": "2026-07-29"
     },
     {
-      "title": "Splunk savedsearches.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
-      "retrieved": "2026-04-25"
+      "title": "IPMI Platform Event Trap severity definitions",
+      "url": "https://www.intel.com/content/dam/www/public/us/en/documents/product-briefs/platform-event-trap.pdf",
+      "retrieved": "2026-07-29"
+    },
+    {
+      "title": "Splunk Enterprise 10.2: Scripted inputs",
+      "url": "https://help.splunk.com/en/splunk-enterprise/get-data-in/get-started-with-getting-data-in/10.2/get-other-kinds-of-data-in/get-data-from-apis-and-other-remote-data-interfaces-through-scripted-inputs",
+      "retrieved": "2026-07-29"
     }
   ],
-  "knownFalsePositives": "1. **Patch Tuesday on `hardware`** — Package managers spike `host` metrics for 'Hardware Sensor Monitoring'. Correlate with apt/yum logs in the same `ipmi:sensor` window.\n\n2. **Nightly backup I/O on `host`** — Predictable `count` burst on fixed cron; compare `_time` minute before paging.\n\n3. **Synthetic probe on `ipmi:sensor`** — Nagios/Zabbix polls `host` and mimics sustained load without crossing capacity threshold.\n\n4. **New host onboarding** — `host` baseline unstable first 48h after UF deploy.\n\n**Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `host`, `valid_until`.",
+  "knownFalsePositives": "A row is a current BMC threshold state, but the cause can be controlled or instrumentation-related.\n\n1. **Approved thermal/power maintenance test** — Fan, PSU, or environmental tests may assert alarms. Confirm chassis/sensor, change, operator, start/end, rollback, and live physical safety; apply only an exact finite exception.\n\n2. **Sensor/BMC firmware fault** — Stuck, impossible, unavailable, or oscillating readings can reflect hardware instrumentation or firmware. Compare redundant sensors, BMC UI/SEL, firmware advisory, physical measurement, and vendor diagnostics.\n\n3. **Transient state already recovered** — The search intentionally uses latest valid state; indexing delay can surface a row before the next OK sample arrives. Verify event/index time and current BMC state, preserve evidence, and close after a new OK event.\n\n4. **Normalizer mapping defect** — Directional `lcr/ucr/lnr/unr`, compact `cr/nr`, CSV quoting, locale, or discrete sensors can be mapped incorrectly. Compare protected raw output, SDR, parser version, and golden fixture; repair the parser rather than suppressing hardware.\n\n**Suppression mechanism:** the SPL uses `lookup ipmi_sensor_exceptions.csv` on exact `bmc_id,sensor_id` and requires future expiry, reason, ticket, and owner. Expired, wildcard, rack-wide, collector-outage, unspecified, or missing-sensor exceptions do not suppress.",
   "equipment": [
-    "hardware_bmc",
-    "snmp"
+    "hardware_bmc"
   ],
   "equipmentModels": [
-    "hardware_bmc_idrac",
-    "hardware_bmc_ipmi",
-    "snmp_generic"
+    "hardware_bmc_ipmi"
   ],
-  "splunkVersions": [
-    "9.2+",
-    "Cloud"
-  ],
-  "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Custom scripted input (`ipmitool`), SNMP.\n• Ensure the following data sources are available: IPMI sensor data via scripted input, `sourcetype=ipmi:sensor` (custom).\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nOn Linux or a supported out-of-band jump host, install `ipmitool` and use a scripted input: `ipmitool sensor list` (interval=300). Parse sensor name, reading, unit, and status. Alert on Critical/Non-Recoverable status. Alternatively, use SNMP to poll vendor-specific MIBs (Dell iDRAC, HPE iLO, Lenovo XCC).\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=hardware sourcetype=ipmi:sensor\n| eval is_critical = if(status=\"Critical\" OR status=\"Non-Recoverable\", 1, 0)\n| where is_critical=1\n| table _time host sensor_name reading unit status\n| sort -_time\n```\n\nUnderstanding this SPL\n\n**Hardware Sensor Monitoring** — Temperature, voltage, and fan speed anomalies predict impending hardware failures before they cause unplanned downtime.\n\n**Pipeline walkthrough**\n\n• Scopes the data: `index=hardware`, `sourcetype=ipmi:sensor`.\n• `eval` flags **is_critical** from vendor or parsed status text.\n• `table` and `sort` list recent critical readings for triage.\n\n\nStep 3 — Validate\nOn a test server, run `ipmitool sensor` and compare field values to the indexed event. For SNMP-only paths, validate against the vendor’s management UI.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Table of critical sensors, Gauge per sensor type, Heatmap across hosts.\n\nFor scripted input examples, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Custom scripted input (`ipmitool`), SNMP — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ipmi:sensor into hardware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`is_critical`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
-  "grandmaExplanation": "We watch the server’s out-of-band temperature, power, and fan readings so we can catch overheating or a failing part before the machine suddenly stops working.",
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
+  "reviewer": "documentation-only Cursor AI editorial review against IPMI v2 sensor/threshold specifications, upstream ipmitool manual/source status mappings, and Splunk scripted-input documentation; BMC/ipmitool/firmware/forwarder/Splunk versions, credentials, fields, normalizer, inventory, SPL, fixtures, freshness, exceptions, alerting, hardware response, and production behavior were specified but not executed or BMC/vendor/IPMI/Splunk/facilities/hardware/SME signed",
+  "detailedImplementation": "## Polling and normalization\n\nAssign hardware/BMC, facilities, datacenter, server, network, secrets, Splunk, and change owners. Qualify each BMC firmware and ipmitool/vendor API combination; this review ran none. Use a read-only BMC account and protected secret injection—never `-P password`, raw credentials, or session tokens in process listings/events. Restrict management-network access and collector execution.\n\nPoll every five minutes with upstream ipmitool CSV or a vendor machine API. Retain command exit, duration, target, BMC firmware, collector version, and unique collection ID. Normalize SDR sensor identity separately from display name. Upstream ipmitool maps threshold bits to OK, non-critical, critical, and non-recoverable, with directional lower/upper variants in extended output; preserve `raw_status` and canonicalize only tested forms. Mark unavailable/invalid readings false and do not fabricate zero.\n\nCreate `expected_ipmi_sensors.csv` with exact BMC/sensor ID, enabled state, asset/chassis, location, type, owner, criticality, runbook, and lifecycle. Reconcile after firmware/hardware replacement because SDR IDs/names can change. Monitor expected BMC and sensor freshness, poll failures/timeouts/authentication, invalid/unspecified ratio, unknown sensors, duplicate IDs, firmware/parser drift, and event/index delay.\n\n## Search and controls\n\nSave `ipmi_latest_critical_sensor_reading`, schedule every five minutes over the closed ten minutes, and trigger by BMC/sensor/severity. `latest` prevents an old critical state from surviving a newer OK sample. The expected lookup prevents unknown/unowned sensors from paging through this rule; report them in inventory quality. Do not set BMC thresholds from Splunk.\n\nRun fixed controls plus compact and directional statuses, case/whitespace, valid false, missing/nonnumeric reading, old critical/new OK, multiple sensors/BMCs, unknown inventory, exception expiry, poll delay, BMC reboot, SDR change, firmware upgrade, and collector failover. Compare indexed state and thresholds with BMC UI, raw ipmitool `sensor get`/`sdr`, SEL, and a safe vendor test mechanism. Never overheat or stop production cooling to create evidence. Keep draft until owners accept versions, identity, parser, freshness, alerting, and response.\n\n## Triage and safety\n\nVerify collector/BMC reachability and newest state; identify exact chassis/FRU/sensor; compare redundant sensors, configured thresholds/hysteresis, BMC UI and SEL; check ambient/rack cooling, airflow, fan/PSU/power, cabling, workload, recent maintenance, and vendor diagnostics. Route facility-wide patterns to facilities and one-chassis patterns to hardware.\n\nDo not automatically change sensor thresholds, clear SEL, reset BMC, alter fan policy, power-cycle, shut down, or dispatch staff from a search action. Those can hide evidence or disrupt service and require vendor/runbook authority. If immediate physical safety policy requires shutdown, implement it in the validated platform control—not this catalogue SPL. Close after the physical/firmware issue is handled, a new valid OK reading is collected, and service health is verified.",
+  "grandmaExplanation": "We read each server controller’s own temperature, fan, voltage, and power alarms. A current critical reading goes to the hardware team, but Splunk never changes the controller or its safety thresholds.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
