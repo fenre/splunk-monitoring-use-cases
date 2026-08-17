@@ -17,15 +17,6 @@
   },
   "dataSources": "Microsoft Sysinternals Sysmon Process Create Event ID 1 from all governed Windows WinRM targets, collected from `Microsoft-Windows-Sysmon/Operational` in XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) into the deployment-local `wineventlog` index. Primary contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`; required fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `UtcTime`, `ProcessGuid`, `ProcessId`, `Image`, `CommandLine`, `User`, `IntegrityLevel`, `Hashes`, `ParentProcessGuid`, `ParentProcessId`, `ParentImage`, and `ParentCommandLine`. Sysmon must be separately installed and configured to retain these Event ID 1 records.",
   "app": "Microsoft Sysinternals Sysmon supplies endpoint process telemetry. Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, collects and parses the XML channel. Splunk Security Content documents the parent/child analytic. No premium app is required; Enterprise Security is optional for Endpoint data-model acceleration and findings.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=1 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), process_name=lower(replace(trim(Image),\"^.*\\\\\\\\\",\"\")), parent_process_name=lower(replace(trim(ParentImage),\"^.*\\\\\\\\\",\"\"))\n| where event_code=1 AND parent_process_name=\"wsmprovhost.exe\" AND in(process_name,\"cmd.exe\",\"powershell.exe\",\"pwsh.exe\",\"schtasks.exe\",\"certutil.exe\",\"whoami.exe\",\"bitsadmin.exe\",\"rundll32.exe\",\"regsvr32.exe\",\"mshta.exe\") AND len(dest)>0 AND len(ProcessGuid)>0\n| eval use_case=\"UC-1.2.72\", detection_reason=\"selected child process created directly by wsmprovhost.exe\"\n| table _time UtcTime dest EventRecordID User process_name Image CommandLine ProcessGuid ProcessId IntegrityLevel Hashes parent_process_name ParentImage ParentCommandLine ParentProcessGuid ParentProcessId detection_reason source sourcetype use_case\n| sort 0 -_time dest ProcessGuid",
   "description": "Reports one row for each closed-window Sysmon Process Create event where `wsmprovhost.exe`, Microsoft's PowerShell remoting host, directly creates a selected shell or administrative child process. It preserves process identity, command line, user, parent chain, hashes, and destination for review; it does not identify the network source by itself.",
   "value": "WinRM is legitimate remote administration infrastructure and also a lateral-movement path. Surfacing high-risk child processes at the destination helps defenders rapidly compare execution with approved automation, preserve a strong process chain, and correlate the session to authentication and network evidence before taking disruptive action. This shortens lateral-movement triage by retaining the WinRM parent-child relationship and endpoint evidence.",
@@ -37,28 +28,6 @@
   "cimSpl": "| tstats `summariesonly` count min(_time) as firstTime max(_time) as lastTime from datamodel=Endpoint.Processes where Processes.parent_process_name=\"wsmprovhost.exe\" Processes.process_name IN (\"cmd.exe\",\"powershell.exe\",\"pwsh.exe\",\"schtasks.exe\",\"certutil.exe\",\"whoami.exe\",\"bitsadmin.exe\",\"rundll32.exe\",\"regsvr32.exe\",\"mshta.exe\") by Processes.dest Processes.user Processes.process_name Processes.process Processes.process_guid Processes.process_id Processes.parent_process_name Processes.parent_process Processes.parent_process_guid Processes.parent_process_id\n| rename Processes.* as *",
   "schema": "Microsoft Sysmon Event ID 1 native XML fields; optional Splunk CIM Endpoint.Processes normalization",
   "dataModelAcceleration": "Optional only after Sysmon Event ID 1 is correctly mapped to `Endpoint.Processes` and parity tests prove destination, user, full child/parent command lines, GUIDs, IDs, and event counts. The CIM search reproduces the parent/child predicate but may omit raw hashes, record identity, or source metadata; retain raw-event drilldown and source health.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "UtcTime",
-    "ProcessGuid",
-    "ProcessId",
-    "Image",
-    "CommandLine",
-    "User",
-    "IntegrityLevel",
-    "Hashes",
-    "ParentProcessGuid",
-    "ParentProcessId",
-    "ParentImage",
-    "ParentCommandLine"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: Sysmon overview and process telemetry",
@@ -103,26 +72,46 @@
   ],
   "knownFalsePositives": "A result is a real selected child process under `wsmprovhost.exe`; authorization and intent remain open questions.\n\n1. **Configuration management and patching** — DSC, SCCM/MECM, Ansible, Azure automation, or custom orchestration can use WinRM to run PowerShell, cmd, certificate, or task commands. Verify controller identity, job ID, target set, service account, signed script/module, exact command, change window, and management logs.\n\n2. **Administrator interactive remoting** — Help desk, server, identity, or application teams may use `Enter-PSSession` or `Invoke-Command`. Match the destination event to same-time authentication/network evidence, privileged-access record, operator, ticket, source workstation/jump host, and command purpose. Do not allowlist all administrators.\n\n3. **Vulnerability or compliance scanner** — Credentialed assessment can invoke `whoami`, PowerShell, certutil, or command shells. Confirm scanner console job, approved scope, credential, UTC window, and owner; a scanner IP or service account can be compromised.\n\n4. **Deployment/bootstrap script** — A new server build or disaster-recovery run may remotely create tasks or transfer content. Compare image/build pipeline, immutable job logs, hashes, target inventory, and expected one-time window.\n\n5. **Authorized purple-team exercise** — T1021.006 testing should alert. Preserve it as control evidence and bind any notification suppression to engagement, exact destination/user/process, and expiry.\n\n**Safe notification suppression:** apply lookup `windows_winrm_child_exceptions.csv` after the base result using exact `dest,User,parent_process_name,process_name` plus an approved command-line or signed-job predicate, owner, approver, ticket, numeric start, and exclusive expiry. Reject wildcard destinations, user-only or parent-only allowlists, and permanent management-network exceptions. Never suppress missing Sysmon coverage, absent parent fields, unsigned/unexpected payloads, or command drift.\n\nImplement suppression through a governed post-result lookup table; retain the unsuppressed base result and require the exact keys and finite expiry described above.",
   "mitreAttack": [
-    "T1021.006",
-    "TA0008"
+    "T1021.006"
   ],
   "detectionType": "TTP",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "UtcTime",
+    "ProcessGuid",
+    "ProcessId",
+    "Image",
+    "CommandLine",
+    "User",
+    "IntegrityLevel",
+    "Hashes",
+    "ParentProcessGuid",
+    "ParentProcessId",
+    "ParentImage",
+    "ParentCommandLine"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Governed Windows endpoints with WinRM/PowerShell remoting and Microsoft Sysmon Process Create telemetry. Hosts without Sysmon, endpoints where Event ID 1 or parent fields are filtered, IIS-hosted fan-in remoting, SSH remoting, and non-Windows WSMan implementations require separate controls.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon and PowerShell WinRM-remoting documentation, Splunk Security Content and CIM, the Splunk Add-on for Microsoft Windows, and MITRE ATT&CK; Sysmon configuration, parent attribution, SPL, fixtures, source/session correlation, coverage, alerting, exceptions, scale, and response were specified but not executed or Windows/PowerShell/Splunk/SOC-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon and PowerShell WinRM-remoting documentation, Splunk Security Content and CIM, the Splunk Add-on for Microsoft Windows, and MITRE ATT&CK; Sysmon configuration, parent attribution, SPL, fixtures, source/session correlation, coverage, alerting, exceptions, scale, and response were specified but not executed or Windows/PowerShell/Splunk/SOC-SME signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -139,6 +128,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact detection contract\n\nAssign Windows/WinRM, Sysmon, Splunk collection, SOC detection, incident-response, privileged-access, and exception owners. Inventory Windows endpoints where WinRM is enabled, listeners and ports, PowerShell session configurations, constrained endpoints, management controllers, jump hosts, service accounts, and approved remote jobs. This detector requires Microsoft Sysmon Process Create Event ID 1; WinRM Operational events alone do not provide the complete child process chain used here.\n\nMicrosoft documents that WSMan-based PowerShell fan-out uses WinRM and starts `Wsmprovhost.exe` on the remote computer to host PowerShell. Microsoft Sysmon Event ID 1 records a new process with full child and parent context and a ProcessGuid. Splunk Security Content uses the same `wsmprovhost.exe` parent relationship for its WinRM analytic. The relationship is strong execution context but not network attribution: the child event on the destination normally does not identify the initiating source address.\n\nThe explicit list emphasizes shells and administrative binaries represented in Splunk detection content. It is not a universal malicious-process list. `conhost.exe` and other routine children are excluded to keep this alert reviewable, while separate hunting should inventory every child under wsmprovhost. Any listed child can be legitimate. Do not call the row an authentication failure or connection event.\n\n## Step 1 — Deploy Sysmon and collect the Operational channel\n\nInstall a current, signed Microsoft Sysinternals Sysmon release through governed endpoint management. Version-control and sign the XML configuration. Ensure ProcessCreate is enabled and that include/exclude rules do not remove `ParentImage` ending `\\wsmprovhost.exe` or the listed child images. Capture command line, hashes required by policy, parent image/command line, user, integrity, process GUIDs, and IDs. Test configuration updates in nonproduction and retain Sysmon service/configuration change evidence.\n\nCollect the channel as XML in a deployment app:\n\n```ini\n[WinEventLog://Microsoft-Windows-Sysmon/Operational]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\nThe index is local. With current Splunk Add-on behavior, XML records use `sourcetype=XmlWinEventLog` and channel-specific `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Confirm actual case and field extraction. Do not configure a fictional `WinEventLog:Microsoft-Windows-Sysmon/Operational` source type.\n\nVerify representative raw fields:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=1 earliest=-24h\n| search ParentImage=\"*\\\\wsmprovhost.exe\"\n| table _time Computer EventRecordID UtcTime ProcessGuid ProcessId Image CommandLine User IntegrityLevel Hashes ParentProcessGuid ParentProcessId ParentImage ParentCommandLine\n```\n\nCompare fixed EventRecordIDs with Event Viewer **Applications and Services Logs > Microsoft > Windows > Sysmon > Operational** on two endpoints. Maintain expected-host freshness, Sysmon service state/config hash, and event-volume health. A silent host cannot be classified healthy.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL as `windows_winrm_suspicious_child_process`, schedule every five minutes, and trigger on each row. It evaluates a nonoverlapping bucket delayed five minutes. Measure p95/p99 indexing latency and shift the closed window if required.\n\nThe base fixes index, XML source type, exact Sysmon source, and Event ID. It derives leaf names from full Windows paths and requires exact `wsmprovhost.exe` parent plus one listed child. Lowercasing makes path/name comparisons case-insensitive while preserving original fields. Requiring destination and ProcessGuid prevents weak rows from paging; those rejected records belong in telemetry-health reporting.\n\nThe row preserves event time, Sysmon UTC time, record identity, user, child and parent paths/commands, GUIDs/IDs, integrity, and hashes. Use ProcessGuid rather than PID alone because Windows reuses process IDs. Do not join all 4624 records by destination/time and call the nearest one causal. Correlation should use bounded time, destination, logon/session identifiers where available, network source, account, and corroborating WinRM/PowerShell evidence, while retaining uncertainty.\n\nThe optional CIM search follows Splunk Security Content's Endpoint.Processes model. Enable acceleration only after mapping and raw-to-CIM parity tests. Keep the native search when command lines, hashes, event identity, or source-health fields are not preserved.\n\n## Step 3 — Validate boundaries and remote-administration context\n\nReplay the positive fixture in an isolated index with fixed bounds and assert exactly one result, normalized names, every child/parent identity field, hashes, source metadata, reason, and UC ID. Repeat with `cmd.exe`, `pwsh.exe`, and each listed binary. Test upper/lowercase image paths and paths containing spaces. Test empty CommandLine: the event may still pass because parent/child identity is the predicate, but telemetry health must flag loss if command lines are required by policy.\n\nRun every negative separately: wrong parent, excluded child, wrong event/source/type, empty ParentImage, empty destination/GUID, and newest excluded bucket. Test earliest/latest boundaries. Test duplicate direct/WEF collection by Computer/EventRecordID and repair topology. Test parent-field loss and Sysmon configuration filtering as source-health failures, not benign activity.\n\nIn a dedicated lab, use an approved PowerShell `Invoke-Command` or session from a named source to run harmless `whoami.exe` on a target. Confirm the destination creates `wsmprovhost.exe` and matching child Event ID 1, then correlate same-time WinRM, Security authentication, network, and optional 4104 evidence. Do not run remote commands in production to prove this control. Record exact versions, config hash, fixture, bounds, source/destination, job ID, result, and operator.\n\n## Step 4 — Operationalize triage, response, and evidence\n\nBuild the dashboard in `visualization`, with Sysmon coverage and stale hosts first. Keep user, command, hashes, and raw event access restricted. Add a separate hunting panel of all direct wsmprovhost children so process-list tuning is visible. Measure result rate by approved automation, destination, account, command family, and first-seen hash before enabling high-severity paging.\n\nTriage sequence: (1) verify raw Event ID 1, parent/child path, GUIDs, user, destination, time, hashes, and source health; (2) establish whether WinRM and the relevant endpoint/session configuration were enabled; (3) correlate 4624/4648, WinRM Operational, network 5985/5986, PowerShell 4104/transcription, EDR, and management-controller logs without overstating causality; (4) identify job/ticket/operator and validate command/script signature or hash; (5) inspect subsequent child, network, file, registry, service, and task activity; and (6) preserve evidence and contain through approved endpoint/identity/network procedures when unauthorized.\n\nDo not automatically terminate wsmprovhost or its child, disable WinRM, block a shared controller, isolate a critical server, or disable an account solely from this row. Severity depends on source confidence, account privilege, destination criticality, command, encoded/obfuscated content, unsigned payload, novelty, subsequent behavior, and approved-job evidence.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No Sysmon Event ID 1:** verify Sysmon service, effective XML configuration, ProcessCreate include/exclude logic, channel state, input, permissions, queues, and index routing.\n- **Parent fields are empty or `-`:** validate Sysmon version/config and raw event. Parent attribution is mandatory for this rule; route the host to telemetry health rather than treating it as negative.\n- **WinRM works but no listed child appears:** the command may be hosted in-process or spawn an unlisted child. Hunt all wsmprovhost children and correlate PowerShell/WinRM logs; this detector is intentionally incomplete.\n- **Results show routine management:** prove exact controller, job, account, command, target, and window, then use the bounded post-result exception. Never suppress all wsmprovhost activity.\n- **Source IP is unavailable:** expected in Sysmon process telemetry. Correlate destination authentication, WinRM, and network records; do not invent `src` from `host` or the parent process.\n- **Duplicate rows:** check direct plus WEF collection using Computer/EventRecordID and repair routing. Do not hide duplicates with arbitrary `dedup ProcessId`.\n- **CIM search is empty or differs:** verify Endpoint.Processes tagging, field aliases, acceleration range, summaries, and constraints; compare raw counts and dimensions before relying on tstats.\n- **Events arrive late:** measure `_indextime-_time`, WEF backlog, forwarder queues, endpoint time, and scheduler dispatch; move the entire nonoverlapping bucket and rerun boundary controls.",
   "grandmaExplanation": "We watch when Windows remote-management software starts powerful command tools on another machine. That may be normal administration, but it gives the team a clear place to check who asked for it and what happened next.",
+  "hardware": "Governed Windows endpoints with WinRM/PowerShell remoting and Microsoft Sysmon Process Create telemetry. Hosts without Sysmon, endpoints where Event ID 1 or parent fields are filtered, IIS-hosted fan-in remoting, SSH remoting, and non-Windows WSMan implementations require separate controls.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "walk"
 }

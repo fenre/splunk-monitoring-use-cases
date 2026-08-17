@@ -18,20 +18,6 @@
   },
   "dataSources": "Primary observed state is a reviewed VCF PowerCLI collector using `Get-VIMachineCertificate -EsxOnly` or explicit `-VMHost`, emitting one complete daily JSON snapshot to deployment-local `index=vmware`, `sourcetype=vmware:host_certificate`. Required fields are `vcenter`, `host`, `certificate_scope=machine_ssl`, `subject`, `issuer`, lowercase colon-free `thumbprint_sha256` derived from the returned X509 certificate, integer UTC `not_before_epoch`, `not_after_epoch`, `collector_epoch`, unique `snapshot_id`, and `collector_status=ok`. Required local policy is the governed `vmware_esxi_certificate_renewal_plan.csv` lookup with exactly one active row per `vcenter,esxi_host`: `old_thumbprint_sha256`, `renewal_due_epoch`, `required_not_after_epoch`, `ticket`, `owner`, and `plan_status`. Broadcom documents `Get-VIMachineCertificate` for ESXi machine SSL information and `ViMachineCertificateInfo` fields including certificate, issuer, validity dates, subject, serial number, entity, and UID. Splunk Add-on for VMware Metrics (Splunkbase 5089) and Splunk Add-on for VMware ESXi Logs (Splunkbase 5603) do not document this custom snapshot or plan contract.",
   "app": "A locally maintained `TA_vmware_certificate_inventory` containing the reviewed VCF PowerCLI scripted collector, JSON source-type configuration, governed renewal-plan lookup definition, and source-health searches. Run it on a supported hardened Splunk Enterprise collection tier or send reviewed JSON through a restricted HEC input; a Universal Forwarder is a Splunk product, not Splunkbase app 617. Splunk Add-on for VMware Metrics (Splunkbase 5089) and Splunk Add-on for VMware ESXi Logs (Splunkbase 5603) may coexist for other VMware telemetry but do not supply this certificate-renewal evidence.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089/",
-      "role": "optional"
-    },
-    {
-      "id": 5603,
-      "name": "Splunk Add-on for VMware ESXi Logs",
-      "url": "https://splunkbase.splunk.com/app/5603/",
-      "role": "optional"
-    }
-  ],
   "spl": "index=vmware sourcetype=\"vmware:host_certificate\" certificate_scope=\"machine_ssl\" collector_status=\"ok\" earliest=-36h\n| eval vcenter=lower(trim(vcenter)), esxi_host=lower(trim(host)), thumbprint_sha256=lower(replace(trim(thumbprint_sha256),\":\",\"\")), not_before_epoch=tonumber(not_before_epoch), not_after_epoch=tonumber(not_after_epoch), collector_epoch=tonumber(collector_epoch), snapshot_id=trim(snapshot_id)\n| where len(vcenter)>0 AND len(esxi_host)>0 AND len(snapshot_id)>0 AND len(thumbprint_sha256)=64 AND match(thumbprint_sha256,\"^[0-9a-f]{64}$\") AND isnotnull(not_before_epoch) AND isnotnull(not_after_epoch) AND not_after_epoch>not_before_epoch AND isnotnull(collector_epoch)\n| sort 0 vcenter esxi_host -collector_epoch -_indextime\n| dedup vcenter esxi_host\n| eval collector_age_seconds=now()-collector_epoch\n| where collector_age_seconds>=0 AND collector_age_seconds<=129600\n| lookup vmware_esxi_certificate_renewal_plan vcenter esxi_host OUTPUT old_thumbprint_sha256 renewal_due_epoch required_not_after_epoch ticket owner plan_status\n| eval old_thumbprint_sha256=lower(replace(trim(old_thumbprint_sha256),\":\",\"\")), renewal_due_epoch=tonumber(renewal_due_epoch), required_not_after_epoch=tonumber(required_not_after_epoch), ticket=trim(ticket), owner=trim(owner), plan_status=lower(trim(plan_status))\n| where plan_status=\"approved\" AND len(old_thumbprint_sha256)=64 AND match(old_thumbprint_sha256,\"^[0-9a-f]{64}$\") AND isnotnull(renewal_due_epoch) AND isnotnull(required_not_after_epoch) AND required_not_after_epoch>renewal_due_epoch AND len(ticket)>0 AND len(owner)>0\n| eval renewal_complete=if(thumbprint_sha256!=old_thumbprint_sha256 AND not_after_epoch>=required_not_after_epoch,1,0), renewal_state=case(thumbprint_sha256=old_thumbprint_sha256,\"certificate_not_replaced\",thumbprint_sha256!=old_thumbprint_sha256 AND not_after_epoch<required_not_after_epoch,\"replacement_validity_below_plan\",true(),\"complete\"), overdue_seconds=now()-renewal_due_epoch\n| where overdue_seconds>=0 AND renewal_complete=0\n| eval overdue_days=floor(overdue_seconds/86400), local_severity=case(overdue_days>=7,\"critical\",overdue_days>=1,\"high\",true(),\"warning\"), current_expires_utc=strftime(not_after_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), required_expires_utc=strftime(required_not_after_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), renewal_due_utc=strftime(renewal_due_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), collected_utc=strftime(collector_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-2.1.44\"\n| table vcenter esxi_host subject issuer thumbprint_sha256 old_thumbprint_sha256 current_expires_utc required_expires_utc renewal_due_utc overdue_days renewal_state local_severity ticket owner collected_utc collector_age_seconds snapshot_id use_case\n| sort 0 -overdue_days vcenter esxi_host",
   "description": "Reports the newest fresh ESXi machine-SSL certificate observation after an approved host renewal plan is due when the pre-renewal thumbprint remains installed or the replacement certificate expires before the plan's required minimum date. Each row preserves immutable certificate, snapshot, plan, owner, ticket, and overdue-state evidence.",
   "value": "Expiry alerts show that work is needed; renewal-completion monitoring shows whether approved work produced the expected observable outcome. It helps VMware, PKI, and lifecycle teams catch missed hosts and insufficient replacement validity before a closed change masks remaining upgrade risk or an expiring certificate interrupts management access.",
@@ -40,26 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built JSON ESXi machine-certificate snapshot plus governed renewal-plan lookup; no applicable CIM dataset",
   "dataModelAcceleration": "Not applicable. No documented CIM dataset preserves ESXi certificate scope, SHA-256 pre/post identity, X.509 validity bounds, complete-snapshot state, renewal due time, required replacement validity, owner, and ticket. Keep the raw event and versioned plan evidence, and monitor both sources independently.",
-  "requiredFields": [
-    "vcenter",
-    "host",
-    "certificate_scope",
-    "subject",
-    "issuer",
-    "thumbprint_sha256",
-    "not_before_epoch",
-    "not_after_epoch",
-    "collector_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime",
-    "old_thumbprint_sha256",
-    "renewal_due_epoch",
-    "required_not_after_epoch",
-    "ticket",
-    "owner",
-    "plan_status"
-  ],
   "references": [
     {
       "title": "Broadcom PowerCLI — Get-VIMachineCertificate",
@@ -102,21 +68,41 @@
     "N/A (operational ESXi certificate-renewal completion monitoring)"
   ],
   "detectionType": "Overdue approved renewal plan not satisfied by newest complete machine-certificate snapshot",
+  "requiredFields": [
+    "vcenter",
+    "host",
+    "certificate_scope",
+    "subject",
+    "issuer",
+    "thumbprint_sha256",
+    "not_before_epoch",
+    "not_after_epoch",
+    "collector_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime",
+    "old_thumbprint_sha256",
+    "renewal_due_epoch",
+    "required_not_after_epoch",
+    "ticket",
+    "owner",
+    "plan_status"
+  ],
   "equipment": [
+    "broadcom_symantec",
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
     "vmware_vcenter"
   ],
-  "hardware": "Governed ESXi hosts managed by vCenter. VMCA-managed and custom-CA-managed hosts require distinct renewal procedures and plan ownership.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "documentation-only editorial review against Broadcom PowerCLI certificate retrieval/structure documentation and Broadcom VMCA renewal, root-lifetime, alarm-threshold, and VCF pre-check guidance plus Splunk scripted-input/lookup documentation; collector, policy, SPL, controls, dashboard, evidence, and response specified but not executed; no production, VMware, PKI, Splunk, lifecycle-SME, or customer sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against Broadcom PowerCLI certificate retrieval/structure documentation and Broadcom VMCA renewal, root-lifetime, alarm-threshold, and VCF pre-check guidance plus Splunk scripted-input/lookup documentation; collector, policy, SPL, controls, dashboard, evidence, and response specified but not executed; no production, VMware, PKI, Splunk, lifecycle-SME, or customer sign-off",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -134,6 +120,21 @@
   },
   "detailedImplementation": "## Prerequisites and completion boundary\n\nDeploy UC-2.1.32's qualified certificate snapshot before this use case. Assign VMware platform, PKI, VCF lifecycle, Splunk, change-management, and application owners. Inventory every governed vCenter/ESXi host, certificate authority and mode, root expiry, workload domain, lifecycle schedule, maintenance constraints, service owner, and decommission state. Run supported VCF PowerCLI from a hardened collection tier with trusted HTTPS to vCenter. Use only privileges proven necessary to read ESXi machine certificates; the Splunk search role needs read, lookup, and scheduled-search access. Keep credentials in platform secret storage.\n\nBroadcom's `Get-VIMachineCertificate -EsxOnly` returns ESXi machine SSL information, and `ViMachineCertificateInfo` exposes the returned X509 certificate plus issuer, validity, subject, serial, entity, and UID. Machine SSL secures HTTP/API services using port 443. This rule uses the X509 SHA-256 thumbprint as pre/post identity and `NotValidAfter` as an epoch. It does not call `Set-VIMachineCertificate`, generate a CSR, or renew anything. Splunk Add-on for VMware Metrics (Splunkbase 5089) and ESXi Logs (Splunkbase 5603) remain outside this custom evidence path.\n\n## Step 1 — Produce complete snapshots and governed plans\n\nPackage the reviewed collector in `TA_vmware_certificate_inventory`. Emit one compact JSON object per governed host to `index=vmware`, `sourcetype=vmware:host_certificate`, using one `snapshot_id` for a complete daily enumeration. Set `collector_status=ok` only after all intended hosts were processed; route failures separately and never publish a partial snapshot as healthy. Configure the script in the app's `local/inputs.conf` or use reviewed HEC delivery. Normalize UTC dates to integer seconds and the X509 SHA-256 thumbprint to 64 lowercase hexadecimal characters without colons.\n\nCreate `vmware_esxi_certificate_renewal_plan.csv` as a version-controlled lookup with the exact fields in `dataSources`. Before the change, capture the currently observed thumbprint as `old_thumbprint_sha256`. Define `renewal_due_epoch` from the approved change commitment and `required_not_after_epoch` from explicit PKI/lifecycle policy; neither is a VMware universal default. Require ticket and owner. Permit only one `approved` row per vCenter/host. Publish through review, checksum the deployed artifact, retain revisions, and move rows to `completed` or `cancelled` only with evidence.\n\nBuild independent health searches for expected hosts absent from the latest complete snapshot, failed/partial polls, snapshots older than 36 hours, malformed hashes/epochs, multiple certificate rows, lookup schema errors, duplicate approved plans, plans with no fresh observation, and completed rows not archived. This detection cannot turn a missing observation into a compliance result.\n\n## Step 2 — Create and understand the comparison search\n\nSave the catalogue SPL as `vmware_esxi_certificate_renewal_completion` and run it after each daily snapshot. The base search restricts scope to successful machine-SSL observations from 36 hours, normalizes vCenter/host/thumbprint, validates certificate identity and validity bounds, sorts by collector and index time, and selects the newest host observation. It rejects future or stale collectors.\n\nThe exact-key `lookup` adds the approved plan. The next stage requires status `approved`, valid old thumbprint and epochs, required expiry later than due time, and nonblank ticket/owner. `renewal_complete` is true only when the current thumbprint differs from the planned old thumbprint and the current certificate expires at or after the required epoch. After due time, the search distinguishes `certificate_not_replaced` from `replacement_validity_below_plan`; warning/high/critical overdue bands are local routing policy. A host without an approved plan is intentionally absent and remains covered by UC-2.1.32.\n\nSchedule after measured ingestion delay, trigger when result count is greater than zero, and throttle by vCenter, host, and plan ticket. Do not throttle only by hostname or thumbprint: host names can collide and a later plan needs a new notification lifecycle. Never let alert action update plan status or execute certificate commands.\n\n## Step 3 — Validate boundaries and authoritative state\n\nUse fixed JSON and CSV fixtures. Test the old thumbprint after due time; a new thumbprint with expiry one second below required; a new thumbprint exactly at required; due time one second in the future, exactly now, and one second past; status values approved/completed/cancelled/blank; malformed and uppercase/colon thumbprints; milliseconds passed as seconds; not-after before not-before; stale/future collectors; duplicate delivery; conflicting older/newer observations; no plan; duplicate plans; and rerun determinism. Assert exact ticket, owner, state, overdue duration, snapshot, and UC ID.\n\nIn nonproduction, execute an owner-approved VMCA or custom-CA renewal. Beforeward, retain the old `Get-VIMachineCertificate -VMHost` result and plan revision. Afterward, compare the fresh cmdlet result and vSphere Client host Configure > System > Certificate page, then run a complete collector snapshot. Confirm the new thumbprint and expiry satisfy the plan. For VCF, rerun the applicable lifecycle pre-check when that is the stated objective. This documentation review defines the exercise but did not perform it.\n\nDo not force certificate expiry or replace a production certificate merely to test Splunk. Keep `status=draft` until VMware, PKI, lifecycle, Splunk, and change owners validate collection completeness, plan governance, fixtures, live comparison, alert routing, and closure criteria.\n\n## Step 4 — Operationalize renewal response and evidence\n\nBuild the overdue, owner, and health panels described in `visualization`. Restrict certificate and topology data to appropriate operations/PKI roles. Route an old-thumbprint result to the change owner first; route insufficient validity jointly to PKI and lifecycle owners. Escalation should consider current expiry, service criticality, lifecycle blocks, and overdue age rather than the local severity label alone.\n\nThe responder verifies snapshot freshness, vCenter/host identity, current thumbprint and expiry, exact plan revision, due/required epochs, ticket, owner, and state. Then inspect certificate-management mode. Broadcom documents `vpxd.certmgmt.mode=vmca` for the VMCA Renew action and notes that custom mode disables that button. It also states a renewed host certificate cannot outlive the VMCA root. Confirm root lifetime, CA workflow, maintenance impact, rollback, host connectivity, and lifecycle requirements before action. Do not copy a VMCA procedure into a custom-CA environment.\n\nClose the finding only when authoritative live state and a subsequent complete snapshot show a changed thumbprint with sufficient validity, related services and lifecycle checks meet the approved plan, the change record preserves old/new certificate evidence, and the plan is marked completed. A task success message alone is insufficient.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No snapshot:** verify governed inventory, vCenter reachability and trust, PowerCLI module, service-account rights, scripted input or HEC, index/RBAC, and separate collector errors.\n- **Null certificate fields:** inspect the deployed `ViMachineCertificateInfo`/X509 object and serializer; do not invent aliases from another PowerCLI version.\n- **Plan does not match:** normalize exact vCenter and FQDN keys, then inspect case, duplicate host names, host moves, stale CSV deployment, and lookup permissions.\n- **Extreme expiry or due dates:** prove UTC Unix seconds rather than milliseconds or locale strings with fixed boundary fixtures.\n- **VMCA Renew unavailable:** verify `vpxd.certmgmt.mode`; custom mode uses its approved CA process. Do not change mode merely to clear an alert.\n- **New certificate has short validity:** compare issuing-root expiry and `vpxd.certmgmt.certs.daysValid`, then obtain PKI/lifecycle disposition. Do not lower the plan silently.\n- **Renewal completed but old thumbprint remains:** compare live PowerCLI/UI state with collector time, snapshot completeness, routing delay, cache, and the exact connected vCenter.\n- **Multiple approved plans:** stop compliance routing, identify the authoritative ticket, correct the lookup through review, and preserve both revisions.\n- **Plan complete but finding remains:** verify deployed lookup checksum/status, search-head replication, lookup key, and saved-search knowledge-object permissions.\n\nRetention, renewal lead time, required validity, and escalation are local policy. This page asserts no unattended renewal, universal threshold, or compliance certification.",
   "grandmaExplanation": "We check that a promised certificate renewal actually changed each host's secure identity card and gave it enough new lifetime. If the due date passes without that evidence, the team can fix the missed or incomplete work.",
+  "hardware": "Governed ESXi hosts managed by vCenter. VMCA-managed and custom-CA-managed hosts require distinct renewal procedures and plan ownership.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089/",
+      "role": "optional"
+    },
+    {
+      "id": 5603,
+      "name": "Splunk Add-on for VMware ESXi Logs",
+      "url": "https://splunkbase.splunk.com/app/5603/",
+      "role": "optional"
+    }
+  ],
   "wave": "crawl"
 }

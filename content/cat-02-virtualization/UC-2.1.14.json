@@ -18,14 +18,6 @@
   },
   "dataSources": "Primary source is vCenter HostSystem inventory collected through Splunk Add-on for VMware Metrics with `hostinv` into the deployment-selected inventory index (documented default `index=vmware-inv`), `source=VMInv:HostSystem`, and `sourcetype=vmware_inframon:inv:hostsystem`. Required documented fields are host name (`name` or `summary.config.name`), `summary.config.product.version`, `summary.config.product.build`, vCenter, cluster identity/topology, and collection/index time. The governed local lookup `vsphere_desired_image.csv` is populated from approved vSphere Lifecycle Manager image state and includes exact version/build, image ID, approval, effective dates and owner. Native vLCM compliance/export is the authoritative comparison point.",
   "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter host inventory through Data Collection Nodes. A local platform-governance app owns desired-image ingestion, temporal lookup, inventory/compliance health, saved search, tests, dashboard, routing and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-inv source=\"VMInv:HostSystem\" sourcetype=\"vmware_inframon:inv:hostsystem\" earliest=-2h@h latest=-1h@h\n| eval esxi_host=lower(coalesce(nullif(trim(name),\"\"),nullif(trim('summary.config.name'),\"\"))), vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), cluster_name=coalesce(nullif(trim(cluster_name),\"\"),nullif(trim(cluster),\"\")), actual_version=trim('summary.config.product.version'), actual_build=trim('summary.config.product.build')\n| where len(esxi_host)>0 AND len(vcenter)>0 AND len(cluster_name)>0 AND len(actual_version)>0 AND len(actual_build)>0\n| stats latest(_time) AS inventory_time latest(_indextime) AS inventory_index_time latest(actual_version) AS actual_version latest(actual_build) AS actual_build BY vcenter cluster_name esxi_host\n| lookup vsphere_desired_image.csv vcenter cluster_name OUTPUT desired_version desired_build desired_image_id approved_by valid_from valid_until\n| where len(desired_version)>0 AND len(desired_build)>0 AND inventory_time>=strptime(valid_from,\"%Y-%m-%dT%H:%M:%SZ\") AND inventory_time<strptime(valid_until,\"%Y-%m-%dT%H:%M:%SZ\") AND (actual_version!=desired_version OR actual_build!=desired_build)\n| eval drift_reason=\"inventory_build_mismatch\", use_case=\"UC-2.1.14\"\n| table inventory_time vcenter cluster_name esxi_host actual_version actual_build desired_version desired_build desired_image_id approved_by valid_from valid_until drift_reason inventory_index_time use_case\n| sort 0 vcenter cluster_name esxi_host",
   "description": "Reports the latest complete ESXi host-inventory row when its exact product version or build differs from the effective approved cluster-image record. Each result is one host-level inventory mismatch requiring reconciliation with native Lifecycle Manager compliance.",
   "value": "A controlled version/build comparison quickly exposes hosts upgraded outside the approved cluster image, lagging a desired build, or attached to the wrong policy. Keeping native image-compliance evidence separate prevents a simple inventory match from being overstated as firmware, driver or security-patch assurance.",
@@ -36,16 +28,6 @@
   ],
   "schema": "vCenter HostSystem inventory plus governed effective-dated vLCM desired-image lookup",
   "dataModelAcceleration": "No CIM dataset documents ESXi product version/build or vLCM desired-image identity. Keep raw inventory and authoritative lookup/native-compliance reconciliation as the primary contract.",
-  "requiredFields": [
-    "name",
-    "summary.config.name",
-    "summary.config.product.version",
-    "summary.config.product.build",
-    "vcenter",
-    "cluster_name",
-    "_time",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Splunk: VMware Metrics inventory fields reference",
@@ -88,6 +70,16 @@
     "N/A (ESXi lifecycle inventory governance; no adversary behavior asserted)"
   ],
   "detectionType": "Exact host inventory versus approved image mismatch",
+  "requiredFields": [
+    "name",
+    "summary.config.name",
+    "summary.config.product.version",
+    "summary.config.product.build",
+    "vcenter",
+    "cluster_name",
+    "_time",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
@@ -96,7 +88,6 @@
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "hardware": "ESXi hosts managed by vCenter. vLCM image applicability depends on vSphere release, cluster/standalone lifecycle mode, hardware compatibility, vendor add-on, firmware and drivers.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware lifecycle/Splunk SME validation pending",
@@ -109,6 +100,15 @@
   },
   "detailedImplementation": "## Prerequisites and authority\n\nAssign vSphere lifecycle, hardware, security, Splunk and change owners. Inventory every vCenter, cluster and standalone host with lifecycle mode, desired-image owner, maintenance policy and stable host identity. Broadcom describes vLCM Images as declarative desired state including ESXi version, vendor add-on, firmware and drivers. This UC intentionally compares only product version/build inventory; native vLCM compliance remains authoritative for the complete image.\n\n## Step 1 — Collect HostSystem inventory\n\nDeploy supported Splunk Add-on for VMware Metrics and configure vCenter API access over TCP 443. Include `hostinv` in the collection pool. Verify the documented default `index=vmware-inv`, `source=VMInv:HostSystem`, and `sourcetype=vmware_inframon:inv:hostsystem`, or replace only the local index in the SPL. Compare sampled records with vSphere Client Host > Summary. Prove `summary.config.product.version`, `summary.config.product.build`, host name, vCenter, cluster mapping, `_time` and `_indextime`.\n\nCreate inventory health for expected hosts, last successful hostinv job, records_written, stale and future times, missing product fields, duplicate host identities, cluster-parent drift, vCenter auth/API errors and DCN backlog. A missing host is not compliant.\n\n## Step 2 — Govern desired-image data\n\nExport the approved cluster image from vSphere Lifecycle Manager through an owner-approved API or controlled process. Build `vsphere_desired_image.csv` with lowercase vCenter, exact cluster name, desired version/build, immutable image or policy ID, approved_by, source revision, `valid_from`, `valid_until`, owner and extraction time. Require one active row per in-scope cluster and reject overlaps, gaps, malformed UTC timestamps and unapproved edits. Record whether each scope is image-managed, baseline-managed or unsupported.\n\nSeparately retain native vLCM compliance and last check time. Do not synthesize full compliance from the lookup. A host whose build matches can still have component, add-on, firmware or driver drift.\n\n## Step 3 — Schedule and validate the search\n\nSave the sidecar SPL as `esxi_inventory_desired_image_drift` and run hourly after measured inventory delay. Its closed range is one hour, delayed by one hour. `stats latest` selects the newest complete inventory per vCenter/cluster/host. The temporal lookup must be active at that inventory time. Exact inequality on version or build yields one `inventory_build_mismatch` row.\n\nTest exact match; version-only and build-only mismatch; host ahead and behind; no, expired and overlapping lookup; host rename/move; blank fields; stale inventory; duplicate events; late/future data; vCenter case; and same host name in two vCenters. Compare results with vSphere Client > Cluster > Updates > Image > Compliance using a freshly run native check. Assert that Splunk never labels a match fully compliant.\n\n## Step 4 — Respond safely\n\nDashboard the mismatch plus current native compliance, desired-image revision, maintenance, host connection/maintenance state and owner. Triage by verifying raw inventory and collection health, validating lookup scope/effective time, checking current Host Summary, then reviewing native image compliance and compatibility. Classify approved rollout, emergency exception, stale collection, lookup defect, lifecycle-mode mismatch or unexplained drift.\n\nNever trigger check compliance, remediation, maintenance mode, evacuation or reboot automatically. Lifecycle remediation can affect workload availability and hardware support. Use the approved vSphere change workflow with DRS/HA capacity, backups, hardware compatibility, rollback and service validation.\n\n## Step 5 — Troubleshoot\n\n- No host rows: verify `hostinv`, API credentials/443, source/index/sourcetype, DCN workers, forwarding and Splunk RBAC.\n- Product fields null: inspect raw inventory, add-on Inventory Reference and host/vCenter version; do not extract build from `fullName` unless separately tested.\n- Policy miss: verify exact vCenter/cluster normalization, lifecycle mode, export freshness and effective UTC range.\n- Mismatch after remediation: wait for fresh inventory, confirm host reboot and actual build, rerun native compliance, and inspect collection delay.\n- Match but native noncompliant: expected for richer image components; route native result and do not weaken it.\n- Native compliant but Splunk mismatch: align collection time, cluster/image revision, build formatting and host move history.\n\nKeep status draft until lifecycle and Splunk owners validate the policy pipeline, native comparison, fixtures and response. Documentation review is not patch assurance.",
   "grandmaExplanation": "We compare each virtualization host's recorded software version with the exact version its cluster owner approved. A difference starts a review, but the official lifecycle tool still decides whether the whole host image, including drivers and firmware, is compliant.",
+  "hardware": "ESXi hosts managed by vCenter. vLCM image applicability depends on vSphere release, cluster/standalone lifecycle mode, hardware compatibility, vendor add-on, firmware and drivers.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -19,15 +19,6 @@
   },
   "dataSources": "Microsoft `Microsoft-Windows-NTLM/Operational` XML audit Event IDs 8001 (outgoing client), 8002 (incoming server), 8003 (member-server/domain policy), and 8004 (domain-controller secure-channel view), generated only after the matching **Network security: Restrict NTLM** audit policies are configured. Collect with Splunk Add-on for Microsoft Windows (Splunkbase 742) to deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-NTLM/Operational`. Fields differ by ID; preserve `TargetName`, `UserName`, `DomainName`, `Workstation`/`WorkstationName`, `SecureChannelName`, `SChannelType`, `CallerPID`, `ProcessName`, `ClientLUID`, `ClientUserName`, `ClientDomainName`, `LogonType`, `InProc`, `MechanismOID`, `Computer`, and `EventRecordID` when present.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, plus Microsoft Group Policy management. No premium Splunk app is required; Enterprise Security is optional for workflow routing.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-NTLM/Operational\" EventCode IN (8001,8002,8003,8004) earliest=-24h@h latest=@h\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), event_scope=case(event_code=8001,\"outgoing_client\",event_code=8002,\"incoming_server\",event_code=8003,\"domain_member_server\",event_code=8004,\"domain_controller\"), dependency_user=trim(coalesce(UserName,ClientUserName)), dependency_domain=trim(coalesce(DomainName,ClientDomainName)), workstation=trim(coalesce(WorkstationName,Workstation)), target=trim(TargetName), secure_channel=trim(SecureChannelName), process_name=trim(ProcessName)\n| where in(event_code,8001,8002,8003,8004) AND len(endpoint)>0\n| stats count as event_count min(_time) as first_seen max(_time) as last_seen values(target) as targets values(workstation) as workstations values(secure_channel) as secure_channels values(process_name) as processes values(CallerPID) as caller_pids values(ClientLUID) as client_luids values(LogonType) as logon_types values(SChannelType) as secure_channel_types values(MechanismOID) as mechanism_oids values(EventRecordID) as event_record_ids by event_code event_scope endpoint dependency_domain dependency_user\n| eval first_seen=strftime(first_seen,\"%Y-%m-%dT%H:%M:%SZ\"), last_seen=strftime(last_seen,\"%Y-%m-%dT%H:%M:%SZ\"), finding=\"NTLM audit dependency; validate ownership and migration before enforcement\", use_case=\"UC-1.2.86\"\n| table event_code event_scope endpoint dependency_domain dependency_user targets workstations secure_channels processes caller_pids client_luids logon_types secure_channel_types mechanism_oids event_count first_seen last_seen event_record_ids finding use_case\n| sort 0 -event_count endpoint dependency_user",
   "description": "Reports a daily dependency inventory from NTLM audit Event IDs 8001-8004, grouped by event scope, logging endpoint, user/domain, targets, workstations, secure channels, and processes. Every row means Windows recorded traffic that a corresponding Restrict NTLM deny policy would affect; there is no alert threshold or claim that traffic was blocked.",
   "value": "Enforcing NTLM restrictions without an evidence-based dependency inventory can break file shares, remote management, applications, and appliances. Linking client process, member server, secure channel, user, and domain observations gives identity and application owners a defensible migration queue and lets them reduce legacy authentication without treating ordinary compatibility traffic as an attack.",
@@ -36,31 +27,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-NTLM/Operational Event IDs 8001-8004 native XML",
   "dataModelAcceleration": "No CIM substitute is claimed. Authentication events do not consistently preserve the 8001-8004 policy scope, target SPN, process identity, secure-channel server, workstation, and audit-versus-block meaning. A governed summary is acceptable only after per-event-schema and source-health parity tests.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "TargetName",
-    "UserName",
-    "DomainName",
-    "Workstation",
-    "WorkstationName",
-    "SecureChannelName",
-    "SChannelType",
-    "CallerPID",
-    "ProcessName",
-    "ClientLUID",
-    "ClientUserName",
-    "ClientDomainName",
-    "LogonType",
-    "InProc",
-    "MechanismOID"
-  ],
   "references": [
     {
       "title": "Microsoft: Restrict NTLM — Audit outgoing NTLM traffic",
@@ -104,21 +70,45 @@
   ],
   "detectionType": "Audit dependency inventory",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "TargetName",
+    "UserName",
+    "DomainName",
+    "Workstation",
+    "WorkstationName",
+    "SecureChannelName",
+    "SChannelType",
+    "CallerPID",
+    "ProcessName",
+    "ClientLUID",
+    "ClientUserName",
+    "ClientDomainName",
+    "LogonType",
+    "InProc",
+    "MechanismOID"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Domain-joined Windows clients, member servers, and domain controllers in scope for Restrict NTLM auditing. Non-Windows SMB/NAS/appliance systems may be dependency targets but need separate telemetry and remediation validation.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Restrict NTLM policy, NTLM audit-event examples, NTLMv1 audit guidance, and Splunk Windows add-on configuration; GPO deployment, event schemas, source coverage, SPL, controls, dependency ownership, enforcement pilots, and application compatibility were specified but not executed or Microsoft/identity/Splunk-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Restrict NTLM policy, NTLM audit-event examples, NTLMv1 audit guidance, and Splunk Windows add-on configuration; GPO deployment, event schemas, source coverage, SPL, controls, dependency ownership, enforcement pilots, and application compatibility were specified but not executed or Microsoft/identity/Splunk-SME signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -135,6 +125,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact audit contract\n\nAssign Active Directory security-policy, endpoint/server GPO, application, Splunk collection, and migration owners. Inventory clients, member servers, domain controllers, trusts, service accounts, appliances, and business services. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and restrict raw authentication data. Audit events are compatibility evidence: 8001 is the outgoing-client view, 8002 the incoming-server view, 8003 the member-server/domain-policy view, and 8004 the DC secure-channel view. They describe traffic that would be denied by related policy, not an actual block and not necessarily NTLMv1.\n\n## Step 1 — Stage policy and XML collection\n\nIn a pilot OU, configure **Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > Security Options**: `Network security: Restrict NTLM: Outgoing NTLM traffic to remote servers` to Audit all; `... Audit Incoming NTLM Traffic` to audit all applicable accounts; and on domain controllers `... Audit NTLM authentication in this domain` to Audit all. Record winning GPO and effective settings with `gpresult`. Do not enable deny modes in this collection step.\n\nCollect **Applications and Services Logs > Microsoft > Windows > NTLM > Operational** as XML from pilot clients, servers, and every DC. Configure an app-owned `inputs.conf` WinEventLog stanza, `index=wineventlog`, and XML rendering; verify the exact stanza with `splunk btool inputs list --debug`. Confirm `sourcetype=XmlWinEventLog`, exact source, event ID, Computer, EventRecordID, and the event-specific fields listed in `dataSources`. Operate separate coverage for each expected source; no rows can mean absent policy or collection.\n\n## Step 2 — Create and understand the inventory\n\nSave the primary SPL as `windows_ntlm_audit_dependency_inventory` and schedule it after midnight over the prior closed UTC day. It fixes one channel and four audit IDs, normalizes event ID and endpoint, maps each ID to its documented scope, and coalesces only equivalent identity/workstation names. It does not force fields that do not belong to an event schema. `stats` creates an owner-ready dependency row while preserving targets, secure channels, processes, identifiers, counts, and first/last times.\n\nDo not alert SOC as if every row were hostile. Feed a governed migration register keyed by scope, endpoint, target/secure channel, user/domain, and process. A generic Authentication data-model search cannot preserve audit-versus-block meaning or all dependency dimensions, so no `cimSpl` is supplied.\n\n## Step 3 — Validate before interpreting silence\n\nRun the exact positive and negative controls with fixed bounds. Validate each ID separately against Event Viewer XML because fields differ. On an isolated lab domain, access an approved resource in a way known to invoke NTLM, then correlate 8001 client, 8003 server, and 8004 DC observations where architecture produces them. Do not assume a one-to-one event chain: local accounts, kernel processing, caching, and policy scope change what appears.\n\nCompare source coverage to CMDB/GPO scope daily. Test policy absent, log disabled, WEF delay, duplicate direct/forwarded collection, null process, workstation null, and PID 4. Use 4624 `PackageName (NTLM only)` in a separate controlled query when the question is NTLMv1; 8001-8004 alone are not a version oracle. Keep draft status until owners accept coverage and controls.\n\n## Step 4 — Remediate and pilot enforcement\n\nFor each recurring dependency, identify business owner and protocol path; fix DNS aliases/SPNs, service identities, stored credentials, application libraries, device firmware, or unsupported products. Record last seen, test evidence, rollback, and expiry. Expand audit GPO in stages only after source-health parity.\n\nBefore deny policy, run an approved pilot with exact exceptions and application tests. Review actual 4001-4004 enforcement events separately. Never flip domain-wide deny, remove a secure channel, reset accounts, or block a host from this report alone. Falling counts are valid progress only while policy and source coverage remain constant.\n\n## Step 5 — Troubleshoot\n\n- **No events:** verify effective Restrict NTLM audit GPO, NTLM Operational log enabled, channel input, XML source/type, forwarder routing, and source freshness.\n- **8004 but no 8001:** collect the originating client; DC telemetry cannot always name the process.\n- **PID 4 or blank process:** kernel-mode processing is documented in Microsoft's examples; use client-side 8001, time, user, target, and secure channel rather than inventing an application.\n- **Null workstation:** pivot to secure channel and client-side logs; do not replace null with the DC hostname.\n- **Duplicate events:** compare Computer and EventRecordID and correct direct-plus-WEF overlap.\n- **Application breaks only under deny:** capture enforcement event, policy result, resource/SPN, application trace, and rollback; audit coverage was incomplete or the dependency was not exercised.\n- **Counts drop after GPO change:** prove the audit policy and source inventory did not shrink before declaring remediation.",
   "grandmaExplanation": "We make a list of computers and programs that still rely on an older Windows sign-in method. The list helps teams replace those dependencies carefully before they turn on blocking and accidentally break shared files or business apps.",
+  "hardware": "Domain-joined Windows clients, member servers, and domain controllers in scope for Restrict NTLM auditing. Non-Windows SMB/NAS/appliance systems may be dependency targets but need separate telemetry and remediation validation.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

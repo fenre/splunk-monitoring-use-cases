@@ -26,20 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built vSphere VM cryptographic/device snapshot joined to explicit policy",
   "dataModelAcceleration": "Not applicable. CIM does not preserve vSphere cryptographic key presence, VirtualTPM device type, per-disk encryption counts, key-provider context, complete snapshot identity, and expected policy.",
-  "requiredFields": [
-    "vcenter",
-    "vm_moid",
-    "vm_name",
-    "cluster",
-    "vmhome_encrypted",
-    "vtpm_count",
-    "supported_disk_count",
-    "encrypted_disk_count",
-    "snapshot_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: VirtualMachineConfigInfo",
@@ -72,21 +58,35 @@
     "N/A (vSphere cryptographic configuration drift; no adversary behavior asserted)"
   ],
   "detectionType": "Newest complete VM cryptographic/device state differs from explicit policy",
+  "requiredFields": [
+    "vcenter",
+    "vm_moid",
+    "vm_name",
+    "cluster",
+    "vmhome_encrypted",
+    "vtpm_count",
+    "supported_disk_count",
+    "encrypted_disk_count",
+    "snapshot_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "vSphere VMs on hosts and compatibility levels supporting the required encryption/vTPM design. Broadcom documents vTPM hardware version 14+ and a configured key provider; Linux vTPM support has additional release requirements.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware cryptography, key-management, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware cryptography, key-management, and Splunk validation pending",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -96,6 +96,7 @@
   },
   "detailedImplementation": "## Prerequisites and three-control model\n\nAssign data owner, VMware, key-management, backup/recovery, guest security, Splunk, and change owners. Inventory governed VMs by stable vCenter/moid, classification, required VM Home encryption, required disk encryption, required vTPM, supported disk types, compatibility, power/downtime constraints, key provider, backup support, and recovery owner. Approve each requirement independently.\n\nBroadcom documents `VirtualMachineConfigInfo.keyId` as VM cryptographic options and `VirtualTPM` as a TPM 2.0 virtual device. It also states that vTPM requires encryption/key provider and encrypts VM files but not virtual disks by default. Therefore this contract has three separate observations and never derives one from another.\n\n## Step 1 — Collect and prove cryptographic state\n\nImplement `TA_vmware_crypto_inventory` on a hardened VCF PowerCLI tier. For every governed VM read ConfigInfo key presence, enumerate hardware devices for the exact VirtualTPM type, enumerate supported virtual disks, and inspect each disk's cryptographic key/SPBM state using APIs/cmdlets validated for deployed releases. Count only mapped supported disk types. Record unsupported devices separately. Do not emit key material; a nonsecret provider/key identifier is optional and access-controlled.\n\nEmit one JSON VM row only after the full intended enumeration succeeds, sharing a snapshot ID and UTC epoch. Failed permissions, unsupported devices, partial disk enumeration, and key-provider queries go to health. Configure a daily scripted input and explicit JSON source type. Compare known encrypted/unencrypted lab VMs with vSphere Client VM > Configure > VM Hardware and VM Policies, plus `Get-SpbmEntityConfiguration` and raw ConfigInfo/device objects. Prove that vTPM presence and disk encryption remain distinct.\n\nBuild `vmware_vm_crypto_policy.csv` with exactly one effective row per vCenter/VM moid, three true/false requirements, policy/version/owner, and effective bounds. Preflight missing/conflicting keys, invalid booleans, orphan policy, and unsupported-device scope. Build independent key-provider health and backup/recovery evidence; configuration inventory alone cannot show key availability.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_vm_crypto_vtpm_policy_drift` and run after collection. It validates stable identities, booleans, nonnegative counts, and `encrypted<=supported`, selects the newest complete VM snapshot, and rejects snapshots older than 36 hours or from the future. It joins exact effective policy and builds one multivalue reason per missing required control. Requiring all disks with zero supported disks is intentionally a finding because the collector/policy cannot prove disk compliance.\n\nThe high label is local triage priority, not proof of exposed plaintext or a vendor event severity. Run separate health for missing VMs/policy, unsupported disks, collector errors, key-provider availability/backup, SPBM errors, count drift, and snapshot age. A zero-row primary result is not meaningful unless those controls are healthy.\n\n## Step 3 — Validate without exposing keys\n\nCreate fixtures for every combination of three policy flags and actual state; zero/one/multiple vTPMs; zero/multiple disks; partially encrypted disks; encrypted count greater than supported; invalid booleans/counts; missing policy; policy dates; older mismatch/newer match; stale/future/partial snapshots; duplicate route; and rerun. Assert exact reasons and no key material.\n\nIn a nonproduction vCenter with an approved test key provider, create disposable VMs representing unencrypted, VM-Home-only, vTPM, partially encrypted disks, and fully encrypted states. Observe clone, restore, migration, rekey, provider interruption, and policy compliance behavior without using production data. Capture required free capacity and power/downtime semantics. Keep draft until key backup/restore and monitoring are tested by owners.\n\n## Step 4 — Triage and controlled remediation\n\nAlert title should say `VM cryptographic state differs from approved policy`. Include exact reasons, counts, VM identity, policy, key-provider health, source freshness, owner, recent tasks, and restricted raw links. Verify live API/UI state and source health; confirm classification/policy; inspect SPBM and disk/device inventory; verify key-provider availability and backup; review clone/restore/migration/change history; and classify approved transition, stale policy, unsupported scope, collector defect, or unauthorized drift.\n\nNever automatically attach/remove a vTPM, encrypt/decrypt/rekey VM Home or disks, change storage policy, or rotate/remove a key provider. These actions can require free capacity, power changes, guest preparation, backup compatibility, keys, and recovery testing. Use approved Broadcom workflows and preserve rollback. Close only when policy remains approved, key recovery is viable, live and fresh snapshot state match, source/key health is green, and workload/recovery validation passes.\n\n## Step 5 — Troubleshoot\n\n- **All VMs look unencrypted:** verify ConfigInfo mapping, permissions, API version, collector boolean conversion, and known encrypted lab control.\n- **vTPM present but disks unencrypted:** this can be correct product behavior; compare policy rather than forcing equivalence.\n- **SPBM says compliant but key field differs:** align entity (VM Home versus each disk), refresh compliance, inspect policy capabilities, and verify actual key state.\n- **Unsupported disk count rises:** identify RDM/device types and either qualify mapping or mark scope; never silently omit them.\n- **Keys unavailable while state looks encrypted:** escalate separate key-provider availability/recovery control immediately; configuration is not decryptability.\n- **VM replaced or restored:** reconcile moid, backup-created identity, policy assignment, and classification before carrying suppression.\n- **Many mismatches after policy update:** validate policy revision/effective dates and staged rollout before bulk cryptographic action.\n\nRetention follows local policy. This use case documents state comparison and evidence boundaries; it does not certify cryptographic protection or guest compliance.",
   "grandmaExplanation": "We check whether each sensitive virtual machine has the protective locks its owners requested: one for the machine's settings, one for its virtual security chip, and one for every supported virtual disk. We keep those checks separate so one lock is never mistaken for all three.",
+  "hardware": "vSphere VMs on hosts and compatibility levels supporting the required encryption/vTPM design. Broadcom documents vTPM hardware version 14+ and a configured key provider; Linux vTPM support has additional release requirements.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

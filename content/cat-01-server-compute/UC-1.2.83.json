@@ -18,15 +18,6 @@
   },
   "dataSources": "Windows Security Event ID 4688 with Audit Process Creation and `Include command line in process creation events` enabled, collected as XML to `index=wineventlog` by Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; native fields are `Computer`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `NewProcessId`, `NewProcessName`, `ProcessId`, `ParentProcessName`, `CommandLine`, `TokenElevationType`, and `MandatoryLabel` when present.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), minimum version 10.0.1, collects and parses XML Windows Security events. Microsoft Windows advanced audit policy supplies Event ID 4688 and the separate command-line policy supplies CommandLine.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4688 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), process_path=trim(NewProcessName), process_name=lower(replace(process_path,\"^.*\\\\\\\\\",\"\")), command_line=trim(CommandLine), parent_process_path=trim(ParentProcessName), parent_process_name=lower(replace(parent_process_path,\"^.*\\\\\\\\\",\"\")), actor=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName))\n| where event_code=4688 AND process_name=\"bcdedit.exe\" AND len(dest)>0 AND len(command_line)>0 AND match(command_line,\"(?i)(?:^|\\\\s)(?:/|-)(?:set|deletevalue|delete|copy|create|createstore|import|default|displayorder|bootsequence|timeout|toolsdisplayorder|ems|emssettings|bootems|debug|dbgsettings|bootdebug|event|hypervisorsettings|hypervisordebug)(?:\\\\s|$)\")\n| eval risk_reason=mvappend(if(match(command_line,\"(?i)\\\\btestsigning\\\\s+(?:on|yes|true|1)\\\\b\"),\"test_signing_enabled\",null()),if(match(command_line,\"(?i)\\\\bnointegritychecks\\\\s+(?:on|yes|true|1)\\\\b\"),\"integrity_checks_disabled\",null()),if(match(command_line,\"(?i)(?:^|\\\\s)(?:/|-)debug(?:\\\\s+\\\\{[^}]+\\\\})?\\\\s+on(?:\\\\s|$)\"),\"kernel_debugging_enabled\",null()),if(match(command_line,\"(?i)\\\\bdisableelamdrivers\\\\s+(?:yes|on|true|1)\\\\b\"),\"elam_disable_option_requested\",null()),if(match(command_line,\"(?i)\\\\bsafeboot\\\\s+(?:minimal|network|alternateshell)\\\\b\"),\"safe_mode_boot_configured\",null()),if(match(command_line,\"(?i)\\\\brecoveryenabled\\\\s+(?:no|off|false|0)\\\\b\"),\"recovery_disabled\",null()),if(match(command_line,\"(?i)\\\\bbootstatuspolicy\\\\s+(?:ignoreallfailures|ignoreshautdownfailures|ignorebootfailures|ignoredcheckpointfailures)\\\\b\"),\"boot_failures_ignored\",null()),if(match(command_line,\"(?i)\\\\bnx\\\\s+alwaysoff\\\\b\"),\"dep_disabled\",null()),if(match(command_line,\"(?i)\\\\bhypervisorlaunchtype\\\\s+off\\\\b\"),\"hypervisor_launch_disabled\",null()))\n| eval change_scope=if(mvcount(risk_reason)>0,\"security_relevant_option\",\"other_bcd_mutation\"), risk_reason=if(mvcount(risk_reason)>0,risk_reason,\"other_bcd_mutation\"), use_case=\"UC-1.2.83\"\n| table _time dest EventRecordID actor SubjectUserSid SubjectLogonId process_name process_path NewProcessId command_line parent_process_name parent_process_path ProcessId TokenElevationType MandatoryLabel change_scope risk_reason source sourcetype use_case\n| sort 0 -_time dest EventRecordID",
   "description": "Reports every observed BCDEdit process invocation that contains a mutating command verb, then labels commands requesting test signing, disabled integrity/recovery/DEP/hypervisor launch, kernel debugging, safe mode, or the ELAM-disable option. It preserves native 4688 actor and process evidence without claiming command success.",
   "value": "Boot configuration controls driver trust, debugging, safe-mode behavior, recovery, memory protections, and startup flow. A small administrative command can weaken those controls or prevent automated repair; early process evidence gives responders time to verify intent, inspect effective state, and contain related ransomware or defense-evasion activity before reboot.",
@@ -38,26 +29,6 @@
   "cimSpl": "| tstats summariesonly=t count min(_time) as first_time max(_time) as last_time from datamodel=Endpoint.Processes where Processes.process_name=\"bcdedit.exe\" by Processes.dest Processes.user Processes.process_id Processes.process_name Processes.process Processes.parent_process_name Processes.parent_process_id\n| rename Processes.* as *\n| where match(process,\"(?i)(?:^|\\\\s)(?:/|-)(?:set|deletevalue|delete|copy|create|createstore|import|default|displayorder|bootsequence|timeout|toolsdisplayorder|ems|emssettings|bootems|debug|dbgsettings|bootdebug|event|hypervisorsettings|hypervisordebug)(?:\\\\s|$)\")\n| sort 0 -last_time dest process_id",
   "schema": "Windows Security Event ID 4688 native XML process-creation fields",
   "dataModelAcceleration": "Endpoint.Processes is the applicable optional CIM path, not Change.All_Changes. Use the accelerated variant only after proving that the deployment maps 4688 NewProcessName to process_name, CommandLine to process, parent fields, actor, destination, and process IDs without truncation. The native XML search remains authoritative for EventRecordID, audit-policy health, and exact source evidence.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "EventRecordID",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "NewProcessId",
-    "NewProcessName",
-    "ProcessId",
-    "ParentProcessName",
-    "CommandLine",
-    "TokenElevationType",
-    "MandatoryLabel"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: Event 4688 — A new process has been created",
@@ -119,27 +90,46 @@
   "mitreAttack": [
     "T1553.006",
     "T1688",
-    "T1490",
-    "TA0005",
-    "TA0040"
+    "T1490"
   ],
   "detectionType": "TTP and administrative change attempt",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "NewProcessId",
+    "NewProcessName",
+    "ProcessId",
+    "ParentProcessName",
+    "CommandLine",
+    "TokenElevationType",
+    "MandatoryLabel"
+  ],
   "equipment": [
+    "checkpoint",
+    "hyperv",
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Governed Windows clients and servers that support BCDEdit and emit Security Event ID 4688 with full process command lines. Coverage depends on Audit Process Creation, Include command line policy, XML Windows Event Log collection, and endpoint inventory. Systems with renamed tools, offline BCD edits, missing command lines, or unsupported/legacy event schema need separate controls.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft 4688/command-line-auditing/BCDEdit documentation, Splunk Security Content/Windows add-on/CIM, and MITRE BCDEdit-related techniques; audit policy, fields, SPL, option classification, CIM parity, tests, source health, alerting, exceptions, dashboard, and response were specified but not executed or Microsoft/Windows/Splunk/endpoint/SOC-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft 4688/command-line-auditing/BCDEdit documentation, Splunk Security Content/Windows add-on/CIM, and MITRE BCDEdit-related techniques; audit policy, fields, SPL, option classification, CIM parity, tests, source health, alerting, exceptions, dashboard, and response were specified but not executed or Microsoft/Windows/Splunk/endpoint/SOC-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -156,6 +146,16 @@
   },
   "detailedImplementation": "## Prerequisites and detection contract\n\nAssign Windows endpoint, Secure Boot/BitLocker, driver engineering, deployment, incident response, Splunk, privacy, and exception owners. Inventory systems where BCDEdit is expected. Splunk Enterprise 9.3+/10.x or Splunk Cloud needs a search role with index=wineventlog access; restrict raw 4688 command lines because Microsoft warns they can expose passwords or private data. Deploy Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1 on collection/search tiers and test upgrades.\n\nThis rule detects a successfully created `bcdedit.exe` process with a mutating verb. It does not prove that BCDEdit succeeded or that the effective boot state changed. Microsoft documents administrative privilege requirements, possible BitLocker/Secure Boot interaction, restart-dependent options, and the risk of making a system inoperable. Preserve that distinction in alert and dashboard text.\n\n## Step 1 — Enable and validate native process telemetry\n\nEnable **Computer Configuration > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Detailed Tracking > Audit Process Creation** for Success. Separately enable **Administrative Templates > System > Audit Process Creation > Include command line in process creation events**. Without the second setting, Event 4688 still exists but CommandLine is empty and this rule cannot classify the verb or option.\n\nCollect `[WinEventLog://Security]` with `renderXml=true` into index=wineventlog. The expected contract is sourcetype=XmlWinEventLog and source `XmlWinEventLog:Security`. If XML filtering is configured, use Splunk's required `$XmlRegex` syntax and do not discard 4688 globally. Preserve the original Computer through WEF and prevent duplicate direct/collector paths.\n\nCompare Event Viewer **Windows Logs > Security > 4688** with Splunk for SubjectUserSid/Name/Domain/LogonId, NewProcessId/Name, ProcessId, ParentProcessName, CommandLine, TokenElevationType, MandatoryLabel, Computer, and EventRecordID. Field presence varies by event version; CommandLine and NewProcessName are mandatory for this rule. Maintain expected-host audit-policy, Security-channel, forwarder, and event-volume health separately.\n\n## Step 2 — Create and understand the saved search\n\nSave the supplied SPL as `windows_bcdedit_modification_commands`; schedule every five minutes. It scans ten to five minutes before dispatch, one delayed closed five-minute interval. Measure `_indextime-_time` and move the entire interval when five minutes is inadequate.\n\nThe base pins XML Security 4688. It derives the executable basename from native NewProcessName and requires exact `bcdedit.exe`, preventing a command shell that merely mentions the text from matching. It also requires a nonempty CommandLine and a documented mutating verb using slash or hyphen. Read-only `/enum`, `/v`, and help calls do not match.\n\nRisk labels are option-aware: TESTSIGNING on permits test-signed kernel code; NOINTEGRITYCHECKS on requests disabled integrity checks and cannot be set with Secure Boot; `/debug ... on` enables kernel debugging; DISABLEELAMDRIVERS is an F8-triggered option; SAFEBOOT configures safe-mode boot; RECOVERYENABLED no and BOOTSTATUSPOLICY ignore values can impair recovery; NX AlwaysOff disables DEP; HYPERVISORLAUNCHTYPE off can prevent hypervisor-backed protections. Other mutating verbs remain `other_bcd_mutation` instead of being discarded. `/deletevalue` can restore defaults, so it is reported but not automatically labeled weakening.\n\nAlert on each result. Throttle only exact duplicate EventRecordID or exact host/actor/command for one interval. Apply the bounded exception lookup after detection and retain unsuppressed evidence.\n\nThe optional Endpoint.Processes `cimSpl` is valid only when process name, full command, parent, actor, destination, and IDs are normalized without truncation and the model is accelerated. The native search preserves event record and audit-health evidence and remains authoritative.\n\n## Step 3 — Validate command parsing and source parity\n\nBuild deterministic XML fixtures for slash and hyphen forms; `/set {current} testsigning on/off`; nointegritychecks on; `/debug on`; disableelamdrivers yes; safeboot minimal/network; recoveryenabled no; bootstatuspolicy ignoreallfailures; nx AlwaysOff; hypervisorlaunchtype off; `/deletevalue`; another mutating verb; `/enum`; help; blank CommandLine; wrong image; wrong channel; and boundary times. Assert expected risk labels and zero read-only results.\n\nOn a disposable nonproduction VM with a BCD backup, recovery access, BitLocker/Secure Boot approvals, and snapshot, run only commands approved by the test owner. Prefer a reversible benign description or test entry mutation rather than weakening production controls. Capture command exit code and `bcdedit /enum all /v` before and after, then restore and reboot only if the approved command requires it. Compare raw 4688 XML and Splunk fields, and verify actor/parent/process IDs.\n\nRecord host, OS/build, command, expected mutation, effective before/after state, exit code, reboot requirement, audit policy, record ID, add-on/forwarder/Splunk versions, search job ID, expected/actual row, and operator. Keep draft until source coverage, parsing, CIM parity if used, late data, alert delivery, privacy ACLs, exception expiry, dashboard, and response are runtime-tested.\n\n## Step 4 — Investigate and respond safely\n\nTriage raw 4688 first. Validate actor/logon, process and parent paths, hashes/signatures, elevation/integrity, full argument order, host role, change ticket, and surrounding process tree. Collect effective BCD state with an approved read-only command and compare known-good baseline. Review Secure Boot, BitLocker, VBS/Credential Guard/HVCI, ELAM, DEP, recovery configuration, boot/reboot timeline, safe-mode registry persistence, and EDR/network behavior. Correlate recovery impairment with shadow-copy deletion or ransomware indicators.\n\nDo not automatically rerun BCDEdit, reboot, restore a BCD store, change Secure Boot, suspend BitLocker, or isolate a safety-critical system solely from Event 4688. A failed or restorative command can look similar. Use endpoint/incident change control, capture recovery keys and BCD backup, and involve platform owners. Escalate confirmed unauthorized weakening as defense evasion or impact; label command execution separately from verified effective state.\n\n## Step 5 — Operationalize and troubleshoot\n\nPublish the restricted dashboard described above and review every non-excepted mutation. Track time to intent verification, confirmed effective changes, restoration completion, expired exceptions, and telemetry gaps.\n\n- **No 4688 events:** verify Audit Process Creation success policy, effective advanced-audit precedence, Security-channel retention, input, forwarder, index, and search RBAC.\n- **CommandLine is blank:** enable Include command line policy, verify supported event version and reboot/Group Policy refresh requirements, then re-test; do not parse the rendered Message as a silent substitute.\n- **NewProcessName differs:** inspect raw XML and add-on placement/version; normalize path but require exact basename to avoid text-only matches.\n- **ParentProcessName or MandatoryLabel is null:** check event version and collection; retain the event but lower contextual confidence rather than inventing values.\n- **Read-only commands alert:** confirm the mutation-verb boundary and slash/hyphen parsing; add a fixture before changing the regex.\n- **Known mutation is missed:** check argument quoting, Unicode whitespace, alias form, empty command-line policy, and whether the executable was renamed or the BCD was edited by another interface.\n- **Duplicate rows:** compare Computer/EventRecordID for WEF plus direct collection and overlapping schedules; fix duplication instead of suppressing broadly.\n- **CIM differs from raw:** verify Endpoint.Processes tags, command truncation, process and parent mappings, acceleration freshness, and summariesonly behavior; keep native results authoritative.\n- **Command succeeded but state is unchanged:** inspect target store/identifier, Secure Boot or policy rejection, exit code, and restart requirements; Event 4688 never guaranteed effective change.",
   "grandmaExplanation": "We watch for commands that try to change how a Windows computer starts, repairs itself, or checks trusted software. The command may fail or be part of approved repair work, so the team verifies both who ran it and what settings actually changed.",
+  "hardware": "Governed Windows clients and servers that support BCDEdit and emit Security Event ID 4688 with full process command lines. Coverage depends on Audit Process Creation, Include command line policy, XML Windows Event Log collection, and endpoint inventory. Systems with renamed tools, offline BCD edits, missing command lines, or unsupported/legacy event schema need separate controls.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

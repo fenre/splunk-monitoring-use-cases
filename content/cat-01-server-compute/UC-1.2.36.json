@@ -17,15 +17,6 @@
   },
   "dataSources": "Microsoft-Windows-Security-Auditing Event ID 4662 from every writable and read-only domain controller's Security channel, collected in XML by Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Security`. Required fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `ObjectServer`, `ObjectType`, `ObjectName`, `OperationType`, `AccessMask`, and `Properties`. Success Audit Directory Service Access and matching SACLs on naming-context roots are prerequisites.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for Security XML collection and field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Splunk Enterprise Security asset/identity and risk workflows are optional enrichments.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4662 earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), subject_account=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), access_mask=lower(trim(AccessMask)), properties_norm=lower(coalesce(Properties,\"\")), object_server=upper(trim(ObjectServer))\n| where event_code=4662 AND object_server=\"DS\" AND access_mask=\"0x100\" AND len(endpoint)>0 AND match(properties_norm,\"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|89e95b76-444d-4c62-991a-0facbeda640c|replicating directory changes\")\n| eval replication_right=case(match(properties_norm,\"89e95b76-444d-4c62-991a-0facbeda640c|replicating directory changes in filtered set\"),\"DS-Replication-Get-Changes-In-Filtered-Set\",match(properties_norm,\"1131f6ad-9c07-11d1-f79f-00c04fc2dcd2|replicating directory changes all\"),\"DS-Replication-Get-Changes-All\",match(properties_norm,\"1131f6aa-9c07-11d1-f79f-00c04fc2dcd2|replicating directory changes\"),\"DS-Replication-Get-Changes\",true(),\"unclassified replication right\"), detection=\"Active Directory replication control access observed\"\n| table _time endpoint subject_account SubjectUserSid SubjectLogonId ObjectType ObjectName OperationType access_mask replication_right Properties EventRecordID detection source sourcetype\n| sort 0 -_time endpoint subject_account replication_right",
   "description": "Reports one row per Security 4662 event in the delayed closed hour where a domain controller recorded Control Access against one of three documented directory-replication rights. Rows are at access-event grain and preserve the subject token, naming-context object, raw rights evidence, and receiving domain controller for DCSync investigation.",
   "value": "Directory replication rights can expose current and historical password material. Surfacing every observed use enables defenders to validate authorized domain-controller or synchronization activity, identify unexpected principals, correlate the request to its origin, and contain possible domain-wide credential theft before forged tickets or lateral movement follow.",
@@ -34,27 +25,6 @@
   "cimModels": [],
   "schema": "Native Microsoft-Windows-Security-Auditing Event 4662 XML fields; no lossless Splunk CIM dataset is claimed",
   "dataModelAcceleration": "No `cimSpl` is supplied. Event 4662 replication-right detail is not a policy change and a generic Change or Authentication model does not preserve AccessMask, Properties, SubjectLogonId, naming-context object, and EventRecordID. A network CIM correlation can independently identify DRS applications, but it is not equivalent to this host audit event. Any local accelerated dataset must prove fixed-window row/field parity and freshness against raw XML.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "host",
-    "dest",
-    "Computer",
-    "EventCode",
-    "EventID",
-    "EventRecordID",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "ObjectServer",
-    "ObjectType",
-    "ObjectName",
-    "OperationType",
-    "AccessMask",
-    "Properties"
-  ],
   "references": [
     {
       "title": "Microsoft Security Auditing Event 4662: an operation was performed on an object",
@@ -104,26 +74,45 @@
   ],
   "knownFalsePositives": "A result is a genuine audited use of a replication-related control access right. “False positive” means the principal and operation are authorized, not that the 4662 record is false.\n\n1. **Normal domain-controller replication** — A DC computer account can legitimately exercise replication rights. Confirm the subject SID/account is an inventoried DC, the receiving Computer and correlated source are approved replication partners, AD Sites and Services topology is expected, and replication health is normal. Do not suppress every `$` account.\n\n2. **Microsoft Entra Connect / Azure AD Connect synchronization** — A dedicated connector account may have DS-Replication-Get-Changes and sometimes broader rights. Match immutable SID, configured connector server, service instance, approved naming contexts, schedule, source logon/network evidence, and owner. Reject activity from another host or interactive session.\n\n3. **Identity governance, migration, backup, or recovery product** — Quest, Semperis, Veeam, or another approved AD-aware tool may request replication rights. Verify vendor service, exact service-account SID, registered server, job ID, target naming context, maintenance window, and contractually required permissions. Remove unused broad rights rather than permanently silencing them.\n\n4. **Authorized forest/domain migration or disaster-recovery exercise** — ADMT-like migration or recovery validation can create unusual replication access. Correlate project/change ID, source and target forests, operator, approved principals, exact dates, and rollback. Preserve first alerts as evidence and expire exceptions when the exercise ends.\n\n5. **Security assessment or purple-team DCSync simulation** — An approved test using Mimikatz or another tool should trigger. Match engagement ID, operator, source endpoint, account/SID, domain, UTC bounds, and cleanup/credential rotation plan. Escalate any mismatch and preserve the detection as control evidence.\n\n6. **Rendered Properties localization or duplicate collection** — The same right may appear as a GUID or localized display name, and direct plus WEF collection can duplicate an event. Compare Computer, EventRecordID, raw XML, collection route, and GUID. Repair duplicate topology; do not suppress a principal because parsing is inconvenient.\n\n**Safe suppression:** keep the raw event and base result. In a notification wrapper, use a governed authorization table keyed on immutable SubjectUserSid, approved source endpoint/IP from corroborating telemetry, receiving DC/site, ObjectName, exact replication right, service instance, `valid_from_epoch`, `valid_until_epoch`, owner, and ticket. Suppress only when all required dimensions match. Reject username-only, `$`-suffix, Domain Admins, all-DC, wildcard-domain, and open-ended exceptions. Review rights and exceptions after topology, connector, recovery, or privileged-account changes.\n\nImplement suppression through a governed post-result lookup table; retain the unsuppressed base result and require the exact keys and finite expiry described above.",
   "mitreAttack": [
-    "T1003.006",
-    "TA0006"
+    "T1003.006"
   ],
   "detectionType": "TTP",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "ObjectServer",
+    "ObjectType",
+    "ObjectName",
+    "OperationType",
+    "AccessMask",
+    "Properties"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Active Directory Domain Services domain controllers that generate Security 4662 under an enabled audit policy and suitable SACL. Include writable and read-only DCs and every naming context in scope. WEF/WEC must preserve original Computer, EventRecordID, SubjectLogonId, Properties, and arrival latency and avoid duplicate direct collection.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4662, Directory Service Access and replication-right documentation, Splunk Add-on/Security Content, and MITRE ATT&CK T1003.006/DET0594; SACLs, replication, XML fixtures, SPL, origin correlation, alert delivery, suppression, and response not executed or AD/SOC SME-signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4662, Directory Service Access and replication-right documentation, Splunk Add-on/Security Content, and MITRE ATT&CK T1003.006/DET0594; SACLs, replication, XML fixtures, SPL, origin correlation, alert delivery, suppression, and response not executed or AD/SOC SME-signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -140,6 +129,16 @@
   },
   "detailedImplementation": "## Prerequisites and audit contract\n\nAssign AD forest/domain, Windows audit policy, Splunk collection, identity detection, network telemetry, incident response, and exception owners. Inventory all DCs, naming contexts, sites, replication partners, Entra Connect/synchronization services, recovery/migration products, and every principal granted the three replication rights. Install `Splunk_TA_windows` 10.0.1 and test exact OS, forwarder, add-on, and Splunk versions. Restrict Security records and identity data.\n\nEnable **Success** Audit Directory Service Access on DCs. Design SACLs on each relevant domain/naming-context root for DS-Replication-Get-Changes, Get-Changes-All, and Get-Changes-In-Filtered-Set; validate inheritance and volume in a lab. Microsoft warns this subcategory can be high volume. Record SACL security descriptor, GPO, scope, owner, and rollback. The collector role reads Security; the search role reads `index=wineventlog` and schedules the alert but cannot change AD ACLs or audit policy.\n\nEvent 4662 with AccessMask 0x100 means Control Access. Properties names the right, sometimes by display name and sometimes GUID. The three exact GUIDs are embedded in the SPL. One event is a candidate. Do not exclude all machine accounts: legitimate DCs use them, but compromised computer identities can also request replication. Because 4662 usually lacks request-origin IP, correlate before confirming DCSync.\n\n## Step 1 — Collect and verify XML\n\nConfigure the Security XML input in governed `inputs.conf`:\n\n```ini\n[WinEventLog://Security]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\nValidate the effective modular input with `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, Computer, EventRecordID, subject token, object fields, AccessMask, and Properties against Event Viewer raw XML. Build DC source-health and SACL-coverage panels; absence of 4662 is not health proof. For WEF/WEC, preserve original Computer and IDs, measure `_indextime-_time`, and prevent direct/collector duplication.\n\n## Step 2 — Save and understand the analytic\n\nSave as `windows_ad_replication_rights_use_4662`. Run hourly with embedded `earliest=-70m@m latest=-10m@m`, a 60 minute closed window delayed 10 minutes. Shift both bounds together if measured p99 latency requires it.\n\nThe search constrains exact Security XML and 4662, normalizes endpoint/account/access values, and requires ObjectServer DS, AccessMask 0x100, nonempty endpoint, and a documented GUID or rendered replication-right phrase. The `case` prioritizes filtered-set and all before the generic phrase so names are not mislabeled. It preserves raw Properties and one row per EventRecordID. Do not call the subject the source host; SubjectLogonId is a correlation key, not a network address.\n\nNo CIM replacement is claimed. If adding an authorized-principal lookup, enrich after the base result and keep unauthorized/unknown rows. Key on SID, source evidence, right, object, and time—not username suffix. Create a separate network correlation for DRSUAPI from non-DC sources.\n\n## Step 3 — Validate safely\n\nReplay the three positive XML fixtures at fixed times and assert exact right decoding and identities. Run each negative independently, including the DC02$ positive guard, wrong mask/server/source, unrelated Properties, malformed code, and earliest/latest boundaries. Test GUIDs with braces/case and rendered English names; unfamiliar values must not be guessed.\n\nIn an authorized isolated AD lab, apply the precise audit policy/SACL, use a dedicated account granted only required test rights, perform a controlled replication operation with approved tooling, and revoke the rights afterward. Capture the granting ACL event, 4662, source endpoint/network traffic, alert, and cleanup. Never test against production password data. Record GPO/SACL, domain, DC, account SID, tool/source, versions, exact UTC bounds, expected/actual rows, job ID, notification, and revocation evidence.\n\nKeep `status=draft` until AD and SOC owners accept SACL coverage/volume, all GUIDs, boundaries, origin correlation, notification, dashboard RBAC, response, and exceptions.\n\n## Step 4 — Triage and respond\n\nVerify raw XML, receiving DC, subject SID/account/logon ID, object, mask, Properties, and EventRecordID. Resolve SID and account lifecycle. Determine whether the principal is explicitly authorized for that right and naming context. Correlate SubjectLogonId to 4624 and related events, endpoint telemetry, DC logs, DRSUAPI-capable network records, and AD topology. Compare source against DC and connector inventories. Review recent 5136/ACL changes and privileged-account activity.\n\nIf unauthorized or origin is unexplained, invoke identity incident response: preserve evidence, contain the source with domain-service safety, disable/revoke the abused principal and replication rights through approved change, assess credential material at risk, hunt for forged tickets/lateral movement, and plan credential/KRBTGT recovery with AD experts. Do not automatically disable a DC account, isolate all DCs, rotate KRBTGT, or alter ACLs from one event.\n\n## Step 5 — Troubleshoot\n\n- **No candidate event:** verify Success audit policy, SACL placement/inheritance, DC Security log, XML input, filtering, routing, and permissions.\n- **Properties lacks GUID:** inspect raw XML/rendering and compare the documented display name; do not translate by guess.\n- **Excessive 4662 volume:** narrow SACL design to relevant roots/rights after lab testing; do not discard candidate GUIDs in forwarding.\n- **Cannot identify source:** expected limitation. Correlate logon ID, authentication and network telemetry; report unknown rather than inventing an IP.\n- **All DC accounts alert:** enrich with exact DC SID/source/topology authorization, but preserve anomalous source or rights combinations.\n- **Duplicates:** compare Computer/EventRecordID and repair direct plus WEF topology.\n- **Late data:** measure clock, collector queues, `_indextime-_time`, and scheduler dispatch; shift both time bounds equally.\n- **CIM query disagrees:** retain native XML; no lossless CIM parity is asserted.",
   "grandmaExplanation": "We watch for use of the special directory permissions that can copy password information from a domain controller. Some trusted systems need those permissions, so the team checks who used them and where the request really came from.",
+  "hardware": "Active Directory Domain Services domain controllers that generate Security 4662 under an enabled audit policy and suitable SACL. Include writable and read-only DCs and every naming context in scope. WEF/WEC must preserve original Computer, EventRecordID, SubjectLogonId, Properties, and arrival latency and avoid duplicate direct collection.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -16,14 +16,6 @@
   },
   "dataSources": "`index=os sourcetype=df` filesystem snapshots produced by the `df.sh` scripted event input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Required Splunk metadata is `_time` and `host`; filesystem identity is `Filesystem` plus `MountedOn`. The search accepts the add-on's documented compatibility fields `INodes`, `IUsed`, `IFree`, and `IUsePct` and its version 8.7.0+ Linux raw fields `Inodes` and `IUse_`. The percentage may contain a trailing `%`; the SPL converts it to percentage points. `os` is the add-on's documented event index but is configurable.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), installed on Linux collection forwarders and on the Splunk tier that supplies its parsing and search-time knowledge.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=os sourcetype=df host=* earliest=-24h@m latest=@m\n| eval inode_total=tonumber(coalesce(Inodes,INodes)), inode_used=tonumber(IUsed), inode_free=tonumber(IFree), inode_pct=tonumber(rtrim(tostring(coalesce(IUse_,IUsePct)),\"%\"))\n| where isnotnull(Filesystem) AND isnotnull(MountedOn) AND inode_total>0 AND inode_used>=0 AND inode_free>=0 AND inode_pct>=0 AND inode_pct<=100\n| stats earliest(inode_free) as inode_free_start latest(inode_free) as inode_free_now latest(inode_pct) as inode_pct_now earliest(_time) as trend_start latest(_time) as observed_at count as sample_count by host Filesystem MountedOn\n| eval elapsed_hours=(observed_at-trend_start)/3600, consumed_inodes=inode_free_start-inode_free_now\n| where sample_count>=12 AND elapsed_hours>=6 AND consumed_inodes>=100\n| eval depletion_rate_per_hour=consumed_inodes/elapsed_hours, predicted_hours_remaining=inode_free_now/depletion_rate_per_hour\n| where inode_pct_now<85 AND inode_free_now>10000 AND predicted_hours_remaining<=72\n| eval severity=if(predicted_hours_remaining<=24,\"critical\",\"warning\")\n| eval depletion_rate_per_hour=round(depletion_rate_per_hour,2), predicted_hours_remaining=round(predicted_hours_remaining,1)\n| sort 0 predicted_hours_remaining host MountedOn",
   "description": "Reports projected inode exhaustion for Linux filesystems whose latest sample is not yet in UC-1.1.33's static warning state. It compares the chronologically first and last valid free-inode counts in a 24-hour window and returns mounts whose observed linear depletion rate implies 72 hours or less of remaining inode capacity.",
   "value": "A fast small-file buildup can consume the remaining inode pool before a current-state threshold is crossed. Trend-based warning helps prevent filesystem write failures by giving service owners time to stop the producer, drain a queue, enforce retention, or plan filesystem work while separating forecast risk from the immediate low-headroom incidents raised by UC-1.1.33.",
@@ -76,11 +68,8 @@
     }
   ],
   "knownFalsePositives": "The SPL can calculate the documented projection correctly while its operational meaning is misleading in these named cases:\n\n1. **Burst followed by normal cleanup** — Package installation, CI extraction, mail delivery, queue replay, or batch processing can consume many inodes near the end of the window and release them shortly afterward. Check a longer `inode_free` trend, the workload schedule, and the next samples before treating the endpoint slope as persistent.\n\n2. **First/last-point distortion** — A cleanup near the start or a burst near the end can make the endpoint rate steeper than the values between them. Inspect all 24 hours, rerun with a longer policy-approved baseline, and do not present `predicted_hours_remaining` as a confidence interval or guaranteed deadline.\n\n3. **Filesystem remount or replacement** — Reusing the same `Filesystem` and `MountedOn` labels after a rebuild, snapshot restore, or mount-namespace change can join samples from different inode pools. Compare mount identity with `findmnt`, change records, boot time, and raw `df` events; reset the trend after confirmed replacement.\n\n4. **Sparse, delayed, duplicated, or replayed collection** — Twelve samples can exist without representing the intended cadence, and delayed events can move an endpoint. Plot sample times, compare `_time` with ingestion time, check duplicate input stanzas, and require a fresh on-host `df -iP` observation before paging.\n\n5. **Field extraction drift or inconsistent counts** — A local script edit, damaged header, or missing search-tier knowledge can populate the expected fields incorrectly. The SPL rejects null, negative, and over-100 percentages, but responders must verify that `inode_used + inode_free` is plausible relative to `inode_total` in the raw data.\n\n6. **Approved inode-dense load test or migration** — A planned file-creation test can produce a valid forecast. Keep the result as test evidence and suppress notification only for the exact host and mount during the approved window.\n\n**Safe suppression:** keep the primary forecast unchanged. If notification suppression is required, apply a separate owner-approved lookup after the base result, keyed by exact `host` and `MountedOn`, with start epoch, end epoch, reason, ticket, and approver. Preserve suppressed matches for review and reject wildcards, mount-prefix rules, and non-expiring exceptions.",
-  "equipment": [
-    "linux"
-  ],
-  "equipmentModels": [
-    "linux_generic"
+  "mitreAttack": [
+    "N/A (operational Linux filesystem-capacity forecasting; no adversary behavior asserted)"
   ],
   "requiredFields": [
     "_time",
@@ -92,8 +81,11 @@
     "IFree",
     "IUsePct"
   ],
-  "mitreAttack": [
-    "N/A (operational Linux filesystem-capacity forecasting; no adversary behavior asserted)"
+  "equipment": [
+    "linux"
+  ],
+  "equipmentModels": [
+    "linux_generic"
   ],
   "status": "draft",
   "lastReviewed": "2026-07-28",
@@ -102,6 +94,14 @@
   "grandmaExplanation": "We watch how quickly each server is using up its remaining file slots and warn when that pace could run them out within a few days, even before the usual low-space alarm appears.",
   "prerequisiteUseCases": [
     "UC-1.1.33"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }

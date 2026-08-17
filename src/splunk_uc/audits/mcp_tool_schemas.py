@@ -113,10 +113,10 @@ def _check_tools_surface(issues: list[str]) -> None:
         )
 
     for tool in _TOOL_DEFINITIONS():
-        if tool.inputSchema is None:
-            issues.append(f"{tool.name}: inputSchema missing")
-        if tool.outputSchema is None:
-            issues.append(f"{tool.name}: outputSchema missing")
+        if tool.input_schema is None:
+            issues.append(f"{tool.name}: input_schema missing")
+        if tool.output_schema is None:
+            issues.append(f"{tool.name}: output_schema missing")
         if not tool.description or len(tool.description) < 20:
             issues.append(
                 f"{tool.name}: description must be >=20 chars "

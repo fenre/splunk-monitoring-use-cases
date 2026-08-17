@@ -27,20 +27,6 @@
   "visualization": "Use a current-alert table showing host, queue, severity, reason, current/minimum/peak depth, growth, full/discard deltas, threshold policy, owner, and counter-reset flag. Add a per-queue time chart of `size` with warning and critical overlays and annotations for discard deltas. Show a 0–100 percent gauge only when `queue_capacity_messages` is an independently verified message-count capacity for that exact queue; label it `current queue messages / configured message capacity`. If capacity is absent or the relevant limit is disk bytes, use a single-value message count with threshold markers instead. Never divide by `maxqsize` or label the result memory, disk, or delivery-latency utilization.",
   "cimModels": [],
   "dataModelAcceleration": "No standard Splunk Common Information Model dataset preserves rsyslog queue name, current message depth, cumulative full/discard counters, high-water mark, or the deployment-owned threshold policy. There is no faithful accelerated `tstats` equivalent. A summary index can be introduced for large estates only if it retains one-minute host/queue identity, raw counter values, reset semantics, policy version, and replayable links to the source events.",
-  "requiredFields": [
-    "_time",
-    "host",
-    "source",
-    "sourcetype",
-    "name",
-    "origin",
-    "size",
-    "enqueued",
-    "full",
-    "discarded.full",
-    "discarded.nf",
-    "maxqsize"
-  ],
   "references": [
     {
       "title": "rsyslog official documentation — impstats module",
@@ -89,25 +75,42 @@
     }
   ],
   "knownFalsePositives": "The queue depth and counter changes are real under the qualified source contract. A false positive therefore means the pressure was expected or the local policy was wrong, not that an arbitrary package or host-load spike resembles a queue.\n\n1. **Planned downstream maintenance** — A remote collector, broker, database, or network path may be intentionally unavailable while a disk-assisted action queue buffers messages. Match the exact host, queue/action, destination, change ticket, expected message rate, tested disk headroom, and bounded UTC interval. Continued growth beyond the approved envelope or any discard delta remains actionable.\n\n2. **Short, legitimate traffic burst** — Authentication storms, application restart logs, audit bursts, or batch jobs can temporarily enqueue faster than an output drains. The three-consecutive-minute rule filters one-minute spikes; investigate recurring warnings, a rising low-water mark, or a peak near configured limits rather than permanently raising thresholds.\n\n3. **Intentional queue tuning or deployment restart** — Changing `queue.size`, worker threads, batching, action configuration, or restarting rsyslog can alter normal depth and reset cumulative counters. Correlate the exact configuration revision and service timestamp. The SPL records reset boundaries, but a post-restart discard count is still counted from the new baseline.\n\n4. **Slow but healthy batched output** — Some outputs deliberately accumulate messages before batch submission. Baseline by exact queue and destination; a single estate-wide threshold can make normal batching noisy. Keep warning below the point at which the batch design loses headroom and retain full/discard increments as critical.\n\n5. **Wrong queue-policy mapping** — Duplicate queue names, cloned Splunk `host` values, renamed actions, stale lookup rows, or a capacity copied from another queue can make a correct measurement use the wrong threshold. Require exact host/name inventory, unique host identity, policy ownership, and review after rsyslog configuration changes.\n\n6. **Collection or parsing defect** — Duplicate monitor inputs, incorrect event breaking, an unstripped impstats file header, `json-elasticsearch` bang field names, mixed legacy/JSON formats, or inaccessible rotated files can create null, duplicated, or discontinuous samples. The primary search rejects malformed and nonconsecutive windows; treat the source-health failure separately rather than suppressing the queue.\n\n**Notification suppression mechanism:** preserve raw impstats and base condition history. Use `rsyslog_queue_exceptions.csv` with headers `host,queue_name,use_case,valid_from_epoch,valid_until_epoch,exception_reason,exception_owner,exception_ticket`. Require exact host, exact queue name, literal `UC-1.1.93`, numeric bounded UTC epochs, owner, reason, and ticket. Suppress only when the dispatch time is inside the interval. Reject wildcard hosts/queues, invalid or open-ended dates, expired rows, and exceptions that hide source-health failures or all discard increments without review.",
+  "mitreAttack": [
+    "N/A (operational rsyslog queue-capacity and delivery-pipeline monitoring; no adversary behavior is asserted)"
+  ],
+  "detectionType": "Threshold",
+  "requiredFields": [
+    "_time",
+    "host",
+    "source",
+    "sourcetype",
+    "name",
+    "origin",
+    "size",
+    "enqueued",
+    "full",
+    "discarded.full",
+    "discarded.nf",
+    "maxqsize"
+  ],
   "equipment": [
+    "itsi",
     "linux",
+    "snmp",
     "syslog"
   ],
   "equipmentModels": [
     "linux_generic",
+    "snmp_ups",
     "syslog_generic"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-28",
   "reviewer": "documentation-only editorial review against primary rsyslog impstats/queue and Splunk file-monitor, props, lookup, and search references; collector and SPL tests specified but not executed in live rsyslog or Splunk; no runtime or SME sign-off",
-  "detectionType": "Threshold",
-  "mitreAttack": [
-    "N/A (operational rsyslog queue-capacity and delivery-pipeline monitoring; no adversary behavior is asserted)"
-  ],
   "cost": {
     "tier": "low",
     "search_load": "light",

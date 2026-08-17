@@ -15,7 +15,7 @@ _FIXTURES = _REPO_ROOT / "tests" / "fixtures" / "alert-actions"
 
 from splunk_uc.generators import alert_actions as M  # noqa: E402
 
-FIXTURE_UCS = ("UC-1.1.1", "UC-1.1.10", "UC-1.2.20")
+FIXTURE_UCS = ("UC-1.1.1", "UC-1.1.10", "UC-1.2.88")
 
 
 class _HtmlSmokeParser(html.parser.HTMLParser):
@@ -51,7 +51,7 @@ def test_generator_emits_three_files_per_fixture_uc(uc_id: str) -> None:
 def test_criticality_tiers_map_to_distinct_subjects() -> None:
     high = M.render_templates(M.load_uc_record(_sidecar_for("UC-1.1.1")))
     med = M.render_templates(M.load_uc_record(_sidecar_for("UC-1.1.10")))
-    low = M.render_templates(M.load_uc_record(_sidecar_for("UC-1.2.20")))
+    low = M.render_templates(M.load_uc_record(_sidecar_for("UC-1.2.88")))
     assert "[CRITICAL]" in high.email_html
     assert "[ALERT]" in med.email_html
     assert "[INFO]" in low.email_html

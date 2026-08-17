@@ -49,10 +49,10 @@ class TestToolDefinitions:
 
     def test_every_tool_has_input_and_output_schema(self) -> None:
         for tool in _TOOL_DEFINITIONS():
-            assert tool.inputSchema is not None, f"{tool.name} missing inputSchema"
+            assert tool.input_schema is not None, f"{tool.name} missing input_schema"
             assert (
-                tool.outputSchema is not None
-            ), f"{tool.name} missing outputSchema"
+                tool.output_schema is not None
+            ), f"{tool.name} missing output_schema"
             # Descriptions must be human-readable sentences, not empty.
             assert tool.description and len(tool.description) >= 20
 
@@ -170,7 +170,7 @@ async def test_call_tool_invalid_input_returns_error_payload(
 async def test_unknown_tool_returns_error(live_catalog: Catalog) -> None:
     async def body(client: ClientSession) -> None:
         result = await client.call_tool("not_a_registered_tool_name", {})
-        assert result.isError
+        assert result.is_error
         payload = json.loads(result.content[0].text)
         assert payload["error"] == "unknown_tool"
         assert "not_a_registered_tool_name" in payload["message"]

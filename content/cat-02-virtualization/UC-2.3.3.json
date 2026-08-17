@@ -18,35 +18,12 @@
   },
   "dataSources": "A long-running custom libvirt client on each KVM host registers `virConnectDomainEventRegisterAny` for `VIR_DOMAIN_EVENT_ID_LIFECYCLE`, runs a supported event loop, and emits one JSON line per callback to `index=kvm sourcetype=libvirt:lifecycle`. Collector-owned fields are `event_uuid`, `event_epoch`, `host`, `connection_epoch`, `collector_instance`, `domain_uuid`, `domain_name`, `event_code`, `event_name`, `detail_code`, `detail_name`, and `libvirt_uri`. Symbolic names are derived from the installed libvirt binding's enums. Separate `libvirt:collector:health` events carry startup, heartbeat, reconnect, registration failure, and dropped-output state. Splunk_TA_nix and `/var/log/libvirt/qemu/*.log` do not natively provide this callback contract.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) for host context, plus a signed long-running libvirt lifecycle-event client configured as a constant scripted input. The add-on does not ship this event collector. No premium Splunk app or CIM acceleration is required.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=kvm sourcetype=\"libvirt:lifecycle\" earliest=-15m latest=now\n| eval event_epoch=tonumber(event_epoch), event_code=tonumber(event_code), detail_code=tonumber(detail_code)\n| where isnotnull(event_uuid) AND isnotnull(domain_uuid) AND isnotnull(event_name) AND isnotnull(event_code) AND isnotnull(detail_code) AND event_epoch<=now() AND event_epoch>=relative_time(now(),\"-15m\")\n| stats count AS raw_event_count values(event_name) AS event_names values(detail_name) AS detail_names latest(event_epoch) AS event_epoch latest(host) AS host latest(connection_epoch) AS connection_epoch latest(collector_instance) AS collector_instance latest(domain_uuid) AS domain_uuid latest(domain_name) AS domain_name latest(event_code) AS event_code latest(event_name) AS event_name latest(detail_code) AS detail_code latest(detail_name) AS detail_name latest(libvirt_uri) AS libvirt_uri max(_indextime) AS last_indextime by event_uuid\n| where raw_event_count=1 AND mvcount(event_names)=1 AND mvcount(detail_names)<=1\n| eval severity=case(event_name=\"Stopped\" AND detail_name=\"Crashed\",\"critical\",event_name=\"Stopped\" OR event_name=\"Shutdown\",\"high\",event_name=\"Suspended\" OR event_name=\"Undefined\",\"medium\",true(),\"informational\"), unexpected=if(severity=\"critical\" OR severity=\"high\",true(),false()), use_case=\"UC-2.3.3\"\n| where unexpected=true()\n| table event_epoch event_uuid host libvirt_uri connection_epoch collector_instance domain_uuid domain_name event_code event_name detail_code detail_name severity unexpected last_indextime use_case\n| sort 0 -event_epoch domain_uuid",
   "description": "Surfaces high-risk KVM domain lifecycle callbacks from libvirt's lifecycle event API, retaining stable domain identity and both numeric and symbolic event/detail values. It rejects malformed and replayed events and prioritizes crashes, stops, and shutdowns while leaving routine start and definition activity available in the base event stream.",
   "value": "A structured lifecycle stream gives operators an authoritative transition timeline without brittle searches for English phrases in changing daemon logs. It shortens outage triage, supports change reconciliation, and makes collector gaps visible, while avoiding unsupported claims about the actor or cause of a stop.",
   "implementation": "Deploy one read-only long-running libvirt event client per connection authority. Register the default or integrated event loop before lifecycle callbacks, serialize enum-derived callback data and health heartbeats as JSON, and run it as a constant scripted input to `libvirt:lifecycle`. Validate every supported lifecycle/detail pair on a lab host, monitor reconnect/heartbeat gaps, then schedule `kvm_vm_lifecycle_events` and apply exact UUID/time maintenance policy after the base result.",
   "visualization": "Dashboard `KVM — Lifecycle and Collector Health`: show missing collector heartbeats/reconnects first, then crashes, unexpected stops, shutdowns, suspends, and all transitions. Use a domain UUID timeline, event/detail stacked chart, source/destination host correlation view, and sortable table with connection epoch, collector, event UUID, owner, maintenance match, and raw drilldown. Keep routine events available via filter and render collection gaps as gaps, never as `Stopped`.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "event_uuid",
-    "event_epoch",
-    "host",
-    "connection_epoch",
-    "collector_instance",
-    "domain_uuid",
-    "domain_name",
-    "event_code",
-    "event_name",
-    "detail_code",
-    "detail_name",
-    "libvirt_uri"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "libvirt virsh manual: event command",
@@ -84,20 +61,35 @@
     "N/A (libvirt lifecycle callback alone does not establish actor or adversary intent)"
   ],
   "detectionType": "Structured asynchronous lifecycle-event policy",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "event_uuid",
+    "event_epoch",
+    "host",
+    "connection_epoch",
+    "collector_instance",
+    "domain_uuid",
+    "domain_name",
+    "event_code",
+    "event_name",
+    "detail_code",
+    "detail_name",
+    "libvirt_uri"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "hardware": "KVM/QEMU domains visible through a qualified libvirt connection. One collector authority is required per connection scope. Remote connections, cluster managers, transient domains, and migration source/destination behavior require explicit topology testing.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "documentation-only editorial review against current libvirt virsh event, domain lifecycle callback, event-loop, and VM lifecycle documentation plus Splunk constant scripted-input guidance; prior English syslog phrase regex and generic Linux templates were removed; no host, domain event, event loop, collector, connection failure, scripted input, index, fixture, search, alert, dashboard, or production policy was executed; no libvirt, Red Hat, Splunk, runtime, security, or SME sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against current libvirt virsh event, domain lifecycle callback, event-loop, and VM lifecycle documentation plus Splunk constant scripted-input guidance; prior English syslog phrase regex and generic Linux templates were removed; no host, domain event, event loop, collector, connection failure, scripted input, index, fixture, search, alert, dashboard, or production policy was executed; no libvirt, Red Hat, Splunk, runtime, security, or SME sign-off",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -115,6 +107,15 @@
   },
   "detailedImplementation": "## Prerequisites and event authority\n\nAssign libvirt/KVM, Linux, Splunk collection, change, and incident owners. Inventory every libvirt URI, host/cluster scope, persistent/transient domain, service owner and collector authority. Qualify exact libvirt/QEMU/binding/kernel/distribution/forwarder/Splunk versions. Use domain UUID as identity; names can change and be reused.\n\nLibvirt exposes asynchronous domain lifecycle callbacks. The callback supplies domain, event and detail values; event/detail enums are versioned API facts. Generate symbolic names from installed binding constants and retain numeric codes. Do not regex `/var/log/libvirt/qemu/*.log` for English words as the primary contract: those files are per-QEMU diagnostics, formats/locales differ, and absence of a phrase is not absence of a lifecycle operation.\n\nRegister an event-loop implementation as required by the chosen binding. Libvirt documents `virEventRegisterDefaultImpl()` as a poll-based implementation and requires repeatedly running it; callback registration uses `virConnectDomainEventRegisterAny(..., VIR_DOMAIN_EVENT_ID_LIFECYCLE, ...)`. Production clients must handle keepalive, connection closure, callback deregistration, reconnection, backpressure and graceful shutdown. `virsh event lifecycle --loop --timestamp` is useful for qualification, but its human-readable output is not the production JSON schema.\n\n## Step 1 — Build a durable event and health client\n\nImplement a small reviewed client in a memory-safe supported language/binding. Open the read-only `qemu:///system` connection after event-loop initialization as required, register lifecycle callback, and enter the event loop. On each callback immediately capture UTC epoch, random event UUID, canonical host, connection epoch, collector instance, domain UUID/name, numeric event/detail, binding-derived names and URI. Emit one compact JSON line without blocking the event callback. Queue to a bounded local buffer and expose drops; do not silently discard on stdout blockage.\n\nEmit separate health JSON at startup, successful registration, periodic heartbeat, reconnect attempt/success/failure, queue overflow, and clean shutdown. Increment `connection_epoch` on every connection. A callback stream has no replay guarantee across disconnection; the health gap is essential evidence. If complete audit is required, combine this source with an authoritative management API/audit log after independently validating it.\n\nConfigure the client as a constant scripted input:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/TA_kvm_local/bin/libvirt_lifecycle_collector]\ndisabled = 0\ninterval = 1\nindex = kvm\nsourcetype = libvirt:lifecycle\n```\n\nSplunk documents `interval=1` (or less than execution duration) for constant streams and keeps one invocation per instance. Ensure the client does not daemonize, logs health to stdout or a separately monitored structured stream, handles SIGTERM, and exits nonzero on unrecoverable registration failure so supervision can restart it. Use a dedicated service account with event/read access only; no VM mutation is required.\n\nConfigure JSON line breaking and timestamp extraction from `event_epoch`; route health events to `libvirt:collector:health` either by separate stream or a deterministic transform validated on canaries. Capture binary/script hash, package lock, owner/mode, service account, effective input, libvirt ACL and connection URI.\n\n## Step 2 — Validate source coverage and enum mapping\n\nRun `virsh event --list` and the binding's enum introspection on each supported release. In a lab, register the collector and perform approved define/undefine, start, shutdown, destroy, reboot, suspend/resume, save/restore, crash simulation and migration where safe. Record exactly which lifecycle event/detail pairs appear; do not assume wording or sequence. Compare callback numeric/symbolic values with the installed API headers/binding.\n\nVerify one callback produces one JSON event and UUID. Test names with whitespace/Unicode, transient domains, rapid sequences, host reboot, daemon restart, collector restart, network/remote URI loss, keepalive timeout, output backpressure and Splunk outage. Confirm health heartbeat and connection epochs make every blind interval visible. A collector cannot retroactively recover callbacks lost while disconnected.\n\nMaintain expected collector inventory and alert when no heartbeat for two intervals plus measured indexing delay, registration failed, reconnect loop persists, event queue dropped, two collectors claim one URI, time is future/stale, or schema/enum is unknown. Never synthesize `Stopped` from heartbeat absence.\n\n## Step 3 — Create and tune the lifecycle policy\n\nSave `kvm_vm_lifecycle_events` every five minutes with the embedded 15-minute bounds. The SPL validates required fields and time, groups by event UUID, and requires exactly one event with one event name. It classifies `Stopped+Crashed` critical; other Stopped or Shutdown high; Suspended/Undefined medium; everything else informational. These defaults require local verification because detail names and operational significance differ.\n\nThe primary SPL filters high/critical unexpected rows. Keep an unfiltered lifecycle report for chronology. Apply maintenance and expected-transition policy after the base result, keyed by domain UUID and exact pair. Throttle notification by event UUID or incident correlation, never by dropping raw callbacks. Group storm notifications by host/change while retaining each domain event.\n\nActor attribution is absent. Correlate management audit, sudo, SSH, orchestration, API, change ticket and guest evidence, but do not fill `user=system` or infer requester from collector account. A callback tells what libvirt reported, not who caused it.\n\n## Step 4 — Validate SPL and operational response\n\nCreate the exact crash fixture and assert all fields/severity. Run separate negatives for routine event, duplicate, malformed numeric/name, stale/future, heartbeat, and bounded maintenance. Boundary-test exact earliest/latest behavior, detail null where allowed by binding, two event UUIDs for one rapid sequence, and replay with conflicting values.\n\nPublish the health-first dashboard. Alert title includes event/detail, UUID/name, host, event time, connection epoch and health status. Responder sequence: verify raw callback and collector continuity; inspect current domain state/inventory; correlate host/kernel/storage/network/OOM and libvirt/QEMU diagnostics; reconcile orchestration/change/backup/migration; establish service impact and actor from authoritative audit; choose authorized recovery; preserve before/after evidence. Never automatically start, destroy, reset, migrate or delete domain state from this callback alone.\n\nRecovery is current domain and service health plus closure of cause, not another generic Started event. A crash followed by Started may represent an auto-restart while the defect persists. Retain events according to local operational/audit needs; 365 days is advisory, not a regulatory claim.\n\n## Step 5 — Troubleshoot without pretending completeness\n\n- **Registration unsupported/fails:** verify event loop was registered before callback registration, connection driver supports events, binding/API versions, URI and service permissions. Emit health failure; do not fall back silently to log regex.\n- **No events but heartbeat good:** perform only approved lab transition and compare `virsh event`; check callback ID, event-loop execution and domain scope.\n- **Connection closes:** inspect libvirt daemon/socket/remote transport, keepalive, event-loop starvation and host load. Increment connection epoch and mark blind gap.\n- **Duplicate events:** find duplicate collectors, retry/replay logic or stdout buffering. Event UUID must be assigned once and persisted through retries.\n- **Unknown numeric value:** preserve code, update binding/header mapping after qualification, and route data quality. Do not label it `Other` without evidence.\n- **Domain name missing after undefine:** preserve UUID and callback-time name when available; enrich from historical inventory, never current name alone.\n- **Migration creates many events:** correlate UUID across source/destination, connection epochs and migration job. Do not suppress crashes in the same window.\n- **Splunk outage:** bounded local queue must expose overflow/drop count. After recovery, preserve original event epoch and unique ID; delayed indexing is not event time.\n- **Event was missed:** inspect collector health gap. Snapshot/inventory can show changed state but cannot reconstruct exact callback/detail/actor. State uncertainty explicitly.\n- **Unexpected event repeats:** investigate lifecycle action policy, auto-restart/orchestrator and underlying host fault rather than merely extending suppression.",
   "grandmaExplanation": "We listen for the virtualization platform to announce when a virtual machine starts, stops, pauses, crashes, or otherwise changes its life cycle. We also watch the listener itself so a quiet period caused by a broken connection is not mistaken for a trouble-free day.",
+  "hardware": "KVM/QEMU domains visible through a qualified libvirt connection. One collector authority is required per connection scope. Remote connections, cluster managers, transient domains, and migration source/destination behavior require explicit topology testing.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -17,26 +17,6 @@
   },
   "dataSources": "Splunk Add-on for VMware (Splunkbase 3215) `datastoreinv` vCenter API collection into documented default `index=vmware-inv`, `sourcetype=vmware:inv:datastore`. Required raw JSON/API properties: changeSet.name, changeSet.summary.capacity, changeSet.summary.freeSpace, changeSet.summary.accessible, moid, host, `_time`; the SPL also accepts proven extraction aliases name, capacity, and freeSpace.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-inv sourcetype=\"vmware:inv:datastore\" earliest=-24h\n| spath path=changeSet.name output=datastore_name\n| spath path=changeSet.summary.capacity output=capacity_bytes\n| spath path=changeSet.summary.freeSpace output=free_bytes\n| spath path=changeSet.summary.accessible output=accessible\n| eval datastore_name=coalesce(datastore_name,name), capacity_bytes=tonumber(coalesce(capacity_bytes,capacity)), free_bytes=tonumber(coalesce(free_bytes,freeSpace)), accessible=lower(tostring(coalesce(accessible,\"unknown\")))\n| stats latest(datastore_name) as datastore_name latest(capacity_bytes) as capacity_bytes latest(free_bytes) as free_bytes latest(accessible) as accessible latest(_time) as inventory_time latest(host) as vcenter by moid\n| where len(datastore_name)>0 AND capacity_bytes>0 AND free_bytes>=0 AND accessible=\"true\"\n| eval used_pct=round(100*(capacity_bytes-free_bytes)/capacity_bytes,1), free_gib=round(free_bytes/1073741824,1), inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where used_pct>=80 AND inventory_age_minutes<=60\n| eval use_case_id=\"UC-2.1.3\", threshold_pct=80, local_severity=case(used_pct>=95,\"critical\",used_pct>=90,\"high\",true(),\"medium\")\n| table datastore_name moid vcenter used_pct free_gib capacity_bytes free_bytes accessible inventory_time inventory_age_minutes threshold_pct local_severity use_case_id\n| sort 0 -used_pct datastore_name",
   "description": "Reports accessible datastores whose latest complete vCenter inventory values show at least 80 percent of documented byte capacity used and whose inventory observation is no more than 60 minutes old.",
   "value": "Low datastore headroom can block growth and management operations and can amplify snapshot, migration, or resynchronization risk. An explicit, freshness-aware queue lets storage and virtualization owners plan reclamation or expansion before capacity becomes urgent.",
@@ -80,22 +60,44 @@
     "host"
   ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nEnable `datastoreinv`; Splunk documents a 900-second default interval. Inventory is JSON and uses full snapshots followed by change sets, so search a horizon long enough to reconstruct the latest non-null values per `moid`. VMware defines DatastoreSummary `capacity` and `freeSpace` in bytes and guarantees them only when `accessible` is true. The 80/90/95 bands are local starting policy, not universal VMware thresholds.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-inv sourcetype=\"vmware:inv:datastore\" earliest=-24h\n| spath\n| stats count latest(_time) as latest_inventory values(changeSet.summary.accessible) as accessible by moid host\n| convert ctime(latest_inventory)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_datastore_capacity_80` after substituting only an approved local index name. Run every 15 minutes. The 24-hour lookback reconstructs incremental inventory; the explicit 60-minute freshness gate prevents old state from paging as current.\n\n```spl\nindex=vmware-inv sourcetype=\"vmware:inv:datastore\" earliest=-24h\n| spath path=changeSet.name output=datastore_name\n| spath path=changeSet.summary.capacity output=capacity_bytes\n| spath path=changeSet.summary.freeSpace output=free_bytes\n| spath path=changeSet.summary.accessible output=accessible\n| eval datastore_name=coalesce(datastore_name,name), capacity_bytes=tonumber(coalesce(capacity_bytes,capacity)), free_bytes=tonumber(coalesce(free_bytes,freeSpace)), accessible=lower(tostring(coalesce(accessible,\"unknown\")))\n| stats latest(datastore_name) as datastore_name latest(capacity_bytes) as capacity_bytes latest(free_bytes) as free_bytes latest(accessible) as accessible latest(_time) as inventory_time latest(host) as vcenter by moid\n| where len(datastore_name)>0 AND capacity_bytes>0 AND free_bytes>=0 AND accessible=\"true\"\n| eval used_pct=round(100*(capacity_bytes-free_bytes)/capacity_bytes,1), free_gib=round(free_bytes/1073741824,1), inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where used_pct>=80 AND inventory_age_minutes<=60\n| eval use_case_id=\"UC-2.1.3\", threshold_pct=80, local_severity=case(used_pct>=95,\"critical\",used_pct>=90,\"high\",true(),\"medium\")\n| table datastore_name moid vcenter used_pct free_gib capacity_bytes free_bytes accessible inventory_time inventory_age_minutes threshold_pct local_severity use_case_id\n| sort 0 -used_pct datastore_name\n```\n\nUnderstanding this SPL: `spath` reads documented vSphere property paths; `stats latest(field)` reconstructs each datastore from change sets; validity filters require identity, positive capacity, nonnegative free space, accessibility, and freshness. Byte arithmetic yields percentage and GiB. Severity bands remain local policy.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nCompare two named datastores with vSphere Client **Storage > Datastores > select datastore > Summary > Capacity** at the same time. Check byte-to-GiB arithmetic and one datastore after an approved small file create/delete or lab capacity change. Validate inaccessible state separately because VMware says capacity/freeSpace cannot be trusted when inaccessible is false.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nTriage raw JSON and freshness first; verify vSphere capacity; identify snapshots, clones, ISOs, logs, orphan candidates, restore/migration work, and growth owners; compare backing-array or vSAN physical headroom; then choose cleanup, workload move, policy change, or expansion through storage change control. Never auto-delete files or snapshots from this row.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf paths are null, inspect `_raw`, extraction cutoff, full versus incremental change set, and add-on version. If used percent exceeds 100 or free is negative, quarantine the malformed row and verify units/source. If vSphere differs, refresh the datastore through approved administration, wait for the next inventory cycle, and compare timestamps. If no datastore appears, check `datastoreinv`, account visibility, DCN job status, and index routing.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We measure how much room is left in each shared storage area and point out the ones nearing the team's limit before machines run out of space to work.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

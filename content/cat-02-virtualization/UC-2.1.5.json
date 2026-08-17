@@ -17,26 +17,6 @@
   },
   "dataSources": "Local PowerCLI scripted input in the virtualization app, with Splunk Add-on for VMware (Splunkbase 3215) inventory/events as corroboration. `index=vmware-ops`, `sourcetype=vmware:powercli:snapshot`; required contract fields: snapshot_id, vm_id, vm_name, snapshot_name, created, size_on_disk_gb, is_current, power_state, vcenter. `Get-Snapshot` documents Created, Id, VMId, SizeOnDiskGB, IsCurrent, and PowerState.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-ops sourcetype=\"vmware:powercli:snapshot\" earliest=-2h\n| eval snapshot_id=trim(snapshot_id), vm_id=trim(vm_id), vm_name=trim(vm_name), snapshot_name=trim(snapshot_name), created_epoch=strptime(created,\"%Y-%m-%dT%H:%M:%S.%Q%z\"), size_on_disk_gb=tonumber(size_on_disk_gb)\n| where len(snapshot_id)>0 AND len(vm_id)>0 AND len(vm_name)>0 AND len(snapshot_name)>0 AND isnotnull(created_epoch)\n| stats latest(created_epoch) as created_epoch latest(size_on_disk_gb) as size_on_disk_gb latest(is_current) as is_current latest(power_state) as power_state latest(vcenter) as vcenter latest(_time) as inventory_time by snapshot_id vm_id vm_name snapshot_name\n| eval age_hours=round((now()-created_epoch)/3600,1), inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where age_hours>72 AND inventory_age_minutes<=90\n| eval use_case_id=\"UC-2.1.5\", policy_hours=72, local_severity=if(age_hours>168,\"high\",\"medium\")\n| convert ctime(created_epoch)\n| table vm_name vm_id snapshot_name snapshot_id created_epoch age_hours size_on_disk_gb is_current power_state vcenter inventory_age_minutes policy_hours local_severity use_case_id\n| sort 0 -age_hours vm_name snapshot_name",
   "description": "Reports current PowerCLI snapshot objects older than the local 72-hour policy from a fresh inventory, retaining stable snapshot/VM identities, creation time, on-disk size when authorized, and current-state context.",
   "value": "Long-lived snapshot delta chains can consume datastore headroom and complicate maintenance or backup workflows. An owner-ready inventory supports deliberate consolidation decisions without confusing snapshots with backups or deleting them automatically.",
@@ -83,22 +63,44 @@
     "vcenter"
   ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe primary SPL uses the local governed event index `index=vmware-ops` and the explicit scripted-input sourcetype documented below; neither is a Splunk product default. Create the index, source type, retention, ACL, heartbeat, and JSON field contract in the local virtualization app before enabling the search. Splunk's `vmware-perf`, `vmware-inv`, and `vmware-taskevent` defaults remain corroborating add-on sources where stated. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nCreate a local scripted input on a controlled Heavy Forwarder with VMware PowerCLI. Connect to each governed vCenter using a credential stored outside the script. Run `Get-VM | Get-Snapshot` and serialize only documented Snapshot properties to the explicit snake-case contract. The command requires datastore browse privilege only for size; age/identity collection must continue when size is unavailable. Emit one observation per current snapshot and a separate run-complete heartbeat with counts.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-ops sourcetype=\"vmware:powercli:snapshot\" earliest=-2h\n| stats count latest(_time) as latest_poll dc(vm_id) as vm_count dc(snapshot_id) as snapshot_count values(vcenter) as vcenters\n| convert ctime(latest_poll)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_snapshot_age_72h` after substituting only an approved local index name. Run the script hourly and the saved search after each expected poll. Trigger per snapshot_id; age is evaluated from the current inventory, not historical creation events.\n\n```spl\nindex=vmware-ops sourcetype=\"vmware:powercli:snapshot\" earliest=-2h\n| eval snapshot_id=trim(snapshot_id), vm_id=trim(vm_id), vm_name=trim(vm_name), snapshot_name=trim(snapshot_name), created_epoch=strptime(created,\"%Y-%m-%dT%H:%M:%S.%Q%z\"), size_on_disk_gb=tonumber(size_on_disk_gb)\n| where len(snapshot_id)>0 AND len(vm_id)>0 AND len(vm_name)>0 AND len(snapshot_name)>0 AND isnotnull(created_epoch)\n| stats latest(created_epoch) as created_epoch latest(size_on_disk_gb) as size_on_disk_gb latest(is_current) as is_current latest(power_state) as power_state latest(vcenter) as vcenter latest(_time) as inventory_time by snapshot_id vm_id vm_name snapshot_name\n| eval age_hours=round((now()-created_epoch)/3600,1), inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where age_hours>72 AND inventory_age_minutes<=90\n| eval use_case_id=\"UC-2.1.5\", policy_hours=72, local_severity=if(age_hours>168,\"high\",\"medium\")\n| convert ctime(created_epoch)\n| table vm_name vm_id snapshot_name snapshot_id created_epoch age_hours size_on_disk_gb is_current power_state vcenter inventory_age_minutes policy_hours local_severity use_case_id\n| sort 0 -age_hours vm_name snapshot_name\n```\n\nUnderstanding this SPL: The search validates identities and parses the ISO creation instant, keeps the newest observation per stable snapshot/VM key, rejects stale inventory, calculates age, and applies a transparent 72-hour local policy. Size is context and may be null; it is not an alert prerequisite.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nFor two VMs, compare every returned snapshot with both `Get-Snapshot -VM <vm>` and vSphere Client **VM > Snapshots > Manage Snapshots**. Confirm ID, name, creation instant/timezone, current flag, power state and SizeOnDiskGB availability. Create and remove only a disposable lab snapshot under change control; verify it appears once then disappears after the next successful poll.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nConfirm current existence and age; identify creator/change/backup workflow; verify workload owner and rollback need; inspect datastore headroom and consolidation impact; schedule deletion/consolidation through vCenter with backup and application owners; never cancel an active consolidation; verify snapshot absence, datastore state and workload health afterward.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nNo rows can mean no snapshots or a failed script, so require a run-complete heartbeat. If size is null, test Datastore/Browse datastore privilege rather than converting null to zero. If deleted snapshots persist, compare poll time and snapshot ID. If timestamps parse incorrectly, emit invariant ISO 8601 with offset from PowerShell and test locale/timezone. If duplicate IDs appear, include vCenter in the entity key.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We list old restore points that are still attached to virtual machines so owners can decide whether to keep or safely combine them before they consume too much storage.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

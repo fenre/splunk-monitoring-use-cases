@@ -18,20 +18,6 @@
   },
   "dataSources": "A reviewed PowerCLI collector runs `Get-VM | Get-Snapshot` against governed vCenters and emits one JSON event per current snapshot plus a separate complete-run manifest to deployment-local `index=vmware-ops`, `sourcetype=vmware:powercli:snapshot`. Required observation fields are `vcenter`, stable `vm_id`, `vm_name`, stable `snapshot_id`, `snapshot_name`, invariant-offset `created`, `is_current`, `power_state`, optional `size_on_disk_gb`, integer `collector_epoch`, unique `snapshot_run_id`, and `collector_status=ok`. Broadcom documents Snapshot properties `Created`, `Id`, `VMId`, `Name`, `IsCurrent`, `PowerState`, `SizeOnDiskGB`, and `Uid`; size requires `Datastore/Browse datastore`. The governed local lookup `vmware_snapshot_age_policy.csv` optionally supplies `max_age_hours`, `owner`, and `service_tier` by exact `vcenter,vm_id`; valid local maxima are 1-72 hours, otherwise the search uses Broadcom's 72-hour guidance and policy health reports the defect. Splunk Add-on for VMware Metrics (Splunkbase 5089) inventory is corroborating only and does not document this flattened complete-run contract.",
   "app": "A locally maintained `TA_vmware_snapshot_inventory` containing the reviewed PowerCLI collector, complete-run manifest, JSON source-type configuration, policy lookup definition, source-health searches, and dashboard knowledge objects. Execute it on a supported hardened Splunk Enterprise collection tier or deliver reviewed JSON through restricted HEC. Splunk Add-on for VMware Metrics (Splunkbase 5089) and its Metrics Indexes package (Splunkbase 5602) may provide corroborating VM inventory but do not replace the PowerCLI snapshot-object contract.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089/",
-      "role": "optional"
-    },
-    {
-      "id": 5602,
-      "name": "Splunk Add-on for VMware Metrics Indexes",
-      "url": "https://splunkbase.splunk.com/app/5602/",
-      "role": "optional"
-    }
-  ],
   "spl": "index=vmware-ops sourcetype=\"vmware:powercli:snapshot\" collector_status=\"ok\" earliest=-2h\n| eval vcenter=lower(trim(vcenter)), vm_id=trim(vm_id), vm_name=trim(vm_name), snapshot_id=trim(snapshot_id), snapshot_name=trim(snapshot_name), created_epoch=strptime(created,\"%Y-%m-%dT%H:%M:%S.%Q%z\"), size_on_disk_gb=tonumber(size_on_disk_gb), collector_epoch=tonumber(collector_epoch), snapshot_run_id=trim(snapshot_run_id)\n| where len(vcenter)>0 AND len(vm_id)>0 AND len(vm_name)>0 AND len(snapshot_id)>0 AND len(snapshot_name)>0 AND len(snapshot_run_id)>0 AND isnotnull(created_epoch) AND created_epoch<=now() AND isnotnull(collector_epoch)\n| sort 0 vcenter vm_id snapshot_id -collector_epoch -_indextime\n| dedup vcenter vm_id snapshot_id\n| eval inventory_age_minutes=(now()-collector_epoch)/60\n| where inventory_age_minutes>=0 AND inventory_age_minutes<=90\n| lookup vmware_snapshot_age_policy vcenter vm_id OUTPUT max_age_hours owner service_tier\n| eval configured_max_age_hours=tonumber(max_age_hours), valid_local_policy=if(isnotnull(configured_max_age_hours) AND configured_max_age_hours>=1 AND configured_max_age_hours<=72,1,0), policy_hours=if(valid_local_policy=1,configured_max_age_hours,72), policy_source=if(valid_local_policy=1,\"governed_vm_policy\",\"broadcom_72h_default\"), owner=coalesce(nullif(trim(owner),\"\"),\"unassigned\"), service_tier=coalesce(nullif(trim(service_tier),\"\"),\"unclassified\")\n| eval age_hours=round((now()-created_epoch)/3600,1), overdue_hours=round(age_hours-policy_hours,1)\n| where overdue_hours>0\n| eval local_severity=case(overdue_hours>96,\"critical\",overdue_hours>24,\"high\",true(),\"warning\"), created_utc=strftime(created_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), collected_utc=strftime(collector_epoch,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-2.1.45\"\n| table vcenter vm_name vm_id snapshot_name snapshot_id created_utc age_hours policy_hours policy_source overdue_hours size_on_disk_gb is_current power_state owner service_tier collected_utc inventory_age_minutes snapshot_run_id local_severity use_case\n| sort 0 -overdue_hours vcenter vm_name snapshot_name",
   "description": "Reports each current snapshot from the newest fresh PowerCLI inventory when its age is strictly greater than a valid 1-72-hour VM-specific policy, or Broadcom's 72-hour guidance when no valid policy exists. Results preserve stable VM/snapshot identity, policy provenance, owner, service tier, overdue duration, optional size, and run freshness.",
   "value": "A fixed global report identifies old snapshots, while policy-aware escalation routes each breach to the accountable workload owner and exposes invalid governance instead of silently accepting it. This shortens cleanup decisions, protects datastore headroom and maintenance readiness, and keeps a missing size or local policy from hiding a snapshot that has exceeded Broadcom's retention guidance.",
@@ -40,24 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built flattened PowerCLI Snapshot JSON complete-run contract plus governed per-VM age-policy lookup; no applicable CIM dataset",
   "dataModelAcceleration": "Not applicable. No documented CIM dataset preserves PowerCLI snapshot identity, creation instant, optional on-disk size, complete-run/freshness state, per-VM policy provenance, owner, and service tier. Keep raw current inventory and independent run/policy health controls.",
-  "requiredFields": [
-    "vcenter",
-    "vm_id",
-    "vm_name",
-    "snapshot_id",
-    "snapshot_name",
-    "created",
-    "is_current",
-    "power_state",
-    "size_on_disk_gb",
-    "collector_epoch",
-    "snapshot_run_id",
-    "collector_status",
-    "_indextime",
-    "max_age_hours",
-    "owner",
-    "service_tier"
-  ],
   "references": [
     {
       "title": "Broadcom PowerCLI — Get-Snapshot",
@@ -100,21 +68,39 @@
     "N/A (operational VMware snapshot age-policy monitoring)"
   ],
   "detectionType": "Current snapshot strictly older than governed per-VM or 72-hour fallback policy",
+  "requiredFields": [
+    "vcenter",
+    "vm_id",
+    "vm_name",
+    "snapshot_id",
+    "snapshot_name",
+    "created",
+    "is_current",
+    "power_state",
+    "size_on_disk_gb",
+    "collector_epoch",
+    "snapshot_run_id",
+    "collector_status",
+    "_indextime",
+    "max_age_hours",
+    "owner",
+    "service_tier"
+  ],
   "equipment": [
+    "broadcom_symantec",
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
     "vmware_vcenter"
   ],
-  "hardware": "vCenter-managed virtual machines and datastores. Snapshot behavior, consolidation impact, and acceptable rollback windows depend on workload write rate, disk layout, application sensitivity, and available datastore headroom.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "documentation-only editorial review against Broadcom Get-Snapshot/Snapshot structure and snapshot-retention/consolidation guidance plus Splunk scripted-input, lookup, and VMware Metrics listing documentation; collector, policy, SPL, controls, dashboard, evidence, and response specified but not executed; no production, VMware, backup-vendor, application-SME, storage-SME, Splunk, or customer sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against Broadcom Get-Snapshot/Snapshot structure and snapshot-retention/consolidation guidance plus Splunk scripted-input, lookup, and VMware Metrics listing documentation; collector, policy, SPL, controls, dashboard, evidence, and response specified but not executed; no production, VMware, backup-vendor, application-SME, storage-SME, Splunk, or customer sign-off",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -132,6 +118,21 @@
   },
   "detailedImplementation": "## Prerequisites and policy boundary\n\nAssign VMware, storage, backup, application, Splunk, and change owners. Inventory every governed VM by stable vCenter and VM ID, workload owner, service tier, backup/replication products, normal change windows, datastore, snapshot policy, and decommission state. Run supported VCF PowerCLI on a hardened collection tier with trusted HTTPS access to vCenter. Use a service account limited to the VM and snapshot read operations actually proven in the target release; `Datastore/Browse datastore` is needed only for snapshot size. Store credentials in the platform secret facility.\n\nBroadcom documents `Get-Snapshot -VM` and the Snapshot properties `Created`, `Id`, `VMId`, `Name`, `IsCurrent`, `PowerState`, `SizeOnDiskGB`, and `Uid`. It states a single snapshot should not be retained more than 72 hours, that snapshots are not backups, that delta growth can consume storage and affect performance, and that running deletion/consolidation must not be cancelled. This rule therefore accepts stricter local limits from one through 72 hours and never treats a longer lookup value as authority to override the 72-hour fallback.\n\nThe primary source is a local app, not Splunk Add-on for VMware Metrics (Splunkbase 5089) or its Metrics Indexes package (Splunkbase 5602). Those products can corroborate VM identity but do not document the flattened complete-run event used here.\n\n## Step 1 — Build complete current-snapshot inventory and policy\n\nPackage a reviewed PowerShell collector in `TA_vmware_snapshot_inventory`. For each governed vCenter, enumerate intended VMs and run `Get-Snapshot -VM` explicitly. Serialize one JSON event per returned current Snapshot object with the fields in `dataSources`. Emit invariant ISO 8601 creation time with offset, numeric size only when PowerCLI provides it, one UTC `collector_epoch`, and one `snapshot_run_id` shared by the successful run. Emit a separate manifest with expected/processed VM and snapshot counts. Mark snapshot events `collector_status=ok` only when enumeration completes; route failures separately.\n\nConfigure an hourly scripted input in `local/inputs.conf` or reviewed HEC delivery to `index=vmware-ops`, `sourcetype=vmware:powercli:snapshot`. Create the index/source type, JSON extraction, ACL, retention, heartbeat, and error route explicitly. The names are local contracts, not Splunk defaults. Reconcile representative IDs, names, Created, current flag, power state, and optional size with `Get-Snapshot -Id` and vSphere Client VM > Snapshots > Manage Snapshots. Broadcom notes API-created backup snapshots can be absent from Snapshot Manager, so PowerCLI is the inventory authority for this rule.\n\nCreate version-controlled `vmware_snapshot_age_policy.csv` keyed by exact lowercase vCenter and stable VM ID. Optional `max_age_hours` must be numeric from 1 through 72; owner and service tier must be nonblank for routed service alerts. Reject duplicate keys in a separate health check. Missing or invalid policy deliberately falls back to 72 hours and remains visible as governance debt rather than suppressing detection.\n\n## Step 2 — Create and understand the search\n\nSave the catalogue SPL as `vmware_snapshot_age_policy_escalation` and run after every expected poll. The bounded base search accepts only successful snapshot rows, normalizes identity and time, validates stable keys and creation/collector epochs, sorts newest first, and deduplicates exact vCenter/VM/snapshot identity. It rejects future creation and collectors and inventory older than 90 minutes.\n\nThe lookup adds the optional VM policy. The search accepts only configured limits from 1 to 72 hours; all other values use `policy_hours=72` and `policy_source=broadcom_72h_default`. Missing owner/tier are labelled, not guessed. Age and overdue duration are calculated in hours to avoid rounded-day boundary ambiguity. Strict `overdue_hours>0` means a snapshot exactly at policy does not return. Local warning/high/critical labels are routing bands based on time beyond policy, not VMware severities.\n\nTrigger on result count greater than zero and throttle by vCenter plus stable snapshot ID. A snapshot can move between owner queues or remain over policy, so preserve daily reminders or ticket state according to local operations design. Keep the base result unsuppressed; apply finite dispositions afterward. Do not invoke `Remove-Snapshot`, disk expansion, datastore operations, or orchestration from the alert.\n\n## Step 3 — Validate source, policy, and boundaries\n\nUse fixed JSON and CSV fixtures at a fixed search time. Test age one second below, exactly at, and one second above 72 hours; a valid 24-hour policy at each boundary; zero, negative, nonnumeric, 72, and greater-than-72 policy values; absent policy; blank owner/tier; missing size; malformed/future creation; future/stale collector; duplicate events; conflicting older/newer observations; duplicate policy keys; failed/partial runs; deleted snapshots; and rerun determinism. Assert exact row count, stable IDs, policy source/hours, overdue hours, freshness, and UC ID.\n\nIn nonproduction, create one disposable snapshot through an approved change. Confirm it appears exactly once in PowerCLI and the next complete run. Use a temporarily strict valid policy to exercise routing without waiting 72 hours. Remove it only through the approved VMware workflow, do not cancel consolidation, and confirm absence in PowerCLI and a subsequent complete run plus healthy VM/datastore state. This review specifies but did not execute that test.\n\nOperate separate source/policy health for expected vCenters/VMs, run manifests, errors, stale/missing runs, field nulls, timestamp parse failures, duplicate IDs/routes, sudden cardinality drops, lookup duplicate/invalid limits, unassigned owners, and extraction drift. A zero-row age search without those controls is not proof of no snapshots.\n\n## Step 4 — Operationalize investigation and safe disposition\n\nBuild the table, owner bars, age/policy scatter, and health panels described in `visualization`. Restrict VM, datastore, backup, and change details to appropriate operations roles. Route warnings to the exact owner, high/critical overdue findings jointly to VMware/storage/application owners based on current expiry, size, write rate, datastore headroom, and service sensitivity.\n\nThe responder first verifies run freshness/completeness, exact VM/snapshot IDs, current existence, creation time, policy provenance, and owner. Then identify the snapshot creator/purpose, backup or replication job, active change/rollback requirement, chain position, optional size, datastore headroom, consolidation-needed state, application sensitivity, and an approved removal window. A snapshot may be intentional yet still exceed policy. Do not call it orphaned from age alone.\n\nBefore removal, prove a current backup/recovery position and application/change-owner approval. Broadcom says snapshots are not backups, disks cannot be expanded while snapshots exist, and active deletion/consolidation must not be cancelled. Monitor the vCenter task and workload; verify snapshot absence, consolidation state, datastore headroom, and application health afterward. Record the disposition and close only from fresh authoritative state.\n\n## Step 5 — Troubleshoot product-specific failures\n\n- **No snapshot rows:** verify complete-run manifest before concluding none exist; then check vCenter reachability/trust, PowerCLI, credentials, VM enumeration, scripted input/HEC, index, source type, and error route.\n- **Size is null:** test `Datastore/Browse datastore` and PowerCLI output. Keep null distinct from zero; age detection must continue.\n- **Snapshot Manager disagrees:** use `Get-Snapshot -Id`; Broadcom notes third-party API snapshots may not appear in the UI.\n- **Age is extreme:** validate invariant offset timestamp, UTC collector clock, `strptime` pattern, and seconds-versus-milliseconds fixtures.\n- **Deleted snapshot persists:** compare deletion completion, collector time, run completeness, exact ID, index delay, and next successful run.\n- **Duplicate snapshots:** include vCenter in identity, then inspect duplicate collection routes, replay, snapshot IDs, and run manifests.\n- **Policy unexpectedly defaults:** check exact lowercase vCenter/stable VM ID, CSV permissions/deployment, duplicate keys, numeric range, and knowledge-object scope.\n- **Long consolidation affects service:** do not cancel it. Escalate through VMware/storage/application runbooks and monitor task, datastore, and workload state.\n- **Search is green but inventory is stale:** source health owns this condition; stop green compliance display until a fresh complete run arrives.\n\nRetention, local limits below 72 hours, reminder frequency, and escalation follow approved policy. This page asserts no automatic deletion, universal severity, root cause, or regulatory certification.",
   "grandmaExplanation": "We compare every current virtual-machine restore point with the time limit set for that machine. If it stays longer than allowed, the right owner gets the exact item and age so they can decide whether and how to remove it safely.",
+  "hardware": "vCenter-managed virtual machines and datastores. Snapshot behavior, consolidation impact, and acceptable rollback windows depend on workload write rate, disk layout, application sensitivity, and available datastore headroom.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089/",
+      "role": "optional"
+    },
+    {
+      "id": 5602,
+      "name": "Splunk Add-on for VMware Metrics Indexes",
+      "url": "https://splunkbase.splunk.com/app/5602/",
+      "role": "optional"
+    }
+  ],
   "wave": "crawl"
 }

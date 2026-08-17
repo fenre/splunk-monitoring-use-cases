@@ -18,15 +18,6 @@
   },
   "dataSources": "Microsoft Sysmon Event ID 8 (`CreateRemoteThread`) from `Applications and Services Logs > Microsoft > Windows > Sysmon > Operational`, collected in XML to deployment-chosen `index=windows`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`, `sourcetype=XmlWinEventLog` with Splunk Add-on for Sysmon. Required fields are `_time`, `_indextime`, `Computer`/`host`, source/type/provider, `EventCode`, `EventRecordID`, `SourceProcessGuid`, `SourceProcessId`, `SourceImage`, `TargetProcessGuid`, `TargetProcessId`, `TargetImage`, `NewThreadId`, `StartAddress`, `StartModule`, `StartFunction`, `SourceUser`, and `TargetUser`. Event IDs 1, 7, 10, and 25 plus EDR/memory evidence are optional corroboration, not merged into the base fact.",
   "app": "Splunk Add-on for Sysmon (`Splunk_TA_microsoft_sysmon`, Splunkbase 5709) 5.0.1 supplies the supported Sysmon input and Event ID 8 field extractions for Splunk Platform 9.2+ and Sysmon 15.0. A deployment app supplies source health, the raw saved search, exact source-target baseline/exception, fixtures, dashboard, and runbook. No premium Splunk app is required.",
-  "splunkbaseApps": [
-    {
-      "id": 5709,
-      "name": "Splunk Add-on for Sysmon",
-      "url": "https://splunkbase.splunk.com/app/5709",
-      "minVersion": "5.0.1",
-      "role": "primary"
-    }
-  ],
   "spl": "index=windows sourcetype=XmlWinEventLog source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=8 earliest=-10m@m latest=-5m@m\n| eval endpoint=lower(trim(coalesce(Computer,dvc,dest,host))), source_process_guid=coalesce(SourceProcessGuid,parent_process_guid,\"unknown\"), source_process_id=coalesce(SourceProcessId,parent_process_id,\"unknown\"), source_image=coalesce(SourceImage,parent_process_path,\"unknown\"), target_process_guid=coalesce(TargetProcessGuid,process_guid,\"unknown\"), target_process_id=coalesce(TargetProcessId,process_id,\"unknown\"), target_image=coalesce(TargetImage,process_path,\"unknown\"), source_user=coalesce(SourceUser,\"unknown\"), target_user=coalesce(TargetUser,\"unknown\"), new_thread_id=coalesce(NewThreadId,\"unknown\"), start_address=coalesce(StartAddress,src_address,\"unknown\"), start_module=if(isnull(StartModule) OR StartModule=\"\" OR StartModule=\"-\",\"unknown\",StartModule), start_function=if(isnull(StartFunction) OR StartFunction=\"\" OR StartFunction=\"-\",\"unknown\",StartFunction), event_record_id=coalesce(EventRecordID,RecordNumber,\"unknown\")\n| where len(endpoint)>0\n| eval action=\"create_remote_thread\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\"), indexed_time=strftime(_indextime,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-1.2.124\"\n| table _time event_time indexed_time endpoint action source_image source_process_guid source_process_id source_user target_image target_process_guid target_process_id target_user new_thread_id start_address start_module start_function event_record_id source sourcetype use_case\n| sort 0 -_time endpoint source_image target_image",
   "description": "Detects each Sysmon Event ID 8 CreateRemoteThread observation in the completed dispatch slice and preserves source process, target process, users, new thread, start address, inferred module/function, record identity, and event/index times. Empty inferred fields remain `unknown`; the row describes remote-thread creation rather than declaring arbitrary process injection or malware.",
   "value": "Creating a thread in another live process is a high-signal execution primitive used by legitimate instrumentation and by malware to run under a different process context. Complete source-target-start evidence accelerates process-lineage, memory, module, and software-owner investigation while avoiding unsafe exclusions and unsupported claims that a ProcessAccess mask or one remote thread proves compromise.",
@@ -35,28 +26,6 @@
   "cimModels": [],
   "schema": "Native Microsoft Sysmon Event ID 8 CreateRemoteThread XML with Splunk Add-on for Sysmon aliases",
   "dataModelAcceleration": "Not applicable to the primary detector. The Sysmon add-on exposes normalized process/parent/start fields for Event ID 8, but a generic Endpoint.Processes count does not guarantee source-versus-target GUID/PID/path, SourceUser/TargetUser, NewThreadId, StartAddress, inferred module/function, EventRecordID, or raw XML. Add summary acceleration only after exact parity and source-health tests; the raw Event ID 8 record remains authoritative.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "Computer",
-    "host",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventRecordID",
-    "SourceProcessGuid",
-    "SourceProcessId",
-    "SourceImage",
-    "TargetProcessGuid",
-    "TargetProcessId",
-    "TargetImage",
-    "NewThreadId",
-    "StartAddress",
-    "StartModule",
-    "StartFunction",
-    "SourceUser",
-    "TargetUser"
-  ],
   "references": [
     {
       "title": "Microsoft Sysinternals: Sysmon Event ID 8 CreateRemoteThread",
@@ -110,20 +79,41 @@
   ],
   "detectionType": "TTP-supporting process modification event",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "Computer",
+    "host",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventRecordID",
+    "SourceProcessGuid",
+    "SourceProcessId",
+    "SourceImage",
+    "TargetProcessGuid",
+    "TargetProcessId",
+    "TargetImage",
+    "NewThreadId",
+    "StartAddress",
+    "StartModule",
+    "StartFunction",
+    "SourceUser",
+    "TargetUser"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows clients and servers with Microsoft Sysmon 15.0 installed/running, CreateRemoteThread Event ID 8 included in the active configuration, and XML collection. Other injection primitives, kernel activity, protected-process limitations, endpoints without Sysmon, and activity predating retention require EDR or forensic telemetry.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft Sysmon Event ID 8/10/25 and tuning documentation, current Splunk Sysmon add-on field mappings and Security Content, and MITRE ATT&CK process-injection behavior-chain guidance; no Sysmon configuration, remote-thread generation, XML field extraction, SPL execution, source-target baseline, fixture replay, EDR/memory correlation, exception, alert, dashboard, response, or Microsoft/Splunk/endpoint-security SME runtime sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft Sysmon Event ID 8/10/25 and tuning documentation, current Splunk Sysmon add-on field mappings and Security Content, and MITRE ATT&CK process-injection behavior-chain guidance; no Sysmon configuration, remote-thread generation, XML field extraction, SPL execution, source-target baseline, fixture replay, EDR/memory correlation, exception, alert, dashboard, response, or Microsoft/Splunk/endpoint-security SME runtime sign-off",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -140,6 +130,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact event contract\n\nAssign endpoint-security, Sysmon configuration, Splunk collection/content, EDR/forensics, application-owner, source-health, and incident-response roles. Inventory in-scope endpoints/roles, Windows/Sysmon version, active configuration/hash, direct versus WEF/WEC route, expected security/debug/profiling/instrumentation tools, and owners. Install Sysmon 15.0 and Splunk Add-on for Sysmon 5.0.1 through controlled deployment; qualify exact endpoint, forwarder, add-on, indexer, search-head, and Splunk Cloud versions.\n\nMicrosoft defines Event ID 8 narrowly: a process created a thread in another process. SourceImage/Guid/Id and TargetImage/Guid/Id identify the pair; NewThreadId and StartAddress identify the thread start; StartModule and StartFunction are inferred and may be empty outside known loaded modules/exports. SourceUser/TargetUser were added in later Sysmon schemas and the Splunk add-on documents consistency limitations. Preserve both rather than collapsing them into one user.\n\nOne Event ID 8 produces one result. It is a strong process-modification signal but not proof that preceding memory allocation/write, malicious payload, successful execution, or privilege escalation occurred. MITRE's behavior-chain guidance combines process access/memory/thread/module/process activity. This UC deliberately avoids promising all process-injection coverage.\n\n## Step 1 — Configure and collect Event ID 8\n\nMerge a reviewed `CreateRemoteThread` include into the organization's Sysmon XML. Start with visibility on a representative cohort and tune after observing exact source-target-start tuples; avoid copying internet exclusions that discard all Windows, AV, or EDR processes. Record active configuration hash, verify Event ID 16 on changes, and inspect Event ID 255 errors. Confirm **Applications and Services Logs > Microsoft > Windows > Sysmon > Operational** locally.\n\nCollect XML through an app-owned input:\n\n```ini\n[WinEventLog://Microsoft-Windows-Sysmon/Operational]\ndisabled = 0\nrenderXml = true\nindex = windows\ncheckpointInterval = 5\n```\n\nThe add-on documents `sourcetype=XmlWinEventLog`; channel identity is `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Do not edit `default`. For WEF/WEC, use dedicated collector guidance, preserve originating Computer, measure subscription latency, and prevent simultaneous local plus collector ingestion. Restrict raw paths/users/addresses and correlated memory evidence.\n\nInspect Event ID 8 raw XML across qualified Windows/Sysmon builds. Verify every required field and aliases. Specifically test `-`, empty, and populated StartModule/StartFunction; differing SourceUser/TargetUser; unknown source process; process termination before ingestion; and hexadecimal addresses. Do not infer shellcode from an unknown module/function.\n\n## Step 2 — Establish source and field health\n\nMaintain expected endpoint/config/route/owner inventory. Health searches must detect no recurring Sysmon telemetry, active-config drift, Event ID 255 errors, wrong source/type/provider/channel, missing source or target GUID/path, missing EventRecordID, invalid thread/address, inference-null rate, duplicate Computer/channel/EventRecordID, excessive `_indextime-_time`, clock skew, forwarder/WEC queue, and add-on drift. Event ID 8 may be rare, so use recurring Sysmon/deployment telemetry as heartbeat; no Event 8 is not proof of no injection.\n\nBuild a versioned baseline from exact source/target path and hash/signer, source/target user, StartModule/Function/address pattern, endpoint role/build, software/product/version, service/job, cadence, and owner. Baseline distinct Windows builds and security agents. Keep rare/unseen as review context, not automatic maliciousness. Ingestion filters require security-owner review, before/after volume/coverage tests, rollback, and retained source health.\n\n## Step 3 — Save and understand the SPL\n\nSave the sidecar SPL as `windows_sysmon_create_remote_thread`. Schedule every five minutes with `earliest=-10m@m latest=-5m@m`, evaluating one complete five-minute slice after five minutes of indexing allowance. Measure p99 direct/WEC delay and adjust schedule plus controls if inadequate. Trigger on any row; group delivery only on exact endpoint, source GUID, target GUID, thread ID/record ID, and bounded time.\n\nThe base clause fixes index, XML source type, exact Sysmon channel, EventCode, and closed window. Coalescing supports qualified raw/add-on aliases while retaining `unknown`. Source and target concepts remain separate. `-`, empty, or null inferred module/function becomes `unknown` so dashboards do not mistake a dash for a named module. Output preserves record and event/index times.\n\nDo not append Event ID 10 rows into the same unlabeled table. Microsoft says Event 10 means one process opened another; it can precede queries, reads, or writes and can be noisy. Access values such as `0x1fffff`, `0x801`, or `0x1ffb` are masks whose rights depend on the bit set and platform; none alone proves WriteProcessMemory or process hollowing. Correlate Event 10 source/target GUID and time downstream with explicit mask decoding and tests. Event 25 directly reports supported process-tampering classes and also deserves separate semantics.\n\nDo not hard-exclude `csrss`, `MsMpEng`, `SentinelAgent`, `CrowdStrike`, or `lsass` by substring. Filenames can be spoofed, products change, and targets can be sensitive. Use exact hash/version/source-target/start tuples in post-result baseline/notification handling.\n\n## Step 4 — Validate semantics, timing, duplicates, and scale\n\nUse authentic-shaped XML from the qualified Sysmon/add-on pair and fixed dispatch times. Run both controls. Add cases for populated/empty/dash inferred fields, same-user/different-user, unknown source image, Unicode paths, long paths, PID reuse, multiple threads, same source-target but distinct thread/record IDs, missing required fields, wrong source/provider/type/index, Event IDs 1/7/10/25, and exact earliest/latest boundaries.\n\nGenerate a remote-thread event only on a disposable isolated endpoint with an approved benign test harness or accountable detection framework. Target a harmless lab process; do not inject unreviewed shellcode, access credentials, or test on production. Compare Event Viewer **Details > XML View**, raw Splunk event, search output, process hashes/signers, EDR thread/memory telemetry, and the harness's expected source/target/start routine. Remove test artifacts and preserve exact versions, commands, hashes, times, record IDs, and expected/actual output.\n\nTest direct/WEC duplicates, checkpoint reset, delayed events, source/target termination, configuration change, Event ID 255, forwarder/collector restart, clock skew, high security-agent activity, dashboard cardinality, alert delivery, and recovery. Test exact exception, changed hash/target/start/version, expiry boundary, malformed rows, wildcard rejection, retained evidence, and source-health independence. Keep draft until source health, fields, baseline, fixtures, alert, dashboard, exceptions, and response are accepted.\n\n## Step 5 — Investigate and respond with corroboration\n\nAlert text should state `CreateRemoteThread observed: <source> → <target> on <endpoint>`, not `injection confirmed`. Include source/target GUID/PID/path/user, hashes/signers/parents from enrichment, thread ID, start address/module/function with inference caveat, event/index time, record ID, endpoint role, prevalence, software/change, exception, and runbook.\n\nResponder sequence:\n1. Verify raw Event 8, source metadata, source/target/thread/record identity, inferred fields, time/latency, source health, and duplicates.\n2. Correlate both ProcessGuid values with Event ID 1/EDR process creation, parent/command line, signer/hash, file provenance, user/logon, service/task, integrity/protection level, and endpoint role.\n3. Inspect preceding Event ID 10/EDR process handles and decode access rights; seek validated memory allocation/write/API evidence, not mask folklore.\n4. Inspect Event ID 7/EDR module loads, target thread/start mapping, memory-region protection/content, subsequent target activity/children/network/files, and Event ID 25 tampering.\n5. Compare exact tuple with EDR/AV, debugger/profiler, accessibility, APM/RPA, remote support, crash handling, backup/forensic software, and approved change.\n6. If suspicious, follow approved endpoint containment and memory/evidence acquisition. If authorized, document exact product/version/tuple and add only a bounded exception.\n7. Confirm source/target disposition, no unexpected recurrence/follow-on, source health, exception expiry, and retained evidence.\n\nNever terminate source/target, dump memory, isolate, or block automatically from one event. Some legitimate products rely on cross-process threads, and killing security/system software can destabilize the host. Review baselines/exceptions after Windows, Sysmon, EDR, AV, debugger, APM, remote-support, WEC, or add-on changes.\n\n## Step 6 — Troubleshoot product-specific failures\n\n- **No Event ID 8:** verify Sysmon service/version, active CreateRemoteThread rules/schema, Event IDs 16/255, local channel, input deployment, WEC/forwarder queues, index/RBAC, and dispatch time.\n- **StartModule/Function empty:** Microsoft says they are inferred and may be empty outside loaded modules/exports. Preserve StartAddress and correlate EDR/memory/module evidence; do not suppress or call it shellcode automatically.\n- **SourceImage unknown:** inspect process lifetime and adjacent Event ID 1/5, source GUID/PID/time, EDR, and known console-control behavior. Track field quality and never allow-list unknown globally.\n- **SourceUser and TargetUser differ unexpectedly:** preserve both; the add-on documents Sysmon user-field inconsistencies. Validate raw XML, event/schema/add-on version, logon/process context, and do not force one CIM user.\n- **Event 10 appears without Event 8:** ProcessAccess has broader semantics and many injection techniques do not create a remote thread. Investigate under its own tuned contract; do not manufacture an Event 8.\n- **Duplicates:** compare Computer/channel/EventRecordID/raw hash/index time and direct/WEC/checkpoint routes. Repair collection; repeated distinct thread IDs are not duplicates.\n- **Security product flood:** verify exact signed hashes/versions/source-target-start tuples and product owner before an expiring exception. Avoid ingestion-wide vendor exclusions.\n- **Dashboard says process injection:** correct the label to CreateRemoteThread observation and preserve evidence limits; one event is not a verdict.",
   "grandmaExplanation": "We watch when one Windows program starts a new thread inside another program. That can be normal security or support software, or a way to hide harmful code, so the team checks both programs and the memory evidence before deciding.",
+  "hardware": "Windows clients and servers with Microsoft Sysmon 15.0 installed/running, CreateRemoteThread Event ID 8 included in the active configuration, and XML collection. Other injection primitives, kernel activity, protected-process limitations, endpoints without Sysmon, and activity predating retention require EDR or forensic telemetry.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5709,
+      "name": "Splunk Add-on for Sysmon",
+      "url": "https://splunkbase.splunk.com/app/5709",
+      "minVersion": "5.0.1",
+      "role": "primary"
+    }
+  ],
   "wave": "crawl"
 }

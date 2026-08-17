@@ -18,14 +18,6 @@
   },
   "dataSources": "Native Windows **System** channel events from provider `Microsoft-Windows-Ntfs`: Event ID 55 and 98. Collect XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) to deployment-choice `index=wineventlog`, exact `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:System`. Required: `_time, _indextime, Computer|dest|host, EventCode|EventID, Provider_Name|ProviderName|SourceName, EventRecordID|RecordNumber`; preserve Message/RenderedDescription and any VolumeName, DriveName, DeviceName, CorruptionState, RepairDetail fields present in raw XML. Microsoft event text and local XML are authoritative; adjacent storage events are corroboration.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) for System XML collection and field knowledge; a local operations content app owns the analytic, source health, fixtures, dashboard and `windows_ntfs_event_exceptions.csv`.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:System\" EventCode IN (55,98) earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), provider=lower(trim(coalesce(Provider_Name,ProviderName,SourceName))), destination=lower(trim(coalesce(Computer,dest,host))), event_record_id=trim(tostring(coalesce(EventRecordID,RecordNumber))), volume=trim(coalesce(VolumeName,DriveName,DeviceName,\"unknown\")), rendered_message=coalesce(Message,RenderedDescription,\"\")\n| where in(event_id,55,98) AND in(provider,\"microsoft-windows-ntfs\",\"ntfs\") AND len(destination)>0 AND len(event_record_id)>0\n| eval issue_class=case(event_id=55,\"structural_corruption_detected\",event_id=98,\"offline_full_chkdsk_requested\"), severity=case(event_id=55,\"critical\",event_id=98,\"high\")\n| stats count AS duplicate_count min(_time) AS event_time max(_indextime) AS last_indextime values(volume) AS volumes values(CorruptionState) AS corruption_states values(RepairDetail) AS repair_details values(rendered_message) AS rendered_messages values(source) AS observed_sources values(sourcetype) AS observed_sourcetypes by destination event_record_id event_id provider issue_class severity\n| where duplicate_count=1\n| eval aggregation_window_minutes=15, close_delay_minutes=5, analytic_interpretation=\"native NTFS corruption/repair-required event; investigate volume and storage path; event alone does not prove hardware failure or repair outcome\", use_case=\"UC-1.2.68\"\n| table event_time destination event_record_id event_id provider issue_class severity volumes corruption_states repair_details rendered_messages observed_sources observed_sourcetypes last_indextime aggregation_window_minutes close_delay_minutes analytic_interpretation use_case\n| sort 0 -severity -event_time destination",
   "description": "Reports one unique host/EventRecordID row for each NTFS Event 55 or 98 in a closed 15-minute interval, classifying structural corruption detection versus an offline Full Chkdsk request. The row preserves available volume/message context but does not infer repair completion or hardware cause.",
   "value": "Rapid, exact routing of NTFS corruption and offline-repair requests helps owners protect service availability, preserve evidence, validate backups and coordinate storage/volume repair before additional writes or an unplanned restart complicate recovery. Separating native event meaning from root-cause inference prevents premature disk replacement or unsafe automated repair.",
@@ -34,29 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-Ntfs System Event IDs 55 and 98 native XML",
   "dataModelAcceleration": "No standard CIM dataset preserves the specific Ntfs provider, native 55/98 meanings, host/EventRecordID identity and payload/message fields needed here. The Change data model is not semantically equivalent. No `cimSpl` is claimed; any summary must retain exact native gates and pass raw-result parity.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "source",
-    "sourcetype",
-    "Computer",
-    "dest",
-    "host",
-    "EventCode",
-    "EventID",
-    "Provider_Name",
-    "ProviderName",
-    "SourceName",
-    "EventRecordID",
-    "RecordNumber",
-    "Message",
-    "RenderedDescription",
-    "VolumeName",
-    "DriveName",
-    "DeviceName",
-    "CorruptionState",
-    "RepairDetail"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: troubleshoot data corruption and disk errors (Events 55 and 98)",
@@ -97,23 +66,45 @@
   "knownFalsePositives": "These events are operationally real; a “false positive” is duplicate telemetry, an already-owned condition, or a trigger whose root cause is not physical disk failure.\n\n1. **Known volume repair incident** — repeated 55/98 can occur while a ticketed outage/repair is pending. Match exact host, volume/device, incident, owner, UTC window and latest raw event; keep escalation for new IDs/volumes or post-repair recurrence.\n2. **SAN/path/controller interruption** — transient I/O completion failures can lead to NTFS symptoms without a failed local disk. Correlate StorPort/Disk events, MPIO/path state, array alerts, LUN mapping, firmware/driver and storage-team evidence.\n3. **Snapshot, backup, filter or security driver interaction** — VSS/backup/antivirus/filter drivers can affect volume I/O. Validate product job/session, filter stack, vendor case, exact volume/time and successful recovery; never assume causality from timing alone.\n4. **Planned crash, failover, snapshot rollback or unsafe shutdown test** — an approved resilience exercise can expose a pre-existing dirty/corrupt state. Match change/test ID, host/volume, operator, expected events and recovery verification.\n5. **Cloned or restored test image with historical System events** — backfill can deliver old records. Compare event time, `_indextime`, EventRecordID, image provenance and current volume state; fix backfill routing rather than suppress current corruption.\n6. **Direct plus WEF duplication** — identical host/EventRecordID copies are collection defects. Repair source authority; the base rule excludes duplicates while health preserves them.\n\n**Safe suppression:** apply lookup windows_ntfs_event_exceptions.csv after base detection. Require exact `destination,volume,event_id`, incident/change ID, numeric inclusive `valid_from_epoch`, exclusive `valid_until_epoch`, owner, approver, purpose and escalation rule for recurrence. Reject wildcard hosts/volumes and open-ended dates. Suppress duplicate notification only; retain raw findings and never suppress source health or a new EventRecordID after declared repair.",
   "mitreAttack": [],
   "detectionType": "Threshold",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "source",
+    "sourcetype",
+    "Computer",
+    "dest",
+    "host",
+    "EventCode",
+    "EventID",
+    "Provider_Name",
+    "ProviderName",
+    "SourceName",
+    "EventRecordID",
+    "RecordNumber",
+    "Message",
+    "RenderedDescription",
+    "VolumeName",
+    "DriveName",
+    "DeviceName",
+    "CorruptionState",
+    "RepairDetail"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows systems using NTFS volumes and generating provider Microsoft-Windows-Ntfs events in the System channel. ReFS/FAT, non-Windows filesystems, storage arrays, hypervisor-only telemetry and hosts without complete System collection require separate monitoring.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft NTFS corruption/repair guidance and primary Splunk Windows XML documentation; event semantics, collection, SPL, fixtures, source health, dashboards, exceptions, diagnostics and recovery were specified but not executed or Microsoft/storage/Windows/Splunk-SME signed",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft NTFS corruption/repair guidance and primary Splunk Windows XML documentation; event semantics, collection, SPL, fixtures, source health, dashboards, exceptions, diagnostics and recovery were specified but not executed or Microsoft/storage/Windows/Splunk-SME signed",
   "cost": {
     "tier": "low",
-    "search_load": "low",
+    "search_load": "light",
     "search_load_notes": "Events 55/98 should be rare. The query uses index/source/Event ID predicates over one closed 15-minute slice and aggregates by native identity. Storage cost is dominated by the broader System feed.",
     "tstats_eligible": false,
     "storage_class": "hot",
@@ -126,6 +117,15 @@
   },
   "detailedImplementation": "## Define ownership and safety\n\nAssign Windows platform, storage/SAN, application/service, backup/recovery, Splunk collection/content and incident owners. Inventory every in-scope host with canonical Computer, OS build, physical/virtual/cloud placement, volume-to-service and volume-to-disk/LUN mapping, cluster/failover role, storage owner, backup policy, maintenance window and forwarding path. Restrict the operations dashboard with a Splunk role because paths and infrastructure details are sensitive.\n\nMicrosoft documents Event 55 as file-system structure detected corrupt and unusable and Event 98 as a volume that needs to be taken offline for Full Chkdsk. Neither proves a physical disk failed. Event 98 is not “self-healing completed.” Hardware, incomplete I/O, drivers, filters, SAN paths and other conditions must be evaluated. Never schedule an automatic dismount, repair or restart from an event alone.\n\n## Collect the native System event\n\nDeploy Splunk Add-on for Microsoft Windows from Splunkbase 742. In a managed `inputs.conf`, enable `[WinEventLog://System]`, `renderXml=true`, and local `index=wineventlog`. Verify `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:System`; these exact contracts must be tested after add-on upgrades. Preserve original Computer and EventRecordID through WEF.\n\nInspect **Event Viewer > Windows Logs > System** and Splunk together:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:System\" (EventCode=55 OR EventCode=98) earliest=-7d\n| table _time _indextime Computer EventRecordID Provider_Name EventCode VolumeName DriveName DeviceName CorruptionState RepairDetail Message RenderedDescription\n```\n\nCompare raw XML and rendered text on each supported OS. Provider should be Microsoft-Windows-Ntfs (legacy extraction can expose Ntfs). Payload fields vary, so host/record/provider/ID are mandatory and volume/message fields are retained opportunistically. Do not regex localized rendered text as the primary identifier.\n\n## Maintain source and identity health\n\nCreate an expected-host monitor for absent/stale System data, abnormal event-time delay, channel clear/full, forwarder/WEF backlog, unknown host, missing provider/Computer/EventRecordID, future timestamps, extraction drift and duplicate Computer/EventRecordID across direct/WEF routes. A host without recent 55/98 is healthy only if its general System feed is current.\n\nEventRecordID is channel-local and may reset after a log clear. Use Computer, record ID, bounded event time and raw hash during incident correlation. The base rule requires a single observed identity; duplicated records are excluded from notifications but must remain visible in source health.\n\n## Configure and understand the saved search\n\nSave the SPL as `windows_ntfs_corruption_repair_required`, schedule every 15 minutes, and trigger when result count is greater than zero. `earliest=-20m@m latest=-5m@m` scans a closed 15-minute event-time interval after five minutes for arrival. Measure p99 forwarding delay and increase close delay without overlapping slices.\n\nThe query applies index/source/Event ID predicates, normalizes provider/host/record identity, and coalesces optional volume/message fields without making them required. Event 55 receives `structural_corruption_detected`; Event 98 receives `offline_full_chkdsk_requested`. The stats stage verifies uniqueness and retains source fields. One row is one native event, not one disk and not proof of unresolved current corruption.\n\nNo Change/Performance CIM acceleration is equivalent. A local summary can optimize only if it preserves provider, native ID, Computer/EventRecordID, payload/message, closed interval and raw parity.\n\n## Validate without damaging data\n\nReplay the two documented synthetic XML fixtures under absolute time bounds and assert all fields. Run each negative independently: other NTFS/storage IDs, provider mismatch, missing identity, wrong source, newest-delay and duplicates. Test absent volume, localized message, uppercase provider, WEF destination preservation, EventRecordID reuse after clear and earliest/latest boundaries. Confirm source-health findings separately.\n\nDo not deliberately corrupt a production volume. In an isolated disposable lab, use prebuilt synthetic events for routine tests. If storage engineers approve a realistic corruption/repair exercise, snapshot disposable media, document expected data loss, capture raw events and commands, and destroy/reset the lab afterward. Documentation review does not count as execution.\n\nMeasure System ingest, search runtime, alert delivery, dashboard ACL/drilldown, ticket routing and exception expiry. Keep status draft until platform, storage, backup and Splunk owners sign source coverage and recovery runbooks.\n\n## Triage and recover\n\nAlert title: `NTFS <issue_class> on <destination> (<volumes>)`. Analysts first verify raw provider/ID/record, event age, original host and source health. Resolve volume to service, cluster and physical disk/LUN; inspect adjacent Ntfs 50/140, Disk 7/51/129/153/157 as applicable, StorPort/stornvme/volmgr/WHEA, array/path/controller alerts and filter-driver changes. Confirm current mount/read/write state and recent restart/failover.\n\nValidate backups and an actual restore path before invasive repair. Coordinate application quiescence, cluster ownership, snapshots, free space, outage and rollback. Use `chkdsk`, `Repair-Volume` or `fsutil repair` only under Microsoft/vendor guidance and an approved change; command choice depends on state and can require offline access/restart. Preserve output and post-repair Event Logs. Repeated events after repair require renewed escalation.\n\nApply lookup windows_ntfs_event_exceptions.csv only after base results. Preserve every raw event and health defect. Review incidents daily and remove exceptions immediately after repair validation.\n\n## Troubleshoot\n\n- No results: verify System input, XML rendering, provider spelling, event IDs, index permissions, forwarder/WEF queues and native channel retention.\n- Volume unknown: inspect raw XML and localized message; use host volume inventory rather than inventing a field extraction.\n- Duplicate count: identify direct plus WEF routes or replay and restore one authority.\n- Event 55 but healthy disk: investigate filesystem, I/O path, drivers, filters and SAN; the event never asserted physical failure.\n- Event 98 after repair: verify which volume was repaired, command exit/output, restart/offline requirement and new EventRecordID.\n- CIM returns nothing: expected; this native fault has no claimed equivalent.",
   "grandmaExplanation": "We watch for Windows saying an NTFS volume is structurally damaged or must be taken offline for a full check. The alert helps specialists protect data and plan repair, but it does not automatically blame the physical disk.",
+  "hardware": "Windows systems using NTFS volumes and generating provider Microsoft-Windows-Ntfs events in the System channel. ReFS/FAT, non-Windows filesystems, storage arrays, hypervisor-only telemetry and hosts without complete System collection require separate monitoring.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source"
+    }
+  ],
   "wave": "walk"
 }

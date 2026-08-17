@@ -26,18 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built classic/Content Library VM template inventory snapshot joined to review policy",
   "dataModelAcceleration": "Not applicable. CIM does not preserve vCenter template/item identity, template kind, source-specific modification semantics, Content Library version, complete snapshot identity, and review policy.",
-  "requiredFields": [
-    "vcenter",
-    "template_id",
-    "template_name",
-    "template_kind",
-    "modified_epoch",
-    "modified_semantics",
-    "snapshot_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom PowerCLI: Get-Template",
@@ -70,20 +58,33 @@
     "N/A (VM template inventory review; no adversary behavior asserted)"
   ],
   "detectionType": "Newest template modification metadata exceeds explicit review-age policy",
+  "requiredFields": [
+    "vcenter",
+    "template_id",
+    "template_name",
+    "template_kind",
+    "modified_epoch",
+    "modified_semantics",
+    "snapshot_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_vcenter"
   ],
-  "hardware": "vCenter classic VM templates and locally qualified Content Library VM-template items. Other item types and external image services remain separate inventory domains.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware image-pipeline and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware image-pipeline and Splunk validation pending",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -93,6 +94,7 @@
   },
   "detailedImplementation": "## Prerequisites and timestamp semantics\n\nAssign VMware, Content Library, image-pipeline, guest security, application, Splunk, and change owners. Inventory all governed classic templates and library VM-template items by stable ID, source/upstream, purpose, owner, supported guests, build pipeline, deployment consumers, content version, review objective, and retirement state. Explicitly list unsupported item types and external image services.\n\nPowerCLI `Get-Template` returns classic templates but its documented Template structure does not expose LastWriteTime. Read the underlying `VirtualMachineConfigInfo.modified` and label it exactly `config.modified`. ContentLibraryItem documents `LastWriteTime`, `ContentVersion`, `ItemType`, and stable ID. Neither timestamp is a patch date. Preserve the distinction in every event, panel, and alert.\n\n## Step 1 — Collect a complete template inventory\n\nImplement `TA_vmware_template_inventory` on a hardened VCF PowerCLI tier with read-only vCenter/library access. Enumerate classic templates and qualified library VM-template item types. Inspect actual item-type values in the deployed release before mapping; do not include ISO/OVF or generic files by name guessing. Convert source times to UTC Unix seconds once and retain content version/library context.\n\nEmit one JSON row per item with a shared unique snapshot ID and mark success only after all configured vCenters/libraries complete. Emit permission, library subscription, unsupported type, missing timestamp, API, and partial-enumeration errors separately. Configure a daily scripted input and JSON source type. Compare counts and two items of each kind with vSphere Client Templates and Content Libraries views plus PowerCLI/raw API values.\n\nCreate independent health for expected item IDs, library subscription/sync, missing/duplicate items, unsupported types, missing/future timestamps, content-version changes, snapshot/cardinality drift, and collector errors. Build `vmware_template_review_policy.csv` with one effective row per vCenter/kind/template_id, positive max age days, policy/version/owner, and effective bounds; preflight duplicates and orphan/missing policies.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_template_review_age` and run after collection. It accepts only successful rows from 36 hours, validates item kind and matching timestamp semantics, ensures modification is not after snapshot, selects newest item observation, and rejects future/stale snapshots. Exact effective policy supplies maximum age. Age must be strictly greater than policy days; exactly 90 days under a 90-day policy is not returned. More than twice policy age receives local high routing; this is not a vendor severity or vulnerability score.\n\nKeep missing expected templates, missing/conflicting policy, missing timestamp, unsupported type, subscription error, and stale collection in separate prominent panels. Do not use `isTemplate=true` against an undocumented old source type; if using the Metrics add-on, qualify `vmware_inframon:inv:vm`, enable the documented additional fields, and normalize actual serialization.\n\n## Step 3 — Validate review-age behavior\n\nUse fixed fixtures for classic and library kinds, exact and just-over policy age, future timestamp, modification after snapshot, missing timestamp, unknown kind/semantics, content-version change, duplicate delivery, older/newer supersession, stale/future/partial snapshot, missing/duplicate/expired policy, same name with different IDs, and vCenter/library migration. Assert that no result says vulnerable, unpatched, or unused.\n\nIn a lab, create/update a classic template and a library VM template; record raw timestamp before/after rename, metadata edit, version publish, synchronization, and conversion. Determine what each supported release changes. Compare source timestamps, Splunk event, and pipeline evidence. Keep draft until image owners approve timestamp limitations, expected inventory, and security review process.\n\n## Step 4 — Review and lifecycle response\n\nAlert title should say `VM template is due for owner review`. Include kind, stable identity, source timestamp semantics, age/policy, content version, owner, pipeline/provenance, subscription health, source freshness, and restricted links. Reviewer verifies raw state and identity, build provenance/signature/SBOM, supported OS/application/Tools/agents, current patches/vulnerabilities, certificates/secrets, malware controls, backup/restore, deployment consumers, and last successful validation. Classify approved-current, rebuild required, retire, duplicate, upstream-sync defect, policy defect, collector defect, or unresolved.\n\nNever deploy, convert, patch, publish, synchronize, rename, or delete automatically. Prefer reproducible rebuild through the authoritative image pipeline over mutable manual patching. Retirement requires dependency/deployment and recovery review. Close only with owner evidence, healthy source/subscription, approved status/next review, and any rebuild/retirement validated.\n\n## Step 5 — Troubleshoot\n\n- **Classic timestamps absent:** inspect ConfigInfo permissions/API mapping and actual object; do not substitute collection time.\n- **Library items absent:** verify library permissions, item type mapping, subscription/sync, vCenter endpoint, and complete-run status.\n- **Everything appears new:** check whether collector mistakenly uses `_time` or snapshot time as modification time, or whether a metadata automation rewrites items.\n- **Extreme ages:** verify UTC epoch seconds versus milliseconds and source timezone conversion.\n- **Name duplicates:** use stable vCenter/kind/item ID; names are display context only.\n- **Updated image still alerts:** inspect source timestamp/version, collector snapshot, duplicate routes, policy key, and newest-item selection.\n- **Old image passes:** age is only a review trigger; a recent metadata edit can reset it. Use pipeline/security evidence for freshness.\n\nRetention and review ages follow local governance. This use case inventories and schedules review; it does not measure guest patch or vulnerability state.",
   "grandmaExplanation": "We keep a list of the master copies used to create virtual machines and remind their owners when each copy is due for review. An old date starts a review; it does not by itself prove the software inside is unsafe.",
+  "hardware": "vCenter classic VM templates and locally qualified Content Library VM-template items. Other item types and external image services remain separate inventory domains.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

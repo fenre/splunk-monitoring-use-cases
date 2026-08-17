@@ -17,32 +17,13 @@
   },
   "dataSources": "`index=os sourcetype=linux:swap_psi source=linux_swap_psi` events from a deployment-owned Universal Forwarder scripted input that reads cumulative `pswpin` and `pswpout` page counters from `/proc/vmstat`, system page size from `getconf PAGE_SIZE`, boot identity from `/proc/sys/kernel/random/boot_id`, and `some`/`full` cumulative microsecond totals from `/proc/pressure/memory`. Required cadence is 60 seconds. The standard `Splunk_TA_nix` `vmstat.sh` event is optional context only: on Linux it runs `vmstat -s` and exposes cumulative `pgSwapOut`, but it does not supply the bidirectional `si`/`so` pair required here.",
   "app": "A deployment-owned scripted-input app (example name `TA_linux_swap_psi`) on Linux Universal Forwarders. Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) is optional for adjacent memory, process, and CPU context, not the primary detector feed.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "optional"
-    }
-  ],
   "spl": "index=os sourcetype=linux:swap_psi source=linux_swap_psi host=* earliest=-20m@m latest=-5m@m\n| eval pswpin_pages=tonumber(pswpin_pages), pswpout_pages=tonumber(pswpout_pages), page_size_bytes=tonumber(page_size_bytes), psi_some_total_us=tonumber(psi_some_total_us), psi_full_total_us=tonumber(psi_full_total_us)\n| where isnotnull(pswpin_pages) AND isnotnull(pswpout_pages) AND isnotnull(page_size_bytes) AND page_size_bytes>0 AND isnotnull(boot_id)\n| stats max(pswpin_pages) as pswpin_pages max(pswpout_pages) as pswpout_pages max(psi_some_total_us) as psi_some_total_us max(psi_full_total_us) as psi_full_total_us max(page_size_bytes) as page_size_bytes by host boot_id _time\n| sort 0 host boot_id _time\n| streamstats current=f window=1 last(pswpin_pages) as previous_pswpin_pages last(pswpout_pages) as previous_pswpout_pages last(psi_some_total_us) as previous_psi_some_total_us last(psi_full_total_us) as previous_psi_full_total_us last(_time) as previous_time by host boot_id\n| eval elapsed_seconds=_time-previous_time\n| eval swapin_delta_pages=if(pswpin_pages>=previous_pswpin_pages,pswpin_pages-previous_pswpin_pages,null()), swapout_delta_pages=if(pswpout_pages>=previous_pswpout_pages,pswpout_pages-previous_pswpout_pages,null())\n| eval psi_some_delta_us=if(psi_some_total_us>=previous_psi_some_total_us,psi_some_total_us-previous_psi_some_total_us,null()), psi_full_delta_us=if(psi_full_total_us>=previous_psi_full_total_us,psi_full_total_us-previous_psi_full_total_us,null())\n| eval swapin_kib_s=if(elapsed_seconds>0 AND elapsed_seconds<=150,swapin_delta_pages*page_size_bytes/1024/elapsed_seconds,null()), swapout_kib_s=if(elapsed_seconds>0 AND elapsed_seconds<=150,swapout_delta_pages*page_size_bytes/1024/elapsed_seconds,null())\n| eval psi_some_stall_pct=if(elapsed_seconds>0 AND elapsed_seconds<=150,100*psi_some_delta_us/(elapsed_seconds*1000000),null()), psi_full_stall_pct=if(elapsed_seconds>0 AND elapsed_seconds<=150,100*psi_full_delta_us/(elapsed_seconds*1000000),null())\n| where isnotnull(swapin_kib_s) AND isnotnull(swapout_kib_s)\n| bin _time span=1m\n| stats avg(swapin_kib_s) as swapin_kib_s avg(swapout_kib_s) as swapout_kib_s avg(psi_some_stall_pct) as psi_some_stall_pct avg(psi_full_stall_pct) as psi_full_stall_pct latest(page_size_bytes) as page_size_bytes count as rate_samples count(psi_full_stall_pct) as psi_rate_samples by host boot_id _time\n| eval candidate_start=relative_time(now(),\"-10m@m\"), candidate_end=relative_time(now(),\"-5m@m\"), swap_threshold_kib_s=1024, psi_full_threshold_pct=10\n| where _time>=candidate_start AND _time<candidate_end\n| eval swap_breach=if(swapin_kib_s>=swap_threshold_kib_s AND swapout_kib_s>=swap_threshold_kib_s,1,0), psi_present=if(psi_rate_samples>0,1,0), psi_impact=if(psi_rate_samples>0 AND psi_full_stall_pct>=psi_full_threshold_pct,1,0)\n| stats count as observed_buckets sum(swap_breach) as swap_buckets sum(psi_present) as psi_buckets sum(psi_impact) as impact_buckets min(_time) as window_start max(_time) as window_end avg(swapin_kib_s) as avg_swapin_kib_s avg(swapout_kib_s) as avg_swapout_kib_s avg(psi_full_stall_pct) as avg_psi_full_stall_pct max(psi_some_stall_pct) as max_psi_some_stall_pct min(rate_samples) as min_rate_samples values(page_size_bytes) as page_size_bytes by host boot_id\n| where observed_buckets=5 AND swap_buckets=5 AND psi_buckets=5 AND impact_buckets>=3\n| eval window_end=window_end+60, avg_swapin_kib_s=round(avg_swapin_kib_s,1), avg_swapout_kib_s=round(avg_swapout_kib_s,1), avg_psi_full_stall_pct=round(avg_psi_full_stall_pct,2), max_psi_some_stall_pct=round(max_psi_some_stall_pct,2), severity=\"critical\"\n| sort 0 -avg_psi_full_stall_pct -avg_swapout_kib_s",
   "description": "Reports a Linux host only when five consecutive closed one-minute buckets each average at least 1,024 KiB/s in both swap directions and at least three of those buckets show 10 percent or more full memory-pressure stall time. The search derives rates from adjacent cumulative kernel counters, converts pages with the host's measured page size, separates boots, and rejects long collection gaps or counter decreases.",
   "value": "Sustained swap-in and swap-out can turn memory shortage into repeated disk work, but swap traffic alone does not prove user-visible harm. Correlating it with Linux full memory-pressure stall time focuses paging on hosts where all non-idle work is losing productive time and shortens triage toward workload reduction, leak investigation, or capacity action.",
   "implementation": "Deploy a small, reviewed scripted-input app to each in-scope Linux Universal Forwarder. Collect `/proc/vmstat`, `/proc/pressure/memory`, page size, and boot ID every 60 seconds into `index=os sourcetype=linux:swap_psi`; install matching search-time key-value extraction. Save `linux_swap_thrashing_5m`, schedule it every five minutes, and retain the explicit closed-window bounds. Treat 1,024 KiB/s per direction for five minutes plus at least three minutes at 10 percent full PSI as an initial policy to baseline by host class, not a Linux or Splunk default.",
-  "scriptExample": "#!/bin/sh\nset -eu\n\nvmstat_file=/proc/vmstat\npsi_file=/proc/pressure/memory\nboot_id_file=/proc/sys/kernel/random/boot_id\n\n[ -r \"$vmstat_file\" ] && [ -r \"$boot_id_file\" ]\npage_size_bytes=$(getconf PAGE_SIZE)\nboot_id=$(tr -d '\\n' < \"$boot_id_file\")\n\nvm_fields=$(awk '\n  $1 == \"pswpin\"  { pin=$2 }\n  $1 == \"pswpout\" { pout=$2 }\n  END {\n    if (pin == \"\" || pout == \"\") exit 1\n    printf \"pswpin_pages=%s pswpout_pages=%s\", pin, pout\n  }\n' \"$vmstat_file\")\n\npsi_fields=\"psi_available=0\"\nif [ -r \"$psi_file\" ]; then\n  psi_fields=$(awk '\n    $1 == \"some\" {\n      for (i=2; i<=NF; i++) { split($i, a, \"=\"); if (a[1] == \"avg10\") savg=a[2]; if (a[1] == \"total\") stotal=a[2] }\n    }\n    $1 == \"full\" {\n      for (i=2; i<=NF; i++) { split($i, a, \"=\"); if (a[1] == \"avg10\") favg=a[2]; if (a[1] == \"total\") ftotal=a[2] }\n    }\n    END {\n      if (savg == \"\" || stotal == \"\" || favg == \"\" || ftotal == \"\") exit 1\n      printf \"psi_available=1 psi_some_avg10_pct=%s psi_full_avg10_pct=%s psi_some_total_us=%s psi_full_total_us=%s\", savg, favg, stotal, ftotal\n    }\n  ' \"$psi_file\")\nfi\n\nprintf 'boot_id=%s page_size_bytes=%s %s %s\\n' \"$boot_id\" \"$page_size_bytes\" \"$vm_fields\" \"$psi_fields\"",
   "visualization": "Create a per-host timechart with `swapin_kib_s` and `swapout_kib_s` on a KiB/s axis and `psi_full_stall_pct` on a separate percent axis; add horizontal policy lines at 1,024 KiB/s and 10 percent. Provide a current-results table with all evidence fields and drilldowns to process RSS/swap, cgroup pressure, major faults, block-device latency, OOM events, and changes. Never chart cumulative `pswpin_pages`, `pswpout_pages`, or PSI `total` values as rates.",
   "cimModels": [],
   "dataModelAcceleration": "No CIM-accelerated equivalent is asserted. The required cumulative `/proc/vmstat` swap-in/swap-out counters, boot identity, page size, and PSI cumulative stall totals are source-specific and are not a normalized CIM Performance dataset contract. A `tstats` search over generic memory capacity fields cannot preserve this detector's delta, unit, reset, gap, and impact semantics.",
-  "requiredFields": [
-    "_time",
-    "host",
-    "boot_id",
-    "page_size_bytes",
-    "pswpin_pages",
-    "pswpout_pages",
-    "psi_some_total_us",
-    "psi_full_total_us"
-  ],
   "references": [
     {
       "title": "Linux proc_vmstat(5): virtual-memory counters",
@@ -90,6 +71,16 @@
     "N/A (operational Linux memory-performance monitoring; no adversary behavior is asserted)"
   ],
   "detectionType": "Correlation",
+  "requiredFields": [
+    "_time",
+    "host",
+    "boot_id",
+    "page_size_bytes",
+    "pswpin_pages",
+    "pswpout_pages",
+    "psi_some_total_us",
+    "psi_full_total_us"
+  ],
   "equipment": [
     "linux"
   ],
@@ -103,6 +94,15 @@
   "grandmaExplanation": "We watch for a Linux server repeatedly shuffling memory to and from disk while its work is being forced to wait. If that continues for several minutes, the team gets a focused warning that the machine is struggling, not merely using swap.",
   "prerequisiteUseCases": [
     "UC-1.1.2"
+  ],
+  "scriptExample": "#!/bin/sh\nset -eu\n\nvmstat_file=/proc/vmstat\npsi_file=/proc/pressure/memory\nboot_id_file=/proc/sys/kernel/random/boot_id\n\n[ -r \"$vmstat_file\" ] && [ -r \"$boot_id_file\" ]\npage_size_bytes=$(getconf PAGE_SIZE)\nboot_id=$(tr -d '\\n' < \"$boot_id_file\")\n\nvm_fields=$(awk '\n  $1 == \"pswpin\"  { pin=$2 }\n  $1 == \"pswpout\" { pout=$2 }\n  END {\n    if (pin == \"\" || pout == \"\") exit 1\n    printf \"pswpin_pages=%s pswpout_pages=%s\", pin, pout\n  }\n' \"$vmstat_file\")\n\npsi_fields=\"psi_available=0\"\nif [ -r \"$psi_file\" ]; then\n  psi_fields=$(awk '\n    $1 == \"some\" {\n      for (i=2; i<=NF; i++) { split($i, a, \"=\"); if (a[1] == \"avg10\") savg=a[2]; if (a[1] == \"total\") stotal=a[2] }\n    }\n    $1 == \"full\" {\n      for (i=2; i<=NF; i++) { split($i, a, \"=\"); if (a[1] == \"avg10\") favg=a[2]; if (a[1] == \"total\") ftotal=a[2] }\n    }\n    END {\n      if (savg == \"\" || stotal == \"\" || favg == \"\" || ftotal == \"\") exit 1\n      printf \"psi_available=1 psi_some_avg10_pct=%s psi_full_avg10_pct=%s psi_some_total_us=%s psi_full_total_us=%s\", savg, favg, stotal, ftotal\n    }\n  ' \"$psi_file\")\nfi\n\nprintf 'boot_id=%s page_size_bytes=%s %s %s\\n' \"$boot_id\" \"$page_size_bytes\" \"$vm_fields\" \"$psi_fields\"",
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "optional"
+    }
   ],
   "wave": "walk"
 }

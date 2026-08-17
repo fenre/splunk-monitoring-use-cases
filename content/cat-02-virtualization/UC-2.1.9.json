@@ -18,26 +18,6 @@
   },
   "dataSources": "Splunk Add-on for VMware (Splunkbase 3215) `vminv` API collection into documented default `index=vmware-inv`, `sourcetype=vmware:inv:vm`. Required raw JSON properties: changeSet.name, changeSet.summary.vm.moid or moid, changeSet.summary.runtime.powerState, `_time`, host; changeSet.summary.runtime.host.name is optional current-host context. The contract does not claim a lastPowerOffTime field.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-inv sourcetype=\"vmware:inv:vm\" earliest=-24h\n| spath path=changeSet.name output=vm_name_raw\n| spath path=changeSet.summary.vm.moid output=vm_moid_raw\n| spath path=changeSet.summary.runtime.powerState output=power_state_raw\n| spath path=changeSet.summary.runtime.host.name output=esxi_host_raw\n| eval vm_name=coalesce(vm_name_raw,vm_name,name), vm_moid=coalesce(vm_moid_raw,moid), power_state=lower(coalesce(power_state_raw,power_state)), esxi_host=coalesce(esxi_host_raw,hypervisor_name)\n| stats latest(vm_name) as vm_name latest(power_state) as power_state latest(esxi_host) as esxi_host latest(host) as vcenter latest(_time) as inventory_time by vm_moid\n| where len(vm_moid)>0 AND len(vm_name)>0 AND power_state=\"poweredoff\"\n| eval inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where inventory_age_minutes<=60\n| eval use_case_id=\"UC-2.1.9\", finding=\"currently_powered_off_vm\", local_severity=\"low\"\n| table vm_name vm_moid esxi_host vcenter power_state inventory_time inventory_age_minutes finding local_severity use_case_id\n| sort 0 vm_name",
   "description": "Reports each VM whose reconstructed latest fresh vCenter inventory state is `poweredOff`, using documented inventory JSON properties and stable managed-object identity without inventing a power-off age.",
   "value": "A reviewed powered-off inventory helps owners find retirement, archival, seasonal, recovery, and forgotten-resource candidates while preventing unsupported age or waste claims from driving destructive cleanup.",
@@ -75,22 +55,45 @@
     "host"
   ],
   "equipment": [
+    "hyperv",
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nEnable `vminv`; Splunk documents a 900-second default and incremental inventory behavior. Inventory JSON can exceed default `spath` limits, so prove extraction from `_raw`. Use `changeSet.summary.runtime.powerState`, whose values include poweredOn, poweredOff and suspended, and stable VM moid. Do not use the legacy sidecar's unsupported `lastPowerOffTime`; age requires a separately designed event-history contract.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-inv sourcetype=\"vmware:inv:vm\" earliest=-24h\n| spath path=changeSet.summary.runtime.powerState output=power_state\n| stats count latest(_time) as latest_inventory values(power_state) as states dc(moid) as vm_count by host\n| convert ctime(latest_inventory)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_powered_off_vm_inventory` after substituting only an approved local index name. Run daily after a successful inventory cycle; the 24-hour reconstruction horizon and 60-minute freshness rule must be validated against local full/change-set cadence.\n\n```spl\nindex=vmware-inv sourcetype=\"vmware:inv:vm\" earliest=-24h\n| spath path=changeSet.name output=vm_name_raw\n| spath path=changeSet.summary.vm.moid output=vm_moid_raw\n| spath path=changeSet.summary.runtime.powerState output=power_state_raw\n| spath path=changeSet.summary.runtime.host.name output=esxi_host_raw\n| eval vm_name=coalesce(vm_name_raw,vm_name,name), vm_moid=coalesce(vm_moid_raw,moid), power_state=lower(coalesce(power_state_raw,power_state)), esxi_host=coalesce(esxi_host_raw,hypervisor_name)\n| stats latest(vm_name) as vm_name latest(power_state) as power_state latest(esxi_host) as esxi_host latest(host) as vcenter latest(_time) as inventory_time by vm_moid\n| where len(vm_moid)>0 AND len(vm_name)>0 AND power_state=\"poweredoff\"\n| eval inventory_age_minutes=round((now()-inventory_time)/60,1)\n| where inventory_age_minutes<=60\n| eval use_case_id=\"UC-2.1.9\", finding=\"currently_powered_off_vm\", local_severity=\"low\"\n| table vm_name vm_moid esxi_host vcenter power_state inventory_time inventory_age_minutes finding local_severity use_case_id\n| sort 0 vm_name\n```\n\nUnderstanding this SPL: `spath` extracts documented vSphere properties, then `stats latest(field)` reconstructs each VM across incremental change sets. The rule requires complete identity, exact poweredOff state, and fresh inventory. It intentionally emits no age, waste, ownership or deletion verdict.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nCompare all states for a small governed folder with vSphere Client **VMs and Templates** and PowerCLI `Get-VM | Select Name,Id,PowerState`. In a disposable lab VM, perform approved off/on transitions and verify later change sets replace earlier state. Confirm templates and out-of-scope folders are handled explicitly in inventory governance.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nVerify current state and identity; locate owner/service/lifecycle; determine DR, seasonal, template, maintenance or retirement intent; assess dependencies, backup/retention, attached storage, reservations, network/IP/DNS and licensing; obtain approvals; use normal decommission workflow with rollback/evidence; verify removal only through authoritative inventory. Never power on or delete solely for monitoring validation.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf state is null, inspect raw change sets, full-refresh timing and extraction cutoff. If VMs disappear, verify service-account scope and inventory heartbeat. If old state persists, compare latest per-field times and successful full inventory. If moid collides across vCenters, include vCenter in the entity key. If stakeholders require days-off, build and source-review a separate power-event/state analytic.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We list virtual machines that are currently switched off so their owners can decide whether they are still needed, without guessing how long they have been off or deleting anything.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

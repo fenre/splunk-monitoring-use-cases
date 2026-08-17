@@ -1,21 +1,21 @@
 # Splunk SOAR playbook stub — generated from catalogue metadata.
 # Import manually into SOAR; customise escalation contacts before production use.
-name: "FP Triage: Cron Job Failure Monitoring"
+name: "FP Triage: Instrumented Cron Job Non-Zero Exit Detection"
 uc_id: "UC-1.1.10"
 uc_url: "https://fenre.github.io/splunk-monitoring-use-cases/uc/UC-1.1.10/"
 description: |
-  Identifies UC-1.1.10 for Cron, Job, Failure, Monitoring over `index=os` sourcetype `cron` with thresholds configured threshold. Groups `count` by `host`, `cron_cmd`, `_time` each `the scheduled window`. Centered on Failure Monitoring indicators. Supports repeatable linux triage for 'Cron Job Failure Monitoring'.
+  Detects each unique, instrumented cron run whose wrapper recorded a numeric child `exit_code` other than zero during the search window. Each result is identified by host and `run_id` and includes the stable job label, completion time, duration, owner, and wrapper version; one valid non-zero completion event is sufficient to create a row.
 
-  Business value: For 'Cron Job Failure Monitoring', UC-1.1.10 converts `activity` on `cron` feeds into actionable rows and reduces capacity incidents, patch regressions, and service outages.
+  Business value: Reduces the time service owners spend discovering and diagnosing failed backups, exports, reconciliations, and maintenance tasks because the outcome is explicit rather than guessed from console text. Stable run identifiers also distinguish retries from duplicate ingestion, which helps avoid both silent batch failures and misleading pages.
 human_acknowledgement_required: true
 escalation_contact_placeholder: "{customer-on-call}"
 pre_conditions: |
   Human-in-the-loop required for OT/safety-critical actions. Confirm alert is not a known maintenance window or approved test activity.
 do_not_section: |
   No OT/safety-specific prohibitions apply to this use case. Follow standard change-management for any containment action.
-spl_reference: "index=os (sourcetype=cron OR source=\"/var/log/cron\") (\"error\" OR \"failed\" OR \"EXIT STATUS\" OR \"ORPHAN\")\n| rex \"CMD \\((?<cron_cmd>[^)]+)\\)\"\n| rex \"CROND\\[(?<pid>\\d+)\\]\"\n| stats count by host, cron_cmd, _time\n| sort -_time"
+spl_reference: "index=os sourcetype=\"linux:cron_job:completion\" event_type=\"cron_job_completion\"\n| eval exit_code=tonumber(exit_code), duration_ms=tonumber(duration_ms), job_id=trim(job_id), run_id=trim(run_id)\n| where isnotnull(exit_code) AND exit_code!=0 AND isnotnull(job_id) AND len(job_id)>0 AND isnotnull(run_id) AND len(run_id)>0\n| dedup host run_id sortby -_indextime\n| eval completion_time=strftime(_time,\"%Y-%m-%dT%H:%M:%S%z\"), duration_seconds=round(duration_ms/1000,3)\n| table _time completion_time host job_id run_id exit_code duration_seconds owner wrapper_version\n| sort 0 -_time"
 mitre_tags:
-  []
+  - "N/A (operational batch-job outcome monitoring without an asserted adversary technique)"
 regulatory_tags:
   []
 playbook_contract:

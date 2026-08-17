@@ -18,15 +18,6 @@
   },
   "dataSources": "Microsoft Sysinternals Sysmon v15.0 WMI events collected from the dedicated `Microsoft-Windows-Sysmon/Operational` channel by Splunk Add-on for Sysmon (`Splunk_TA_microsoft-sysmon`, Splunkbase 5709) version 5.0.1. The direct-collection contract used here is `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`; `index=wineventlog` is a deployment-local choice. Required native/XML fields are `EventCode` or `EventID`, `Computer`, `EventRecordID`, `EventType`, `Operation`, `User`, `RuleName`, and `UtcTime`; ID 19 adds `EventNamespace`, `Name`, `Query`; ID 20 adds `Name`, `Type`, `Destination`; ID 21 adds `Consumer`, `Filter`. Add-on-normalized `dest` and `user` are fallbacks, not replacements for native-field validation.",
   "app": "Splunk Add-on for Sysmon (`Splunk_TA_microsoft-sysmon`, Splunkbase 5709), version 5.0.1, for collection and field knowledge. Splunkbase lists 5.0.1 for Splunk Enterprise 9.2 through current 10.x releases and Splunk Cloud with CIM 6.x; its manual identifies Microsoft Sysmon v15.0 as the vendor product. Migrate from the distinct community-supported Splunk Add-on for Microsoft Sysmon as Splunk recommends. No premium app is required; Splunk Enterprise Security can optionally create findings.",
-  "splunkbaseApps": [
-    {
-      "id": 5709,
-      "name": "Splunk Add-on for Sysmon",
-      "url": "https://splunkbase.splunk.com/app/5709",
-      "minVersion": "5.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" (EventCode=19 OR EventCode=20 OR EventCode=21) earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), actor=trim(coalesce(user,User)), operation=lower(trim(Operation))\n| where event_code IN (19,20,21) AND operation IN (\"created\",\"modified\") AND len(endpoint)>0\n| eval component_type=case(event_code=19,\"event_filter\",event_code=20,\"event_consumer\",event_code=21,\"filter_consumer_binding\"), filter_name=case(event_code=19,Name,event_code=21,Filter), consumer_name=case(event_code=20,Name,event_code=21,Consumer), detection=\"created or modified permanent WMI subscription component\"\n| table _time endpoint event_code operation actor component_type EventType EventNamespace filter_name Query consumer_name Type Destination Consumer Filter RuleName EventRecordID detection source sourcetype\n| sort 0 -_time endpoint event_code",
   "description": "Reports one row for each Sysmon WMI event-filter, permanent-consumer, or binding record whose operation is `Created` or `Modified` during the delayed search window. The row preserves the endpoint, actor, native component details, record identity, and source needed to reconstruct and assess the subscription.",
   "value": "Permanent WMI subscriptions can launch code in response to system events while avoiding conventional startup locations. Early visibility into component creation lets responders inspect the repository, destination command or script, creator, and related endpoint activity before an unauthorized trigger establishes durable access or elevated execution.",
@@ -35,30 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft Sysmon native WMI event XML (Event IDs 19, 20, and 21) parsed by Splunk Add-on for Sysmon",
   "dataModelAcceleration": "No accelerated CIM substitute is claimed. Splunk Add-on for Sysmon maps several Sysmon event families to Endpoint, Network Resolution, Network Traffic, and Change, but its product-comparison documentation does not show Event IDs 19–21 as belonging to a data-model dataset that preserves the native `Operation`, `EventNamespace`, `Query`, `Type`, `Destination`, `Consumer`, `Filter`, and `EventRecordID` contract. Generic Change `tstats` can mix unrelated registry/file events and cannot reconstruct this analytic. Use the raw XML search or a purpose-built summary proven field-for-field against it.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "host",
-    "dest",
-    "Computer",
-    "EventCode",
-    "EventID",
-    "EventRecordID",
-    "EventType",
-    "Operation",
-    "User",
-    "user",
-    "RuleName",
-    "UtcTime",
-    "EventNamespace",
-    "Name",
-    "Query",
-    "Type",
-    "Destination",
-    "Consumer",
-    "Filter"
-  ],
   "references": [
     {
       "title": "Microsoft Sysinternals Sysmon: Event IDs 19, 20, and 21 semantics",
@@ -103,28 +70,50 @@
   ],
   "knownFalsePositives": "A result is a real Sysmon component-change record. “False positive” means the change is authorized and non-adversarial, not that the event is false.\n\n1. **Microsoft Configuration Manager (SCCM/MECM) client or enterprise management extension** — Management products can install permanent filters and consumers for health or notification workflows. Confirm the exact package, signed deployment, change ID, namespace, filter query, consumer type/destination, expected binding, fleet scope, and vendor baseline. Do not allowlist every event from `SYSTEM`; use a reviewed tuple of names, paths, query hash, and version.\n\n2. **Microsoft Operations Manager, custom SCOM management pack, or OEM hardware agent** — Monitoring software may create a WMI subscription during install or upgrade. Match the installer/product version, expected repository objects, signed binary ACLs, deployment window, and uninstall behavior. Keep visibility and use a time-bound exception for the approved rollout rather than a permanent host-wide filter.\n\n3. **PowerShell Desired State Configuration or an approved internal automation package** — Administrators can intentionally use `Register-WmiEvent`, CIM cmdlets, or MOF deployment. Verify source repository, code review, signer, operator, ticket, target inventory, exact object names, destination, and finite rollout. Remove stale subscriptions after the automation requirement ends.\n\n4. **Tanium, BigFix, or another endpoint-management sensor** — A product update can re-register or modify components on many hosts. Correlate package checksum, console job, vendor documentation, service identity, start/end times, and expected endpoint set. A broad product-name allowlist is unsafe because attackers can reuse names; suppress only the exact approved object fingerprint and version.\n\n5. **Atomic Red Team, MITRE Caldera, or a purple-team T1546.003 exercise** — CommandLineEventConsumer, ActiveScriptEventConsumer, or MOF controls should trigger. Match operator, engagement ID, lab/target list, object-name prefix, UTC window, and cleanup proof. Preserve initial results as control evidence and suppress duplicate notification only for the bounded exercise.\n\n6. **Application installer with a documented WMI event consumer** — Legacy backup, inventory, or line-of-business software may create subscriptions at install time. Require publisher documentation, signed installer, secure destination ACL, owner, repository inventory before/after, and removal test. Treat unexplained recurrence or changed query/destination as suspicious even when the name is familiar.\n\n**Safe suppression:** retain the base result and raw XML. In an alert wrapper, use `lookup windows_wmi_subscription_exceptions endpoint component_type filter_fingerprint consumer_fingerprint OUTPUT valid_from_epoch valid_until_epoch owner ticket`, then a `where` clause to suppress notification only for an exact approved tuple inside a finite interval. Reject wildcard endpoint, actor-only, `SYSTEM`-only, and open-ended exceptions. Revalidate after Sysmon, add-on, management-agent, or OS upgrades.",
   "mitreAttack": [
-    "T1546.003",
-    "TA0003",
-    "TA0004"
+    "T1546.003"
   ],
   "detectionType": "TTP",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "EventType",
+    "Operation",
+    "User",
+    "user",
+    "RuleName",
+    "UtcTime",
+    "EventNamespace",
+    "Name",
+    "Query",
+    "Type",
+    "Destination",
+    "Consumer",
+    "Filter"
+  ],
   "equipment": [
+    "dell_emc",
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Supported Windows endpoints running Microsoft Sysinternals Sysmon v15.0 and producing the dedicated Microsoft-Windows-Sysmon/Operational channel. Direct endpoint collection is the primary contract. WEF/WEC requires separate validation of the `WEC-Sysmon` input, original endpoint identity, duplicate paths, latency, bookmarks, and field parity.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon and WMI SDK documentation, Splunk Add-on for Sysmon 5.0.1, Splunk Security Content, MITRE ATT&CK, and Atomic Red Team; Sysmon deployment, WMI changes, SPL, fixtures, source coverage, alert delivery, repository inspection, suppression, and response not executed or SME-signed",
   "splunkVersions": [
     "9.2+",
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Sysmon and WMI SDK documentation, Splunk Add-on for Sysmon 5.0.1, Splunk Security Content, MITRE ATT&CK, and Atomic Red Team; Sysmon deployment, WMI changes, SPL, fixtures, source coverage, alert delivery, repository inspection, suppression, and response not executed or SME-signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -141,6 +130,16 @@
   },
   "detailedImplementation": "## Prerequisites and detection contract\n\nAssign a Windows endpoint owner, Sysmon configuration owner, Splunk collection owner, SOC detection owner, incident responder, and exception approver. Inventory every in-scope endpoint and whether its Sysmon channel is collected directly or through Windows Event Forwarding. Install Microsoft Sysinternals Sysmon v15.0 using an organization-controlled binary and configuration. Deploy Splunk Add-on for Sysmon (`Splunk_TA_microsoft-sysmon`, Splunkbase 5709) version 5.0.1 to endpoints/collectors and to the indexer and search-head tiers required by Splunk's topology guidance. Splunk identifies v15.0 as the vendor product for add-on 5.0.1 and lists platform 9.2 through current 10.x and Cloud support at review time. Test exact versions before production.\n\nDo not confuse this supported add-on with the similarly named community Splunk Add-on for Microsoft Sysmon. Splunk recommends migration because the supported add-on has newer field and CIM mappings. The search role needs read access to the deployment-local `wineventlog` event index and permission to schedule the search; it does not need local administrator, WMI repository write, Sysmon configuration, process termination, or lookup-write rights. Restrict raw event access because commands, scripts, account names, endpoint inventory, and detection configuration can be sensitive.\n\nMicrosoft defines Event ID 19 as WMI event-filter registration and records namespace, filter name, and query; Event ID 20 as consumer registration and records consumer name, type/log, and destination; and Event ID 21 as the binding of consumer and filter. WMI's `__FilterToConsumerBinding` associates an `__EventConsumer` with an `__EventFilter` to form a permanent subscription. ATT&CK T1546.003 covers adversary use for persistence and privilege escalation. Legitimate permanent consumers exist, so the analytic reports changes for review rather than declaring malware.\n\nThe exact admitted operations are native `Created` and `Modified`, compared case-insensitively. Sysmon examples show that a newly observed binding can carry `Operation=Modified`; therefore an ID-only “creation” label is too strong. `Deleted` is excluded because removal normally reduces persistence, though a separate audit rule may retain and review deletion. One event is one component record. The search does not correlate a complete filter-consumer-binding chain and never claims that a lone 19 or 20 can execute.\n\n## Step 1 — Configure Sysmon and collect XML\n\nMaintain the Sysmon XML configuration in version control. Ensure the WmiEvent rule does not discard IDs 19–21. Apply a canary configuration with Sysmon's documented `-c` update method, validate the active configuration and schema, and then deploy through controlled endpoint management. Splunk's troubleshooting guidance warns that Sysmon schema changes can affect new event-type capture after binary upgrades. Monitor Sysmon service state and configuration-change Event ID 16; a stopped service makes the Operational channel unavailable.\n\nFor direct collection, use the input supplied/configured by Splunk Add-on for Sysmon for `Microsoft-Windows-Sysmon/Operational`, rendered as XML. The required search contract is:\n\n```text\nsourcetype=XmlWinEventLog\nsource=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\n```\n\nRoute to a governed event index; `wineventlog` is this catalogue's local choice. Do not name the channel-bearing string as the source type. Splunk Security Content's tested data source uses exactly the source/source-type pair above. Confirm add-on placement on collection, parsing, indexing, and search tiers according to the install matrix.\n\nFor WEF/WEC, use the add-on's `WEC-Sysmon` path and validate it as a separate contract before adapting the SPL. Preserve original `Computer`/endpoint identity, prevent duplicate direct-plus-WEF collection, measure bookmark and event-time latency, and prove native fields survive. Do not merely add the WEC source to production SPL because a collector's host identity can collapse endpoints.\n\nVerify data and fields:\n\n```spl\nindex=wineventlog sourcetype=XmlWinEventLog source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode IN (19,20,21) earliest=-30d\n| table _time Computer EventRecordID EventCode EventType Operation User RuleName UtcTime EventNamespace Name Query Type Destination Consumer Filter\n| head 50\n```\n\nUse actual XML to validate `EventCode`/`EventID`, `Computer`, `EventRecordID`, and each event-specific field. Confirm time parsing against `UtcTime`. Build a separate coverage search comparing expected endpoints with latest Sysmon events and Event ID 16/configuration state. Absence of WMI events may be normal on a quiet endpoint, so source health must use broader Sysmon heartbeat/event coverage rather than requiring 19–21 daily.\n\n## Step 2 — Save and understand the search\n\nSave the SPL as `windows_sysmon_wmi_subscription_component_change`. Schedule hourly with earliest `-70m@m` and latest `-10m@m`, matching Splunk Security Content's delayed closed-hour pattern. Trigger when result count is greater than zero. Measure `_indextime-_time` p95/p99 for direct and WEF paths and increase the 10-minute delay if required while keeping a nonoverlapping 60-minute event-time window.\n\nThe base predicates select the local index, exact XML source type and direct Sysmon source, and IDs 19–21. The second `where` repeats the numeric ID constraint after `tonumber(coalesce(EventCode,EventID))`, preventing malformed or string-only mismatches. Endpoint identity prefers add-on-normalized `dest`, then native `Computer`, then `host`; validate that lowercasing is safe locally. Actor prefers normalized `user`, then native `User`, while retaining the native column in output.\n\nOperation is trimmed and lowercased, then restricted to `created` or `modified`. `component_type` labels only the documented event class. Filter and consumer names are selected by ID without overwriting the native columns. The table keeps EventType, namespace, query, consumer type/destination, binding references, rule name, EventRecordID, and source metadata. No count threshold exists: one admitted component operation creates one result. Sorting affects presentation only.\n\nDo not deduplicate by component name. Repeated `Modified` events can show tampering or management-agent churn, and names can be reused. Use endpoint plus EventRecordID and channel identity for raw-event provenance. If direct and WEF duplicate the same record, repair collection or use a separately validated provenance-aware deduplication strategy.\n\nNo CIM `tstats` variant is provided. The add-on's high-level CIM list includes Change, but current product-comparison documentation does not assign 19–21 to a specific accelerated dataset preserving all native WMI fields. A generic `Change.All_Changes` search can mix unrelated changes and lose the exact filter/consumer contract. If scale requires summary indexing, write one record per source endpoint/EventRecordID with all native fields and completeness markers, then prove parity before replacement.\n\n## Step 3 — Validate components, boundaries, and semantics\n\nUse isolated synthetic XML matching the supported add-on contract for the positive control. Include one 19 filter, one 20 Command Line consumer, and one 21 binding with distinct EventRecordIDs. Assert exactly three rows and exact component labels, operation values, endpoint, actor, names, query, destination, binding references, record IDs, source, and source type. Test mixed case in `Created`/`Modified` and confirm normalization.\n\nRun negative variants independently: `Deleted`, IDs 18/22, wrong source, wrong source type, empty identity, and the exclusive latest boundary. Test earliest inclusivity. Replay a lone filter and assert one component row—not a complete-subscription statement. Replay 19 and 20 without 21 and confirm two component rows. Test the same names on two endpoints and ensure they remain separate.\n\nIn an authorized lab, Atomic Red Team T1546.003 test 1 creates a filter, CommandLineEventConsumer, and binding; test 2 uses ActiveScriptEventConsumer; test 3 uses `mofcomp.exe`. These require elevated privileges and create executable persistence. Obtain approval, isolate targets, use nonharmful payloads, record exact object names/times, confirm expected 19/20/21 output, and execute the published cleanup. Inspect `root\\subscription` after cleanup to prove objects are gone. Never run these controls on production merely to mark this documentation review complete.\n\nRecord Windows/Sysmon/add-on/forwarder/Splunk versions, active Sysmon configuration hash, collection path, exact UTC bounds, fixture/Atomic GUID, expected and actual rows, search job ID, alert action result, and cleanup evidence. Keep `status=draft` until endpoint coverage, controls, alert delivery, dashboard access, triage, safe suppression, and response are accepted by human owners.\n\n## Step 4 — Triage, response, dashboard, and evidence\n\nWhen a result appears: (1) verify source health, raw XML, endpoint, event code, operation, actor, EventRecordID, and time; (2) search adjacent 19/20/21 records by endpoint and exact names to reconstruct the chain; (3) query the live WMI repository in `root\\subscription` through approved administration tooling; (4) inspect filter WQL, consumer class/type, destination command/script/path, binding, CreatorSID/security context where available, and file ACL/signature; (5) correlate Sysmon process creation for PowerShell, `mofcomp.exe`, `wmiprvse.exe` children, and payload activity; (6) check software deployment/change records; and (7) contain only after ownership and impact review.\n\nDo not automatically delete a filter, consumer, or binding from one event. Removing only one component can break legitimate management, leave orphaned objects, destroy evidence, or trigger adversary fallback. If maliciousness is confirmed, isolate through approved EDR/network controls, preserve repository and event evidence, remove the binding before dependent objects using a tested response procedure, inspect payloads and credentials, and verify no duplicate subscriptions remain.\n\nBuild the dashboard described in `visualization`. Restrict destination/query/script details. Preserve each base result even when paging is suppressed. Periodically inventory `__EventFilter`, standard/third-party `__EventConsumer` classes, and `__FilterToConsumerBinding` and compare against an approved baseline; this detects pre-existing objects that change-event monitoring cannot recover.\n\n## Step 5 — Troubleshoot collection and analytic failures\n\n- **No Sysmon channel/events:** verify Sysmon service installation/state, active configuration, Operational channel, forwarder service, add-on input, permissions, output queues, and index route. Splunk advises restarting forwarders after recovering a stopped Sysmon service.\n- **Events use a channel-shaped source type:** correct the contract. Supported direct data uses `sourcetype=XmlWinEventLog` and channel-bearing `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`.\n- **IDs 19–21 never occur in lab:** verify the active Sysmon schema/config includes WmiEvent, update with `sysmon -c`, inspect Event Viewer, and compare approved Atomic execution/cleanup times. Do not loosen the Splunk search before proving generation.\n- **Fields are null:** inspect raw XML Data names, add-on 5.0.1 placement, search app context, source type, and extraction conflicts with legacy Sysmon add-ons. Native field capitalization matters.\n- **Only ID 19 appears:** a filter alone is not a runnable subscription. Search wider bounds for 20/21, inspect repository state and ingestion, and retain the accurate component result.\n- **Legitimate management flood:** identify exact product rollout/object fingerprints and repair repeated registration if unintended. Use a bounded post-result exception, not a `SYSTEM` or host-wide allowlist.\n- **WEF rows show the collector:** original identity or add-on extraction is wrong. Repair subscription/rendering and validate field parity; do not group all endpoints under the collector.\n- **Duplicate rows:** check direct and WEF dual collection, subscriptions, bookmarks, and EventRecordID/Computer pairs. Fix topology rather than blindly deduplicating same-name changes.\n- **Late/missed events:** measure `_indextime-_time`, WEF delay, endpoint clock, queues, and schedule dispatch. Shift both search bounds together to retain a closed 60-minute window.\n- **Repository object exists but no historical event:** it may predate Sysmon coverage or telemetry may be missing. Use baseline inventory and source-health evidence; this change rule cannot reconstruct unobserved history.",
   "grandmaExplanation": "We watch for new or changed hidden Windows instructions that can wait for a future event and then start a program or script. Because attackers can use these quiet hooks to come back later, every change is shown to the security team for review.",
+  "hardware": "Supported Windows endpoints running Microsoft Sysinternals Sysmon v15.0 and producing the dedicated Microsoft-Windows-Sysmon/Operational channel. Direct endpoint collection is the primary contract. WEF/WEC requires separate validation of the `WEC-Sysmon` input, original endpoint identity, duplicate paths, latency, bookmarks, and field parity.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5709,
+      "name": "Splunk Add-on for Sysmon",
+      "url": "https://splunkbase.splunk.com/app/5709",
+      "minVersion": "5.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

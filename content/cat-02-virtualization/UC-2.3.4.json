@@ -18,34 +18,12 @@
   },
   "dataSources": "A custom five-second-bounded collector runs every 60 seconds on each libvirt host. It enumerates active in-scope domains by UUID, verifies the standard QEMU guest-agent channel policy, and invokes the supported libvirt guest-information path (`virDomainGetGuestInfo`; CLI qualification equivalent `virsh guestinfo <uuid> --os`) after setting a finite guest-agent timeout. Emit one JSON event per domain to `index=kvm sourcetype=libvirt:guest-agent-health` with `poll_id`, `poll_epoch`, `host`, `domain_uuid`, `domain_name`, `domain_state`, `agent_channel_configured`, `agent_ok` (0/1), `failure_class` (collector-controlled closed vocabulary), `duration_ms`, and `requested_info=os`. A separate poll-summary health event reports expected/attempted/completed counts. Unsupported OS-info capability must be distinguished from no agent.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) for host context, plus a signed custom libvirt guest-agent health collector and JSON parsing. The add-on does not ship this probe. No premium Splunk app or CIM acceleration is required.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=kvm sourcetype=\"libvirt:guest-agent-health\" earliest=-10m latest=now\n| eval poll_epoch=tonumber(poll_epoch), agent_ok=tonumber(agent_ok), duration_ms=tonumber(duration_ms)\n| where isnotnull(domain_uuid) AND isnotnull(poll_id) AND poll_epoch<=now() AND poll_epoch>=relative_time(now(),\"-10m\") AND (agent_ok=0 OR agent_ok=1) AND duration_ms>=0 AND duration_ms<=5000 AND domain_state=\"running\"\n| stats count AS raw_event_count dc(agent_ok) AS status_variants latest(agent_ok) AS agent_ok latest(failure_class) AS failure_class latest(duration_ms) AS duration_ms latest(domain_name) AS domain_name latest(host) AS host latest(agent_channel_configured) AS agent_channel_configured max(_indextime) AS last_indextime by domain_uuid poll_epoch\n| where raw_event_count=1 AND status_variants=1\n| sort 0 domain_uuid poll_epoch\n| streamstats window=3 count AS qualified_polls sum(eval(if(agent_ok=0,1,0))) AS failed_polls min(poll_epoch) AS first_poll_epoch max(poll_epoch) AS last_poll_epoch by domain_uuid\n| where qualified_polls=3 AND failed_polls=3 AND last_poll_epoch-first_poll_epoch=120\n| eventstats max(last_poll_epoch) AS latest_failed_poll by domain_uuid\n| where last_poll_epoch=latest_failed_poll\n| eval persistence_seconds=last_poll_epoch-first_poll_epoch, severity=\"high\", use_case=\"UC-2.3.4\"\n| table domain_uuid domain_name host agent_channel_configured first_poll_epoch last_poll_epoch persistence_seconds qualified_polls failed_polls failure_class duration_ms severity last_indextime use_case\n| sort 0 -last_poll_epoch domain_uuid",
   "description": "Detects active KVM guests whose configured QEMU Guest Agent fails three consecutive, complete, finite-timeout libvirt guest-information probes. The search rejects duplicate, conflicting, stale, over-timeout, and nonconsecutive polls and retains the collector's bounded failure category for triage.",
   "value": "A responsive guest agent is required for management functions that rely on guest cooperation, such as supported guest-information queries and some shutdown or quiesce workflows. Persistent, completeness-aware monitoring warns platform teams before an urgent maintenance or backup action discovers that cooperation is unavailable, without equating agent health with application health.",
   "implementation": "Deploy a least-privileged collector that inventories active in-scope domains, checks channel configuration, sets a five-second agent timeout, and invokes the supported guest-info OS request every minute. Emit one result per domain plus an atomic poll summary; distinguish timeout, no channel, unsupported info, permission, migration, and collector errors. Validate against lab guests and then schedule `kvm_guest_agent_heartbeat`; page only after three consecutive failures and recover after three consecutive successes.",
   "visualization": "Dashboard `KVM — Guest Agent Health`: show incomplete/missing polls first, then persistent failures, configured-channel gaps, failure classes, and recovery. Use a UUID-by-time status heat map with unknown gaps, latest-state table with three-poll evidence, failure-class trend, and drilldowns to raw probes, poll summary, domain XML channel, guest service state, migration/lifecycle, backup jobs, and current inventory. Never color missing telemetry green.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "poll_id",
-    "poll_epoch",
-    "host",
-    "domain_uuid",
-    "domain_name",
-    "domain_state",
-    "agent_channel_configured",
-    "agent_ok",
-    "failure_class",
-    "duration_ms",
-    "requested_info"
-  ],
+  "cimModels": [],
   "references": [
     {
       "title": "libvirt virsh manual: guestinfo and guest-agent-timeout",
@@ -83,20 +61,34 @@
     "N/A (guest-agent management readiness; no adversary behavior is asserted)"
   ],
   "detectionType": "Three consecutive bounded active-domain probes",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "poll_id",
+    "poll_epoch",
+    "host",
+    "domain_uuid",
+    "domain_name",
+    "domain_state",
+    "agent_channel_configured",
+    "agent_ok",
+    "failure_class",
+    "duration_ms",
+    "requested_info"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "hardware": "Active KVM/QEMU guests managed through libvirt with a configured QEMU Guest Agent channel and in-scope guest-agent policy. Guest operating systems may be Linux or Windows; package/service diagnostics are OS-specific and outside the host probe contract.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "documentation-only editorial review against current libvirt guestinfo, guest-agent-timeout, virDomainGetGuestInfo and QEMU Guest Agent documentation plus Splunk scripted-input guidance; direct arbitrary qemu-agent-command was removed as primary contract because libvirt does not guarantee it; no host, VM, agent, channel, timeout, probe, collector, forwarder, index, fixture, search, alert, dashboard, or production scope was executed; no libvirt, QEMU, Red Hat, Splunk, guest-OS, runtime, or SME sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against current libvirt guestinfo, guest-agent-timeout, virDomainGetGuestInfo and QEMU Guest Agent documentation plus Splunk scripted-input guidance; direct arbitrary qemu-agent-command was removed as primary contract because libvirt does not guarantee it; no host, VM, agent, channel, timeout, probe, collector, forwarder, index, fixture, search, alert, dashboard, or production scope was executed; no libvirt, QEMU, Red Hat, Splunk, guest-OS, runtime, or SME sign-off",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -114,8 +106,17 @@
   },
   "detailedImplementation": "## Prerequisites and probe semantics\n\nAssign libvirt/KVM, guest OS, Splunk collection, backup, and service owners. Inventory every active domain UUID, expected guest-agent requirement, guest OS, channel configuration, owner and maintenance policy. Qualify libvirt/QEMU/QGA/binding/kernel/distribution/forwarder/Splunk versions on canaries. Use UUID identity; names are mutable.\n\nLibvirt's `guestinfo` retrieves information from the guest-agent point of view and requires an agent configured and running. The current virsh manual warns that no-flag `guestinfo` always reports success while omitting unavailable information; therefore it is not a valid binary heartbeat. This contract explicitly requests `--os` and categorizes unsupported information separately. `virDomainGetGuestInfo` is the supported API. Direct `virDomainQemuAgentCommand`/`qemu-agent-command` is QEMU-specific, and libvirt's QGA guidance says arbitrary direct use is not guaranteed and can interfere if state-changing commands are used. Do not use it as the primary production probe.\n\nAgent commands can block. Set a finite five-second libvirt guest-agent response timeout and an outer collector deadline. Libvirt documents timeout behavior and `VIR_ERR_AGENT_COMMAND_TIMEOUT`. Validate how the chosen binding sets per-domain timeout and classify errors by API error code, not invented message strings. The probe must be read-only; never use filesystem freeze, password, exec, shutdown, time set, or file operations as heartbeat.\n\n## Step 1 — Build an atomic, bounded collector\n\nAt each one-minute poll, enumerate active in-scope domains and freeze the expected UUID list. For each, inspect live XML for the standard QGA virtio channel according to qualified policy, then invoke the supported guest-info OS type under bounded concurrency. Record start/end monotonic time and classify result using a closed vocabulary such as `ok`, `no_channel`, `agent_unavailable`, `timeout`, `unsupported_info`, `permission`, `domain_changed`, `libvirt_connection`, and `collector_error`. Preserve detailed diagnostics only in restricted collector logs; do not fabricate vendor error text.\n\nEmit one JSON row per expected domain even on failure, plus a summary with expected, attempted, completed, success/failure counts, poll ID/epoch, collector duration and connection status. Only a complete summary makes individual failures alertable. If the poll overruns, queue is full, or libvirt connection fails, mark poll incomplete rather than outputting missing guests as failures.\n\nConfigure a signed scripted input at 60 seconds to `index=kvm sourcetype=libvirt:guest-agent-health`. Splunk intervals occur after script completion; bounded concurrency is essential so a large failure set does not turn 60 seconds into N×5 seconds. Measure safe concurrency against libvirt and never flood the agent channel. Use a read-only libvirt service identity and explicit JSON parsing/timestamping.\n\nCapture script hash, dependencies, package lock, service ACL, effective `btool`, libvirt URI and timeout configuration. On canaries compare UUID/state/channel to `virsh list --uuid`, domain XML and `virsh guestinfo <uuid> --os` with a finite timeout. Test Linux and Windows guests, old/new QGA, missing channel, stopped service and unsupported OS info.\n\n## Step 2 — Operate completeness and error taxonomy\n\nCreate health searches that join each poll summary to detail rows. Require exact expected/completed/domain distinct counts, one row per UUID, consistent poll epoch, no unknown failure class, duration within outer deadline, and current indexing. Alert on incomplete poll, stale host, duplicates, conflicting status, schema drift, timeout burst, and connection error independently.\n\nThe primary SPL assumes only complete detail rows have reached the source; in production either filter by a summary-enriched `poll_complete=1` field or join the summary by poll ID. Do not omit this control. The catalogue details a row-level contract, but atomic completeness is mandatory before paging.\n\nDo not coalesce missing `agent_ok` to zero. Do not mark inactive guests failed; state must be Running for this policy. A domain that changes state during probe is `domain_changed` and belongs to lifecycle correlation. Unsupported requested information requires a policy decision or another supported read-only info type, not ordinary heartbeat severity.\n\n## Step 3 — Create persistence and recovery\n\nSave `kvm_guest_agent_heartbeat` every minute. The search validates fields/time/duration and exact UUID/epoch uniqueness, sorts by UUID/time, then uses a three-event `streamstats` window. It requires three failed rows and poll epochs exactly 120 seconds apart. The latest qualifying window per UUID becomes one high result. Configure notification idempotency by UUID/first/last epoch.\n\nThe result retains latest failure class but responders should inspect all three raw classes. Mixed timeout/no-channel can indicate change during the window. Apply service severity and scope after base detection. Recovery is three valid consecutive `agent_ok=1` polls exactly one minute apart; values between failure/recovery maintain incident state. Incident tooling, not stateless SPL, owns open/closed state.\n\nTune cadence, timeout and persistence from management objectives. Backup platforms that require guest quiescence before a near-term job may need earlier warning; appliances with no agent should be out of scope. Never treat `agent_ok=1` as proof that a later freeze or backup will succeed.\n\n## Step 4 — Validate and operationalize\n\nCreate the exact three-timeout fixture and assert persistence. Run each negative separately, including duplicates, conflicting status, gaps, stale/future, duration 5001 ms, inactive state, unsupported_info, incomplete poll summary, and fail/fail/success. Boundary-test exact 60-second spacing and exact five-second accepted duration. Test recovery.\n\nOn lab VMs stop/start QGA, remove/restore channel only under approved change, block the service, overload libvirt, migrate and reboot. Compare probe results with guest service state and `guestinfo --os`. Confirm no probe changes guest state. Measure fleet collection duration and libvirt load under simultaneous timeouts.\n\nPublish the health-first dashboard. Route one/few VM failures to guest/service owners; fleetwide failures to libvirt/collector owner. Responder sequence: verify complete polls and raw failure codes; confirm VM Running and UUID; inspect channel XML and libvirt connection; check QGA package/service inside guest through approved access; correlate migration/reboot/backup and host load; repair config/service or reschedule dependent operations; verify three successes and the actual management workflow.\n\nDo not automatically reboot a guest, restart QGA, hotplug a channel, freeze/thaw filesystems, cancel backups, or change domain XML from this result. Preserve evidence and obtain owner approval.\n\n## Step 5 — Troubleshoot by failure class\n\n- **`no_channel`:** inspect live/persistent XML for the qualified virtio channel target and backend. Adding it can require VM change/reboot; use change control.\n- **`agent_unavailable`:** verify QGA installed/running and device present inside guest. Guest procedure differs by OS; do not prescribe one service name universally.\n- **`timeout`:** verify finite libvirt and outer timeouts, agent load, stuck command, libvirt jobs and host pressure. Do not change to infinite wait.\n- **`unsupported_info`:** no-flag guestinfo can still appear successful. Confirm agent supports requested OS info or choose another documented supported read-only contract and update tests.\n- **`permission`:** test as collector identity and fix least-privileged libvirt policy; do not grant root reflexively.\n- **`domain_changed`:** correlate lifecycle/migration and wait for stable Running state; do not page as agent defect.\n- **Fleetwide failures:** inspect poll summary, URI, daemon/socket, collector release, timeout change and host load before touching guests.\n- **Missing rows:** source completeness failure, not agent failure. Repair enumeration/output/indexing.\n- **Probe says OK but backup fails:** heartbeat scope is limited. Inspect the exact freeze/quiesce command, filesystem and backup integration; do not weaken evidence wording.\n- **Alert repeats:** ensure idempotent key and three-success recovery; preserve every probe and avoid permanent UUID suppression.",
   "grandmaExplanation": "We check whether the small helper inside each running virtual machine answers a harmless question several times in a row. If it stays silent, the team can repair it before a backup or maintenance task depends on that helper.",
+  "hardware": "Active KVM/QEMU guests managed through libvirt with a configured QEMU Guest Agent channel and in-scope guest-agent policy. Guest operating systems may be Linux or Windows; package/service diagnostics are OS-specific and outside the host probe contract.",
   "prerequisiteUseCases": [
     "UC-2.3.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }

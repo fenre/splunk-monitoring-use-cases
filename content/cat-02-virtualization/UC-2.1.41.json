@@ -26,19 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built complete ESXCLI coredump file/partition/network snapshot joined to host policy",
   "dataModelAcceleration": "Not applicable. CIM does not preserve ESXi dump target family/identity, network check state, collector schema, complete snapshot provenance, and host-specific target policy.",
-  "requiredFields": [
-    "vcenter",
-    "host_moid",
-    "host",
-    "active_file_target_count",
-    "active_partition_target_count",
-    "network_enabled",
-    "network_check_passed",
-    "snapshot_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom ESXCLI command reference: system coredump namespaces",
@@ -76,6 +63,19 @@
     "N/A (ESXi diagnostic-readiness monitoring; no adversary behavior asserted)"
   ],
   "detectionType": "Newest complete ESXi coredump target state fails explicit host policy",
+  "requiredFields": [
+    "vcenter",
+    "host_moid",
+    "host",
+    "active_file_target_count",
+    "active_partition_target_count",
+    "network_enabled",
+    "network_check_passed",
+    "snapshot_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
@@ -83,14 +83,13 @@
     "vmware_esxi",
     "vmware_vcenter"
   ],
-  "hardware": "Governed ESXi hosts, including installed/upgraded hosts with ESX-OSData dump files and diskless/stateless hosts requiring an approved network dump collector.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware support, storage/network, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware support, storage/network, and Splunk validation pending",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -100,6 +99,7 @@
   },
   "detailedImplementation": "## Prerequisites and target-family model\n\nAssign VMware platform/support, boot-storage, network, dump-collector, privacy, Splunk, and change owners. Inventory every governed host by vCenter/moid, ESXi build/install history, boot mode/storage, diskless/stateless status, support requirements, active/configured file and partition targets, network collector/interface/path, target policy, and owner. Broadcom documents file, partition, and network dump mechanisms. ESXi 7.0 installation/upgrade commonly configures a file on VMFS-L ESX-OSData; do not require a partition/network universally.\n\nRun supported VCF PowerCLI on a hardened tier with TLS to vCenter and read access needed for Get-EsxCli. Use `Get-EsxCli -V2`; Broadcom recommends V2 because V1 positional interfaces are not guaranteed compatible across ESXi versions. The Splunk role needs read/scheduled-search rights only.\n\n## Step 1 — Collect every target family completely\n\nImplement `TA_vmware_esxi_coredump_inventory`. For each host invoke qualified V2 methods corresponding to `system coredump file list/get`, `partition list/get`, `network get`, and, when enabled and approved, `network check`. Inspect actual V2 argument/output names per ESXi build. Count active targets separately from configured-next-boot targets and retain canonical IDs/paths in restricted fields. Record network interface, server IP, port, enabled state, and check result without inventing null=false.\n\nOnly emit `collector_status=ok` when every required namespace for that host class succeeds and maps to the versioned schema. An unsupported command, permission failure, timeout, disconnected host, or partial method set goes to a separate error source. Configure daily JSON scripted input. Compare file/partition/network output with direct ESXCLI and vSphere Client where exposed. Verify active versus configured semantics and known file-only/partition-only/network-only controls.\n\nCreate `vmware_esxi_coredump_policy.csv` keyed by vCenter/host_moid with true/false `require_any_target`, `require_local_target`, `require_network_target`, owner/version/effective dates. Preflight conflicting logic, duplicates, missing expected hosts, orphan IDs, and diskless/boot-class alignment. Independently monitor the network dump collector listener, service, destination storage/capacity/retention, firewall/path, and actual received artifacts.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_esxi_coredump_configuration_health` and run after collection. It validates host identity, nonnegative active counts, network/check booleans, selects newest complete host snapshot, and rejects future or >36-hour state. Exact policy supplies requirements. `has_local_target` is file count plus partition count greater than zero; `has_any_target` adds enabled network.\n\nReasons remain distinct: no target when any required; required local missing; required network missing; and enabled network whose qualified check failed. A failed optional network check still appears even if local fallback exists because the configured network path is unhealthy. High is reserved locally for no active target; other reasons are medium. Configuration readiness does not prove successful future dump.\n\nRun separate health for expected hosts, command/schema support, active/configured mapping, policy duplicates/missing, collector errors, network collector service/listener/storage/retention, and actual dump/retrieval test evidence.\n\n## Step 3 — Validate safely\n\nUse fixtures for no target, file-only, partition-only, network-only pass/fail, local+network, active versus configured only, zero/multiple counts, network disabled/null check, invalid booleans/counts, exact/missing/duplicate/expired policy, stale/future/partial snapshots, command-layout drift, older bad/newer good, and duplicate delivery. Assert correct reasons and no assumption that partition/network is mandatory on file-backed hosts.\n\nIn nonproduction, inspect known targets and run the non-destructive `network check` only with VMware/network approval. Test collector listener/path interruption and recovery. Validate file/partition active identifiers after reboot or controlled configuration change. A deliberate purple diagnostic screen or dump generation requires a separate safety/support test plan; it is not required to validate search logic and must never be triggered in production for a routine control.\n\n## Step 4 — Triage and remediate deliberately\n\nAlert title should say `ESXi coredump target configuration needs review`. Include host/build/boot class, file/partition counts/IDs, network state/check/endpoint/interface, policy, source/schema health, collector health, change context, and raw links. Verify direct ESXCLI live state; confirm host policy/class; inspect active versus configured target; check target storage capacity/access; for network, verify interface/route/firewall/listener/destination/retention; review install/upgrade/maintenance changes; and classify approved transition, missing target, failed network path, policy defect, collector defect, or unresolved.\n\nNever automatically add/remove/enable a dump file/partition, alter autoCreateDumpFile, point to a collector, change VMkernel networking/firewall, reboot, or generate a crash. Wrong storage/network changes can impair boot or diagnostics. Use approved Broadcom procedures with support, capacity, rollback, and maintenance planning. Close only when direct and fresh snapshot state satisfy policy, network collector/path is healthy if required, retrieval/retention design is approved, and evidence is retained.\n\n## Step 5 — Troubleshoot\n\n- **All local counts zero on ESXi 7+:** verify file-list/get command mapping, active versus configured fields, permissions, and ESX-OSData; do not infer no target from partition output alone.\n- **Network enabled but check null:** collector contract is invalid; run/marshal the qualified check or mark partial unless local policy explicitly excludes check with a separate schema.\n- **V2 method missing:** inspect ESXi build command namespace and `Get-EsxCli -V2` help; version the adapter and fail health.\n- **Direct ESXCLI differs:** align host/vCenter, sample time, active/configured distinction, pending reboot, and collector serialization.\n- **Network check fails:** inspect VMkernel interface, route, server IP/port, firewall, collector listener/service/storage, and time; local fallback does not repair network path.\n- **Target exists but no actual dumps:** configuration is not proof of future success; review prior crashes, target capacity, truncation, retention, and retrieval/support workflow.\n- **State changes after reboot/upgrade:** inspect smart selection, auto-created dump file, boot storage, lifecycle task, and approved final policy.\n\nRetention and testing follow support/privacy policy. This use case monitors configuration readiness and never guarantees diagnostic capture.",
   "grandmaExplanation": "We check that each virtualization host has an approved place to save diagnostic information if it crashes. We recognize local files, special disk areas, and network collectors, but a configured destination is not a promise that a future crash report will succeed.",
+  "hardware": "Governed ESXi hosts, including installed/upgraded hosts with ESX-OSData dump files and diskless/stateless hosts requiring an approved network dump collector.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

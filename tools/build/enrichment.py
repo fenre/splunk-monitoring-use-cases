@@ -2542,7 +2542,12 @@ def _populate_content_sidecar_caches():
                     entry["kfp"] = kfp.strip()
                 mitre = side.get("mitreAttack")
                 if isinstance(mitre, list) and mitre:
-                    entry["mitre"] = [str(m).strip() for m in mitre if str(m).strip()]
+                    entry["mitre"] = [
+                        tid
+                        for m in mitre
+                        if (tid := str(m).strip())
+                        and re.match(r"^T\d{4}(\.\d{3})?$", tid)
+                    ]
                 reviewed = side.get("lastReviewed")
                 if isinstance(reviewed, str) and reviewed.strip():
                     entry["reviewed"] = reviewed.strip()

@@ -307,7 +307,7 @@ _HIPAA Security Rule_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `§164.308(a)(1)` | Security management process | 1.00 | ✔ 4 | partial | 22.10.1, 22.10.2, 22.10.22, 22.10.55 |
-| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 1 | partial | 22.10.4 |
+| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 2 | partial | 21.3.68, 22.10.4 |
 | `§164.308(a)(4)` | Information access management | 1.00 | ✔ 1 | full | 22.10.21 |
 | `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 4 | full | 17.1.53, 22.10.6, 22.46.1, 22.6.53 |
 | `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 3 | partial | 22.10.56, 22.10.7, 22.39.1 |
@@ -514,7 +514,7 @@ _NIST SP 800-53 Rev. 5_
 | `AC-2` | Account management | 1.00 | ✔ 4 | full | 17.1.51, 22.14.16, 22.40.3, 5.13.49 |
 | `AC-3` | Access enforcement | 1.00 | ✔ 3 | contributing | 17.1.55, 17.1.68, 22.14.17 |
 | `AC-6` | Least privilege | 1.00 | ✔ 5 | full | 17.1.79, 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
-| `AU-2` | Event logging | 1.00 | ✔ 6 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 5.13.45, 5.13.47 |
+| `AU-2` | Event logging | 1.00 | ✔ 975 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 4.1.100, 4.1.101, 4.1.102, 4.1.103 |
 | `AU-3` | Content of audit records | 1.00 | ✔ 2 | partial | 22.14.2, 5.13.50 |
 | `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 4 | full | 17.1.42, 22.14.5, 22.14.82, 5.13.50 |
 | `AU-8` | Time stamps | 1.00 | ✔ 2 | full | 22.11.100, 22.14.7 |
@@ -532,7 +532,7 @@ _NIST SP 800-53 Rev. 5_
 | `SC-7` | Boundary protection | 1.00 | ✔ 1 | contributing | 22.14.67 |
 | `SC-8` | Transmission confidentiality and integrity | 1.00 | ✔ 2 | full | 22.14.68, 22.41.2 |
 | `SC-13` | Cryptographic protection | 1.00 | ✔ 4 | full | 17.1.39, 22.14.71, 22.41.1, 22.41.3 |
-| `SI-4` | System monitoring | 1.00 | ✔ 3 | full | 17.1.67, 22.14.36, 22.8.33 |
+| `SI-4` | System monitoring | 1.00 | ✔ 13 | full | 17.1.67, 22.14.36, 22.8.33, 4.1.148, 4.1.149, 4.1.150, 4.1.151, 4.1.152 |
 | `SR-3` | Supply chain controls and processes | 0.70 | ✔ 1 | partial | 22.44.1 |
 | `PT-3` | Personally identifiable information processing purposes | 0.70 | ✔ 1 | partial | 22.1.48 |
 
@@ -849,7 +849,7 @@ _APRA CPS 234 Information Security_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `15` | Policy framework | 0.70 | ✔ 3 | partial | 1.2.9, 1.3.4, 22.30.21 |
+| `15` | Policy framework | 0.70 | ✔ 1 | partial | 22.30.21 |
 | `23` | Incident management | 1.00 | ✔ 12 | partial | 16.1.20, 16.3.6, 22.30.19, 22.30.20, 22.30.23, 22.30.24, 22.30.25, 22.31.14 |
 | `36` | Notification of incidents | 1.00 | ✔ 4 | partial | 16.1.20, 16.3.6, 22.30.22, 22.31.16 |
 
@@ -866,10 +866,10 @@ _ASD Essential Eight Maturity Model_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `E8.01` | Application control | 1.00 | ✔ 3 | partial | 1.2.91, 12.3.10, 22.31.6 |
+| `E8.01` | Application control | 1.00 | ✔ 2 | partial | 12.3.10, 22.31.6 |
 | `E8.03` | Configure MS Office macro settings | 1.00 | ✔ 2 | partial | 22.31.13, 22.31.7 |
-| `E8.05` | Restrict administrative privileges | 1.00 | ✔ 4 | partial | 1.1.76, 22.31.9, 9.1.3, 9.4.1 |
-| `E8.06` | Patch operating systems | 1.00 | ✔ 5 | partial | 1.2.9, 1.3.4, 12.3.2, 22.31.10, 3.1.5 |
+| `E8.05` | Restrict administrative privileges | 1.00 | ✔ 3 | partial | 22.31.9, 9.1.3, 9.4.1 |
+| `E8.06` | Patch operating systems | 1.00 | ✔ 3 | partial | 12.3.2, 22.31.10, 3.1.5 |
 | `E8.08` | Regular backups | 1.00 | ✔ 5 | full | 22.31.12, 5.1.24, 6.3.1, 6.3.13, 6.3.23 |
 
 ### AU Privacy Act — `au-privacy-act`
@@ -966,7 +966,7 @@ _FBI CJIS Security Policy_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `5.5.1` | Access control - identification | 1.00 | ✔ 9 | partial | 1.1.108, 22.32.22, 22.32.23, 22.32.24, 22.32.25, 4.1.4, 5.1.14, 7.1.21 |
+| `5.5.1` | Access control - identification | 1.00 | ✔ 8 | partial | 22.32.22, 22.32.23, 22.32.24, 22.32.25, 4.1.4, 5.1.14, 7.1.21, 9.1.1 |
 | `5.13.3` | Incident response | 1.00 | ✔ 1 | partial | 22.50.2 |
 
 ### CLC/TS 50701 — `clc-ts-50701`
@@ -1094,7 +1094,7 @@ _EU AI Act_
 | `Art.13` | Transparency and information | 0.70 | ✔ 18 | partial | 22.21.10, 22.21.13, 22.21.14, 22.21.16, 22.21.17, 22.21.18, 22.21.19, 22.21.20 |
 | `Art.14` | Human oversight | 1.00 | ✔ 3 | partial | 22.21.11, 22.21.12, 22.21.15 |
 | `Art.15` | Accuracy, robustness, cybersecurity | 1.00 | ✔ 1 | partial | 22.21.4 |
-| `Art.19` | Automatically generated logs | 1.00 | ✔ 3 | partial | 1.2.51, 22.21.2, 22.21.3 |
+| `Art.19` | Automatically generated logs | 1.00 | ✔ 2 | partial | 22.21.2, 22.21.3 |
 | `Art.26` | High-risk AI obligations for deployers | 1.00 | ✔ 1 | partial | 22.21.1 |
 
 ### EU AML — `eu-aml`
@@ -1177,7 +1177,7 @@ _FDA 21 CFR Part 11_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§11.10(e)` | Audit trails | 1.00 | ✔ 25 | full | 1.1.65, 1.2.33, 1.2.51, 22.17.1, 22.17.11, 22.17.12, 22.17.13, 22.17.14 |
+| `§11.10(e)` | Audit trails | 1.00 | ✔ 23 | full | 1.1.65, 22.17.1, 22.17.11, 22.17.12, 22.17.13, 22.17.14, 22.17.15, 22.17.16 |
 | `§11.10(d)` | System access limited to authorized individuals | 1.00 | ✔ 1 | partial | 7.1.21 |
 | `§11.200` | Electronic signatures | 1.00 | ✔ 5 | partial | 22.17.10, 22.17.6, 22.17.7, 22.17.8, 22.17.9 |
 
@@ -1196,7 +1196,7 @@ _Federal Risk and Authorization Management Program_
 |--------|-------|---------:|----:|---------------|------------|
 | `AC-2` | Account management | 1.00 | ✔ 8 | full | 13.1.39, 17.1.8, 4.1.4, 5.2.2, 7.1.21, 9.1.3, 9.4.1, 9.5.15 |
 | `AU-6` | Audit review, analysis, reporting | 1.00 | ✔ 4 | full | 13.1.35, 13.1.37, 22.14.82, 4.1.1 |
-| `SI-4` | System monitoring | 1.00 | ✔ 5 | full | 1.1.65, 1.1.76, 1.2.51, 22.50.46, 4.1.1 |
+| `SI-4` | System monitoring | 1.00 | ✔ 3 | full | 1.1.65, 22.50.46, 4.1.1 |
 
 ### FERPA — `ferpa`
 
@@ -1278,8 +1278,8 @@ _HITRUST CSF_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `09.aa` | Audit logging | 1.00 | ✔ 9 | full | 1.1.65, 1.2.33, 1.2.51, 12.1.4, 13.1.35, 13.1.36, 13.1.37, 22.35.6 |
-| `01.b` | User access management | 1.00 | ✔ 9 | full | 1.1.108, 13.1.39, 4.1.4, 7.1.21, 9.1.1, 9.1.3, 9.3.1, 9.4.1 |
+| `09.aa` | Audit logging | 1.00 | ✔ 7 | full | 1.1.65, 12.1.4, 13.1.35, 13.1.36, 13.1.37, 22.35.6, 7.1.40 |
+| `01.b` | User access management | 1.00 | ✔ 8 | full | 13.1.39, 4.1.4, 7.1.21, 9.1.1, 9.1.3, 9.3.1, 9.4.1, 9.5.15 |
 
 ### HKMA TM-G-2 — `hkma-tm-g-2`
 
@@ -1327,7 +1327,7 @@ _BSI IT-Grundschutz Compendium_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `OPS.1.1.2` | Ordered ICT operation | 1.00 | ✔ 11 | partial | 1.2.91, 12.2.17, 13.1.36, 16.4.1, 22.28.11, 22.28.12, 22.28.13, 22.28.14 |
+| `OPS.1.1.2` | Ordered ICT operation | 1.00 | ✔ 10 | partial | 12.2.17, 13.1.36, 16.4.1, 22.28.11, 22.28.12, 22.28.13, 22.28.14, 22.28.15 |
 | `ORP.4` | Identity & access | 1.00 | ✔ 2 | full | 9.1.3, 9.5.15 |
 
 ### IT-SiG 2.0 — `it-sig-2`
@@ -1454,7 +1454,7 @@ _NERC Critical Infrastructure Protection_
 | `CIP-005-7 R1` | Electronic security perimeter | 1.00 | ✔ 6 | full | 10.14.16, 14.2.14, 14.2.4, 14.9.22, 15.3.1, 17.3.3 |
 | `CIP-007-6 R4` | Security event monitoring | 1.00 | ✔ 4 | full | 14.2.11, 14.2.14, 14.9.14, 22.50.47 |
 | `CIP-008-6 R1` | Incident response | 1.00 | ✔ 2 | partial | 10.14.19, 22.50.6 |
-| `CIP-010-4 R1` | Configuration change management | 1.00 | ✔ 8 | full | 1.2.9, 13.1.36, 14.2.9, 14.6.6, 16.4.1, 5.1.24, 5.1.7, 7.1.13 |
+| `CIP-010-4 R1` | Configuration change management | 1.00 | ✔ 7 | full | 13.1.36, 14.2.9, 14.6.6, 16.4.1, 5.1.24, 5.1.7, 7.1.13 |
 
 ### NESA IAS — `nesa-uae-ias`
 
@@ -1638,7 +1638,7 @@ _RBI Cyber Security Framework for Banks_
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `Annex-A` | Baseline cyber-security controls | 1.00 | ✔ 6 | partial | 1.1.76, 22.30.13, 22.30.14, 22.30.15, 22.30.16, 22.30.18 |
+| `Annex-A` | Baseline cyber-security controls | 1.00 | ✔ 5 | partial | 22.30.13, 22.30.14, 22.30.15, 22.30.16, 22.30.18 |
 | `Annex-B` | Cyber-crisis management plan | 1.00 | ✔ 1 | partial | 22.30.17 |
 
 ### SA PDPL — `sa-pdpl`
@@ -1673,7 +1673,7 @@ _SAMA Cyber Security Framework_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `3.1.1` | Cyber security governance | 1.00 | ✔ 4 | partial | 22.33.10, 22.33.6, 22.33.8, 22.33.9 |
-| `3.3.5` | Security monitoring | 1.00 | ✔ 6 | partial | 1.1.76, 12.1.4, 17.2.2, 22.33.7, 4.1.1, 9.4.1 |
+| `3.3.5` | Security monitoring | 1.00 | ✔ 5 | partial | 12.1.4, 17.2.2, 22.33.7, 4.1.1, 9.4.1 |
 
 ### SG PDPA — `sg-pdpa`
 
@@ -1707,7 +1707,7 @@ _SWIFT Customer Security Programme_
 |--------|-------|---------:|----:|---------------|------------|
 | `1.1` | SWIFT environment protection | 1.00 | ✔ 7 | partial | 22.34.10, 22.34.2, 22.34.5, 22.34.6, 22.34.9, 5.1.7, 5.2.2 |
 | `6.1` | Malware protection | 1.00 | ✔ 1 | partial | 22.50.13 |
-| `6.4` | Logging and monitoring | 1.00 | ✔ 13 | partial | 1.1.65, 1.2.33, 13.1.35, 13.1.36, 15.3.2, 22.34.1, 22.34.11, 22.34.12 |
+| `6.4` | Logging and monitoring | 1.00 | ✔ 12 | partial | 1.1.65, 13.1.35, 13.1.36, 15.3.2, 22.34.1, 22.34.11, 22.34.12, 22.34.3 |
 
 ### Swiss nFADP — `swiss-nfadp`
 
@@ -1755,7 +1755,7 @@ _UK NCSC Cyber Essentials_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `CE.BF.1` | Boundary firewalls | 1.00 | ✔ 4 | partial | 17.1.8, 17.3.3, 22.27.28, 5.2.2 |
-| `CE.SAU.1` | Secure authentication & access | 1.00 | ✔ 7 | partial | 1.1.108, 17.2.2, 22.27.29, 22.27.30, 4.1.5, 9.1.1, 9.3.1 |
+| `CE.SAU.1` | Secure authentication & access | 1.00 | ✔ 6 | partial | 17.2.2, 22.27.29, 22.27.30, 4.1.5, 9.1.1, 9.3.1 |
 
 ### UK GDPR — `uk-gdpr`
 

@@ -17,14 +17,6 @@
   },
   "dataSources": "Primary data is vCenter API VM performance telemetry collected by Splunk Add-on for VMware Metrics into the deployment-selected metrics index (example/default `index=vmware-perf-metrics`). Required optional-allowlist metrics are `vmware.vm.net.droppedRx` and `vmware.vm.net.droppedTx`, sourced from `net.summation.droppedRx.number` and `net.summation.droppedTx.number`; native unit is packet count (`number`) and rollup is summation. Required dimensions are VM `uuid`, `name`, vNIC `instance`, `vcenter`, `hypervisor_name`, aggregation/unit and metric time. Host physical-NIC metrics, guest telemetry, topology, maintenance and application SLOs provide corroboration.",
   "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects VM network performance metrics through vCenter and DCNs. A local operations app owns metric allowlists, completeness health, saved search, topology enrichment, dashboard, tests, routing and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "data-source"
-    }
-  ],
   "spl": "| mstats sum(vmware.vm.net.droppedRx) AS rx_dropped_packets sum(vmware.vm.net.droppedTx) AS tx_dropped_packets WHERE index=vmware-perf-metrics earliest=-15m@m latest=-10m@m BY uuid name instance vcenter hypervisor_name\n| where len(uuid)>0 AND len(name)>0 AND len(instance)>0 AND isnotnull(rx_dropped_packets) AND isnotnull(tx_dropped_packets) AND (rx_dropped_packets>0 OR tx_dropped_packets>0)\n| eval total_dropped_packets=rx_dropped_packets+tx_dropped_packets, window_seconds=300, use_case=\"UC-2.1.16\"\n| table uuid name instance vcenter hypervisor_name rx_dropped_packets tx_dropped_packets total_dropped_packets window_seconds use_case\n| sort 0 -total_dropped_packets name instance",
   "description": "Identifies each VM and virtual-NIC instance with complete receive- and transmit-drop metric coverage where at least one packet was dropped during one closed five-minute window. The output reports interval packet counts in each native direction and their total.",
   "value": "Hypervisor-side drop counters reveal traffic discarded before guest-only monitoring may explain an application symptom. A precise per-vNIC count helps network and virtualization teams prioritize topology, saturation, driver and policy checks while avoiding incorrect conversion to rates or claims of sustained loss.",
@@ -35,19 +27,6 @@
   ],
   "schema": "Splunk metrics-index series for vSphere VM network summation counters",
   "dataModelAcceleration": "Not applicable. The source is a metrics index and the VMware metric names, VM UUID/vNIC instance, native summation semantics and dual-series completeness are not a published CIM contract. Use `mstats`.",
-  "requiredFields": [
-    "metric_name:vmware.vm.net.droppedRx",
-    "metric_name:vmware.vm.net.droppedTx",
-    "_value",
-    "_time",
-    "uuid",
-    "name",
-    "instance",
-    "vcenter",
-    "hypervisor_name",
-    "unit",
-    "vmware_metric_aggregation"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: Network performance counters",
@@ -90,15 +69,28 @@
     "N/A (virtual network performance signal; no adversary behavior asserted)"
   ],
   "detectionType": "Five-minute VM vNIC packet-drop count",
+  "requiredFields": [
+    "metric_name:vmware.vm.net.droppedRx",
+    "metric_name:vmware.vm.net.droppedTx",
+    "_value",
+    "_time",
+    "uuid",
+    "name",
+    "instance",
+    "vcenter",
+    "hypervisor_name",
+    "unit",
+    "vmware_metric_aggregation"
+  ],
   "equipment": [
+    "hyperv",
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_vcenter",
-    "vmware_vsphere",
-    "vmware_esxi"
+    "vmware_vsphere"
   ],
-  "hardware": "vCenter-managed VMware VMs and their virtual NIC instances. Physical NICs, switches, guest adapters and application paths require separate telemetry.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/network/Splunk SME validation pending",
@@ -111,6 +103,15 @@
   },
   "detailedImplementation": "## Prerequisites and counter semantics\n\nAssign vSphere, network, application and Splunk owners. Inventory vCenters, VMs by UUID, vNIC instance/MAC, port group/VDS, ESXi host/uplink and service owner. Broadcom defines `net.droppedRx` and `net.droppedTx` as receive and transmit packets dropped during the collection interval, with stats type delta, unit number and rollup summation. They are packet counts, not rates. Record the vCenter statistic level and interval that expose them.\n\n## Step 1 — Collect and prove both series\n\nDeploy supported Splunk Add-on for VMware Metrics and configure vCenter API access over TCP 443. Include `hostvmperf` in the pool and explicitly allow VM `net.summation.droppedRx.number` and `net.summation.droppedTx.number` because they are outside the minimal default set in some configurations. Send them to the actual metrics index; this contract uses `vmware-perf-metrics`.\n\nFor a safe lab VM/vNIC, compare vSphere Client performance counters or approved esxtop/support data with Splunk. Prove indexed names `vmware.vm.net.droppedRx` and `vmware.vm.net.droppedTx`, `_value`, `unit=number`, aggregation `summation`, UUID, VM name, vNIC instance, vCenter, hypervisor and time. Broadcom's native counter names govern direction if a secondary table label is ambiguous.\n\nBuild independent health per UUID/instance for both metric names, expected interval, last point, unit/aggregation, duplicate series, DCN job status, API errors, delay and topology freshness. Do not coalesce an absent series to zero.\n\n## Step 2 — Save and schedule the SPL\n\nSave sidecar query as `vsphere_vm_vnic_packet_drops`, every five minutes. At 12:15 it searches 12:00–12:05. Measure p99 collection latency and move both bounds together or use a late-data reconciliation.\n\n`mstats sum` is correct because each source value is a summation over its collection interval; summing nonoverlapping points yields packet count for the five-minute search bucket. The query groups by VM UUID and vNIC instance, requires both resulting fields, then filters any positive direction. `window_seconds=300` states the denominator explicitly but the outputs remain counts, not rates. If your vCenter interval differs or multiple samples overlap, validate aggregation before use.\n\n## Step 3 — Validate signal and topology\n\nTest receive-only, transmit-only, both-positive, both-zero, missing Rx, missing Tx, wrong unit, duplicate point, duplicate route, same instance on different UUIDs, rename, vMotion, late/future time and boundary. Assert missing series appears in health only. Validate no commas or rate conversion distort fields.\n\nIn an isolated network test, use an owner-approved traffic method and reversible shaping or constrained lab path to produce a small known drop. Capture vSphere counter, Splunk points, guest counters and application observation. Do not impair production. Compare summed counts over exactly aligned intervals and document expected sampling differences.\n\n## Step 4 — Operationalize and respond\n\nDashboard exact packet counts and collection health. Enrich with current/event-time host, VDS, port group, dvPort, uplink, guest interface, maintenance and owner. Triage by verifying raw metric/unit/interval; checking completeness and duplication; correlating vMotion/reconfiguration; comparing throughput, errors and physical uplink; inspecting guest/application SLOs; and identifying shaping, ring-buffer, driver or capacity causes.\n\nNever automatically change traffic shaping, MTU, teaming, ring buffers, offloads, port groups, drivers or VM placement from one positive bucket. Broadcom advises vendor/application guidance for ring-buffer changes. Require network/vSphere approval, rollback and before/after evidence.\n\n## Step 5 — Troubleshoot\n\n- No drop metrics: verify optional allowlist names, vCenter statistic level, `hostvmperf`, metrics index, API/DCN health and RBAC.\n- One direction absent: treat as incomplete telemetry; inspect counter availability and allowlist, not `fillnull 0`.\n- Counts too high: check summation interval, overlapping collectors, duplicate dimensions/points and window alignment.\n- Instance blank: validate per-device collection level and add-on dimensions; do not collapse all vNICs unless that behavior is explicitly accepted.\n- Host changes during window: inspect vMotion and split by event-time dimensions; UUID remains the VM key.\n- Drops with no symptom: examine recurrence and path/application data; a counter increment is not proof of outage.\n- Symptom with zero drops: inspect other layers, errors, latency, physical network and guest/application telemetry.\n\nKeep draft status until network, VMware and Splunk owners validate units, completeness, fixtures and response. Documentation review is not runtime proof.",
   "grandmaExplanation": "We count packets the virtualization layer says it had to drop for each virtual network card. Even one dropped packet starts a careful check, but the team still looks at the network path and the application before changing anything.",
+  "hardware": "vCenter-managed VMware VMs and their virtual NIC instances. Physical NICs, switches, guest adapters and application paths require separate telemetry.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

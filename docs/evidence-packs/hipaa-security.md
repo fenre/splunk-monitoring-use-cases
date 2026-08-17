@@ -42,7 +42,7 @@ Applies to covered entities (health plans, healthcare clearinghouses, most healt
 - **Clauses tracked**: 15
 - **Clauses covered by at least one UC**: 15 / 15 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 46
+- **Contributing UCs**: 47
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -53,7 +53,7 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
 | [`§164.308(a)(1)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(1)) | Security management process | 1.0 | `partial` | [UC-22.10.1](#uc-22-10-1), [UC-22.10.2](#uc-22-10-2), [UC-22.10.22](#uc-22-10-22), [UC-22.10.55](#uc-22-10-55) |
-| [`§164.308(a)(3)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(3)) | Workforce security | 1.0 | `partial` | [UC-22.10.4](#uc-22-10-4) |
+| [`§164.308(a)(3)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(3)) | Workforce security | 1.0 | `partial` | [UC-21.3.68](#uc-21-3-68), [UC-22.10.4](#uc-22-10-4) |
 | [`§164.308(a)(4)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(4)) | Information access management | 1.0 | `full` | [UC-22.10.21](#uc-22-10-21) |
 | [`§164.308(a)(5)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(5)) | Security awareness and training | 0.7 | `full` | [UC-17.1.53](#uc-17-1-53), [UC-22.10.6](#uc-22-10-6), [UC-22.46.1](#uc-22-46-1), [UC-22.6.53](#uc-22-6-53) |
 | [`§164.308(a)(6)`](https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-C/section-{section}#p-§164.308(a)(6)) | Security incident procedures | 1.0 | `partial` | [UC-22.10.56](#uc-22-10-56), [UC-22.10.7](#uc-22-10-7), [UC-22.39.1](#uc-22-39-1) |
@@ -112,6 +112,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
+<a id='uc-21-3-68'></a>
+- **UC-21.3.68** — HIPAA workforce termination access revocation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-21-industry-verticals/UC-21.3.68.json`](../../content/cat-21-industry-verticals/UC-21.3.68.json)
 <a id='uc-22-10-1'></a>
 - **UC-22.10.1** —
   - Control family: `—`

@@ -18,15 +18,6 @@
   },
   "dataSources": "Windows Security Event ID 4698 (`A scheduled task was created`) from every governed Windows endpoint where **Object Access > Audit Other Object Access Events** Success auditing is effective. Collect the Security channel in XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) into the deployment-local `wineventlog` index. The supported primary contract is `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; required native fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `TaskName`, and `TaskContent`. Version-dependent client process fields are optional. `TaskContent` is the authoritative XML task definition.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for XML Security-channel collection and field extraction. Install its knowledge on the required parsing/search tiers and qualify the exact Windows, forwarder, add-on, and Splunk versions. No premium app is required; Splunk Enterprise Security may optionally turn reviewed rows into findings.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4698 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), creator=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), task_name=trim(TaskName), task_xml=TaskContent\n| where event_code=4698 AND len(dest)>0 AND len(task_name)>0 AND len(task_xml)>0\n| rex field=task_xml max_match=0 \"(?is)<Command>(?<task_command>[^<]+)</Command>\"\n| rex field=task_xml max_match=0 \"(?is)<Arguments>(?<task_arguments>[^<]*)</Arguments>\"\n| rex field=task_xml \"(?is)<Hidden>(?<task_hidden>true|false)</Hidden>\"\n| rex field=task_xml \"(?is)<RunLevel>(?<task_run_level>[^<]+)</RunLevel>\"\n| eval review_reason=mvappend(if(match(task_xml,\"(?i)(powershell|pwsh|cmd|wscript|cscript|mshta|rundll32|regsvr32)(\\.exe)?\"),\"command_or_script_interpreter\",null()),if(match(task_xml,\"(?i)\\\\\\\\(users\\\\\\\\public|programdata|temp|appdata|windows\\\\\\\\tasks)\\\\\\\\\"),\"user_writable_or_shared_path\",null()),if(task_hidden=\"true\",\"hidden_task\",null())), review_reason=if(mvcount(review_reason)=0,\"new_task_review\",review_reason), use_case=\"UC-1.2.71\"\n| table _time dest EventRecordID SubjectUserSid creator SubjectLogonId task_name task_command task_arguments task_hidden task_run_level review_reason task_xml source sourcetype use_case\n| sort 0 -_time dest task_name EventRecordID",
   "description": "Reports one evidence row for each complete Windows Security 4698 record in a closed five-minute search interval. The result preserves creator, destination, task name, authoritative task XML, and best-effort action/settings extracts; risk hints prioritize review but do not classify the creation as malicious or prove execution.",
   "value": "Scheduled tasks can run code later under privileged identities and are used by administrators, installers, management systems, and adversaries. Complete creation evidence lets defenders distinguish approved automation from unauthorized persistence while retaining the exact definition needed to scope containment and reconstruct intent.",
@@ -35,22 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-Security-Auditing Event ID 4698 native XML fields parsed by Splunk Add-on for Microsoft Windows",
   "dataModelAcceleration": "No accelerated CIM substitute is claimed. A generic Change or Endpoint summary does not guarantee preservation of `TaskName`, complete `TaskContent`, creator logon context, event record identity, and one-row-per-creation grain. If a deployment builds a scheduled-task summary, it must preserve those fields plus source completeness and prove parity against raw 4698 events before replacing this search.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "TaskName",
-    "TaskContent"
-  ],
   "references": [
     {
       "title": "Microsoft Security Auditing: Event 4698, scheduled task created",
@@ -95,28 +70,40 @@
   ],
   "knownFalsePositives": "A base row is a genuine audited creation, so the operational question is whether it was authorized rather than whether Windows fabricated it.\n\n1. **Software installation, update, or repair** — MSI/custom installers, browser updaters, database agents, backup software, and security products create maintenance tasks. Verify signed package, exact command/path, software owner, deployment job, change ticket, and first-seen time. Do not broadly suppress the installer account.\n\n2. **Configuration-management and endpoint-management deployment** — SCCM/MECM, Intune, Group Policy, RMM, and orchestration tooling may create tasks under SYSTEM. Match destination scope, task XML, deployment/job ID, management-server evidence, owner, and bounded rollout window. SYSTEM is an identity, not a benign verdict.\n\n3. **Backup, monitoring, inventory, or vulnerability tooling** — Enterprise agents can register recurring privileged tasks. Confirm vendor, signature/hash, service owner, documented task path, expected principal/triggers, and current approved inventory; investigate deviations in arguments or binary path.\n\n4. **Administrator troubleshooting or planned maintenance** — Engineers may create a one-time task to run after reboot or under another context. Require a change or incident record, named operator, exact hosts, command, start/end time, and removal plan. A legitimate purpose can still create unsafe credentials or paths.\n\n5. **Operating-system or role installation** — Windows features and first-boot provisioning can add Microsoft-namespaced tasks. Compare the full XML and current Task Scheduler entry with a matched build/change record; task names under `\\Microsoft\\Windows\\` are not automatically trustworthy.\n\n6. **Authorized purple-team exercise** — T1053.005 simulation should produce evidence. Preserve the row and raw event, tie it to engagement ID, source operator, exact hosts, and UTC window, and suppress only duplicate paging after detection.\n\n**Safe notification suppression:** apply a separate lookup after the base result, keyed by exact normalized `dest,task_name,creator,task_command` plus owner, approver, reason, numeric inclusive start and exclusive expiry. Reject wildcard hosts/tasks, creator-only exceptions, and open-ended dates. Preserve matched findings in a review index and never suppress source-health failures, malformed/missing task XML, or an unapproved change in command, arguments, principal, trigger, hidden state, or run level.",
   "mitreAttack": [
-    "T1053.005",
-    "TA0002",
-    "TA0003",
-    "TA0004"
+    "T1053.005"
   ],
   "detectionType": "Audit and hunting",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "TaskName",
+    "TaskContent"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Governed Windows workstations and servers that support Security Event ID 4698 and have Success auditing plus XML Security-channel collection enabled. Domain controllers, member servers, and clients require separate coverage accounting; unsupported editions or hosts without the audit event are out of scope.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4698, audit-policy, and Task Scheduler schema documentation; Splunk Add-on for Microsoft Windows and Splunk Security Content; and MITRE ATT&CK. Windows auditing, XML fields, SPL, fixtures, source coverage, task inventory, alerting, suppression, scale, and response were specified but not executed or Windows/Splunk/SOC-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4698, audit-policy, and Task Scheduler schema documentation; Splunk Add-on for Microsoft Windows and Splunk Security Content; and MITRE ATT&CK. Windows auditing, XML fields, SPL, fixtures, source coverage, task inventory, alerting, suppression, scale, and response were specified but not executed or Windows/Splunk/SOC-SME signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -133,6 +120,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact review contract\n\nAssign Windows endpoint, audit-policy, Splunk collection, SOC content, incident-response, privacy, and exception owners. Inventory every governed Windows host and the management products that legitimately create tasks. Install a qualified Splunk Add-on for Microsoft Windows release on the collection and required parsing/search tiers. Version 10.0.1 is the reviewed add-on release; validate the exact Windows edition/build, forwarder, add-on, and Splunk platform combination before production. Restrict Security records and task XML because arguments can contain paths, account names, URLs, or mistakenly embedded secrets.\n\nMicrosoft defines 4698 as a Success event generated when a scheduled task is created. It supplies subject identity, task name, and `TaskContent`, whose Unicode XML follows the Task Scheduler schema. The event proves creation only. It does not prove the task ran, survived, came from a remote host, or was malicious. Later changes use 4702, deletion uses 4699, and enable/disable use 4700/4701. Monitor those in companion content; do not infer their state from an old 4698.\n\nThis search returns every complete 4698 in one closed bucket. It deliberately does not remove SYSTEM, SCCM, Intune, installer, Microsoft namespace, or approved-account events. The `review_reason` values are prioritization hints based on the raw XML, not verdicts. The local index name and five-minute delay must be adapted to the deployment without changing source and field semantics.\n\n## Step 1 — Enable auditing and collect Security XML\n\nApply Advanced Audit Policy at **Computer Configuration > Policies > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Audit Policies > Object Access > Audit Other Object Access Events** and enable Success on all scoped endpoints. Verify effective policy on canaries with:\n\n```cmd\nauditpol /get /subcategory:\"Other Object Access Events\"\n```\n\nUse Resultant Set of Policy or `gpresult` to identify the winning policy. Monitor audit-policy drift separately. Microsoft characterizes this subcategory as low volume, but measure events and bytes per endpoint because task-heavy management systems vary.\n\nManage the input in a deployment app, not the add-on's `default` directory:\n\n```ini\n[WinEventLog://Security]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\n`wineventlog` is a local convention. Modern XML collection with the add-on produces `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Security`; source, not a channel-specific source type, distinguishes the channel. Record any XPath filter and prove it includes 4698. With WEF/WEC, preserve original `Computer`, prevent duplicate direct/forwarded paths, and measure latency before selecting the close delay.\n\nValidate fields before deploying the rule:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4698 earliest=-24h\n| table _time Computer EventRecordID SubjectUserSid SubjectDomainName SubjectUserName SubjectLogonId TaskName TaskContent\n| head 20\n```\n\nCompare fixed EventRecordIDs with Event Viewer **Windows Logs > Security** on at least two representative hosts. Open `TaskContent` and verify task name, principal, trigger, action, settings, command, and arguments against the current Task Scheduler definition. Keep an expected-host freshness search; silence does not prove no task was created.\n\n## Step 2 — Create and understand the saved search\n\nSave the sidecar SPL verbatim as `windows_scheduled_task_creation_4698`, schedule it every five minutes, and trigger a review workflow for every row. The example evaluates ten to five minutes before each schedule boundary. Measure `_indextime-_time` p95/p99, especially through WEF, and move the entire nonoverlapping closed window if five minutes is insufficient.\n\nThe base predicates fix index, XML source type, Security source, and Event ID. `coalesce(EventCode,EventID)` supports the add-on/native name without admitting another event. Destination and creator are normalized while original SID and logon ID remain. Records missing destination, task name, or full task XML are rejected from the primary result and must enter a source/parser-health report.\n\n`rex` extracts all `<Command>` and `<Arguments>` elements and the first Hidden/RunLevel value. These are convenience fields only: Task Scheduler XML can contain multiple actions, namespaces, entity encoding, ComHandler actions, environment expansion, or schema variation. Analysts and automation must retain and inspect `task_xml`. The review hints identify commonly abused interpreters, selected writable/shared path text, and explicit hidden tasks; a plain `new_task_review` still requires inventory/change comparison.\n\nDo not add a blanket `NOT SubjectUserName=SYSTEM` clause. Attackers and legitimate management tools both create tasks under SYSTEM. Apply any approved, exact, expiring notification exception after the base search and preserve the row. No CIM block is supplied because generic Change summaries do not guarantee the native definition or event grain.\n\n## Step 3 — Validate fields, boundaries, and behavior\n\nRun the positive control in an isolated index with fixed earliest/latest values. Assert exactly one row and exact destination, record ID, SID, creator, logon ID, task name, command, argument, hidden flag, run level, review reasons, full XML, source metadata, and use-case ID. Test multiple Exec actions and confirm multivalue extraction. Test XML without optional Hidden, RunLevel, or Arguments and confirm the row remains because full XML is present.\n\nRun each negative independently: wrong event ID, wrong source, wrong source type, newest excluded interval, missing destination, missing task name, and empty task XML. Route malformed or incomplete qualifying records to parser health rather than calling them benign. Test earliest/latest boundaries; Splunk's latest is exclusive. Test XML special characters, Unicode names, long arguments, and EventRecordID uniqueness. Confirm classic-format collection is outside this XML contract unless a separately tested search maps its fields.\n\nIn a nonproduction Windows host, create a harmless disabled task under change control, capture its 4698, export it with Task Scheduler or `schtasks /query /tn <name> /xml`, compare the definition, and remove it. Verify 4699 separately. Do not create persistence on production merely to test monitoring. Record policy/input revisions, exact fixture, bounds, search job ID, expected/actual rows, and operator. Keep `status=draft` until human owners approve runtime behavior.\n\n## Step 4 — Operationalize triage and response\n\nBuild the restricted dashboard described in `visualization`. Put expected-host Security-source health and audit-policy coverage above results. Join a versioned approved-task inventory only for context; keep raw identity and XML. Track task-name/command drift independently from first creation. Protect task XML from broad dashboard access and redact secrets only in views, never by destroying governed raw evidence.\n\nWhen a row arrives: (1) confirm source health, raw 4698, destination, record ID, creator SID/logon, and complete XML; (2) resolve the creator logon and management path using 4624/4688 or EDR evidence where available; (3) inspect task principal, triggers, actions, settings, hidden state, command/arguments, working directory, and network references; (4) compare exact definition with Task Scheduler Library, approved inventory, software deployment, and change/incident records; (5) verify whether and when the task executed using Task Scheduler operational/process telemetry; and (6) if unauthorized, preserve evidence and contain through the approved endpoint/identity process.\n\nDo not automatically delete or disable the task, kill a process, block a shared management server, disable an account, or remove a binary from this record alone. A task can be operationally critical, and deletion can destroy evidence. Severity should consider privileged principal, hidden state, writable/network path, shell/LOLBin action, remote creator evidence, unsigned payload, novelty, protected asset, and observed execution.\n\n## Step 5 — Troubleshoot exact failure modes\n\n- **No 4698 records:** verify effective Audit Other Object Access Events Success policy, Security-channel input, XPath filters, permissions, forwarder queues, index routing, and expected-host health. Existing tasks do not backfill creation events.\n- **`WinEventLog:Security` appears as the source type:** XML rendering or add-on topology differs. Modern XML uses `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; validate before changing the contract.\n- **Task fields are null:** inspect raw EventData names and add-on search-time knowledge on the correct tier. Do not substitute rendered-message regex when native XML is available.\n- **Command extraction is empty:** the task may use ComHandler, multiple namespaces, encoded XML, or no Exec action. Inspect `TaskContent`; empty convenience extraction is not evidence of a harmless task.\n- **Duplicate events:** check direct plus WEF collection and deduplicate only after proving same `Computer,EventRecordID`; repair topology instead of hiding duplication with arbitrary `dedup`.\n- **Task exists but no creation event:** it may predate auditing, have been restored, or telemetry may be missing. Query current task inventory and source health; 4698 is not an inventory source.\n- **Creation is approved but noisy:** verify exact full definition and deployment job, then use the bounded post-result exception contract. Never allowlist solely by SYSTEM, task namespace, signer, or host group.\n- **Late events miss the bucket:** measure `_indextime-_time`, WEF backlog, endpoint clock, forwarder queues, and scheduler delay; shift the nonoverlapping window and rerun boundary tests.\n- **CIM/tstats returns nothing:** expected. This rule intentionally uses native 4698 fields because generic normalized changes cannot reproduce complete task XML and event identity.",
   "grandmaExplanation": "We record every new Windows scheduled job and show who created it and what it is meant to run. That helps the team separate normal software maintenance from a hidden job someone added to keep control of a machine.",
+  "hardware": "Governed Windows workstations and servers that support Security Event ID 4698 and have Success auditing plus XML Security-channel collection enabled. Domain controllers, member servers, and clients require separate coverage accounting; unsupported editions or hosts without the audit event are out of scope.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

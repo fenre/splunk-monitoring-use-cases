@@ -17,14 +17,6 @@
   },
   "dataSources": "Primary source is vCenter Events API data collected by Splunk Add-on for VMware Metrics with pool task `event` into the deployment-selected events index (documented default `index=vmware-taskevent`) and `sourcetype=vmware_inframon:events`. Required vSphere properties are event class, unique `key`, created time, `alarm.name`, `entity.name`, managed-entity type, `from`, `to`, `fullFormattedMessage`, and collector vCenter/host; `_time` and `_indextime` establish search and delay. Current triggered alarms, definitions, acknowledgement, topology, maintenance, and owner data are supporting sources.",
   "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter task/event API data through its scheduler and Data Collection Nodes. A local operations app owns the saved search, source-health and current-state reconciliation, maintenance lookup, dashboard, routing, tests and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-taskevent sourcetype=\"vmware_inframon:events\" eventClass=\"vim.event.AlarmStatusChangedEvent\" earliest=-15m@m latest=-10m@m\n| spath path=alarm.name output=alarm_name\n| spath path=entity.name output=entity_name\n| spath path=entity.entity.type output=entity_type\n| eval vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), event_key=trim(tostring(key)), old_status=lower(trim('from')), new_status=lower(trim('to'))\n| where len(vcenter)>0 AND len(event_key)>0 AND len(alarm_name)>0 AND len(entity_name)>0 AND len(new_status)>0 AND in(new_status,\"yellow\",\"red\")\n| eval event_identity=vcenter.\"|\".event_key\n| dedup event_identity\n| eval local_severity=if(new_status=\"red\",\"high\",\"medium\"), use_case=\"UC-2.1.13\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\")\n| table _time vcenter event_key alarm_name entity_name entity_type old_status new_status local_severity fullFormattedMessage event_time _indextime use_case\n| sort 0 -_time vcenter event_key",
   "description": "Surfaces each complete vCenter alarm-status event that moves an entity into yellow or red state during a closed five-minute event-time bucket. Results remain at unique vCenter event grain and preserve the alarm, entity, prior/new state and formatted message for reconciliation.",
   "value": "Consistent transition records let operations teams route deteriorating infrastructure conditions quickly and measure recurring alarm noise without scraping localized message text. Preserving event identity and state direction also helps distinguish new degradation from recovery, replay and stale active-alarm displays.",
@@ -35,19 +27,6 @@
   ],
   "schema": "Native vSphere AlarmStatusChangedEvent JSON properties indexed as vmware_inframon:events",
   "dataModelAcceleration": "No published CIM dataset preserves vSphere alarm name, entity argument, transition direction and event key. Keep the raw event rule authoritative; summary indexing may support trends only after event-identity and state parity tests.",
-  "requiredFields": [
-    "eventClass",
-    "key",
-    "alarm.name",
-    "entity.name",
-    "entity.entity.type",
-    "from",
-    "to",
-    "fullFormattedMessage",
-    "host",
-    "_time",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: AlarmStatusChangedEvent",
@@ -90,6 +69,19 @@
     "N/A (vSphere operational alarm transition; no adversary behavior asserted)"
   ],
   "detectionType": "Raw vCenter alarm degradation transition",
+  "requiredFields": [
+    "eventClass",
+    "key",
+    "alarm.name",
+    "entity.name",
+    "entity.entity.type",
+    "from",
+    "to",
+    "fullFormattedMessage",
+    "host",
+    "_time",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
@@ -97,7 +89,6 @@
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "hardware": "vCenter-managed datacenters, clusters, hosts, virtual machines, datastores, networks and other managed entities with configured vSphere alarms.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
@@ -110,6 +101,15 @@
   },
   "detailedImplementation": "## Prerequisites and semantic boundary\n\nAssign vCenter, infrastructure-domain, Splunk and incident owners. Inventory governed vCenters, alarm definitions, entity ownership, maintenance calendars and routing. Broadcom defines AlarmStatusChangedEvent as a status change for an alarm; its object contains alarm and entity arguments plus `from` and `to`, while the base Event carries unique key, created time and formatted message. A transition is historical evidence, not a live alarm inventory or root-cause verdict.\n\n## Step 1 — Collect and prove events\n\nDeploy supported Splunk Add-on for VMware Metrics components. Configure vCenter API access over TCP 443 with a read-only account and include `event` in `inframon_ta_vmware_pool.conf`. Verify output in the real events index; this contract uses the documented default `vmware-taskevent` and `vmware_inframon:events`.\n\nCompare representative events with vSphere Client > Monitor > Tasks and Events and Triggered Alarms. Prove `eventClass=vim.event.AlarmStatusChangedEvent`, `key`, nested `alarm.name`, `entity.name`, `entity.entity.type`, `from`, `to`, `fullFormattedMessage`, vCenter/host, `_time` and `_indextime`. Keep the structured properties authoritative; messages can be localized. Build separate health for expected vCenters, event-task success/records_written, authentication, DCN workers, last event time across ordinary event classes, field completeness, delay, duplicate keys and clock drift. Quiet alarms do not imply broken collection.\n\n## Step 2 — Save and schedule the SPL\n\nSave the sidecar query as `vcenter_alarm_degrading_transition`, every five minutes. At 12:15 its `earliest=-15m@m latest=-10m@m` bucket covers 12:00 through but not including 12:05. Measure p99 event delay and move both bounds together if necessary; create a reviewed late-event reconciliation instead of overlapping schedules.\n\nThe base search fixes index, sourcetype, exact event class and closed range. `spath` extracts documented nested properties. Required-field checks prevent rows that cannot be investigated. Only destination yellow/red survives. Event identity is vCenter plus vSphere event key, not message text. Local severity maps red to high and yellow to medium for routing only; it is not a Broadcom severity or impact guarantee.\n\n## Step 3 — Validate logic and current-state reconciliation\n\nUse fixed JSON fixtures for every from/to combination among green, yellow, red and gray. Test two alarms on one entity, one alarm on two entities, same key on different vCenters, duplicate key on one vCenter, blank nested fields, localized messages, rename, delayed/future time, wrong eventClass/source and rerun. Assert no count threshold or root-cause label appears.\n\nIn a nonproduction vCenter, use owner-approved benign alarm thresholds to cause and clear yellow/red transitions. Compare API event key/time/properties, vSphere Client history, current Triggered Alarms and Splunk. Do not induce host, datastore or production failure. Verify acknowledgement and alarm reset do not get confused with the recorded condition transition.\n\n## Step 4 — Operationalize and respond\n\nRoute by exact alarm definition and entity owner. Include raw structured fields, event/index time and delay, current state, maintenance, topology, related metrics/events and a restricted vCenter link. Triage: verify record/source; inspect alarm definition and transition; reconcile current status; correlate entity dependencies and contemporaneous metrics; identify maintenance/change; then assign root-cause investigation. Close only with documented disposition, current state and healthy collection.\n\nDo not reset alarms, disable definitions, migrate/power VMs, enter maintenance, restart services or change thresholds automatically from this row. Those actions require domain evidence, approval and rollback.\n\n## Step 5 — Troubleshoot\n\n- No events: verify pool `event` task, vCenter credentials/443, scheduler/DCN/forwarding, index/RBAC and independent common-event health.\n- Null alarm/entity: inspect raw JSON, add-on version, truncation and `spath`; do not parse the localized message as the sole fallback.\n- Duplicate rows: compare vCenter/key, windows, collector checkpoints and routes.\n- Persistent active alarm but no new row: expected when no new transition occurred; use current-alarm reconciliation.\n- Many alarms at once: inspect shared host/datastore/network topology before paging each symptom independently.\n- State differs from UI: align event time, current-state query time, acknowledgement/reset, alarm-definition revision and vCenter clock.\n\nKeep status draft until production owners sign off source coverage, fixtures, routing and safe response. Documentation review is not runtime validation.",
   "grandmaExplanation": "We show when the virtualization manager says an alarm has changed into a warning or serious state. The team still checks whether the problem is current and what actually caused it before taking action.",
+  "hardware": "vCenter-managed datacenters, clusters, hosts, virtual machines, datastores, networks and other managed entities with configured vSphere alarms.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

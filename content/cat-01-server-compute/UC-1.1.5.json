@@ -18,14 +18,6 @@
   },
   "dataSources": "`index=os sourcetype=vmstat source=vmstat` events from the `vmstat.sh` scripted input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Required event fields are `_time`, `host`, and the add-on field `loadAvg1mi`. The `os` index is a deployment choice. A local CSV lookup named `linux_load_capacity.csv` must supply `host`, numeric `logical_cpus`, and optional numeric `ratio_threshold`.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), deployed to Linux data-collection forwarders and to the Splunk tiers required for parsing and search-time knowledge.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=os sourcetype=vmstat host=* earliest=-20m@m latest=-5m@m\n| eval load1=tonumber(loadAvg1mi)\n| where isnotnull(load1)\n| bin _time span=5m\n| stats avg(load1) as load1 count as samples by _time host\n| lookup linux_load_capacity.csv host OUTPUT logical_cpus ratio_threshold\n| eval logical_cpus=tonumber(logical_cpus), ratio_threshold=coalesce(tonumber(ratio_threshold),1.5)\n| where isnotnull(logical_cpus) AND logical_cpus>0\n| eval load_ratio=load1/logical_cpus, breached=if(load_ratio>=ratio_threshold,1,0), bucket_complete=if(samples>=4,1,0)\n| stats count as observed_buckets sum(bucket_complete) as complete_buckets sum(breached) as breach_buckets min(samples) as min_samples min(load_ratio) as min_load_ratio avg(load_ratio) as avg_load_ratio latest(load_ratio) as current_load_ratio latest(load1) as current_load1 by host logical_cpus ratio_threshold\n| where observed_buckets=3 AND complete_buckets=3 AND breach_buckets=3\n| eval min_load_ratio=round(min_load_ratio,2), avg_load_ratio=round(avg_load_ratio,2), current_load_ratio=round(current_load_ratio,2), current_load1=round(current_load1,2)\n| sort 0 -avg_load_ratio",
   "description": "Reports one row per Linux host when its one-minute load average, averaged within each of three consecutive five-minute buckets containing at least four samples, is at or above a host-specific ratio of logical CPUs in all three buckets. The default ratio is 1.5, so the alert represents 15 minutes of sustained runnable or uninterruptible work rather than a single sample.",
   "value": "Detecting sustained queueing gives Linux operators time to separate CPU contention from storage or kernel blocking, redistribute work, and correct stale capacity assignments before it becomes user-visible latency or an availability incident. Requiring three complete buckets reduces alerts from short compilation and startup bursts.",
@@ -95,6 +87,14 @@
   "grandmaExplanation": "We watch when a Linux server has had more work waiting than it can comfortably handle for fifteen minutes. That gives the team time to find whether the processor, storage, or a scheduled job is causing the slowdown.",
   "prerequisiteUseCases": [
     "UC-1.1.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }
