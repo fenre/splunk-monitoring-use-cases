@@ -23,7 +23,7 @@ Tests pin every documented contract:
   tools → ``server is missing tools`` message; extra tools →
   ``advertises unexpected tools`` message; slug-regex tuple of the
   wrong length → ``_EXPECTED_SLUG_REGEXES has N entries`` message;
-  missing inputSchema / outputSchema / short description all flagged).
+  missing input_schema / output_schema / short description all flagged).
 * ``_check_manifest`` matrix (missing manifest file → flagged;
   invalid JSON → flagged with the parse error; missing nested
   endpoint paths → one entry per missing path, all five documented
@@ -120,8 +120,8 @@ def test_ensure_importable_idempotent(
 class _StubTool(NamedTuple):
     name: str
     description: str
-    inputSchema: dict[str, Any] | None
-    outputSchema: dict[str, Any] | None
+    input_schema: dict[str, Any] | None
+    output_schema: dict[str, Any] | None
 
 
 def _install_server_stub(
@@ -138,8 +138,8 @@ def _install_server_stub(
                 _StubTool(
                     name=name,
                     description="A description that is long enough.",
-                    inputSchema={"type": "object"},
-                    outputSchema={"type": "object"},
+                    input_schema={"type": "object"},
+                    output_schema={"type": "object"},
                 )
             )
     if regexes is None:
@@ -171,8 +171,8 @@ def test_check_tools_surface_missing_tool(
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS - {"search_use_cases"}
     ]
@@ -190,8 +190,8 @@ def test_check_tools_surface_extra_tool(
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS
     ]
@@ -199,8 +199,8 @@ def test_check_tools_surface_extra_tool(
         _StubTool(
             name="speculative_future_tool",
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
     )
     _install_server_stub(monkeypatch, tools=tools)
@@ -231,22 +231,22 @@ def test_check_tools_surface_missing_input_schema(
         _StubTool(
             name="search_use_cases",
             description="A description that is long enough.",
-            inputSchema=None,
-            outputSchema={"type": "object"},
+            input_schema=None,
+            output_schema={"type": "object"},
         )
     ] + [
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS - {"search_use_cases"}
     ]
     _install_server_stub(monkeypatch, tools=tools)
     issues: list[str] = []
     mts._check_tools_surface(issues)
-    assert any(i == "search_use_cases: inputSchema missing" for i in issues)
+    assert any(i == "search_use_cases: input_schema missing" for i in issues)
 
 
 def test_check_tools_surface_missing_output_schema(
@@ -256,22 +256,22 @@ def test_check_tools_surface_missing_output_schema(
         _StubTool(
             name="get_use_case",
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema=None,
+            input_schema={"type": "object"},
+            output_schema=None,
         )
     ] + [
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS - {"get_use_case"}
     ]
     _install_server_stub(monkeypatch, tools=tools)
     issues: list[str] = []
     mts._check_tools_surface(issues)
-    assert any(i == "get_use_case: outputSchema missing" for i in issues)
+    assert any(i == "get_use_case: output_schema missing" for i in issues)
 
 
 def test_check_tools_surface_short_description(
@@ -282,15 +282,15 @@ def test_check_tools_surface_short_description(
         _StubTool(
             name="list_categories",
             description="too short",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
     ] + [
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS - {"list_categories"}
     ]
@@ -308,15 +308,15 @@ def test_check_tools_surface_empty_description(
         _StubTool(
             name="get_equipment",
             description="",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
     ] + [
         _StubTool(
             name=n,
             description="A description that is long enough.",
-            inputSchema={"type": "object"},
-            outputSchema={"type": "object"},
+            input_schema={"type": "object"},
+            output_schema={"type": "object"},
         )
         for n in mts._EXPECTED_TOOLS - {"get_equipment"}
     ]

@@ -20,11 +20,18 @@ from pathlib import Path
 from typing import Any
 
 import anyio
-from mcp.server import InitializationOptions, NotificationOptions, Server
+from mcp.server import InitializationOptions, NotificationOptions, Server, ServerRequestContext
 from mcp.server.stdio import stdio_server
 from mcp.types import (
+    CallToolRequestParams,
     CallToolResult,
+    ListResourcesResult,
+    ListToolsResult,
+    PaginatedRequestParams,
+    ReadResourceRequestParams,
+    ReadResourceResult,
     TextContent,
+    TextResourceContents,
     Tool,
 )
 
@@ -36,7 +43,6 @@ from splunk_uc_mcp.catalog import (
     CatalogValidationError,
 )
 from splunk_uc_mcp.resources import (
-    LEDGER_URI,
     EQUIPMENT_ID_REGEX,
     REGULATION_ID_REGEX,
     UC_ID_REGEX,
@@ -115,12 +121,112 @@ def build_server(catalog: Catalog) -> Server:
     the handlers directly without starting the stdio loop.
     """
 
-    server: Server = Server(SERVER_NAME)
+    tools = _tool_definitions()
+    dispatch = _tool_dispatch(catalog)
 
-    _register_tools(server, catalog)
-    _register_resources(server, catalog)
+    async def _handle_list_tools(
+        _ctx: ServerRequestContext,
+        _params: PaginatedRequestParams | None,
+    ) -> ListToolsResult:
+        return ListToolsResult(tools=tools)
 
-    return server
+    async def _handle_call_tool(
+        _ctx: ServerRequestContext,
+        params: CallToolRequestParams,
+    ) -> CallToolResult:
+        handler = dispatch.get(params.name)
+        args = params.arguments or {}
+        LOG.debug(
+            "tool=%s args_hash=%s", params.name, _hash_args(args),
+        )
+        try:
+            if handler is None:
+                return _error_result(
+                    "unknown_tool",
+                    f"Unknown tool: {params.name!r}",
+                )
+            payload = handler(args)
+        except (ValueError, CatalogValidationError) as exc:
+            return _error_result("invalid_input", str(exc))
+        except (TypeError, KeyError) as exc:
+            return _error_result("invalid_input", str(exc))
+        except CatalogNotFoundError as exc:
+            return _error_result("not_found", str(exc))
+        except CatalogError as exc:
+            return _error_result("catalog_error", str(exc))
+        return _success_result(payload)
+
+    async def _handle_list_resources(
+        _ctx: ServerRequestContext,
+        _params: PaginatedRequestParams | None,
+    ) -> ListResourcesResult:
+        # The catalogue is 16,600+ UCs + 60 regulations + 108 equipment — too
+        # many to enumerate eagerly. We publish resource *templates* via
+        # read_resource instead of individual entries; clients that want
+        # a full list can call list_categories / list_regulations /
+        # list_equipment.
+        return ListResourcesResult(resources=[])
+
+    async def _handle_read_resource(
+        _ctx: ServerRequestContext,
+        params: ReadResourceRequestParams,
+    ) -> ReadResourceResult:
+        uri_str = str(params.uri)
+        try:
+            parsed = parse_resource_uri(uri_str)
+        except ResourceUriError as exc:
+            payload = {"error": "invalid_uri", "message": str(exc)}
+            return _resource_result(uri_str, payload)
+
+        try:
+            if parsed.kind == "use_case":
+                payload = get_use_case(catalog=catalog, uc_id=parsed.identifier)
+            elif parsed.kind == "category":
+                tree = list_categories(catalog=catalog)
+                match = next(
+                    (c for c in tree["categories"] if c["id"] == parsed.identifier),
+                    None,
+                )
+                if match is None:
+                    raise CatalogNotFoundError(
+                        f"Category {parsed.identifier} not found"
+                    )
+                payload = match
+            elif parsed.kind == "regulation":
+                payload = get_regulation(
+                    catalog=catalog,
+                    regulation_id=parsed.identifier,
+                    version=parsed.version,
+                )
+            elif parsed.kind == "equipment":
+                payload = get_equipment(
+                    catalog=catalog, equipment_id=parsed.identifier
+                )
+            elif parsed.kind == "ledger":
+                ledger = catalog.load_data_file("provenance/mapping-ledger.json")
+                if ledger is None:
+                    raise CatalogNotFoundError(
+                        "Signed ledger is only exposed from a local checkout "
+                        "(not hosted via GitHub Pages)"
+                    )
+                payload = _summarise_ledger(ledger)
+            else:  # pragma: no cover - defensive
+                raise CatalogNotFoundError(f"Unknown resource kind: {parsed.kind}")
+        except (ValueError, CatalogValidationError) as exc:
+            payload = {"error": "invalid_uri", "message": str(exc)}
+        except CatalogNotFoundError as exc:
+            payload = {"error": "not_found", "message": str(exc)}
+        except CatalogError as exc:
+            payload = {"error": "catalog_error", "message": str(exc)}
+        return _resource_result(uri_str, payload)
+
+    return Server(
+        SERVER_NAME,
+        on_list_tools=_handle_list_tools,
+        on_call_tool=_handle_call_tool,
+        on_list_resources=_handle_list_resources,
+        on_read_resource=_handle_read_resource,
+    )
 
 
 def run_stdio_server(
@@ -159,53 +265,8 @@ def run_stdio_server(
     return 0
 
 
-def _register_tools(server: Server, catalog: Catalog) -> None:
-    """Wire tool metadata + dispatch to ``server``."""
-
-    tools = _tool_definitions()
-    dispatch = _tool_dispatch(catalog)
-
-    @server.list_tools()
-    async def _list_tools() -> list[Tool]:
-        return tools
-
-    # ``validate_input=False`` delegates every schema check to the tool
-    # implementation itself. We already enforce the same regex patterns and
-    # range checks inside the tool functions, and doing it once keeps the
-    # error payload shape identical whether the client is a strict MCP
-    # SDK or a handwritten agent that skips client-side validation.
-    @server.call_tool(validate_input=False)
-    async def _call_tool(
-        name: str, arguments: dict[str, Any] | None
-    ) -> dict[str, Any] | CallToolResult:
-        handler = dispatch.get(name)
-        args = arguments or {}
-        LOG.debug(
-            "tool=%s args_hash=%s", name, _hash_args(args),
-        )
-        try:
-            if handler is None:
-                return _error_result(
-                    "unknown_tool",
-                    f"Unknown tool: {name!r}",
-                )
-            payload = handler(args)
-        except (ValueError, CatalogValidationError) as exc:
-            return _error_result("invalid_input", str(exc))
-        except (TypeError, KeyError) as exc:
-            return _error_result("invalid_input", str(exc))
-        except CatalogNotFoundError as exc:
-            return _error_result("not_found", str(exc))
-        except CatalogError as exc:
-            return _error_result("catalog_error", str(exc))
-        # Happy path: return the dict so the SDK validates it against
-        # outputSchema and emits both ``structuredContent`` and a
-        # JSON ``TextContent`` block.
-        return payload
-
-
 def _tool_definitions() -> list[Tool]:
-    """Return the full v1 tool surface.
+    """Return the full tool surface.
 
     Keep the list literal so the CI drift guard (see
     ``python3 -m splunk_uc audit-mcp-tool-schemas``) can import it without starting
@@ -372,73 +433,6 @@ def _tool_dispatch(
     }
 
 
-def _register_resources(server: Server, catalog: Catalog) -> None:
-    """Wire the four URI families + their read handler."""
-
-    @server.list_resources()
-    async def _list_resources() -> list[Any]:
-        # The catalogue is 16,600+ UCs + 60 regulations + 108 equipment — too
-        # many to enumerate eagerly. We publish resource *templates* via
-        # read_resource instead of individual entries; clients that want
-        # a full list can call list_categories / list_regulations /
-        # list_equipment.
-        return []
-
-    @server.read_resource()
-    async def _read_resource(uri: Any) -> str:
-        # mcp-python passes a pydantic AnyUrl; stringify before parsing.
-        uri_str = str(uri)
-        try:
-            parsed = parse_resource_uri(uri_str)
-        except ResourceUriError as exc:
-            payload = {"error": "invalid_uri", "message": str(exc)}
-            return _json_dumps(payload)
-
-        try:
-            if parsed.kind == "use_case":
-                payload = get_use_case(catalog=catalog, uc_id=parsed.identifier)
-            elif parsed.kind == "category":
-                # Categories don't have their own JSON endpoint, but
-                # list_categories() exposes the full tree. Filter here.
-                tree = list_categories(catalog=catalog)
-                match = next(
-                    (c for c in tree["categories"] if c["id"] == parsed.identifier),
-                    None,
-                )
-                if match is None:
-                    raise CatalogNotFoundError(
-                        f"Category {parsed.identifier} not found"
-                    )
-                payload = match
-            elif parsed.kind == "regulation":
-                payload = get_regulation(
-                    catalog=catalog,
-                    regulation_id=parsed.identifier,
-                    version=parsed.version,
-                )
-            elif parsed.kind == "equipment":
-                payload = get_equipment(
-                    catalog=catalog, equipment_id=parsed.identifier
-                )
-            elif parsed.kind == "ledger":
-                ledger = catalog.load_data_file("provenance/mapping-ledger.json")
-                if ledger is None:
-                    raise CatalogNotFoundError(
-                        "Signed ledger is only exposed from a local checkout "
-                        "(not hosted via GitHub Pages)"
-                    )
-                payload = _summarise_ledger(ledger)
-            else:  # pragma: no cover - defensive
-                raise CatalogNotFoundError(f"Unknown resource kind: {parsed.kind}")
-        except (ValueError, CatalogValidationError) as exc:
-            payload = {"error": "invalid_uri", "message": str(exc)}
-        except CatalogNotFoundError as exc:
-            payload = {"error": "not_found", "message": str(exc)}
-        except CatalogError as exc:
-            payload = {"error": "catalog_error", "message": str(exc)}
-        return _json_dumps(payload)
-
-
 def _summarise_ledger(ledger: dict[str, Any]) -> dict[str, Any]:
     """Return a compact ledger view suitable for agent context.
 
@@ -472,6 +466,16 @@ def _json_dumps(payload: Any) -> str:
     )
 
 
+def _success_result(payload: dict[str, Any]) -> CallToolResult:
+    """Build a success ``CallToolResult`` with structured and text content."""
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=_json_dumps(payload))],
+        structured_content=payload,
+        is_error=False,
+    )
+
+
 def _error_result(kind: str, message: str) -> CallToolResult:
     """Build an error-flavoured ``CallToolResult``.
 
@@ -481,14 +485,28 @@ def _error_result(kind: str, message: str) -> CallToolResult:
 
         {"error": "invalid_input", "message": "..."}
 
-    ``isError=True`` gives clients an unambiguous signal without forcing
+    ``is_error=True`` gives clients an unambiguous signal without forcing
     them to introspect the JSON payload.
     """
 
     payload = {"error": kind, "message": message}
     return CallToolResult(
         content=[TextContent(type="text", text=_json_dumps(payload))],
-        isError=True,
+        is_error=True,
+    )
+
+
+def _resource_result(uri: str, payload: dict[str, Any]) -> ReadResourceResult:
+    """Wrap a JSON payload as a single text resource."""
+
+    return ReadResourceResult(
+        contents=[
+            TextResourceContents(
+                uri=uri,
+                mimeType="application/json",
+                text=_json_dumps(payload),
+            )
+        ]
     )
 
 

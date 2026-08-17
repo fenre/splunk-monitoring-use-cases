@@ -4,7 +4,10 @@
   "title": "Administrative SMB Shares Accessed on More Than 30 Hosts",
   "criticality": "high",
   "difficulty": "advanced",
-  "monitoringType": ["Security", "Audit"],
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
   "splunkPillar": "Security",
   "exclusions": "Detects one source address/account accessing `ADMIN$`, `C$`, or `IPC$` on at least 31 distinct destination computers in one closed five-minute bucket, using Security events 5140/5145. It does not detect ordinary shares, 30 or fewer hosts, low-and-slow activity across buckets/sources/accounts, file writes or ransomware, SMB traffic without auditing, or prove malicious lateral movement. Event 5140 is once per client/share session and 5145 is per access check; mixed events can raise raw count but not the distinct-host denominator. No automatic containment, regulatory assurance, runtime validation, or SME sign-off is claimed.",
   "evidence": "Retain `windows_admin_shares_many_hosts`, ACL/schedule/dispatch/alert history, every result's bucket/source/user/domain, distinct-host denominator, target hosts, shares, IDs and raw count, matching raw 5140/5145 XML/EventRecordIDs, effective audit policy, source coverage, add-on/input versions, controls, threshold approval, disposition, and bounded exception. This documentation review produced no SMB session, Windows event, Splunk job, or alert.",
@@ -14,7 +17,15 @@
   },
   "dataSources": "Windows Security XML Event IDs 5140 (`Audit File Share`, once per connection/session's first share access) and 5145 (`Audit Detailed File Share`, each object access check), collected from file servers/endpoints with Splunk Add-on for Microsoft Windows (Splunkbase 742) as `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, deployment-local `index=wineventlog`. Required fields: `_time`, `Computer`, `EventCode`, `EventRecordID`, `SubjectUserName`, `SubjectDomainName`, `SubjectUserSid`, `IpAddress`, `IpPort`, `ShareName`, and `AccessMask`.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), reviewed at 10.0.1. Splunk Security Content supplies the analytic precedent; Enterprise Security is optional.",
-  "splunkbaseApps": [{"id": 742, "name": "Splunk Add-on for Microsoft Windows", "url": "https://splunkbase.splunk.com/app/742", "minVersion": "10.0.1", "role": "data-source"}],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode IN (5140,5145) earliest=-10m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), src_ip=lower(replace(trim(IpAddress),\"^::ffff:\",\"\")), target=lower(trim(coalesce(Computer,dest,host))), account=lower(trim(SubjectUserName)), account_domain=lower(trim(SubjectDomainName)), share=upper(trim(ShareName))\n| where event_id IN (5140,5145) AND match(share,\"(?i)\\\\\\\\\\*\\\\(ADMIN\\$|C\\$|IPC\\$)$\") AND len(src_ip)>0 AND len(target)>0 AND len(account)>0\n| eval user=if(len(account_domain)>0,account_domain.\"\\\\\".account,account)\n| bin _time span=5m\n| stats count as event_count dc(target) as unique_targets values(target) as target_hosts values(share) as shares values(event_id) as event_ids values(SubjectUserSid) as user_sids values(IpPort) as source_ports values(EventRecordID) as event_record_ids by _time src_ip user\n| where unique_targets>30\n| eval threshold_targets=30, detection_pattern=\"more than 30 distinct hosts in one closed five-minute bucket\"\n| rename _time as bucket_start\n| table bucket_start src_ip user unique_targets threshold_targets event_count target_hosts shares event_ids user_sids source_ports event_record_ids detection_pattern\n| sort 0 -unique_targets -event_count src_ip user",
   "description": "Reports a source address/account when one closed five-minute bucket contains administrative-share 5140/5145 events on at least 31 distinct Windows destinations. The row preserves the exact target denominator, hosts, shares, event IDs, SIDs, source ports, record IDs, and raw count used to assess broad SMB discovery or lateral activity.",
   "value": "Rapid access to administrative shares across many systems is a useful fleet-wide signal for automated discovery, remote administration abuse, or lateral movement. The target list and account/source evidence let responders distinguish an approved management sweep from credential misuse and prioritize correlated process, service, authentication, and endpoint evidence. This accelerates review of unusually broad remote administration while preserving legitimate backup and deployment activity.",
@@ -23,27 +34,86 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-Security-Auditing 5140/5145 native XML",
   "dataModelAcceleration": "No Authentication CIM substitute is asserted: generic authentication lacks share, exact event, access mask and distinct destination semantics. Governed summary indexing is acceptable only after raw parity and target-source completeness tests.",
-  "requiredFields": ["_time", "source", "sourcetype", "EventCode", "EventID", "EventRecordID", "Computer", "dest", "host", "SubjectUserName", "SubjectDomainName", "SubjectUserSid", "IpAddress", "IpPort", "ShareName", "AccessMask"],
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "Computer",
+    "dest",
+    "host",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectUserSid",
+    "IpAddress",
+    "IpPort",
+    "ShareName",
+    "AccessMask"
+  ],
   "references": [
-    {"title": "Microsoft Security Auditing: Event 5140 fields and once-per-session semantics", "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5140", "retrieved": "2026-07-28"},
-    {"title": "Microsoft Security Auditing: Event 5145 fields and per-object access checks", "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5145", "retrieved": "2026-07-28"},
-    {"title": "Microsoft: Audit File Share policy and event volume", "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-file-share", "retrieved": "2026-07-28"},
-    {"title": "Microsoft: Audit Detailed File Share policy", "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-detailed-file-share", "retrieved": "2026-07-28"},
-    {"title": "Splunk Security Content: Windows Administrative Shares Accessed On Multiple Hosts", "url": "https://research.splunk.com/endpoint/d92f2d95-05fb-48a7-910f-4d3d61ab8655/", "retrieved": "2026-07-28"},
-    {"title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)", "url": "https://splunkbase.splunk.com/app/742", "retrieved": "2026-07-28"}
+    {
+      "title": "Microsoft Security Auditing: Event 5140 fields and once-per-session semantics",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5140",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Security Auditing: Event 5145 fields and per-object access checks",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/event-5145",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: Audit File Share policy and event volume",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-file-share",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: Audit Detailed File Share policy",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/auditing/audit-detailed-file-share",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Security Content: Windows Administrative Shares Accessed On Multiple Hosts",
+      "url": "https://research.splunk.com/endpoint/d92f2d95-05fb-48a7-910f-4d3d61ab8655/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    }
   ],
   "knownFalsePositives": "A row is real broad administrative-share access; authorization determines disposition.\n\n1. **Microsoft Configuration Manager or Intune management sweep** — Verify site/server identity, deployment/job ID, approved target collection, service account, UTC window and expected shares. Use an expiring source/account/job exception, not a permanent management-server allowlist.\n\n2. **Tenable, Qualys, or Rapid7 credentialed scan** — Match scanner, scan ID, credential set, targets and operator. Correct scope and preserve evidence; suppress duplicate paging only for exact source/account/window.\n\n3. **Microsoft Defender for Endpoint live response or EDR investigation** — Confirm responder, case ID, signed action log, destinations and bounds. Keep the result as incident evidence.\n\n4. **Veeam, Commvault, or backup-agent deployment/discovery** — Prove vendor workflow, job/change, expected ADMIN$/C$ targets and completion; do not allowlist the backup network broadly.\n\n5. **Authorized Atomic Red Team/purple-team T1135 exercise** — Match engagement, operator, source, account, target set and timebox; retain the alert as test evidence.\n\n**Safe suppression:** apply post-result `lookup windows_admin_share_notification_exceptions.csv` keyed by exact `src_ip,user,exception_id`, with approved target scope and numeric start/end epochs. Reject wildcards/open-ended rows and never suppress merely because the source is internal.",
-  "mitreAttack": ["T1135", "TA0007"],
+  "mitreAttack": [
+    "T1135"
+  ],
   "detectionType": "TTP",
   "securityDomain": "endpoint",
-  "equipment": ["windows"],
-  "equipmentModels": ["windows_generic"],
+  "equipment": [
+    "windows"
+  ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
   "hardware": "Windows systems hosting SMB shares and generating Security 5140/5145. Coverage is target-side and depends on collecting every destination in scope.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
   "reviewer": "documentation-only Cursor AI editorial review against Microsoft 5140/5145 and audit-policy documentation, Splunk Windows add-on and Splunk Security Content, and MITRE ATT&CK; policy, collection, SPL, fixtures, threshold, source coverage, alerting, and response not executed or SME-signed",
   "splunkVersions": [],
-  "cost": {"tier": "high", "search_load": "light", "search_load_notes": "The search is narrow, but Microsoft documents high File Share/Detailed File Share audit volume on file servers and domain controllers. Size Security ingest before enabling broad success auditing.", "tstats_eligible": false, "storage_class": "hot", "retention_days": 30, "sources": ["Security 5140/5145"], "last_estimated": "2026-07-28", "estimated_by": "ai-advisory"},
+  "cost": {
+    "tier": "high",
+    "search_load": "light",
+    "search_load_notes": "The search is narrow, but Microsoft documents high File Share/Detailed File Share audit volume on file servers and domain controllers. Size Security ingest before enabling broad success auditing.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "Security 5140/5145"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
   "detailedImplementation": "## Prerequisites and exact contract\n\nAssign Windows audit-policy, file-server, identity, Splunk, SOC and exception owners. Inventory every potential SMB destination and Security collection path. Install `Splunk_TA_windows` (Splunkbase 742) and use XML fields. Restrict Security records because they expose users, source addresses and share topology.\n\nMicrosoft states 5140 is generated once per session when the first access to a network share occurs; its AccessMask is always `0x1`. Event 5145 is generated for each file/folder access check and includes RelativeTargetName and requested rights. This analytic uses either event only to prove a source/account reached ADMIN$, C$ or IPC$ on a destination. It does not count files or writes. The strict Splunk Security Content threshold is more than 30 unique targets in five minutes, so 31 is minimum.\n\n## Collect and verify\n\nEnable **Object Access > Audit File Share > Success** through Advanced Audit Policy on scoped targets. Enable Detailed File Share only where per-object evidence justifies its much higher volume. Microsoft notes all shares are audited because shares have no SACL and volume is high on file servers/domain controllers. Manage `[WinEventLog://Security]` with `renderXml=true`, deployment-local `index=wineventlog`, TLS forwarding and outage capacity. Avoid direct/WEF duplicates and preserve original Computer.\n\nVerify fields:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode IN (5140,5145) earliest=-1h\n| table _time Computer EventRecordID SubjectUserName SubjectDomainName SubjectUserSid IpAddress IpPort ShareName RelativeTargetName AccessMask\n```\n\nCompare fixed EventRecordIDs with Event Viewer on two targets. Normalize only IPv4-mapped `::ffff:`; preserve native IPv6 and loopback. Confirm ShareName's `\\\\*\\SHARE` form and case. Build source-health coverage for every target.\n\n## Schedule and test\n\nSave `windows_admin_shares_many_hosts`; run every five minutes with `earliest=-10m@m latest=-5m@m`. Measure latency and increase delay without overlapping buckets. Group by bucket/source/user, not collecting server or source port. Deduplicate denominator with `dc(target)` so 5140/5145 chatter cannot fabricate hosts. The regex admits only exact ADMIN$, C$, IPC$. No lookup is in base detection.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Security`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nReplay positive and every negative control. Assert 30 versus 31, source/user/bucket separation, ordinary-share rejection, missing identity rejection, IPv4 mapping and duplicate-host behavior. In a lab use approved administrative-share access; do not scan production. Record Windows/add-on/Splunk versions, GPO, fixture, bounds, expected/actual rows, search job and delivery. Keep draft until human acceptance.\n\n## Triage and response\n\nVerify source freshness/raw XML and denominator; resolve source IP at event time; identify account owner and destination set; determine scanner/management/backup/EDR/test workflow; correlate 4624 logon type, 4688 or Sysmon process, service creation, remote management and EDR evidence; assess privileged targets and later activity; contain only through approved SOC/identity/network process.\n\nDo not automatically disable the account, block a shared NAT/management server, delete shares, stop Server service, or disable auditing. A source can be both legitimate infrastructure and compromised. Preserve base evidence and apply only bounded notification exceptions.\n\n## Troubleshooting\n\n- No events: verify effective Audit File Share/Detailed File Share, Security input, XML mode, RBAC/index and source health.\n- Null IP/share/user: inspect native XML and add-on knowledge; do not substitute 4624 fields.\n- Too many 5145 records: expected per-object checks; keep distinct-target denominator and scope policy based on measured capacity.\n- Expected result absent: check exact admin-share regex, strict >30, user/source normalization, closed bucket and target completeness.\n- False target inflation: diagnose duplicate/incorrect Computer under WEF; use EventRecordID and original Computer.\n- Security ingest too high: scope Detailed File Share and retention with owners; do not index-time discard fields needed for this analytic.",
   "grandmaExplanation": "We notice when one computer and account touches hidden administrator file shares on more than thirty Windows machines in five minutes. That can be normal management software, but it can also be someone rapidly exploring or moving through the network.",
   "prerequisiteUseCases": [],

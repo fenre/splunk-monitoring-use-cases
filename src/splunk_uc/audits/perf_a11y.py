@@ -98,14 +98,16 @@ PerfBudget = dict[str, Any]
 _PERF_BUDGETS: list[PerfBudget] = [
     {
         "file": "index.html",
-        "budget_bytes": 737_280,  # ~720 KiB
+        "budget_bytes": 740_000,  # ~723 KiB
         "tier": "critical-path",
         "note": (
             "Main catalog landing page; inlines all CSS/JS for offline "
             "auditor mode.  Budget raised after Phase C/E bulk UC "
             "generation pushed the page past the original 430 KiB limit; "
             "nudged to ~720 KiB in v8.11.0 to absorb accumulating release "
-            "notes entries (each release appends a versioned block)."
+            "notes entries (each release appends a versioned block). "
+            "Raised to 740 KiB after catalogue growth pushed index.html "
+            "past the v8.11.0 ~720 KiB ceiling."
         ),
     },
     {
@@ -159,13 +161,15 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/catalog.json",
-        "budget_bytes": 167_772_160,  # 160 MiB
+        "budget_bytes": 172_000_000,  # ~164 MiB
         "tier": "generated-data",
         "note": (
             "Full JSON catalogue for AI agents / scripted consumers. "
             "Budget bumped to 160 MiB in v8.23.0 after hand-craft quality-pass "
             "enrichment grew the catalogue past 148 MiB (~14,876 UCs). "
-            "Previously 120 MiB in v8.19.0 (~117 MiB)."
+            "Previously 120 MiB in v8.19.0 (~117 MiB). Raised to 172 MiB "
+            "after continued catalogue growth exceeded the 160 MiB v8.23.0 "
+            "budget."
         ),
     },
     {

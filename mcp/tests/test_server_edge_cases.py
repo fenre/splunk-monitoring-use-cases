@@ -301,7 +301,7 @@ async def test_call_tool_unknown_use_case_returns_not_found(
         result = await client.call_tool(
             "get_use_case", {"uc_id": "99.99.99"}
         )
-        assert result.isError
+        assert result.is_error
         payload = json.loads(result.content[0].text)
         assert payload["error"] == "not_found"
 
@@ -333,7 +333,7 @@ async def test_call_tool_type_error_returns_invalid_input(
         result = await client.call_tool(
             "search_use_cases", {"query": "GDPR"}
         )
-        assert result.isError
+        assert result.is_error
         payload = json.loads(result.content[0].text)
         assert payload["error"] == "invalid_input"
         assert "simulated bad argument type" in payload["message"]
@@ -363,7 +363,7 @@ async def test_call_tool_key_error_returns_invalid_input(
         result = await client.call_tool(
             "search_use_cases", {"query": "GDPR"}
         )
-        assert result.isError
+        assert result.is_error
         payload = json.loads(result.content[0].text)
         assert payload["error"] == "invalid_input"
 
@@ -392,7 +392,7 @@ async def test_call_tool_catalog_error_returns_catalog_error(
         result = await client.call_tool(
             "search_use_cases", {"query": "GDPR"}
         )
-        assert result.isError
+        assert result.is_error
         payload = json.loads(result.content[0].text)
         assert payload["error"] == "catalog_error"
         assert "offline" in payload["message"]
