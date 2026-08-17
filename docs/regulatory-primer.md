@@ -1353,7 +1353,7 @@ covering the obligations most directly evidenced through Splunk:
 | Cross-cutting | Compliance-health rollup | SOCI-CrossCutting-Health | §22.52.28 |
 
 **What the catalogue delivers:** 100 % coverage of the 28 monitored
-clauses. Subcategory §22.52 ships 28 dedicated SOCI UCs, each sidecar
+clauses. Subcategory §22.52 ships 35 dedicated SOCI UCs, each sidecar
 carrying an `obligationRef` of the form
 `soci@2022-SLACIP+CIRMP-2023#SOCI-X-Y`. The clause-by-clause coverage
 matrix is rendered in
@@ -1435,7 +1435,7 @@ guidance; this catalogue release ships 28 monitored clauses
 | Records retention | RRA / ERP / certification retention | AWIA-EPA-records-retention | §22.53.28 |
 
 **What the catalogue delivers:** 100 % coverage of the 28 monitored
-clauses. Subcategory §22.53 ships 28 dedicated AWIA UCs, each sidecar
+clauses. Subcategory §22.53 ships 29 dedicated AWIA UCs, each sidecar
 carrying an `obligationRef` of the form
 `awia@2018-amended-SDWA-1433#AWIA-X-Y`. The clause-by-clause coverage
 matrix is rendered in
@@ -1604,7 +1604,7 @@ monitored clauses (subcategory §22.55):
 | Threat intelligence | Rail-relevant threat actors and MITRE ATT&CK<sup class="ref">[<a href="#ref-21">21</a>]</sup> ICS coverage | CLC-TS-50701-c6-3 (cont.) | §22.55.25 |
 
 **What the catalogue delivers:** 100 % coverage of the 28 monitored
-clauses. Subcategory §22.55 ships 28 dedicated CLC/TS 50701 UCs, each
+clauses. Subcategory §22.55 ships 33 dedicated CLC/TS 50701 UCs, each
 sidecar carrying an `obligationRef` of the form
 `clc-ts-50701@2021-with-iec63452-alignment#CLC-TS-50701-X-Y`. The
 clause-by-clause coverage matrix is rendered in
@@ -1705,7 +1705,7 @@ obligation:
 | Public Transit (NPRM) | Voluntary alignment scaffold for FTA grantees under the proposed Public Transportation Cybersecurity Rule | `TSA-SD-public-transit-NPRM` | §22.56.17 |
 
 **What the catalogue delivers:** 100 % coverage of the 28 monitored
-clauses. Subcategory §22.56 ships 28 dedicated TSA Surface UCs spanning
+clauses. Subcategory §22.56 ships 46 dedicated TSA Surface UCs spanning
 all four regulated modes, each sidecar carrying an `obligationRef` of
 the form `tsa-surface@2024-consolidated-pipeline-rail#TSA-SD-X`. The
 clause-by-clause coverage matrix is rendered in
@@ -1820,7 +1820,7 @@ covering every obligation a CIIO must evidence through Splunk:
 | CCoP 2.0 controls | Asset management, access control + MFA, monitoring + SOC, supply-chain, business continuity | `SG-CSA-COC-asset-mgmt`, `SG-CSA-COC-access-control`, `SG-CSA-COC-monitoring`, `SG-CSA-COC-supply-chain`, `SG-CSA-COC-business-continuity` | §22.57.11 – 15 |
 
 **What the catalogue delivers:** 100 % coverage of the 15 monitored
-clauses. Subcategory §22.57 ships 15 dedicated SG-Cyber-Act UCs, each
+clauses. Subcategory §22.57 ships 24 dedicated SG-Cyber-Act UCs, each
 sidecar carrying an `obligationRef` of the form
 `sg-cyber-act@2018-amended-2024#SG-CA-X` or `…#SG-CII-Reg-Y` or
 `…#SG-CSA-COC-Z`. The clause-by-clause coverage matrix is rendered in
@@ -1925,7 +1925,7 @@ through Splunk:
 | Identification of incidents | Incident reporting to ANSSI (CERT-FR) within the ANSSI clock | `FR-ANSSI-rule-incident-reporting` | §22.58.8 |
 
 **What the catalogue delivers:** 100 % coverage of the 8 monitored
-clauses. Subcategory §22.58 ships 8 dedicated France-LPM UCs, each
+clauses. Subcategory §22.58 ships 9 dedicated France-LPM UCs, each
 sidecar carrying an `obligationRef` of the form
 `fr-lpm@2013-2018-with-anssi-2024-decrees#FR-LPM-ArtX` or
 `…#FR-Decret-2015-351` or `…#FR-ANSSI-rule-Y`. The clause-by-clause
@@ -2037,7 +2037,7 @@ release ships 17 monitored clauses (subcategory §22.59):
 | BIMCO bridge-systems guidance | IBS / ECDIS / GMDSS / VDR hardening | BIMCO-Cyber-bridge-systems | §22.59.5, §22.59.6, §22.59.7 |
 
 **What the catalogue delivers:** 100 % coverage of the 17 monitored
-clauses. Subcategory §22.59 ships 17 dedicated IMO UCs, each sidecar
+clauses. Subcategory §22.59 ships 18 dedicated IMO UCs, each sidecar
 carrying an `obligationRef` of the form
 `imo-msc-428-98@2017-msc-428-98-with-2022-circ-3-rev-2-and-2024-iacs-e26-e27#<clause>`.
 The clause-by-clause coverage matrix is rendered in
@@ -2398,7 +2398,7 @@ monitored clauses (subcategory §22.61):
 | CSL / DSL — universal log retention | ≥6-month security-log retention with integrity protection and tamper detection | CSL-Art-21, MLPS-2-0-L3, DSL-Art-29 | §22.61.12 |
 
 **What the catalogue delivers:** 100 % coverage of the 14 monitored
-clauses. Subcategory §22.61 ships 12 dedicated UCs (some clauses are
+clauses. Subcategory §22.61 ships 13 dedicated UCs (some clauses are
 covered by more than one UC), each sidecar carrying an
 `obligationRef` of the form
 `cn-csl@2017-csl-with-2021-dsl-pipl-and-2022-ciio-cross-border#<clause>`.
@@ -2585,7 +2585,7 @@ monitored clauses (subcategory §22.62):
 | DPDP Sec.8(6) + IT Act Sec.43A | 72-hour breach notification to Data Protection Board of India + parallel Data Principal notification | DPDP-Sec-8, IT-Act-Sec-43A | §22.62.8 |
 
 **What the catalogue delivers:** 100 % coverage of the 11 monitored
-clauses. Subcategory §22.62 ships 8 dedicated UCs (several clauses are
+clauses. Subcategory §22.62 ships 9 dedicated UCs (several clauses are
 covered by composite UCs), each sidecar carrying an
 `obligationRef` of the form
 `cert-in@2022-04-28-cert-in-directions-with-2023-dpdp#<clause>`.
@@ -2776,7 +2776,7 @@ This catalogue release ships 9 monitored clauses (subcategory §22.63):
 | IEC 62443-3-2 + IEC 61511 Cl.8.2.4 | SIS zone-and-conduit SL-T / SL-C / SL-A evidence + exception register | IEC-62443-3-2, IEC-61511-Cl-8-2-4 | §22.63.7 |
 
 **What the catalogue delivers:** 100 % coverage of the 9 monitored
-clauses. Subcategory §22.63 ships 7 dedicated UCs (several clauses
+clauses. Subcategory §22.63 ships 9 dedicated UCs (several clauses
 are covered by composite UCs covering the lifecycle, the cybersecurity
 bridge, and the zone-and-conduit evidence chain), each sidecar
 carrying an `obligationRef` of the form
@@ -2991,8 +2991,8 @@ is the machine-readable view.
 | 22.33 | Middle East Cybersecurity | various | T2 | see §22.33 | `regulations/{nesa-uae-ias,qcb-cyber,sa-pdpl,sama-csf}.json` |
 | 22.34 | SWIFT CSP | GLOBAL | T2 | see §22.34 | `regulations/swift-csp.json` |
 | 22.51 | NCA OTCC (Saudi OT) | KSA | T2 | 28 | `regulations/nca-otcc.json` |
-| 22.52 | SOCI Act + CIRMP Rules | Australia | T1 | 28 | `regulations/soci.json` |
-| 22.53 | AWIA s2013 + EPA/CISA Water | US | T2 | 28 | `regulations/awia.json` |
+| 22.52 | SOCI Act + CIRMP Rules | Australia | T1 | 35 | `regulations/soci.json` |
+| 22.53 | AWIA s2013 + EPA/CISA Water | US | T2 | 29 | `regulations/awia.json` |
 
 For the full 82-framework inventory (tier-1, tier-2, and meta), consult
 `data/regulations.json` or `api/v1/compliance/index.json`.
