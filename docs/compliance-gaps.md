@@ -307,7 +307,7 @@ _HIPAA Security Rule_
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
 | `§164.308(a)(1)` | Security management process | 1.00 | ✔ 4 | partial | 22.10.1, 22.10.2, 22.10.22, 22.10.55 |
-| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 1 | partial | 22.10.4 |
+| `§164.308(a)(3)` | Workforce security | 1.00 | ✔ 2 | partial | 21.3.68, 22.10.4 |
 | `§164.308(a)(4)` | Information access management | 1.00 | ✔ 1 | full | 22.10.21 |
 | `§164.308(a)(5)` | Security awareness and training | 0.70 | ✔ 4 | full | 17.1.53, 22.10.6, 22.46.1, 22.6.53 |
 | `§164.308(a)(6)` | Security incident procedures | 1.00 | ✔ 3 | partial | 22.10.56, 22.10.7, 22.39.1 |
@@ -514,7 +514,7 @@ _NIST SP 800-53 Rev. 5_
 | `AC-2` | Account management | 1.00 | ✔ 4 | full | 17.1.51, 22.14.16, 22.40.3, 5.13.49 |
 | `AC-3` | Access enforcement | 1.00 | ✔ 3 | contributing | 17.1.55, 17.1.68, 22.14.17 |
 | `AC-6` | Least privilege | 1.00 | ✔ 5 | full | 17.1.79, 22.14.19, 22.40.1, 22.40.2, 5.13.47 |
-| `AU-2` | Event logging | 1.00 | ✔ 6 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 5.13.45, 5.13.47 |
+| `AU-2` | Event logging | 1.00 | ✔ 975 | full | 17.1.43, 22.14.1, 22.35.6, 22.40.6, 4.1.100, 4.1.101, 4.1.102, 4.1.103 |
 | `AU-3` | Content of audit records | 1.00 | ✔ 2 | partial | 22.14.2, 5.13.50 |
 | `AU-6` | Audit review, analysis, and reporting | 1.00 | ✔ 4 | full | 17.1.42, 22.14.5, 22.14.82, 5.13.50 |
 | `AU-8` | Time stamps | 1.00 | ✔ 2 | full | 22.11.100, 22.14.7 |
@@ -532,7 +532,7 @@ _NIST SP 800-53 Rev. 5_
 | `SC-7` | Boundary protection | 1.00 | ✔ 1 | contributing | 22.14.67 |
 | `SC-8` | Transmission confidentiality and integrity | 1.00 | ✔ 2 | full | 22.14.68, 22.41.2 |
 | `SC-13` | Cryptographic protection | 1.00 | ✔ 4 | full | 17.1.39, 22.14.71, 22.41.1, 22.41.3 |
-| `SI-4` | System monitoring | 1.00 | ✔ 3 | full | 17.1.67, 22.14.36, 22.8.33 |
+| `SI-4` | System monitoring | 1.00 | ✔ 13 | full | 17.1.67, 22.14.36, 22.8.33, 4.1.148, 4.1.149, 4.1.150, 4.1.151, 4.1.152 |
 | `SR-3` | Supply chain controls and processes | 0.70 | ✔ 1 | partial | 22.44.1 |
 | `PT-3` | Personally identifiable information processing purposes | 0.70 | ✔ 1 | partial | 22.1.48 |
 
