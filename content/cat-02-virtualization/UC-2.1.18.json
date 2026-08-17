@@ -18,14 +18,6 @@
   },
   "dataSources": "Primary source is vCenter VM inventory collected through Splunk Add-on for VMware Metrics with pool task `vminv` into the deployment-selected inventory index (documented default `index=vmware-inv`), `source=VMInv:VirtualMachine`, and `sourcetype=vmware_inframon:inv:vm`. Required documented fields are VM `uuid`/`name`, `summary.runtime.powerState`, `config.template`, `guest.toolsRunningStatus`, `guest.toolsVersion`, `config.tools.toolsVersion`, guest OS, runtime host/vCenter and collection/index time. Current vSphere Client/API state, guest package/service telemetry, support policy, maintenance and owner data corroborate.",
   "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects VM inventory through vCenter and DCNs. A local VM-operations app owns source freshness, enum drift, owner/maintenance enrichment, saved search, tests, dashboard, routing and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-inv source=\"VMInv:VirtualMachine\" sourcetype=\"vmware_inframon:inv:vm\" earliest=-2h@h latest=-1h@h\n| eval vm_name=coalesce(nullif(trim(name),\"\"),nullif(trim('summary.config.name'),\"\")), vm_uuid=coalesce(nullif(trim(uuid),\"\"),nullif(trim('config.uuid'),\"\")), power_state=trim('summary.runtime.powerState'), tools_running_status=trim('guest.toolsRunningStatus'), guest_tools_version=trim('guest.toolsVersion'), configured_tools_version=trim('config.tools.toolsVersion'), is_template=lower(trim(tostring('config.template'))), vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\")))\n| where len(vm_name)>0 AND len(vm_uuid)>0 AND len(vcenter)>0 AND power_state=\"poweredOn\" AND is_template!=\"true\" AND len(tools_running_status)>0\n| stats latest(_time) AS inventory_time latest(_indextime) AS inventory_index_time latest(tools_running_status) AS tools_running_status latest(guest_tools_version) AS guest_tools_version latest(configured_tools_version) AS configured_tools_version latest('guest.guestFullName') AS guest_os latest('summary.runtime.host') AS esxi_host BY vcenter vm_uuid vm_name\n| where tools_running_status!=\"guestToolsRunning\"\n| eval finding=\"powered_on_vm_tools_not_running\", use_case=\"UC-2.1.18\"\n| table inventory_time vcenter vm_uuid vm_name esxi_host guest_os tools_running_status guest_tools_version configured_tools_version finding inventory_index_time use_case\n| sort 0 vcenter vm_name",
   "description": "Reports each latest powered-on, non-template VM inventory record whose VMware Tools running-status enum is anything other than `guestToolsRunning`. Each row preserves the exact status and reported versions without claiming that Tools is missing or outdated.",
   "value": "Tools services support guest visibility and coordinated virtualization operations, so an unexpected non-running state can complicate maintenance and incident response. Precise status reporting lets VM and workload owners distinguish a stopped service, startup transition, unsupported guest or stale inventory before attempting repair.",
@@ -36,20 +28,6 @@
   ],
   "schema": "vCenter VirtualMachine inventory with native VMware Tools running-status enum",
   "dataModelAcceleration": "No CIM dataset documents vSphere VM power/template state with guest Tools status/version. Raw latest inventory and explicit freshness remain authoritative.",
-  "requiredFields": [
-    "uuid",
-    "name",
-    "summary.runtime.powerState",
-    "config.template",
-    "guest.toolsRunningStatus",
-    "guest.toolsVersion",
-    "config.tools.toolsVersion",
-    "guest.guestFullName",
-    "summary.runtime.host",
-    "vcenter",
-    "_time",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Splunk: VMware Metrics inventory fields reference",
@@ -92,14 +70,28 @@
     "N/A (guest integration service inventory; no adversary behavior asserted)"
   ],
   "detectionType": "Latest powered-on VM Tools running-status exception",
+  "requiredFields": [
+    "uuid",
+    "name",
+    "summary.runtime.powerState",
+    "config.template",
+    "guest.toolsRunningStatus",
+    "guest.toolsVersion",
+    "config.tools.toolsVersion",
+    "guest.guestFullName",
+    "summary.runtime.host",
+    "vcenter",
+    "_time",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
+    "vmware_esxi",
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "hardware": "vCenter-managed VMware virtual machines. Guest OS, VMware Tools/open-vm-tools package, service model and support policy determine expected status.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/guest/Splunk SME validation pending",
@@ -112,6 +104,15 @@
   },
   "detailedImplementation": "## Prerequisites and supported claim\n\nAssign vSphere, guest OS, application and Splunk owners. Inventory VM UUID, name, vCenter/host, guest family, power/template state, Tools implementation, owner, maintenance and support exception. Broadcom defines three running-status values: `guestToolsRunning`, `guestToolsNotRunning` and `guestToolsExecutingScripts`. This rule reports non-running state only. Version compliance requires a separate, authoritative version policy and version-status source.\n\n## Step 1 — Collect and prove VM inventory\n\nDeploy supported Splunk Add-on for VMware Metrics with read-only vCenter API access over TCP 443 and `vminv` in the collection pool. Verify actual output at documented default `index=vmware-inv`, `source=VMInv:VirtualMachine`, `sourcetype=vmware_inframon:inv:vm` or change only the local index.\n\nCompare representative records with vSphere Client VM > Summary. Prove UUID/name, `summary.runtime.powerState`, `config.template`, `guest.toolsRunningStatus`, `guest.toolsVersion`, `config.tools.toolsVersion`, guest OS, runtime host, vCenter, `_time` and `_indextime`. Splunk's Inventory Reference documents running status and versions; do not assume `toolsVersionStatus2` is indexed unless a separately supported and tested collection contract adds it.\n\nBuild independent health for expected VMs, last vminv success/records_written, inventory age, blank fields, unknown enum, duplicate UUID, rename/host move, vCenter authentication, DCN backlog and current-state disagreement.\n\n## Step 2 — Save the latest-state search\n\nSave sidecar SPL as `powered_on_vm_tools_not_running`, hourly. Its range is one complete hour delayed by one hour. Adjust after measuring inventory cadence and p99 delay, preserving a closed range.\n\nThe search normalizes documented aliases, requires powered-on non-template VM identity and status, then takes the time-latest status/version fields per vCenter/UUID/name. Only exact `guestToolsRunning` is excluded. `guestToolsExecutingScripts` remains visible because prolonged startup deserves review. No version comparison or `toolsOk` legacy field is used.\n\n## Step 3 — Validate inventory and guest reality\n\nTest each enum, powered-off/suspended, template, blank state, unknown state, stale and duplicate record, same name/different UUID, rename, migration, delayed/future time and wrong source. Confirm a non-running row does not say not installed/outdated.\n\nIn isolated supported guests, use approved service stop/start and boot tests for proprietary Tools and open-vm-tools. Compare vSphere Client, API, Splunk inventory, guest service manager and package version. Measure inventory propagation and startup duration. Do not stop Tools on production to create a heartbeat.\n\n## Step 4 — Operationalize and respond\n\nDashboard exact status, inventory freshness, guest/version context, owner and maintenance. Triage by verifying raw current inventory; confirming VM power/template and recent lifecycle events; checking vSphere Client; inspecting guest reachability, service/package logs and support policy; then classifying startup, maintenance, unsupported guest, stale data, service failure or broader guest outage.\n\nDo not automatically mount installers, upgrade Tools, start services, reboot guests, modify upgrade policy or power cycle a VM. Guest changes require workload approval, backups/snapshots policy, compatibility, maintenance and rollback. Close with fresh running state or a finite approved exception and healthy inventory.\n\n## Step 5 — Troubleshoot\n\n- No inventory: verify `vminv`, API credentials/443, scheduler/DCN, forwarding, index/RBAC and expected VM coverage.\n- Status blank: inspect raw inventory, guest support and Tools presence; route extraction/collection failures separately.\n- Status remains starting: compare guest service logs, boot state, scripts and fresh API data.\n- vSphere says running but Splunk does not: align inventory time, collection cadence, UUID/vCenter and incremental update health.\n- Version fields differ: guest and config version properties have distinct contexts; preserve both and do not infer compliance.\n- Many findings after upgrade: inspect schema/enum, add-on/DCN backlog and guest compatibility before bulk remediation.\n\nKeep draft status until VMware, guest and Splunk owners validate fields, freshness, fixtures and safe response. Documentation review is not production health validation.",
   "grandmaExplanation": "We find powered-on virtual machines whose helper service is not reported as running. The team checks whether the machine is still starting, under maintenance, unsupported, or actually having a problem before trying to repair it.",
+  "hardware": "vCenter-managed VMware virtual machines. Guest OS, VMware Tools/open-vm-tools package, service model and support policy determine expected status.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -26,21 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built normalized esxtop VM NUMA locality samples with stable vCenter identity",
   "dataModelAcceleration": "Not applicable. The Performance CIM and documented VMware Metrics fields do not preserve esxtop N%L, NRMEM, MEMSZ, world-to-VM mapping, counter-layout version, and collector completeness required by this rule.",
-  "requiredFields": [
-    "vcenter",
-    "host_moid",
-    "host",
-    "vm_moid",
-    "vm_name",
-    "entity_type",
-    "local_memory_pct",
-    "remote_memory_mb",
-    "memory_size_mb",
-    "sample_epoch",
-    "sample_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere: esxtop Memory Panel",
@@ -78,21 +63,36 @@
     "N/A (VMware performance monitoring; no adversary behavior asserted)"
   ],
   "detectionType": "Three consecutive five-minute low-NUMA-locality buckets from esxtop N%L",
+  "requiredFields": [
+    "vcenter",
+    "host_moid",
+    "host",
+    "vm_moid",
+    "vm_name",
+    "entity_type",
+    "local_memory_pct",
+    "remote_memory_mb",
+    "memory_size_mb",
+    "sample_epoch",
+    "sample_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
+    "broadcom_symantec",
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
     "vmware_vcenter"
   ],
-  "hardware": "Powered-on VMs on NUMA-capable ESXi hosts whose esxtop NUMA fields and VM-world topology have been qualified for the exact release/build.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware performance and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware performance and Splunk validation pending",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
@@ -102,6 +102,7 @@
   },
   "detailedImplementation": "## Prerequisites and measurement semantics\n\nAssign VMware performance, hardware, guest/application, Splunk, and change owners. Inventory NUMA-capable hosts by sockets/nodes/cores/memory and every governed powered-on VM by stable moid, workload/SLO, vCPU/memory, hardware version, cores-per-socket/automatic topology, Hot Add, affinity/advanced settings, DRS placement, and owner. Record non-NUMA hosts and unsupported builds explicitly.\n\nBroadcom defines esxtop N%L as percentage of VM memory local to its NUMA node, NRMEM as current remote memory in MB, and MEMSZ as VM physical/configured memory in MB. Broadcom troubleshooting guidance flags N%L <=80%. This implementation requires three complete five-minute buckets and locally classifies <=50% critical. It does not use `mem.llSwapUsed`; Splunk documents that metric as host-cache swap in KB.\n\n## Step 1 — Collect and qualify esxtop data\n\nUse supported VCF PowerCLI `Get-EsxTop`, which exposes counters and topology. On every supported build, first enumerate CounterInfo and TopologyInfo; version-control the exact field and instance mapping. Map VM world/group to stable vCenter VM moid and current host. Never map by display name alone. A separately approved esxtop/resxtop batch adapter may be used, but preserve source labels and units.\n\nEmit one JSON sample per powered-on VM every five minutes or faster with unique sample ID and field-map version. Reject resource pools/user worlds, ambiguous mappings, non-NUMA hosts, missing fields, and partial host polls to health. Configure a scripted input/HEC path with explicit JSON source type. Compare samples simultaneously with interactive esxtop memory panel (enable NUMA fields), PowerCLI raw counter output, vCenter identity, and VM configuration. Prove 0-100 N%L and nonnegative NRMEM/MEMSZ.\n\nBuild expected powered-on VM/sample health from inventory: missing host/VM/bucket, duplicate sample, stale/future time, interval drift, counter-layout change, mapping ambiguity, impossible values, collector/API failure, and cardinality shift. Preserve collector overhead; reduce scope or interval safely if ESXi/vCenter impact is material.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_vm_sustained_low_numa_locality` and run every five minutes after measured ingest delay. The closed event-time window `earliest=-30m@m latest=-5m@m` excludes the newest five minutes. Normalize and validate identity/values, replace `_time` with source sample epoch, deduplicate sample ID, and average samples into five-minute buckets.\n\nOnly buckets with average N%L <=80 remain. After stable ascending sort, `streamstats` retains the prior two breached bucket times/values. Exactly 300-second adjacency twice proves three consecutive breached buckets; a missing or healthy middle bucket prevents a result. Three-bucket min determines <=50 critical; three-bucket average is context. Multiple results can occur during a long breach, so throttle alerting by VM/host while preserving continuing and worsening evidence.\n\n## Step 3 — Validate boundaries, gaps, and identity\n\nUse fixed fixtures at 100, 80.001, 80, 79.999, 50.001, 50, 0; multiple samples per bucket; one/two/three/four breaches; healthy and missing middle buckets; host/VM change; duplicate sample; stale/future/partial status; invalid percentage/MB; NRMEM>MEMSZ; non-VM entity; ambiguous world; and rerun. Assert exact start/end and no llSwap fields.\n\nIn a nonproduction NUMA host, run a bounded NUMA-sensitive benchmark approved by workload/hardware owners. Capture esxtop, guest NUMA tools, vCenter topology, host-node free memory, CPU/memory contention, and application latency. Exercise vMotion and safe sizing/topology variants one at a time. Do not force production remote memory or apply undocumented advanced settings. Keep draft until counter mapping, overhead, and workload correlation are signed off.\n\n## Step 4 — Diagnose before changing topology\n\nAlert title should say `Sustained low VM NUMA memory locality`. Include VM/host stable IDs, three-bucket locality, NRMEM/MEMSZ MB, topology/sizing/Hot Add/affinity, DRS/migration/change context, host-node pressure, application SLO, source health, and raw links. Verify live esxtop and mapping; determine whether VM is wide and vNUMA exposed; inspect guest/app NUMA awareness; examine host contention/DRS; correlate performance; review manual overrides; then classify expected design, transient placement, contention, sizing/topology issue, collector defect, or unresolved.\n\nPrefer removing unnecessary vCPU/memory and relying on supported automatic topology before advanced overrides, subject to workload testing. Never automatically resize, change cores per socket, affinity, NUMA advanced settings, Hot Add, vMotion, or power state. Such changes can require downtime and can degrade performance. Close only after workload owner validates impact/action, source health is good, and fresh locality/application evidence is acceptable.\n\n## Step 5 — Troubleshoot\n\n- **No NUMA fields:** verify host NUMA capability, CounterInfo/TopologyInfo, permissions, build support, collector field map, and raw esxtop display.\n- **NRMEM/MEMSZ but no N%L:** do not derive an unqualified ratio if semantics differ; qualify the exact formula/build or fail health.\n- **All values zero/100:** compare live esxtop and known remote-memory lab control; inspect wrong entity/field and numeric parsing.\n- **VM names collide:** map world to vCenter moid and host at each sample; never aggregate name-only.\n- **Results after vMotion:** split by host and verify source time/mapping; new-host placement starts a new sequence.\n- **llSwap correlates:** host-cache swapping is separate memory pressure context, not proof of NUMA remote memory.\n- **Frequent gaps:** inspect collector duration/overhead, API session, scheduling, ingestion delay, and expected-sample health; do not weaken adjacency.\n\nRetention and response thresholds follow local performance policy. This signal initiates evidence-based tuning; it does not prescribe universal NUMA configuration.",
   "grandmaExplanation": "We watch whether a virtual machine keeps most of its memory close to the processors using it. If memory stays far away for several checks, performance experts investigate before changing the machine's size or layout.",
+  "hardware": "Powered-on VMs on NUMA-capable ESXi hosts whose esxtop NUMA fields and VM-world topology have been qualified for the exact release/build.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

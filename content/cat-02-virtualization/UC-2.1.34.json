@@ -26,24 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built complete datastore/reference comparison candidate JSON; no applicable CIM dataset",
   "dataModelAcceleration": "Not applicable. CIM does not represent canonical datastore-file identity, VMDK descriptor chains, reference-domain completeness, candidate provenance, or destructive-review state.",
-  "requiredFields": [
-    "vcenter",
-    "datastore",
-    "datastore_moid",
-    "datastore_type",
-    "canonical_path",
-    "candidate_kind",
-    "candidate_reason",
-    "size_bytes",
-    "modified_epoch",
-    "chain_resolved",
-    "active_change",
-    "snapshot_epoch",
-    "snapshot_id",
-    "reference_manifest_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere Web Services API: HostDatastoreBrowser",
@@ -76,21 +58,41 @@
     "N/A (storage-capacity review; no adversary behavior asserted)"
   ],
   "detectionType": "Aged unreferenced VMDK descriptor candidate from complete set comparison",
+  "requiredFields": [
+    "vcenter",
+    "datastore",
+    "datastore_moid",
+    "datastore_type",
+    "canonical_path",
+    "candidate_kind",
+    "candidate_reason",
+    "size_bytes",
+    "modified_epoch",
+    "chain_resolved",
+    "active_change",
+    "snapshot_epoch",
+    "snapshot_id",
+    "reference_manifest_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
+    "cisco",
     "vmware"
   ],
   "equipmentModels": [
+    "cisco_aci",
     "vmware_esxi",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "Explicitly approved VMFS, NFS, or NFS 4.1 datastores visible through vCenter. vSAN, vVol, object/image-library, replication, and backup repositories remain out of scope until separately qualified.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware storage, backup, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware storage, backup, and Splunk validation pending",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -98,8 +100,9 @@
     "tstats_eligible": false,
     "storage_class": "warm"
   },
-  "detailedImplementation": "## Prerequisites and destructive-risk boundary\n\nAssign VMware, storage, backup, replication, Content Library, application, Splunk, and change owners. Inventory vCenters and explicitly approved datastores by managed-object ID, type, accessibility, owner, maintenance window, backup/replication products, image libraries, FCD use, and retention obligations. Start only with lab and low-risk VMFS/NFS stores. Broadcom's datastore browser returns matching file metadata and requires Datastore.Browse; it does not tell you that a file is unused or safe to delete.\n\nDefine all reference domains before coding: registered VMs, templates, hardware backing paths, snapshot/delta parent chains, linked clones, FCDs, Content Libraries/image services, backup/replication ownership, active tasks, and intentionally unregistered recovery assets. If a domain cannot be enumerated, mark it excluded and do not claim complete orphan detection. Do not use this workflow for vSAN/vVol until their object semantics are separately designed.\n\n## Step 1 — Build a complete comparison collector\n\nImplement `TA_vmware_storage_inventory` on a hardened PowerCLI collection tier. Use `SearchDatastoreSubFolders_Task` with a VMDK file query and request file size and modification metadata. File metadata queries can still be expensive; serialize or cap concurrency, run off-peak, record task duration, and stop on timeout or API fault. Canonicalize bracket datastore paths and retain the native path.\n\nIn the same bounded run, build the full reference set. Resolve descriptors to extents and delta parents; never report an extent independently merely because its filename is absent from `Get-HardDisk`. Record a manifest hash/count per reference domain and active-task snapshot. Emit candidates only when both file and reference scans complete, chain resolution succeeds, datastore type is supported, no active-change marker applies, and the descriptor is absent from every included reference set. One shared `snapshot_id` and immutable `reference_manifest_id` must join evidence. Errors and partial results go to a separate health source.\n\nConfigure a weekly scripted input with explicit JSON source type and local index. Protect paths because names can disclose customers and applications. Compare file counts and several known paths with vSphere Client Datastore Browser and all owning products; do not use the UI alone as proof of nonuse.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_unreferenced_vmdk_candidates`. It accepts only successful, chain-resolved, inactive-change descriptor candidates from ten days, validates identity, supported type, exact byte and epoch fields, and newest snapshot per canonical path. Snapshot freshness is ten days because collection is weekly. Candidates must be strictly older than seven days. Bytes divide by 1,073,741,824 to display GiB; the raw byte count remains authoritative. Exactly 100 GiB receives local high routing, not a vendor severity. Every row says `review_required`.\n\nCreate independent health for expected datastores, collector status, per-domain manifest presence/count/hash, unresolved chains, unsupported types, run duration, task faults, snapshot age, duplicate routes, and event schema. A primary zero-row result is valid only when all included-domain health is green.\n\n## Step 3 — Validate set logic and units\n\nUse synthetic manifests covering descriptor plus flat extent, multi-extent disks, snapshots/deltas, linked clone parents, templates, FCDs, Content Library, backup/replication, active clone/migration, inaccessible folder, datastore rename, URL escaping, duplicate names across vCenters, zero-byte file, future modification, exactly seven days, exactly 100 GiB, partial scans, and duplicate delivery. Assert that any referenced chain yields no candidate and that bytes/GiB are exact.\n\nIn a lab, create a disposable VM/disk, snapshot, template, clone, unregistered VM, and governed unattached test descriptor. Compare collector output with API and Datastore Browser. Re-register the object and prove the candidate disappears on the next complete snapshot. Do not delete even lab candidates through the detection pipeline; exercise cleanup only in a separately approved test. Keep draft until every reference-domain owner signs scope and false-negative limitations.\n\n## Step 4 — Review and respond safely\n\nRoute candidates to a queue, not an automated incident or cleanup. Reviewer sequence: verify raw event and snapshot health; rerun a fresh complete scan; inspect descriptor and full chain read-only; search vCenter inventory/tasks/events and all reference domains; identify datastore/path owner; verify backup/retention/legal requirements; test whether any host/process holds or accesses the file using supported tools; and obtain two-person VMware/storage approval with rollback before a separate move/quarantine or deletion change.\n\nNever delete, rename, move, consolidate, attach, open for write, or modify a VMDK from this alert. Quarantine itself can break references. Close as referenced/retained, active task, collector defect, approved cleanup, or unresolved. Capacity is recovered only after storage reports it and workload/recovery validation passes; candidate GiB is not recovered GiB.\n\n## Step 5 — Troubleshoot\n\n- **Scan times out:** reduce datastore scope/concurrency, inspect vCenter task and storage latency, then mark the run partial; never publish its set difference.\n- **Huge candidate surge:** suspect a missing reference domain, permission change, canonicalization regression, datastore rename, or collector version before storage waste.\n- **Descriptor chain unresolved:** preserve all path metadata and remove it from the actionable set until a qualified parser/API resolves it.\n- **Candidate exists in UI inventory:** compare native/canonical path, vCenter and datastore moid, snapshots, template/FCD/library ownership, and manifest hash.\n- **Sizes differ:** file metadata is bytes; verify descriptor versus extent and sparse/provisioned semantics. Do not sum descriptor text size as disk capacity.\n- **Duplicate totals:** deduplicate physical canonical path and inspect multiple collectors/vCenters; do not sum repeated observations.\n- **File vanished:** verify approved task, retention, product cleanup, datastore accessibility, and audit history; disappearance alone does not prove safe reclamation.\n\nRetention, age, and severity are local governance choices. This page documents candidate discovery, not deletion authorization."
-  ,"grandmaExplanation": "We look for old virtual-disk files that no known machine or approved storage service appears to use. Because deleting the wrong file could destroy data, every result is only a carefully documented review candidate.",
+  "detailedImplementation": "## Prerequisites and destructive-risk boundary\n\nAssign VMware, storage, backup, replication, Content Library, application, Splunk, and change owners. Inventory vCenters and explicitly approved datastores by managed-object ID, type, accessibility, owner, maintenance window, backup/replication products, image libraries, FCD use, and retention obligations. Start only with lab and low-risk VMFS/NFS stores. Broadcom's datastore browser returns matching file metadata and requires Datastore.Browse; it does not tell you that a file is unused or safe to delete.\n\nDefine all reference domains before coding: registered VMs, templates, hardware backing paths, snapshot/delta parent chains, linked clones, FCDs, Content Libraries/image services, backup/replication ownership, active tasks, and intentionally unregistered recovery assets. If a domain cannot be enumerated, mark it excluded and do not claim complete orphan detection. Do not use this workflow for vSAN/vVol until their object semantics are separately designed.\n\n## Step 1 — Build a complete comparison collector\n\nImplement `TA_vmware_storage_inventory` on a hardened PowerCLI collection tier. Use `SearchDatastoreSubFolders_Task` with a VMDK file query and request file size and modification metadata. File metadata queries can still be expensive; serialize or cap concurrency, run off-peak, record task duration, and stop on timeout or API fault. Canonicalize bracket datastore paths and retain the native path.\n\nIn the same bounded run, build the full reference set. Resolve descriptors to extents and delta parents; never report an extent independently merely because its filename is absent from `Get-HardDisk`. Record a manifest hash/count per reference domain and active-task snapshot. Emit candidates only when both file and reference scans complete, chain resolution succeeds, datastore type is supported, no active-change marker applies, and the descriptor is absent from every included reference set. One shared `snapshot_id` and immutable `reference_manifest_id` must join evidence. Errors and partial results go to a separate health source.\n\nConfigure a weekly scripted input with explicit JSON source type and local index. Protect paths because names can disclose customers and applications. Compare file counts and several known paths with vSphere Client Datastore Browser and all owning products; do not use the UI alone as proof of nonuse.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_unreferenced_vmdk_candidates`. It accepts only successful, chain-resolved, inactive-change descriptor candidates from ten days, validates identity, supported type, exact byte and epoch fields, and newest snapshot per canonical path. Snapshot freshness is ten days because collection is weekly. Candidates must be strictly older than seven days. Bytes divide by 1,073,741,824 to display GiB; the raw byte count remains authoritative. Exactly 100 GiB receives local high routing, not a vendor severity. Every row says `review_required`.\n\nCreate independent health for expected datastores, collector status, per-domain manifest presence/count/hash, unresolved chains, unsupported types, run duration, task faults, snapshot age, duplicate routes, and event schema. A primary zero-row result is valid only when all included-domain health is green.\n\n## Step 3 — Validate set logic and units\n\nUse synthetic manifests covering descriptor plus flat extent, multi-extent disks, snapshots/deltas, linked clone parents, templates, FCDs, Content Library, backup/replication, active clone/migration, inaccessible folder, datastore rename, URL escaping, duplicate names across vCenters, zero-byte file, future modification, exactly seven days, exactly 100 GiB, partial scans, and duplicate delivery. Assert that any referenced chain yields no candidate and that bytes/GiB are exact.\n\nIn a lab, create a disposable VM/disk, snapshot, template, clone, unregistered VM, and governed unattached test descriptor. Compare collector output with API and Datastore Browser. Re-register the object and prove the candidate disappears on the next complete snapshot. Do not delete even lab candidates through the detection pipeline; exercise cleanup only in a separately approved test. Keep draft until every reference-domain owner signs scope and false-negative limitations.\n\n## Step 4 — Review and respond safely\n\nRoute candidates to a queue, not an automated incident or cleanup. Reviewer sequence: verify raw event and snapshot health; rerun a fresh complete scan; inspect descriptor and full chain read-only; search vCenter inventory/tasks/events and all reference domains; identify datastore/path owner; verify backup/retention/legal requirements; test whether any host/process holds or accesses the file using supported tools; and obtain two-person VMware/storage approval with rollback before a separate move/quarantine or deletion change.\n\nNever delete, rename, move, consolidate, attach, open for write, or modify a VMDK from this alert. Quarantine itself can break references. Close as referenced/retained, active task, collector defect, approved cleanup, or unresolved. Capacity is recovered only after storage reports it and workload/recovery validation passes; candidate GiB is not recovered GiB.\n\n## Step 5 — Troubleshoot\n\n- **Scan times out:** reduce datastore scope/concurrency, inspect vCenter task and storage latency, then mark the run partial; never publish its set difference.\n- **Huge candidate surge:** suspect a missing reference domain, permission change, canonicalization regression, datastore rename, or collector version before storage waste.\n- **Descriptor chain unresolved:** preserve all path metadata and remove it from the actionable set until a qualified parser/API resolves it.\n- **Candidate exists in UI inventory:** compare native/canonical path, vCenter and datastore moid, snapshots, template/FCD/library ownership, and manifest hash.\n- **Sizes differ:** file metadata is bytes; verify descriptor versus extent and sparse/provisioned semantics. Do not sum descriptor text size as disk capacity.\n- **Duplicate totals:** deduplicate physical canonical path and inspect multiple collectors/vCenters; do not sum repeated observations.\n- **File vanished:** verify approved task, retention, product cleanup, datastore accessibility, and audit history; disappearance alone does not prove safe reclamation.\n\nRetention, age, and severity are local governance choices. This page documents candidate discovery, not deletion authorization.",
+  "grandmaExplanation": "We look for old virtual-disk files that no known machine or approved storage service appears to use. Because deleting the wrong file could destroy data, every result is only a carefully documented review candidate.",
+  "hardware": "Explicitly approved VMFS, NFS, or NFS 4.1 datastores visible through vCenter. vSAN, vVol, object/image-library, replication, and backup repositories remain out of scope until separately qualified.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

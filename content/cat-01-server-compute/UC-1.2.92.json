@@ -19,15 +19,6 @@
   },
   "dataSources": "Microsoft-Windows-TerminalServices-Gateway/Operational XML on each RD Gateway, collected with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`. Native 302 fields are `EventInfo.Username`, `EventInfo.IpAddress`, `EventInfo.AuthType`, `EventInfo.Resource`, `EventInfo.ConnectionProtocol`, and `EventInfo.ErrorCode`; 303 additionally has `EventInfo.BytesReceived`, misspelled native `EventInfo.BytesTransfered`, and `EventInfo.SessionDuration`. Preserve `Computer`, `EventRecordID`, and `ActivityID`.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, plus the Windows Server Remote Desktop Gateway role. No premium app is required.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational\" EventCode IN (302,303) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), gateway=lower(trim(coalesce(Computer,host))), gateway_user=trim(coalesce('EventInfo.Username',UserName)), client_ip=lower(trim(coalesce('EventInfo.IpAddress',ClientIP))), target_resource=lower(trim(coalesce('EventInfo.Resource',ResourceName))), connection_protocol=trim('EventInfo.ConnectionProtocol'), bytes_received=tonumber('EventInfo.BytesReceived'), bytes_transferred=tonumber('EventInfo.BytesTransfered'), session_duration_seconds=tonumber('EventInfo.SessionDuration')\n| where in(event_code,302,303) AND len(gateway)>0 AND len(gateway_user)>0 AND len(client_ip)>0 AND len(target_resource)>0\n| eval session_action=if(event_code=302,\"connected\",\"disconnected\"), use_case=\"UC-1.2.92\"\n| table _time gateway session_action gateway_user client_ip target_resource connection_protocol bytes_received bytes_transferred session_duration_seconds 'EventInfo.AuthType' 'EventInfo.ErrorCode' ActivityID EventRecordID source sourcetype use_case\n| sort 0 -_time gateway gateway_user",
   "description": "Reports one normalized row for each RD Gateway resource connection (302) and disconnection (303), preserving gateway, user, client address, target resource, protocol, raw identity, and disconnect transfer/duration metrics. It is a lifecycle report with no anomaly threshold and does not misclassify disconnections as authentication failures.",
   "value": "RD Gateway is a controlled ingress path to internal desktops and applications. Accurate connection/disconnection history supports incident reconstruction, remote-access ownership, capacity and reliability review, while keeping CAP/RAP denials and target-connection failures in their correct event families instead of producing false brute-force alerts. This improves remote-access accountability by retaining the gateway, user, client, resource, and lifecycle action.",
@@ -36,26 +27,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-TerminalServices-Gateway Event IDs 302 and 303 native XML",
   "dataModelAcceleration": "No Authentication CIM substitute is claimed. A generic authentication failure tstats search is semantically wrong for 302/303 and loses target resource, connection protocol, transfer bytes, duration, ActivityID, and lifecycle event identity.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "ActivityID",
-    "EventInfo.Username",
-    "EventInfo.IpAddress",
-    "EventInfo.AuthType",
-    "EventInfo.Resource",
-    "EventInfo.ConnectionProtocol",
-    "EventInfo.ErrorCode",
-    "EventInfo.BytesReceived",
-    "EventInfo.BytesTransfered",
-    "EventInfo.SessionDuration"
-  ],
   "references": [
     {
       "title": "Microsoft TechNet Magazine: RD Gateway event meanings and auditing configuration",
@@ -94,21 +65,40 @@
   ],
   "detectionType": "Session audit",
   "securityDomain": "access",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "ActivityID",
+    "EventInfo.Username",
+    "EventInfo.IpAddress",
+    "EventInfo.AuthType",
+    "EventInfo.Resource",
+    "EventInfo.ConnectionProtocol",
+    "EventInfo.ErrorCode",
+    "EventInfo.BytesReceived",
+    "EventInfo.BytesTransfered",
+    "EventInfo.SessionDuration"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows Server Remote Desktop Gateway role hosts. RD Session Hosts, Connection Brokers, clients, VPN/NAT devices, NPS, and identity providers are correlated but separate sources.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft RD Gateway event/auditing and architecture documentation, observed event schemas, Splunk Windows add-on, and MITRE ATT&CK; role configuration, event generation, field extraction, SPL, controls, session correlation, alerting, and response were specified but not executed or Microsoft/RDS/Splunk-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft RD Gateway event/auditing and architecture documentation, observed event schemas, Splunk Windows add-on, and MITRE ATT&CK; role configuration, event generation, field extraction, SPL, controls, session correlation, alerting, and response were specified but not executed or Microsoft/RDS/Splunk-SME signed",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -124,6 +114,16 @@
   },
   "detailedImplementation": "## Prerequisites and event contract\n\nAssign RDS/RD Gateway, identity/NPS, network, Splunk, and security owners. Inventory every gateway node, CAP, RAP, target resource group, certificate, external path, NAT/VPN context, and expected client population. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and restrict session telemetry.\n\nMicrosoft's RD Gateway guidance defines 302 as connection to an internal RDS resource and 303 as disconnection with bytes/duration. 200/201 cover connection authorization policy, 300/301 resource authorization policy, and 304 means authorization passed but target connection failed. Do not retain the original file's incorrect 303/304 authentication-failure labels.\n\n## Step 1 — Enable gateway auditing and XML collection\n\nIn RD Gateway Manager review **Properties > Auditing** and enable the lifecycle events needed by policy. Record configuration and CAP/RAP revisions. Collect **Applications and Services Logs > Microsoft > Windows > TerminalServices-Gateway > Operational** with an app-owned `inputs.conf` stanza using XML rendering and local `index=wineventlog`. Verify effective stanza through `splunk btool inputs list --debug`.\n\nIn the Event Viewer console inspect 302/303 XML on each supported Windows Server build. Confirm dotted Data names, especially the native spelling `EventInfo.BytesTransfered`, plus ActivityID, provider, Computer, and EventRecordID. Compare fixed records with Splunk. Operate source-health per gateway and preserve original node identity behind load balancers.\n\n## Step 2 — Save and understand the lifecycle search\n\nSave as `windows_rd_gateway_session_lifecycle`, schedule every five minutes over `earliest=-10m@m latest=-5m@m`, and retain all results. The search fixes XML source/channel and two IDs, normalizes gateway/user/client/resource, and converts disconnect metrics to numbers. It requires the four core identities so unusable rows become source-quality findings.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Microsoft-Windows-TerminalServices-Gateway/Operational`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nDo not use `stats` to pair sessions unless the exact Windows build supplies and you validate a stable connection identifier. User/client/resource can have concurrent connections, and ActivityID behavior must be tested. Use 303 duration/bytes as the completed-session metric and 302 as connection evidence. Build separate failure rules for 201, 301, and 304.\n\n## Step 3 — Validate fields and lifecycle boundaries\n\nRun exact controls with fixed bounds. Test 302, 303, dotted fields, numeric zero values, missing core identity, wrong source/ID, duplicate direct/WEF collection, HTTP and UDP observations, and concurrent same-user/resource sessions. On a lab gateway, make one approved connection and disconnect, then compare RD Gateway Operational XML, target-host session/logon events, and Splunk.\n\nRecord gateway/Windows/add-on/Splunk versions, CAP/RAP, client IP, resource, protocol, event/ingest times, expected/actual rows, EventRecordIDs, and operator. Prove dashboard ACL, alert/report delivery, source health, and exception expiry. Do not claim target logon solely from 302.\n\n## Step 4 — Operationalize audit and anomaly review\n\nUse the base report for access history. Add governed wrappers for first-seen client/resource, privileged user, unusual schedule, extreme duration/bytes, excessive short sessions, or sensitive targets only after baselining. Resolve shared NAT/VPN addresses with time-valid network evidence and geolocate only public client addresses through an approved database.\n\nFor review: validate raw gateway event and source health; inspect CAP/RAP chain; correlate target-host LocalSessionManager/Security logon, NPS, VPN, firewall, and identity evidence; contact owner; and document disposition. Do not disconnect, disable a user, block an IP, or alter CAP/RAP automatically from lifecycle rows.\n\n## Step 5 — Troubleshoot\n\n- **No 302/303:** verify gateway auditing settings, Operational channel, effective input, forwarder routing, gateway service, and source freshness.\n- **Fields null:** inspect native XML and dotted names; ensure XML extraction knowledge is on the search tier. Do not parse localized Message unless no structured field exists and version/language are governed.\n- **303 treated as failure:** fix downstream labels; it is disconnection and contains duration/transfer context.\n- **302 without target logon:** investigate 304/206, target reachability, target-host logs, RAP, firewall, and timing; gateway connection evidence is not desktop logon proof.\n- **Counts do not pair:** expected with concurrency, transport, missing events, or unvalidated correlation. Use raw identities and validated connection IDs.\n- **Wrong client due to proxy/NAT:** retain observed address and enrich through time-valid VPN/NAT logs.\n- **Duplicate node records:** compare EventRecordID/Computer and direct versus WEF collection, then repair topology.",
   "grandmaExplanation": "We keep a history of who connected through the remote desktop gateway, where they came from, which internal computer they reached, and when they disconnected. That helps teams review remote access without mistaking a normal disconnect for a failed sign-in.",
+  "hardware": "Windows Server Remote Desktop Gateway role hosts. RD Session Hosts, Connection Brokers, clients, VPN/NAT devices, NPS, and identity providers are correlated but separate sources.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

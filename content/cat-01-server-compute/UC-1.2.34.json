@@ -18,15 +18,6 @@
   },
   "dataSources": "Microsoft-Windows-AppLocker/EXE and DLL Event ID 8004 and Microsoft-Windows-AppLocker/MSI and Script Event ID 8007 from in-scope Windows endpoints, collected in XML by Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The deployment-local example uses `index=wineventlog`; expected contracts are `sourcetype=XmlWinEventLog` with source `XmlWinEventLog:Microsoft-Windows-AppLocker/EXE and DLL` or `XmlWinEventLog:Microsoft-Windows-AppLocker/MSI and Script`. Parse `UserData_Xml` and verify `PolicyName`, `RuleId`, `RuleName`, `RuleSddl`, `TargetUser`, `TargetLogonId`, and `FullFilePath`, plus `Computer`, `EventCode` or `EventID`, and `EventRecordID`.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for XML Windows Event Log collection and field knowledge. Splunkbase lists that release for Splunk Enterprise 9.3 through current 10.x releases and Splunk Cloud at review time. Test upgrades, especially from releases before the documented 5.0.0 breaking-change boundary. No premium app is required.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" (source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/EXE and DLL\" OR source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/MSI and Script\") (EventCode=8004 OR EventCode=8007) earliest=-70m@m latest=-10m@m\n| spath input=UserData_Xml\n| rename RuleAndFileData.* as *\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(dest,Computer,host))), file_path=trim(coalesce(FullFilePath,FilePath)), target_user=trim(coalesce(TargetUser,UserName,user)), rule_id=trim(coalesce(RuleId,RuleNameOrId)), rule_name=trim(RuleName)\n| where (event_code=8004 AND source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/EXE and DLL\" OR event_code=8007 AND source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/MSI and Script\") AND len(endpoint)>0\n| eval block_type=if(event_code=8004,\"EXE or DLL blocked\",\"Script or MSI blocked\"), detection=\"AppLocker enforce-mode application block\"\n| table _time endpoint event_code block_type target_user TargetLogonId PolicyName rule_id rule_name RuleSddl file_path EventRecordID detection source sourcetype\n| sort 0 -_time endpoint event_code file_path",
   "description": "Reports one row per AppLocker enforce-mode block in the delayed closed hour: Event 8004 for an EXE or DLL, or Event 8007 for a script or Windows Installer file. Each row is at blocked-file event grain and retains endpoint, user/logon context, policy and rule identifiers, path, channel, and event-record identity.",
   "value": "Reviewing every enforced application-control denial helps responders distinguish prevented unauthorized execution from broken software deployment, repair unsafe policy gaps without weakening controls, and identify repeated attempts against sensitive endpoints while preserving proof that Windows blocked the file.",
@@ -35,29 +26,6 @@
   "cimModels": [],
   "schema": "Native Microsoft AppLocker XML event fields; no lossless Splunk CIM dataset is claimed",
   "dataModelAcceleration": "No `cimSpl` is supplied. Splunk's AppLocker guidance notes that the required AppLocker detail is not specifically mapped to CIM, and a generic Change or Endpoint query cannot be assumed to retain channel, EventRecordID, RuleId, TargetLogonId, and FullFilePath. Keep raw XML as the detection and evidence contract. A local summary may be built only after fixed-window row and field parity tests.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "host",
-    "dest",
-    "Computer",
-    "EventCode",
-    "EventID",
-    "EventRecordID",
-    "UserData_Xml",
-    "PolicyName",
-    "RuleId",
-    "RuleName",
-    "RuleNameOrId",
-    "RuleSddl",
-    "TargetUser",
-    "TargetLogonId",
-    "FullFilePath",
-    "FilePath",
-    "UserName",
-    "user"
-  ],
   "references": [
     {
       "title": "Microsoft: use Event Viewer with AppLocker, including event 8004 and 8007 semantics",
@@ -106,21 +74,43 @@
   ],
   "detectionType": "Baseline",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "UserData_Xml",
+    "PolicyName",
+    "RuleId",
+    "RuleName",
+    "RuleNameOrId",
+    "RuleSddl",
+    "TargetUser",
+    "TargetLogonId",
+    "FullFilePath",
+    "FilePath",
+    "UserName",
+    "user"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Supported Windows clients and servers where AppLocker is available and the relevant EXE/DLL and MSI/Script rule collections are configured. DLL collection is not enabled by default and can be high volume. For WEF/WEC, preserve original Computer, source channel, EventRecordID, and XML payload and prevent duplicate direct collection.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft AppLocker and App Control event documentation, Splunk Add-on for Microsoft Windows 10.0.1, Splunk AppLocker collection guidance, and MITRE ATT&CK; Windows policy, source coverage, XML fixtures, SPL, file trust, alert delivery, CIM parity, suppression, and response not executed or SME-signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft AppLocker and App Control event documentation, Splunk Add-on for Microsoft Windows 10.0.1, Splunk AppLocker collection guidance, and MITRE ATT&CK; Windows policy, source coverage, XML fixtures, SPL, file trust, alert delivery, CIM parity, suppression, and response not executed or SME-signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -138,6 +128,16 @@
   },
   "detailedImplementation": "## Prerequisites and event contract\n\nAssign an application-control policy owner, endpoint engineering owner, software-deployment owner, Splunk collection owner, SOC detection owner, responder, and exception approver. Inventory in-scope Windows versions, editions, endpoints, AppLocker GPOs/local policies, rule collections, enforcement modes, and authoritative software catalog. AppLocker coverage is not inferred from event presence: document whether EXE, DLL, Script, and Windows Installer collections are enabled and whether each is Audit only or Enforce rules.\n\nInstall Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1 on the required collection, parsing, and search tiers. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Cloud support at review time. Test exact OS, Universal Forwarder, add-on, and Splunk versions and follow upgrade instructions when crossing the 5.0.0 breaking-change boundary.\n\nThe collector account needs permission to read both AppLocker operational channels. The search role needs read access to the deployment-local `wineventlog` index and permission to save/schedule the search; it does not need AppLocker policy-edit, endpoint-administrator, software-deployment, or exception-lookup-write access. Restrict file paths, usernames, rule SDDL, and raw endpoint events.\n\nMicrosoft documents 8004 as an EXE/DLL prevented from running in Enforce rules mode and 8007 as a script/MSI prevented from running in Enforce rules mode. Audit-only counterparts 8003 and 8006 mean the file ran but would be blocked under enforcement. Do not mix them: this UC answers “what Windows says it blocked,” not “what policy would block.” It also does not cover App Control for Business/WDAC CodeIntegrity 3077. Implement those events as a separate control with their distinct channel, fields, semantics, and tests.\n\nNo count threshold applies: one admitted block is one reviewable event. Notification priority may later consider endpoint criticality, file trust, repeated attempts, and deployment context. A block is prevention evidence, not proof that the file is malicious or that another execution path did not succeed.\n\n## Step 1 — Collect and verify both AppLocker channels\n\nCreate governed inputs in an app's `local/inputs.conf`, not the add-on's `default` directory:\n\n```ini\n[WinEventLog://Microsoft-Windows-AppLocker/EXE and DLL]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n\n[WinEventLog://Microsoft-Windows-AppLocker/MSI and Script]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\n`wineventlog` is a deployment-local index choice. Record actual `current_only`, `start_from`, checkpoint, allow/deny filters, forwarding route, and retention. Do not filter out 8004/8007 at collection time. Validate effective configuration with `splunk btool inputs list --debug`, forwarder health, and protected transport. If using WEF/WEC, collect each channel, preserve original Computer and EventRecordID, measure delay, and prevent duplicate direct and forwarded inputs.\n\nVerify source contracts and XML payload before enabling the alert:\n\n```spl\nindex=wineventlog sourcetype=XmlWinEventLog (source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/EXE and DLL\" OR source=\"XmlWinEventLog:Microsoft-Windows-AppLocker/MSI and Script\") (EventCode=8004 OR EventCode=8007) earliest=-30d\n| spath input=UserData_Xml\n| rename RuleAndFileData.* as *\n| table _time Computer EventCode EventRecordID PolicyName RuleId RuleName RuleSddl TargetUser TargetLogonId FullFilePath source\n| head 100\n```\n\nCompare selected records with Event Viewer under **Applications and Services Logs > Microsoft > Windows > AppLocker**. Confirm event ID/channel pairing, endpoint, record ID, target token, policy/rule identity, and full path. `UserData_Xml` shape can vary with collection and Windows versions; inspect raw XML rather than inventing fields. Keep the explicit `spath`/rename only after proving the `RuleAndFileData` path. If the add-on already extracts flat fields, prove that applying it does not overwrite values.\n\nBuild source-health coverage for both expected channels on every in-scope endpoint. These block events are activity-driven and may legitimately be absent, so use forwarder/channel freshness and controlled telemetry, not a requirement for recent blocks. Compare the endpoint inventory to collected Computer values and report missing channels separately.\n\n## Step 2 — Save and understand the search\n\nSave the SPL as `windows_applocker_enforced_blocks`. Schedule hourly, such as `5 * * * *`, using embedded `earliest=-70m@m latest=-10m@m`. This is a nonoverlapping closed 60-minute event-time window delayed ten minutes. Measure p99 `_indextime-_time`; if latency requires more delay, shift both bounds equally and preserve the 60-minute width.\n\nThe base clause admits only the XML source type, two exact source channels, and IDs 8004/8007. `spath` parses the XML payload and `rename RuleAndFileData.* as *` exposes Microsoft's event fields. The evaluations normalize numeric event ID, endpoint, path, target user, and rule identity while retaining originals. The `where` clause reasserts valid ID/channel combinations and rejects empty endpoints. Parentheses are material: 8004 belongs to EXE and DLL, while 8007 belongs to MSI and Script.\n\n`block_type` describes Microsoft semantics without guessing the exact file extension. The table remains one source event per row and retains EventRecordID for provenance. Do not aggregate away channel, user, rule, or path in the alert result. If repeat attempts are needed, add a secondary correlation search keyed on endpoint, user, normalized path/hash, and a documented time window.\n\nNo `cimSpl` is claimed. A generic Change model does not preserve this event contract, and application-control blocks are not policy-change events. Splunk's AppLocker guidance parses native XML detail directly. If a local accelerated dataset is created, constrain the exact events and prove row count and all required fields against raw XML over fixed windows, including acceleration lag.\n\n## Step 3 — Validate boundaries and semantics\n\nReplay the two positive XML fixtures in an isolated index using fixed event times inside the search bounds. Assert exactly two rows and exact endpoint, event ID, block type, target user/logon ID, PolicyName, RuleId/RuleName, path, EventRecordID, source, and source type. Add separate fixtures for blank optional RuleName, path containing spaces, domain-qualified user, and both EventCode and EventID extraction variants.\n\nRun every negative variant independently: audit-only and allowed IDs, CodeIntegrity 3077, swapped source/ID pairs, Security source, Classic source type, malformed event code, empty endpoint, latest-boundary exclusion, and outside-window events. Test earliest inclusion. If duplicate WEF/direct records appear with the same Computer/source/EventRecordID, fix collection topology; do not add broad `dedup` until provenance and collision behavior are understood.\n\nIn an approved disposable Windows lab, export the effective AppLocker policy, confirm Enforce rules for the test collection, and execute a harmless test EXE/DLL or script/MSI that a dedicated rule blocks. Do not use malware. Verify Event Viewer first, then Splunk field parity, one result, alert delivery, and dashboard drilldown. Restore the prior test policy and remove the file. Separately switch a lab collection to Audit only and prove that 8003/8006 do not enter this rule.\n\nRecord policy XML/GPO version, OS/forwarder/add-on/Splunk versions, effective input, UTC bounds, fixture hashes, lab command and file hash, expected and actual rows, search job ID, alert receipt, cleanup, and owner acceptance. Keep `status=draft` until source coverage, parsing, event semantics, boundary tests, notification, dashboard RBAC, response, and exception behavior are human accepted.\n\n## Step 4 — Triage and response\n\nFor each row: (1) open raw XML and verify endpoint, channel, ID, EventRecordID, user/logon ID, rule, and full path; (2) confirm effective AppLocker policy and enforcement mode on that endpoint; (3) obtain file hash, signature, prevalence, origin, process ancestry, and attempted command line from approved companion telemetry because AppLocker event fields alone may not provide all of them; (4) compare software catalog and deployment records; (5) determine whether the denial prevented unauthorized activity or broke an authorized workflow; and (6) document disposition and policy/software remediation.\n\nIf suspicious, investigate adjacent successful executions, alternate paths, child processes, downloads, persistence, account activity, and other endpoints. Follow incident response based on corroborated behavior. If benign, update the authoritative application-control policy using the narrowest safe signer, publisher, hash, or protected-path rule and staged testing. Never auto-create an allow rule, move the file, disable AppLocker/Application Identity, switch a production collection to Audit only, or allow a user-writable directory from one alert.\n\nUse the dashboard in `visualization` and keep source-health gaps visually distinct from zero blocks. Route blocks on critical assets or repeated unknown files urgently; route known deployment incompatibilities to endpoint engineering while retaining security visibility. Review finite exceptions at least monthly and after policy, software, signer, or OS changes.\n\n## Step 5 — Troubleshooting\n\n- **No events after a lab block:** verify the correct rule collection is Enforce rules, Application Identity/AppLocker prerequisites, Event Viewer channel, exact input stanza, forwarder route, and index permissions.\n- **8003/8006 appear but no 8004/8007:** the collection is Audit only or the tested rule is not enforced. Do not relabel would-block events as blocks.\n- **WDAC 3077 is missing:** expected; it belongs to Microsoft-Windows-CodeIntegrity/Operational and is excluded from this AppLocker rule.\n- **Fields are null:** inspect raw `UserData_Xml`, XML namespace/path, add-on placement/version, and search app context. Adjust `spath` only from observed XML and rerun fixtures.\n- **Wrong source type:** version 6+ XML collection uses `sourcetype=XmlWinEventLog` and channel-bearing `source`. Correct ingestion instead of widening to ambiguous Classic values.\n- **Many blocks during rollout:** compare exact GPO version, endpoint ring, file manifest, and deployment order. Preserve events and use finite, exact notification exceptions.\n- **A supposedly allowed file is blocked:** verify Resultant Set of Policy, rule collection, user/group token, publisher/signature chain, path expansion, policy merge, and rule precedence on the affected endpoint.\n- **Duplicate rows:** check direct plus WEF/WEC collection and Computer/source/EventRecordID. Repair topology before considering event-identity deduplication.\n- **Late records miss the hour:** measure clocks, WEF delay, queues, `_indextime-_time`, and scheduler dispatch. Shift both bounds together.\n- **Alert says malware:** fix downstream wording. This control reports a policy block; maliciousness requires corroborating file and behavior evidence.",
   "grandmaExplanation": "We show when Windows refuses to run a program, script, or installer because it breaks the organization's approved-software rules. The team can then decide whether it stopped something dangerous or accidentally blocked legitimate work.",
+  "hardware": "Supported Windows clients and servers where AppLocker is available and the relevant EXE/DLL and MSI/Script rule collections are configured. DLL collection is not enabled by default and can be high volume. For WEF/WEC, preserve original Computer, source channel, EventRecordID, and XML payload and prevent duplicate direct collection.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

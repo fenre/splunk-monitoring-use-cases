@@ -29,23 +29,6 @@
   "visualization": "Use a latest-first incident table with host, route, action, destination, transport, reason, action deltas/totals, queue-context age/qualification, associated queue depth, discard deltas, loss-evidence label, reset flags, owner, and runbook. Add a per-route timeline with separate series for `failed_delta`, `suspended_delta`, `resumed_delta`, queue `size`, and discard deltas; do not stack them into one ambiguous failure count. Add inventory/source-health panels for expected actions without fresh `core.action` records, policy collisions, and queues without exact action mappings. Label action failure as execution evidence, queue depth/full as pressure, and discard increments as rsyslog-recorded loss behavior. Never label `processed-failed` as acknowledged delivery or present an action counter as remote receipt.",
   "cimModels": [],
   "dataModelAcceleration": "No standard Splunk Common Information Model dataset preserves rsyslog action identity, cumulative failed/suspended/resumed counters, route inventory, or associated queue discard evidence. There is no faithful accelerated `tstats` equivalent. Large estates may summary-index normalized one-minute action and queue samples only if host, object name, origin, raw totals, reset boundaries, route-policy version, and links to source events remain available.",
-  "requiredFields": [
-    "_time",
-    "host",
-    "source",
-    "sourcetype",
-    "name",
-    "origin",
-    "processed",
-    "failed",
-    "suspended",
-    "suspended.duration",
-    "resumed",
-    "size",
-    "full",
-    "discarded.full",
-    "discarded.nf"
-  ],
   "references": [
     {
       "title": "rsyslog official documentation — impstats module",
@@ -94,6 +77,27 @@
     }
   ],
   "knownFalsePositives": "The qualified counters are observations from rsyslog itself. A false positive therefore means that a real action transition was expected, recovered elsewhere, or mapped to the wrong operational policy—not that unrelated CPU, package, or backup activity resembled forwarding failure.\n\n1. **Planned central-collector maintenance** — An owner-approved outage of the exact destination can make an `omfwd` action suspend while its disk-assisted queue buffers. Distinguish it with the collector change record, exact `route_id`, tested queue headroom, and unchanged discard counters. Use an exact, bounded row in `rsyslog_forwarding_exceptions.csv`; never suppress queue discards or source-health findings automatically.\n\n2. **Rsyslog failover-chain activation** — The primary direct action can increment `failed` while a configured secondary action processes the same messages; rsyslog explicitly states that failed messages are not necessarily lost in a failover chain. Compare the primary failure delta with the secondary action's `processed` delta and the effective failover configuration. If the service design treats failover as healthy, use a time-bound route exception or lower-priority notification while retaining both actions' evidence.\n\n3. **TLS certificate rotation on an `omfwd` route** — A planned CA, client-certificate, or peer-name change can cause one or more genuine suspension transitions during a controlled reconnect. Match the exact destination, certificate deployment record, rsyslog diagnostics, and successful `resumed` increment. Suppress only the named host/action and approved UTC interval in the exception lookup; a queue discard remains critical.\n\n4. **DNS or virtual-IP cutover for the remote collector** — A controlled DNS TTL expiry, load-balancer move, or active/passive listener switchover may briefly interrupt a TCP action. Confirm the planned target change, resolver answer, listener readiness, short action interval, and subsequent resume. Apply an exact time-bound exception for the cutover, not a wildcard destination or permanent filter.\n\n5. **Disaster-recovery and logging-path drills** — A platform exercise may deliberately stop a test collector to prove queueing and failover. Require a drill ticket naming the rsyslog hosts, actions, expected counter changes, maximum duration, and no-discard success criterion. Use a route-specific exception that expires at the drill end and leave all raw test results searchable.\n\n6. **Rsyslog configuration reload or service restart** — Deployment can reset cumulative counters and can create a brief reconnect transition. Distinguish it with the configuration revision, service timestamps, boot/process identity, and `counter_reset=1`. The SPL avoids subtracting across a decrease; suppress a planned transition only through the bounded lookup, and investigate any post-reset positive failure count.\n\n7. **Stale action-to-queue inventory** — Renaming an action, reusing a generated queue name, cloning a Splunk `host`, or mapping one queue to multiple forwarding routes can attach correct queue evidence to the wrong action. Reconcile `rsyslog_forwarding_actions.csv` with the effective configuration and reject duplicate host/action, host/route, and non-empty host/queue keys. Disable the invalid policy row until corrected rather than suppressing the resulting route broadly.\n\n**Notification suppression mechanism:** use `rsyslog_forwarding_exceptions.csv` with headers `host,action_name,use_case,valid_from_epoch,valid_until_epoch,exception_reason,exception_owner,exception_ticket`. Require exact host, exact action name, literal `UC-1.1.94`, numeric bounded UTC epochs, owner, reason, and ticket. Restrict writes, review active rows, reject wildcards and open-ended dates, and preserve the unsuppressed base-condition history.",
+  "mitreAttack": [
+    "N/A (operational rsyslog forwarding-path reliability and log-source completeness monitoring; no adversary behavior is asserted)"
+  ],
+  "detectionType": "Threshold",
+  "requiredFields": [
+    "_time",
+    "host",
+    "source",
+    "sourcetype",
+    "name",
+    "origin",
+    "processed",
+    "failed",
+    "suspended",
+    "suspended.duration",
+    "resumed",
+    "size",
+    "full",
+    "discarded.full",
+    "discarded.nf"
+  ],
   "equipment": [
     "linux",
     "syslog"
@@ -102,17 +106,13 @@
     "linux_generic",
     "syslog_generic"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-28",
   "reviewer": "documentation-only editorial review against primary rsyslog forwarding/action/queue impstats and Splunk file-monitor, props, lookup, and search references; collector, inventory, SPL, and controls specified but not executed in live rsyslog or Splunk; no runtime, production, or SME sign-off",
-  "detectionType": "Threshold",
-  "mitreAttack": [
-    "N/A (operational rsyslog forwarding-path reliability and log-source completeness monitoring; no adversary behavior is asserted)"
-  ],
   "cost": {
     "tier": "low",
     "search_load": "light",

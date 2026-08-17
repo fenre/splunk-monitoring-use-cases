@@ -17,15 +17,6 @@
   },
   "dataSources": "Microsoft-Windows-Security-Auditing Event ID 4769 from every domain controller's Security channel, collected in XML with Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Security`. Required native fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `TargetUserName`, `TargetDomainName`, `ServiceName`, `ServiceSid`, `TicketOptions`, `TicketEncryptionType`, `IpAddress`, `IpPort`, `Status`, and `LogonGuid`. Enable Success Audit Kerberos Service Ticket Operations.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for Security XML collection and Kerberos field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Enterprise Security is optional for identity/asset risk enrichment.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4769 earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), requester=lower(trim(coalesce(TargetUserName,user))), source_address=lower(trim(coalesce(IpAddress,src))), service_name=trim(coalesce(ServiceName,service_name,service)), ticket_encryption=lower(trim(TicketEncryptionType)), request_status=lower(trim(Status)), domain_controller=lower(trim(coalesce(dest,Computer,host)))\n| eval source_address=replace(source_address,\"^::ffff:\",\"\")\n| where event_code=4769 AND ticket_encryption=\"0x17\" AND request_status=\"0x0\" AND len(requester)>0 AND len(source_address)>0 AND len(service_name)>0 AND NOT match(service_name,\"(?i)(^krbtgt$|\\\\$$)\")\n| stats count as ticket_count dc(service_name) as unique_service_accounts values(service_name) as requested_services values(domain_controller) as domain_controllers values(EventRecordID) as event_record_ids min(_time) as first_seen max(_time) as last_seen by requester source_address ticket_encryption\n| where unique_service_accounts>=4\n| eval threshold_distinct_services=4, aggregation_window=\"60 minutes\", detection=\"RC4 service-ticket burst consistent with possible Kerberoasting\"\n| table requester source_address ticket_encryption unique_service_accounts ticket_count requested_services domain_controllers first_seen last_seen event_record_ids threshold_distinct_services aggregation_window detection\n| sort 0 -unique_service_accounts -ticket_count requester source_address",
   "description": "Reports one aggregate row for each requester and client-address pair that successfully requests RC4 service tickets for four or more distinct non-computer service names in the delayed closed hour. The row preserves counts, service list, receiving domain controllers, event identities, exact threshold, and 60-minute window.",
   "value": "Concentrated requests for crackable service tickets can expose service-account passwords and lead to privileged access. Detecting the burst gives defenders a chance to investigate the requester, protect targeted accounts, remove legacy RC4 dependencies, and contain credential abuse before offline cracking enables lateral movement.",
@@ -36,31 +27,6 @@
   ],
   "schema": "Microsoft Security Event 4769 native XML fields with partial Splunk CIM Authentication normalization",
   "dataModelAcceleration": "The Windows add-on normalizes portions of 4769, including service and source context, but TicketEncryptionType and all native ticket fields are not guaranteed by the Authentication model. No `cimSpl` is supplied because RC4 selection, service-account filtering, EventRecordID, and exact event semantics are required. A generic Authentication `tstats` count is not an equivalent Kerberoasting rule. Prove native-field and row parity before any local acceleration.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "host",
-    "dest",
-    "Computer",
-    "EventCode",
-    "EventID",
-    "EventRecordID",
-    "TargetUserName",
-    "TargetDomainName",
-    "ServiceName",
-    "ServiceSid",
-    "TicketOptions",
-    "TicketEncryptionType",
-    "IpAddress",
-    "IpPort",
-    "Status",
-    "LogonGuid",
-    "user",
-    "src",
-    "service_name",
-    "service"
-  ],
   "references": [
     {
       "title": "Microsoft Security Auditing Event 4769 fields and encryption values",
@@ -109,21 +75,45 @@
   ],
   "detectionType": "TTP",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "TargetUserName",
+    "TargetDomainName",
+    "ServiceName",
+    "ServiceSid",
+    "TicketOptions",
+    "TicketEncryptionType",
+    "IpAddress",
+    "IpPort",
+    "Status",
+    "LogonGuid",
+    "user",
+    "src",
+    "service_name",
+    "service"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Active Directory domain controllers generating Security 4769 for Kerberos service-ticket requests. Include every KDC to avoid splitting requester activity or creating blind spots. WEF/WEC must preserve original Computer, IpAddress, EventRecordID, ticket fields, and event time while preventing duplicate direct collection.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4769/RC4 guidance, Splunk Add-on/Security Content, and MITRE ATT&CK T1558.003/DET0157; audit policy, XML fixtures, 30-day baseline, SPL, tickets, alert delivery, CIM parity, suppression, and response not executed or AD/SOC SME-signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4769/RC4 guidance, Splunk Add-on/Security Content, and MITRE ATT&CK T1558.003/DET0157; audit policy, XML fixtures, 30-day baseline, SPL, tickets, alert delivery, CIM parity, suppression, and response not executed or AD/SOC SME-signed",
   "cost": {
     "tier": "high",
     "search_load": "moderate",
@@ -140,6 +130,16 @@
   },
   "detailedImplementation": "## Prerequisites and threshold\n\nAssign AD/Kerberos, Windows audit, Splunk collection, identity detection, endpoint, and incident-response owners. Inventory all DCs/KDCs, service accounts/SPNs, AES support, approved RC4 dependencies, requesters, scanners, and address translation. Install `Splunk_TA_windows` 10.0.1 and test exact OS/forwarder/add-on/Splunk versions. Enable Success **Audit Kerberos Service Ticket Operations** through controlled GPO and verify 4769 on every DC.\n\nThe seed threshold is **at least 4 distinct non-computer services per requester and source address in 60 minutes**. It is chosen as a transparent low-volume burst heuristic consistent with ATT&CK/Splunk guidance to look for unusual numbers, not as a vendor universal. Baseline at least 30 days by requester/source role, measure percentiles, replay attacks, and document any adjustment. Keep companion detections for each unusual RC4 request and for behavioral/AES Kerberoasting.\n\n## Step 1 — Collect Security XML\n\nConfigure a governed `inputs.conf` Security modular input with `renderXml=true`, `index=wineventlog`, and an approved checkpoint. Validate using `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, EventCode 4769, Computer, EventRecordID, requester, service, encryption, source address/port, Status, TicketOptions, and LogonGuid against raw Event Viewer XML. Build separate source-health coverage for every DC. For WEF/WEC, preserve original Computer and event time, measure latency, and prevent duplicate collection.\n\n## Step 2 — Save and understand the search\n\nSave as `windows_kerberoasting_rc4_service_burst`; schedule hourly at minute 5. `earliest=-70m@m latest=-10m@m` forms one closed 60 minute window delayed 10 minutes. Shift both bounds equally if p99 arrival latency requires more delay.\n\nThe search requires successful 4769, RC4-HMAC 0x17, nonempty requester/source/service, and excludes krbtgt and service names ending `$`. It normalizes IPv4-mapped IPv6. `stats` groups only by requester/source/encryption and counts distinct service names; one row appears at four. Values retain services, DCs, event IDs, and times. The filter does not claim every service name is an SPN string; in 4769 it identifies the requested service account/name.\n\nNo Authentication `tstats` substitute is claimed because TicketEncryptionType and native evidence are essential. If adding accelerated enrichment, compare fixed-window row counts and fields, model constraints, and acceleration lag against raw XML.\n\n## Step 3 — Validate boundaries and evasion\n\nReplay the four-event positive fixture with fixed times and assert one exact aggregate. Add a fifth and confirm count five. Run every negative separately: three services, repeated service, AES, failure, computer service, krbtgt, split identity/source, wrong event/source/type, null identity, earliest inclusion, latest exclusion, and outside window. Test `::ffff:` normalization and case variations.\n\nIn an authorized isolated AD lab, use a dedicated low-privilege account and safe Kerberos test tooling to request tickets for four lab SPNs configured for RC4, then destroy tickets and reset/reconfigure test accounts. Do not crack production tickets. Capture DC 4769 records, process/source evidence, search job, notification, and cleanup. Also test one RC4 request to demonstrate this aggregate intentionally does not fire.\n\nRecord GPO, DC coverage, account/SPNs, encryption configuration, tool/source, versions, exact UTC bounds, fixture hashes, expected/actual rows, job ID, alert receipt, cleanup, and owner sign-off. Keep `status=draft` until coverage, baseline, semantics, boundaries, evasion, alerting, dashboard RBAC, response, and exceptions are accepted.\n\n## Step 4 — Triage and respond\n\nVerify underlying XML and aggregate membership. Resolve requester SID/account and source endpoint; confirm DHCP/NAT/VPN mapping. Inspect each target SPN's owner, privilege, password age, managed-service-account status, supported encryption types, and legitimate requester graph. Correlate requester authentication, endpoint process/command line, PowerShell, ticket cache, downloads, network activity, and other identity alerts. Determine whether the pattern is expected service operation, legacy RC4 debt, or ticket harvesting.\n\nIf malicious, contain the source/account with AD-owner coordination, preserve evidence, reset targeted service credentials using dependency-aware procedures, move services to gMSA/AES where feasible, hunt subsequent use, and assess privilege exposure. Do not disable RC4 domain-wide, reset many service accounts, isolate a DC, or rotate credentials automatically from one aggregate; compatibility testing and incident scope are required.\n\n## Step 5 — Troubleshoot\n\n- **No 4769:** verify audit policy, DC Security log, XML input, filters, routing, and search role.\n- **TicketEncryptionType null:** inspect raw XML and add-on version/search context; do not infer RC4 from service type.\n- **Too many candidates:** inventory legitimate RC4, baseline by role, and use exact finite exceptions; retain a migration backlog.\n- **Requester/source wrong:** validate TargetUserName and IpAddress against Microsoft semantics and normalize IPv4-mapped IPv6; do not substitute DC Computer as source.\n- **Threshold misses a test:** verify four distinct non-`$`, non-krbtgt services in the same requester/source and closed window.\n- **Late or duplicate records:** measure `_indextime-_time`, WEF queues, and Computer/EventRecordID; shift bounds or repair topology.\n- **CIM differs:** retain raw XML because this analytic depends on native encryption and event identity.",
   "grandmaExplanation": "We look for one account and computer asking for several older-style service tickets in a short period. That pattern can mean someone is collecting encrypted tickets to guess important service passwords later.",
+  "hardware": "Active Directory domain controllers generating Security 4769 for Kerberos service-ticket requests. Include every KDC to avoid splitting requester activity or creating blind spots. WEF/WEC must preserve original Computer, IpAddress, EventRecordID, ticket fields, and event time while preventing duplicate direct collection.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

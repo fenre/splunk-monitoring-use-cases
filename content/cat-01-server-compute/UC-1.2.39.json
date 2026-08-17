@@ -18,15 +18,6 @@
   },
   "dataSources": "Microsoft-Windows-Security-Auditing Event IDs 4706, 4707, and 4716 from every Active Directory domain controller's Security channel, collected in XML with Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) version 10.0.1. The example uses local `index=wineventlog`, `sourcetype=XmlWinEventLog`, and `source=XmlWinEventLog:Security`. Required common fields are `Computer`, `EventCode` or `EventID`, `EventRecordID`, `DomainName`, `DomainSid`, `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, and `SubjectLogonId`; 4706/4716 can also provide `TdoType`, `TdoDirection`, `TdoAttributes`, and `SidFilteringEnabled`. Enable Success Audit Authentication Policy Change.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, for Security XML collection and Windows field knowledge. Splunkbase lists Splunk Enterprise 9.3 through current 10.x and Splunk Cloud support at review time. Test upgrades, especially across the documented 5.0.0 breaking-change boundary. Splunk Enterprise Security is optional for identity and risk enrichment.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" (EventCode=4706 OR EventCode=4707 OR EventCode=4716) earliest=-70m@m latest=-10m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), domain_controller=lower(trim(coalesce(dest,Computer,host))), subject_account=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), trusted_domain=lower(trim(DomainName)), trusted_domain_sid=trim(DomainSid), trust_type_raw=trim(TdoType), trust_direction_raw=trim(TdoDirection), trust_attributes_raw=trim(TdoAttributes), sid_filtering_raw=trim(SidFilteringEnabled)\n| where event_code IN (4706,4707,4716) AND len(domain_controller)>0\n| eval action=case(event_code=4706,\"trust_created\",event_code=4707,\"trust_removed\",event_code=4716,\"trust_modified\"), trust_type=case(trust_type_raw=\"1\",\"downlevel\",trust_type_raw=\"2\",\"uplevel\",trust_type_raw=\"3\",\"MIT\",trust_type_raw=\"4\",\"DCE\",true(),\"not_reported\"), trust_direction=case(trust_direction_raw=\"0\",\"disabled\",trust_direction_raw=\"1\",\"inbound\",trust_direction_raw=\"2\",\"outbound\",trust_direction_raw=\"3\",\"bidirectional\",true(),\"not_reported\"), detection=\"Active Directory domain trust changed\"\n| table _time domain_controller action subject_account SubjectUserSid SubjectLogonId trusted_domain trusted_domain_sid trust_type trust_type_raw trust_direction trust_direction_raw trust_attributes_raw sid_filtering_raw EventRecordID detection source sourcetype\n| sort 0 -_time domain_controller trusted_domain action",
   "description": "Reports one row for each domain-controller Security event 4706, 4707, or 4716 in the delayed closed hour, at trust-change-event grain. It labels creation, removal, or modification and retains the subject token, trusted-domain identity, reported new trust settings, SID-filtering value, and Windows record identity.",
   "value": "Domain trusts can extend authentication and authorization across major security boundaries. Prompt review of every creation, removal, or modification helps identity owners stop unauthorized access paths, avoid outages caused by accidental trust changes, verify SID-filtering and direction, and preserve evidence before a temporary malicious change is reverted.",
@@ -37,27 +28,6 @@
   ],
   "schema": "Microsoft Security 4706/4707/4716 native XML fields with optional high-level Splunk CIM Change normalization",
   "dataModelAcceleration": "No `cimSpl` is supplied. A generic Change dataset may not preserve the event-specific difference between creation/removal/modification, DomainSid, TdoType, TdoDirection, TdoAttributes, SidFilteringEnabled, SubjectLogonId, or EventRecordID and can mix unrelated changes. If local Change normalization is used, constrain exact event IDs/action and prove fixed-window row/field parity and acceleration freshness against raw XML.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "host",
-    "dest",
-    "Computer",
-    "EventCode",
-    "EventID",
-    "EventRecordID",
-    "DomainName",
-    "DomainSid",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "TdoType",
-    "TdoDirection",
-    "TdoAttributes",
-    "SidFilteringEnabled"
-  ],
   "references": [
     {
       "title": "Microsoft Security Event 4706: a new trust was created to a domain",
@@ -106,21 +76,41 @@
   ],
   "detectionType": "TTP",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "host",
+    "dest",
+    "Computer",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "DomainName",
+    "DomainSid",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "TdoType",
+    "TdoDirection",
+    "TdoAttributes",
+    "SidFilteringEnabled"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Active Directory domain controllers running Windows Server 2008 or later and generating authentication-policy-change events. Collect every DC because trust operations and password resets can be recorded on different controllers. WEF/WEC must preserve original Computer, EventRecordID, subject and Tdo fields, and event time while avoiding duplicate direct collection.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Events 4706/4707/4716, Authentication Policy Change and trustDirection documentation, Splunk Add-on, and MITRE ATT&CK T1484.002/DET0458; audit coverage, XML fixtures, trust changes, inventories, SPL, alert delivery, CIM parity, suppression, and response not executed or AD/SOC SME-signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Events 4706/4707/4716, Authentication Policy Change and trustDirection documentation, Splunk Add-on, and MITRE ATT&CK T1484.002/DET0458; audit coverage, XML fixtures, trust changes, inventories, SPL, alert delivery, CIM parity, suppression, and response not executed or AD/SOC SME-signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -137,6 +127,16 @@
   },
   "detailedImplementation": "## Prerequisites and field contracts\n\nAssign AD forest/trust, authentication policy, network/resource access, Splunk collection, SOC, incident-response, and exception owners. Inventory every trust by immutable DomainSid, DNS/NetBIOS name, direction, type, attributes, SID-filtering/selective-authentication posture, owner, dependencies, and approved management hosts. Install `Splunk_TA_windows` 10.0.1 and test exact Windows/forwarder/add-on/Splunk versions.\n\nEnable Success **Audit Authentication Policy Change** through governed GPO on all DCs. The collector reads Security; the search role reads `index=wineventlog` and schedules the alert but cannot modify trusts or exception data. Restrict trust topology and subject data.\n\nMicrosoft defines 4706 creation, 4707 removal, and 4716 modification. Only 4706/4716 provide Tdo settings; 4707 provides domain identity and subject. For 4716, DomainName or settings can be `-` or old values when not changed, and the event does not expose previous values or say exactly which attribute changed. ANONYMOUS LOGON can indicate automatic trust-password reset. Preserve raw values and compare authoritative before/after inventory.\n\n## Step 1 — Collect and verify XML\n\nConfigure the Security modular input in governed `inputs.conf` with `renderXml=true`, `index=wineventlog`, and documented checkpoint/start/filter settings. Validate with `splunk btool inputs list --debug` and **Settings > Data Inputs**. Confirm `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, event IDs, Computer, EventRecordID, subject fields, DomainName/Sid, and Tdo/SID-filtering fields against raw Event Viewer XML for each event type.\n\nBuild DC Security-source and audit-policy coverage separately. Trust events are rare, so absence is not health proof. For WEF/WEC, preserve original Computer and event identity, measure `_indextime-_time`, and prevent duplicate direct collection.\n\n## Step 2 — Save and understand the search\n\nSave as `windows_ad_domain_trust_change` and schedule hourly at minute 5. Embedded `earliest=-70m@m latest=-10m@m` creates one closed 60 minute window delayed 10 minutes; move both bounds equally when p99 latency requires it.\n\nThe base search restricts exact XML Security and three IDs, normalizes controller, subject, domain identity, and raw Tdo values, then reasserts valid IDs and endpoint. `action` is event-derived. Type and direction decode only documented 1-4 and 0-3 values; absent/placeholders remain `not_reported`. Attributes and SID-filtering remain raw to avoid incorrect bitmask/localization claims. One source event remains one row with EventRecordID.\n\nNo generic Change `tstats` equivalent is claimed. If a local model is used, constrain exact IDs/actions and prove row/field parity and acceleration freshness against fixed raw windows.\n\n## Step 3 — Validate events and boundaries\n\nReplay the three positive XML fixtures at fixed times and assert exact actions, type/direction decoding, raw values, subjects, domain identity, and record IDs. Run each negative separately, including 4675/4867/5136/4739, wrong source/type, malformed code, null controller, earliest inclusion, latest exclusion, and outside window. Test 4716 placeholders and ANONYMOUS LOGON inclusion.\n\nIn an authorized isolated multi-domain lab, export trust state with `Get-ADTrust` or equivalent, create a test trust with approved values, modify one setting, remove it, and verify 4706/4716/4707 in Event Viewer and Splunk. Restore lab state. Separately observe an automatic trust-password reset if safely feasible and correlate 4724/4742. Never alter production trusts for a control test.\n\nRecord GPO, trust before/after, domain SIDs, operator/source, commands, versions, UTC bounds, fixture hashes, expected/actual rows, job ID, notification, access tests, and cleanup. Keep `status=draft` until owners accept coverage, all event types, placeholders/reset behavior, boundaries, dashboard RBAC, response, and exceptions.\n\n## Step 4 — Triage and respond\n\nVerify raw XML, event/action, controller, subject SID/logon ID, domain name/SID, settings, and EventRecordID. Compare current and last-known-good trust inventories from both sides. Determine direction semantics from the local/primary domain perspective. Correlate same-logon authentication/process/PowerShell/admin-tool records, trustedDomain 5136 changes, 4675/4867, automatic-reset companions, change tickets, and cross-trust authentication.\n\nAssess whether creation exposes resources to another domain, removal disrupts dependencies, or modification relaxes filtering/transitivity/delegation. If unauthorized, preserve evidence, restrict the management principal/source through identity-response procedures, and restore the exact approved trust configuration with both forest owners. Hunt use of the temporary trust and forged/federated access. Do not automatically remove a trust, disable a DC account, toggle SID filtering, reset trust passwords, or sever network links from one event; incorrect trust recovery can cause major outages.\n\n## Step 5 — Troubleshoot\n\n- **No events after lab change:** verify audit policy, DC Security log, exact event, XML input, forwarding, routing, and permissions.\n- **4716 says ANONYMOUS LOGON:** correlate expected trust-password reset and 4724/4742; do not blanket-ignore it.\n- **DomainName or settings are `-`:** use DomainSid and before/after inventory; Microsoft documents placeholders/old values.\n- **Direction seems reversed:** interpret inbound/outbound from the primary domain represented by the local TDO and validate both sides.\n- **Attributes unreadable:** preserve decimal raw value and decode with current Microsoft bit definitions in governed enrichment, not ad hoc SPL guesses.\n- **Duplicates or late events:** inspect WEF/direct routes, Computer/EventRecordID, clocks, queues, and `_indextime-_time`; repair topology or shift both time bounds.\n- **CIM differs:** compare exact IDs, mappings, acceleration, and native fields; raw XML and inventory remain authoritative.",
   "grandmaExplanation": "We show when the connection of trust between Windows domains is created, removed, or changed. Because that connection can let people from one domain reach another, the team checks every change against an approved plan.",
+  "hardware": "Active Directory domain controllers running Windows Server 2008 or later and generating authentication-policy-change events. Collect every DC because trust operations and password resets can be recorded on different controllers. WEF/WEC must preserve original Computer, EventRecordID, subject and Tdo fields, and event time while avoiding duplicate direct collection.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

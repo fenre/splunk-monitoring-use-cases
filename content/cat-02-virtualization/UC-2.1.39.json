@@ -26,21 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built complete vSphere HostFirewallRuleset snapshot joined to exact policy",
   "dataModelAcceleration": "Not applicable. CIM does not preserve ESXi managed-object/ruleset identity, allowedHosts allIp/IP/network structures, native required/configurable flags, exact rule definitions, complete snapshot identity, and expected policy.",
-  "requiredFields": [
-    "vcenter",
-    "host_moid",
-    "host",
-    "ruleset_id",
-    "ruleset_label",
-    "enabled",
-    "all_ip",
-    "allowed_scope_canonical",
-    "rules_canonical",
-    "snapshot_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom Virtual Infrastructure API: HostFirewallInfo",
@@ -78,21 +63,36 @@
     "N/A (ESXi firewall policy audit; no adversary behavior asserted)"
   ],
   "detectionType": "Newest complete HostFirewallRuleset state differs from exact approved policy",
+  "requiredFields": [
+    "vcenter",
+    "host_moid",
+    "host",
+    "ruleset_id",
+    "ruleset_label",
+    "enabled",
+    "all_ip",
+    "allowed_scope_canonical",
+    "rules_canonical",
+    "snapshot_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "vCenter-managed ESXi hosts. Firewall rulesets vary by ESXi release, installed VIBs/services, and products; policy must be qualified per supported host class.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware, network-security, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware, network-security, and Splunk validation pending",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -102,6 +102,7 @@
   },
   "detailedImplementation": "## Prerequisites and rule-state boundary\n\nAssign VMware, network security, product/VIB, Splunk, and change owners. Inventory every governed host by stable vCenter/moid, ESXi build/class, installed products, host profile/desired-state authority, management networks, required services, native rulesets, and owner. Define policy for enabled state, all-address permission, exact addresses/networks, and rule definitions per host class; one universal baseline is unsafe across releases/products.\n\nUnderstand the APIs. `HostFirewallRuleset` includes key, label, rule definitions, service, enabled, allowedHosts, required, userControllable, and ipListUserConfigurable. `HostFirewallRulesetIpList.allIp` explicitly means all IP addresses; ipAddress and ipNetwork carry narrower scope. PowerCLI's documented high-level exception object does not expose all those fields, so use the underlying object and test it against each supported release. Never invent `allowedAll` from a missing property.\n\n## Step 1 — Collect complete firewall snapshots\n\nImplement `TA_vmware_esxi_firewall_inventory` on a hardened VCF PowerCLI tier with read-only host configuration privileges. Enumerate every governed host and every HostFirewallInfo ruleset. Canonicalize allowed scope deterministically: `all` only when allIp is true; otherwise sorted exact IPs and normalized network/prefix entries. Canonicalize each rule with port, endPort, direction, portType, and protocol; retain raw JSON in restricted evidence. Do not merge rules with the same label.\n\nEmit rows sharing one unique snapshot ID only after full host/ruleset enumeration. Send permission, unsupported structure, parse, API, and partial-run failures to health. Configure a daily scripted input and explicit JSON source type. Compare representative rules with vSphere Client Host > Configure > Firewall, `esxcli network firewall ruleset list/rule list/allowedip list` as applicable, and raw API. Prove identity and booleans.\n\nCreate `vmware_esxi_firewall_policy.csv` keyed by exact vCenter/host_moid/ruleset_id with expected booleans, canonical allowed scope/rules, owner, version, and effective bounds. Preflight duplicates/conflicts, invalid booleans/scopes, missing expected rules, observed rules without policy, orphan host IDs, and native required/configurable compatibility.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` as `vmware_esxi_firewall_policy_drift` and run after collection. It validates stable identity, booleans, nonblank canonical scope/rules, selects newest host/ruleset row, and rejects snapshots older than 36 hours or from the future. Exact lookup supplies active policy. No active policy is itself `policy_missing`; enabled mismatch, unapproved all-IP, allowed-scope mismatch, and rule-definition mismatch remain separate reasons. An unapproved all-IP result gets local high routing; other drift is medium pending policy risk.\n\nRun separate expected-inventory reconciliation from policy to snapshot so disabled rules that disappear and missing hosts cannot pass. Also monitor collector/cardinality, unsupported structures, default firewall policy, host-profile enforcement, policy duplicates, and snapshot freshness. A zero-row drift search is meaningful only with those controls green.\n\n## Step 3 — Validate all structures\n\nUse fixtures for enabled/disabled; allIp true/false; exact IP, IPv4/IPv6 network, empty narrower scope; multiple rules/directions/protocols; port range; required/nonconfigurable flags; unknown enum/structure; exact/missing/duplicate/expired policy; observed unexpected rule; expected missing rule; older mismatch/newer match; stale/future/partial snapshot; and duplicate delivery. Assert that equivalent qualified canonical inputs match and broader prefixes do not.\n\nIn a nonproduction ESXi host, compare API, Client, and ESXCLI. Under approved isolation, enable/disable a disposable user-controllable ruleset and narrow/restore allowed IP scope while maintaining console/rollback access. Verify each change in the next snapshot and relevant vCenter task/event. Do not expose a production management service to test the detector. Keep draft until host classes and rollback are owner-approved.\n\n## Step 4 — Triage and remediate safely\n\nAlert title should say `ESXi firewall ruleset differs from approved policy`. Include stable identity, actual/expected enabled/all-IP/scope/rules, native flags, policy, source freshness, host build/products, recent tasks, and restricted raw links. Verify live API/ESXCLI and snapshot; confirm policy applicability; inspect installed VIB/product and host-profile authority; test service/listener and reachability separately; identify change/actor from vCenter tasks/audit; and classify approved change, product update, rollout lag, stale policy, unauthorized drift, collector defect, or unresolved.\n\nNever automatically disable, enable, or narrow rules from this alert. A wrong change can remove vCenter, storage, HA, backup, or support connectivity. Use approved VMware procedure with console access, dependency testing, phased rollout, and rollback. Close only when policy remains approved, live and fresh state match, required services work, unintended reachability is addressed, source health is green, and evidence is retained.\n\n## Step 5 — Troubleshoot\n\n- **allIp always blank:** the collector used the high-level PowerCLI object; inspect underlying HostFirewallRuleset.allowedHosts and fail closed on missing data.\n- **Scope mismatches everywhere:** inspect canonical ordering, IPv6 compression, network/prefix conversion, empty-list semantics, and policy generator version.\n- **Rule missing:** verify host build/VIB/service, permissions, complete snapshot, stable key, Host Profile, and expected inventory.\n- **UI differs:** align host/vCenter, refresh time, underlying key versus label, pending task, and raw API.\n- **Changes revert:** inspect Host Profiles, lifecycle/desired-state automation, product agents, and policy authority.\n- **Rule enabled but unreachable:** firewall rule state and reachability are separate; inspect service, default policy, route, upstream firewall, and packet path.\n- **Bulk drift after upgrade:** compare Broadcom release/product changes and policy qualification before any bulk remediation.\n\nRetention follows local governance. This use case audits reported ESXi ruleset state; it does not test or certify the entire network control plane.",
   "grandmaExplanation": "We compare each virtualization host's built-in network-door rules with the exact rules its owners approved. We show whether a door is enabled and who it allows, without pretending that an enabled rule proves someone can actually reach it.",
+  "hardware": "vCenter-managed ESXi hosts. Firewall rulesets vary by ESXi release, installed VIBs/services, and products; policy must be qualified per supported host class.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

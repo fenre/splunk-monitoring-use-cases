@@ -18,14 +18,6 @@
   },
   "dataSources": "Primary source is a governed local scripted input that uses the vSphere API to enumerate ResourcePool managed objects and retrieve each `ResourceConfigSpec`/`config`. Send one JSON snapshot per pool to a deployment-selected events index (example `index=vmware-config`), explicit local `source=vsphere_api:resourcepool_config` and explicit local `sourcetype=vmware:resourcepool:config`. Required normalized fields are vCenter, pool MOID/name/parent, `cpuAllocation.limit` and `.reservation` in MHz, `memoryAllocation.limit` and `.reservation` in MB, expandableReservation, shares, changeVersion, lastModified, collection time and API version. Splunk Add-on hierarchy inventory can corroborate pool name/parent but does not replace this local configuration contract.",
   "app": "A version-controlled local Splunk scripted/modular input or external collector uses a least-privilege vSphere API account and writes resource-pool config JSON through a governed input/HEC token. Splunk Add-on for VMware Metrics (Splunkbase 5089) is optional for hierarchy, VM and performance corroboration. A local app owns the collector, field contract, health, search, dashboard, tests and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "optional"
-    }
-  ],
   "spl": "index=vmware-config source=\"vsphere_api:resourcepool_config\" sourcetype=\"vmware:resourcepool:config\" earliest=-2h@h latest=-1h@h\n| eval vcenter=lower(trim(vcenter)), pool_moid=trim(pool_moid), pool_name=trim(pool_name), cpu_limit_mhz=tonumber('cpuAllocation.limit'), memory_limit_mb=tonumber('memoryAllocation.limit'), cpu_reservation_mhz=tonumber('cpuAllocation.reservation'), memory_reservation_mb=tonumber('memoryAllocation.reservation')\n| where len(vcenter)>0 AND len(pool_moid)>0 AND len(pool_name)>0 AND isnotnull(cpu_limit_mhz) AND isnotnull(memory_limit_mb)\n| stats latest(_time) AS snapshot_time latest(_indextime) AS snapshot_index_time latest(parent_moid) AS parent_moid latest(cpu_limit_mhz) AS cpu_limit_mhz latest(memory_limit_mb) AS memory_limit_mb latest(cpu_reservation_mhz) AS cpu_reservation_mhz latest(memory_reservation_mb) AS memory_reservation_mb latest(changeVersion) AS change_version latest(lastModified) AS config_last_modified BY vcenter pool_moid pool_name\n| where cpu_limit_mhz!=-1 OR memory_limit_mb!=-1\n| eval finite_cpu_limit=if(cpu_limit_mhz!=-1,\"true\",\"false\"), finite_memory_limit=if(memory_limit_mb!=-1,\"true\",\"false\"), use_case=\"UC-2.1.20\"\n| table snapshot_time vcenter pool_moid pool_name parent_moid cpu_limit_mhz memory_limit_mb cpu_reservation_mhz memory_reservation_mb finite_cpu_limit finite_memory_limit change_version config_last_modified snapshot_index_time use_case\n| sort 0 vcenter pool_name",
   "description": "Lists the latest resource-pool configuration snapshot when CPU or memory has a finite hard limit, preserving CPU in MHz and memory in MB. Each row is configuration inventory for owner review, not evidence that the pool is currently constrained.",
   "value": "Hard limits can cap workloads even when parent capacity exists, but they can also implement deliberate service boundaries. A trustworthy inventory lets capacity owners reconcile each finite limit with policy, hierarchy and workload intent before incidents or changes, without pretending static configuration measures utilization.",
@@ -36,22 +28,6 @@
   ],
   "schema": "Locally governed JSON projection of vSphere ResourcePool ResourceConfigSpec",
   "dataModelAcceleration": "No CIM dataset documents resource-pool allocation configuration and hierarchy. Keep the local raw JSON/API field contract authoritative; summary indexes may support trends only after parity checks.",
-  "requiredFields": [
-    "vcenter",
-    "pool_moid",
-    "pool_name",
-    "parent_moid",
-    "cpuAllocation.limit",
-    "cpuAllocation.reservation",
-    "memoryAllocation.limit",
-    "memoryAllocation.reservation",
-    "changeVersion",
-    "lastModified",
-    "_time",
-    "_indextime",
-    "source",
-    "sourcetype"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: ResourcePool config",
@@ -94,6 +70,22 @@
     "N/A (resource-allocation configuration inventory; no adversary behavior asserted)"
   ],
   "detectionType": "Latest finite resource-pool hard-limit inventory",
+  "requiredFields": [
+    "vcenter",
+    "pool_moid",
+    "pool_name",
+    "parent_moid",
+    "cpuAllocation.limit",
+    "cpuAllocation.reservation",
+    "memoryAllocation.limit",
+    "memoryAllocation.reservation",
+    "changeVersion",
+    "lastModified",
+    "_time",
+    "_indextime",
+    "source",
+    "sourcetype"
+  ],
   "equipment": [
     "vmware"
   ],
@@ -101,7 +93,6 @@
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "hardware": "vCenter ResourcePool managed objects and descendants. Effective workload behavior depends on hierarchy, shares, reservations, limits, contention and VM performance.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/API/Splunk SME validation pending",
@@ -114,6 +105,15 @@
   },
   "detailedImplementation": "## Prerequisites and local-contract boundary\n\nAssign vSphere capacity, API, workload, Splunk and change owners. Inventory vCenters, ResourcePool MOIDs/hierarchy, policy, owners and expected polling. Broadcom defines CPU allocation in MHz, memory allocation in MB, reservation as guaranteed amount, and limit as maximum usage; `-1` means no fixed limit. A finite limit does not prove utilization or throttling.\n\nSplunk Add-on for VMware Metrics documents hierarchy entities but no dedicated resource-pool config sourcetype/allocation-field contract. Therefore `index=vmware-config`, `source=vsphere_api:resourcepool_config` and `sourcetype=vmware:resourcepool:config` are explicit local conventions, not vendor add-on claims.\n\n## Step 1 — Build and secure collection\n\nUse the vSphere API ResourcePool config property through a version-pinned, reviewed collector. Enumerate stable pool managed-object references, retrieve ResourceConfigSpec, and emit one JSON event per pool with vCenter, pool MOID/name/parent, full cpuAllocation and memoryAllocation, changeVersion, lastModified, API version and collection time. Preserve raw response or a hash plus immutable collector revision.\n\nPackage the collector as a reviewed modular input or equivalent external service with a documented 60-minute poll interval. Use a least-privilege read-only vCenter account, TLS validation and secret storage. Send through a dedicated HEC token or scripted input with only target-index rights. Bound polling, pagination, retries and backoff; checkpoint by vCenter/pool without dropping unchanged-state heartbeats needed for freshness. Do not grant resource-pool update rights.\n\nValidate raw API against vSphere Client Resource Pool > Configure > Resource Allocation for representative nested, unlimited and finite pools. Prove MHz/MB and `-1`. Build health for expected pools, API/HTTP status, auth, pagination, duplicate MOID, schema/type/unit, event count, stale/future time, checkpoint and HEC/index errors.\n\n## Step 2 — Save the inventory search\n\nSave sidecar SPL as `vsphere_resource_pool_hard_limits`, hourly. The delayed closed range allows one complete collection cycle; tune bounds to measured cadence without overlap.\n\nThe query fixes all local source identifiers, normalizes numeric allocation fields, requires pool identity and both limits, selects time-latest state by vCenter/MOID/name, and returns rows where either limit differs from -1. Zero is finite and can be highly restrictive; it must not be treated as unlimited. CPU and memory remain in native units. No utilization percentage is calculated.\n\n## Step 3 — Validate semantics and hierarchy\n\nUse fixtures for both unlimited, CPU-only, memory-only, both finite, zero, equal reservation/limit, reservation greater than malformed limit, blank, string/number type, duplicate snapshot, stale, rename/move, same MOID on different vCenters and API schema change. Assert units and exact `-1` behavior.\n\nCompare current API, vSphere Client and Splunk at the same revision. Join separately to hierarchy and VM membership, then to resource-pool or descendant workload performance only after proving entity/time mapping. If utilization monitoring is desired, collect documented resource-pool performance counters with a separate tested contract; do not derive it from static allocation.\n\n## Step 4 — Operationalize and respond\n\nDashboard limits/reservations with hierarchy, owner, policy, current corroborating demand and health. Triage by verifying raw snapshot/revision; checking current vSphere config; reviewing parent/descendant shares and expandable reservation; identifying affected VMs/service tiers; comparing performance/contention; and matching approved policy/change.\n\nNever automatically set limit to -1, modify reservation/shares, move VMs or pools, or change DRS from inventory alone. Resource changes can shift contention or violate guarantees. Require capacity/workload approval, impact analysis, maintenance where needed, rollback and post-change evidence.\n\n## Step 5 — Troubleshoot\n\n- Missing pool: verify API enumeration/pagination, permissions, deleted/moved object, checkpoint and expected inventory.\n- `-1` parsed null: preserve signed numeric value and test JSON flattening/tonumber; never coerce missing to unlimited.\n- Values disagree with UI: align vCenter, MOID, revision/time, parent context and units.\n- Duplicate names: key on vCenter+MOID; names are display fields.\n- No rows: verify at least one finite limit and source health; zero findings can be valid.\n- Suspected throttling: collect resource-pool/VM demand, limit-hit and performance evidence; static config alone cannot prove impact.\n- Collector fails: inspect API/TLS/auth/rate/pagination/HEC logs and alert through source health, not this inventory query.\n\nKeep status draft until VMware, API and Splunk owners validate collector security, parity, fixtures and response. Documentation review does not instantiate or validate the local collector.",
   "grandmaExplanation": "We list virtual-machine resource groups that have a fixed ceiling on processor or memory use. A ceiling may be intentional, so the team checks the policy, the group hierarchy and real performance before changing it.",
+  "hardware": "vCenter ResourcePool managed objects and descendants. Effective workload behavior depends on hierarchy, shares, reservations, limits, contention and VM performance.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "optional"
+    }
+  ],
   "wave": "crawl"
 }

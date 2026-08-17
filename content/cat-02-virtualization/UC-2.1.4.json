@@ -16,26 +16,6 @@
   },
   "dataSources": "Local VMware PowerCLI scripted input with Splunk Add-on for VMware (Splunkbase 3215) topology/events as corroboration. `index=vmware-ops`, `sourcetype=vmware:powercli:datastore_latency`; required explicit fields: entity_id, entity_name, read_latency_ms, write_latency_ms, sample_time, vcenter. Values originate from documented `Get-Stat` counter names `datastore.totalReadLatency.average` and `datastore.totalWriteLatency.average`, measured in milliseconds.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-ops sourcetype=\"vmware:powercli:datastore_latency\" earliest=-20m@m latest=-5m@m\n| eval entity_id=trim(entity_id), entity_name=trim(entity_name), read_ms=tonumber(read_latency_ms), write_ms=tonumber(write_latency_ms), sample_epoch=strptime(sample_time,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(entity_id)>0 AND len(entity_name)>0 AND isnotnull(sample_epoch) AND ((isnotnull(read_ms) AND read_ms>=0) OR (isnotnull(write_ms) AND write_ms>=0))\n| stats count as sample_count avg(read_ms) as avg_read_ms max(read_ms) as max_read_ms avg(write_ms) as avg_write_ms max(write_ms) as max_write_ms latest(vcenter) as vcenter by entity_id entity_name\n| eval worst_avg_ms=max(avg_read_ms,avg_write_ms)\n| where worst_avg_ms>=20\n| eval use_case_id=\"UC-2.1.4\", threshold_ms=20, window=\"15 minutes\", local_severity=case(worst_avg_ms>=50,\"high\",true(),\"medium\")\n| table entity_name entity_id vcenter sample_count avg_read_ms max_read_ms avg_write_ms max_write_ms worst_avg_ms threshold_ms window local_severity use_case_id\n| sort 0 -worst_avg_ms entity_name",
   "description": "Reports VMware entities whose documented datastore read or write latency counter averages at least 20 milliseconds across a delayed 15-minute observation window, with separate average and peak values.",
   "value": "Sustained storage delay can lengthen application response, backup, snapshot, and migration work even when capacity remains available. A direction-specific signal narrows triage toward affected datastores, hosts, workloads, paths, and backend systems.",
@@ -79,22 +59,44 @@
     "vcenter"
   ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe primary SPL uses the local governed event index `index=vmware-ops` and the explicit scripted-input sourcetype documented below; neither is a Splunk product default. Create the index, source type, retention, ACL, heartbeat, and JSON field contract in the local virtualization app before enabling the search. Splunk's `vmware-perf`, `vmware-inv`, and `vmware-taskevent` defaults remain corroborating add-on sources where stated. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nInstall a supported VMware PowerCLI module on a controlled Heavy Forwarder and create a five-minute scripted input. For each governed VM or host entity, call `Get-Stat -Stat datastore.totalReadLatency.average,datastore.totalWriteLatency.average` over the bounded poll interval. VMware documents these counters as average milliseconds; serialize the entity's stable ID/name, exact counter value, sample timestamp, and vCenter into the snake-case contract. Emit a separate run-complete heartbeat even when no samples are available.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-ops (sourcetype=\"vmware:powercli:datastore_latency\" OR sourcetype=\"vmware:powercli:datastore_latency:heartbeat\") earliest=-30m\n| stats count latest(_time) as latest_poll dc(entity_id) as entity_count values(read_latency_ms) as read_values values(write_latency_ms) as write_values by sourcetype\n| convert ctime(latest_poll)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_datastore_latency_20ms` after substituting only an approved local index name. Run every 15 minutes over `earliest=-20m@m latest=-5m@m`; trigger when any row exists and throttle by entity for one window.\n\n```spl\nindex=vmware-ops sourcetype=\"vmware:powercli:datastore_latency\" earliest=-20m@m latest=-5m@m\n| eval entity_id=trim(entity_id), entity_name=trim(entity_name), read_ms=tonumber(read_latency_ms), write_ms=tonumber(write_latency_ms), sample_epoch=strptime(sample_time,\"%Y-%m-%dT%H:%M:%S.%Q%z\")\n| where len(entity_id)>0 AND len(entity_name)>0 AND isnotnull(sample_epoch) AND ((isnotnull(read_ms) AND read_ms>=0) OR (isnotnull(write_ms) AND write_ms>=0))\n| stats count as sample_count avg(read_ms) as avg_read_ms max(read_ms) as max_read_ms avg(write_ms) as avg_write_ms max(write_ms) as max_write_ms latest(vcenter) as vcenter by entity_id entity_name\n| eval worst_avg_ms=max(avg_read_ms,avg_write_ms)\n| where worst_avg_ms>=20\n| eval use_case_id=\"UC-2.1.4\", threshold_ms=20, window=\"15 minutes\", local_severity=case(worst_avg_ms>=50,\"high\",true(),\"medium\")\n| table entity_name entity_id vcenter sample_count avg_read_ms max_read_ms avg_write_ms max_write_ms worst_avg_ms threshold_ms window local_severity use_case_id\n| sort 0 -worst_avg_ms entity_name\n```\n\nUnderstanding this SPL: Numeric and nonnegative checks reject malformed metrics. `stats` averages each direction and retains peaks/sample density. `max(avg_read_ms,avg_write_ms)` evaluates the worse direction against a transparent 20 ms local threshold. It does not infer cause or service impact.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nCompare two named entities and the same interval with PowerCLI `Get-Stat` and vSphere Client **Monitor > Performance > Advanced**, selecting datastore read latency and write latency. Verify milliseconds, entity scope, sample time, counter rollup and vCenter. Exercise a controlled storage benchmark only in an isolated lab with storage-owner approval; validate no-I/O and failed-script heartbeats separately.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nVerify raw values/time/entity; establish read versus write direction and persistence; add IOPS, throughput, queue, kernel/device latency and path state; correlate snapshots, backups, Storage vMotion and array work; compare affected peers and guest/application latency; then route to virtualization, storage, network, or workload owner. Remediation follows the storage runbook, never this row alone.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf the heartbeat exists but metrics are null, run `Get-Stat` interactively with the same service account, verify counter availability/statistics level/entity type, and inspect script serialization. If vSphere differs, align exact entity, counter, sample interval and rollup. If the heartbeat is absent, repair the scripted input/module/authentication before interpreting silence. If spikes disappear in averages, design a separately reviewed peak analytic rather than silently altering this contract.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We time how long shared storage takes to read and write. When it stays slower than the team's limit, we show which area needs investigation.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -17,26 +17,6 @@
   },
   "dataSources": "Splunk Add-on for VMware (Splunkbase 3215) `hostvmperf` API collection into documented default `index=vmware-perf`, `sourcetype=vmware:perf:mem`. Required extracted fields: p_average_mem_vmmemctl_kiloBytes, p_average_mem_swapped_kiloBytes or p_average_mem_swapused_kiloBytes, moid, and an entity name; host and `_indextime` support provenance and delay checks.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-perf sourcetype=\"vmware:perf:mem\" earliest=-20m@m latest=-5m@m\n| eval entity=coalesce(vm_name, name, moid, host), balloon_kb=tonumber(p_average_mem_vmmemctl_kiloBytes), swapped_kb=tonumber(coalesce(p_average_mem_swapped_kiloBytes,p_average_mem_swapused_kiloBytes))\n| where len(entity)>0 AND (isnotnull(balloon_kb) OR isnotnull(swapped_kb))\n| stats count as sample_count avg(balloon_kb) as avg_balloon_kb max(balloon_kb) as max_balloon_kb avg(swapped_kb) as avg_swapped_kb max(swapped_kb) as max_swapped_kb latest(host) as collector_host by entity moid\n| where max_balloon_kb>0 OR max_swapped_kb>0\n| eval use_case_id=\"UC-2.1.2\", window=\"15 minutes\", local_severity=case(max_swapped_kb>0,\"high\",max_balloon_kb>0,\"medium\")\n| table entity moid collector_host sample_count avg_balloon_kb max_balloon_kb avg_swapped_kb max_swapped_kb window local_severity use_case_id\n| sort 0 -max_swapped_kb -max_balloon_kb entity",
   "description": "Reports each VMware entity with documented ballooned-memory or swapped-memory performance values above zero in a delayed 15-minute window, preserving sample count and average/maximum kilobytes.",
   "value": "Ballooning and hypervisor swap consume reclamation mechanisms that can accompany constrained memory and guest latency. A bounded view helps platform teams identify affected VMs, compare placement and demand, and investigate before workload impact broadens.",
@@ -79,22 +59,44 @@
     "host"
   ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nEnable `hostvmperf`; Splunk documents its default interval as 180 seconds. Confirm `vmware:perf:mem` contains the exact add-on fields `p_average_mem_vmmemctl_kiloBytes` and either `p_average_mem_swapped_kiloBytes` or `p_average_mem_swapused_kiloBytes` for the entity scope you intend to monitor. VMware describes ballooned and swapped memory as quantities, not root-cause labels. Keep host and VM scopes distinguishable and do not combine unlike entities into one threshold.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-perf sourcetype=\"vmware:perf:mem\" earliest=-30m\n| stats count latest(_time) as latest_event values(p_average_mem_vmmemctl_kiloBytes) as balloon_values values(p_average_mem_swapused_kiloBytes) as swap_values by moid host\n| convert ctime(latest_event)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_memory_reclamation_activity` after substituting only an approved local index name. Run every 15 minutes; `earliest=-20m@m latest=-5m@m` creates one delayed 15-minute observation window. Measure delay before changing the five-minute offset.\n\n```spl\nindex=vmware-perf sourcetype=\"vmware:perf:mem\" earliest=-20m@m latest=-5m@m\n| eval entity=coalesce(vm_name, name, moid, host), balloon_kb=tonumber(p_average_mem_vmmemctl_kiloBytes), swapped_kb=tonumber(coalesce(p_average_mem_swapped_kiloBytes,p_average_mem_swapused_kiloBytes))\n| where len(entity)>0 AND (isnotnull(balloon_kb) OR isnotnull(swapped_kb))\n| stats count as sample_count avg(balloon_kb) as avg_balloon_kb max(balloon_kb) as max_balloon_kb avg(swapped_kb) as avg_swapped_kb max(swapped_kb) as max_swapped_kb latest(host) as collector_host by entity moid\n| where max_balloon_kb>0 OR max_swapped_kb>0\n| eval use_case_id=\"UC-2.1.2\", window=\"15 minutes\", local_severity=case(max_swapped_kb>0,\"high\",max_balloon_kb>0,\"medium\")\n| table entity moid collector_host sample_count avg_balloon_kb max_balloon_kb avg_swapped_kb max_swapped_kb window local_severity use_case_id\n| sort 0 -max_swapped_kb -max_balloon_kb entity\n```\n\nUnderstanding this SPL: `tonumber` rejects nonnumeric extractions; `stats` creates one entity row and exposes sample density plus average and maximum values. A row requires a positive maximum balloon or swap value. Swap raises local priority, but neither counter alone proves user-visible impact or physical-host exhaustion.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nIn vSphere Client, select the same VM or host and compare the matching memory performance counters for the exact interval. Validate one idle VM, one intentionally constrained lab VM, and one entity with no counter permission. Confirm KB units from Splunk's field name/reference and do not convert to percent without a documented denominator. Test alias behavior separately because host and VM counter availability can differ.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nTriage in order: validate raw sample/entity/time; establish whether balloon, swap, or both persisted; compare active, consumed, granted, and guest memory; check reservations/limits and host free capacity; correlate vMotion/DRS, snapshots/backups, and workload changes; then classify transient reclamation, configured constraint, host contention, guest issue, or source defect. Capacity or placement changes require VMware and workload-owner approval.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf balloon is always null, verify the field in Splunk's performance reference, metric allow/deny lists, entity scope, collection level, and raw payload. If swap is null but balloon exists, verify whether that counter is available for the entity/version and which documented alias the extraction emits. If values duplicate, check overlapping DCNs and repeated jobs. If values disagree with vCenter, align entity, interval, rollup, timezone, and statistic rather than applying a conversion guess.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We show when the virtual platform starts borrowing memory back from a machine or moving some of it to disk, so the team can check whether that machine is running short.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

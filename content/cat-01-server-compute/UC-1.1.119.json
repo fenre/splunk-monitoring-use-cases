@@ -18,14 +18,6 @@
   },
   "dataSources": "Primary signal: `index=os sourcetype=ps` multi-line process-table snapshots emitted by the supported `ps.sh` scripted event input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), collected every five minutes for this design. `multikv` expands each table event into rows. Current Linux output exposes `PID`, `STAT`, `COMMAND`, and `USER`; add-on 8.7.0+ documentation maps legacy `S` to raw `STAT` while retaining backward compatibility. Splunk supplies `_time` and `host`. The index name and five-minute interval are deployment choices, not vendor defaults. Linux `ps` and `/proc/<pid>/{stat,status}` are response-side comparison sources, not additional indexed inputs in the base rule.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), deployed to Linux collection forwarders and to the Splunk tiers that require its parsing and search-time knowledge. No custom collector, Universal Forwarder marketplace app, premium app, or HTTP Event Collector input is required.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833/",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=os sourcetype=ps host=* earliest=-25m@m latest=-5m@m\n| multikv\n| eval process_id=tostring(coalesce(PID,pid,process_id)), process_state=trim(coalesce(STAT,S,stat)), process_name=coalesce(COMMAND,process_name,\"(command unavailable)\"), process_user=coalesce(USER,user,\"(user unavailable)\")\n| where match(process_id,\"^[0-9]+$\") AND isnotnull(process_state)\n| eval is_zombie=if(match(process_state,\"^Z\"),1,0), zombie_pid=if(is_zombie=1,process_id,null()), zombie_detail=if(is_zombie=1,process_name.\" [PID=\".process_id.\", USER=\".process_user.\", STATE=\".process_state.\"]\",null())\n| stats dc(zombie_pid) as zombie_count values(zombie_detail) as zombie_processes count as parsed_process_rows by _time host\n| eval observed_at=_time\n| bin _time span=5m\n| stats latest(zombie_count) as zombie_count latest(zombie_processes) as zombie_processes latest(parsed_process_rows) as parsed_process_rows latest(observed_at) as observed_at by _time host\n| sort 0 host _time\n| streamstats current=f window=1 last(zombie_count) as previous_zombie_count by host\n| eval zombie_delta=if(isnotnull(previous_zombie_count),zombie_count-previous_zombie_count,null())\n| eventstats count as observed_buckets min(_time) as first_bucket max(_time) as last_bucket earliest(zombie_count) as first_zombie_count latest(zombie_count) as current_zombie_count min(zombie_count) as min_zombie_count max(zombie_count) as max_zombie_count sum(eval(if(zombie_delta>0,1,0))) as increasing_steps sum(eval(if(isnotnull(zombie_delta) AND zombie_delta>=0,1,0))) as nondecreasing_steps by host\n| eval current_threshold=10, net_growth_threshold=5, net_growth=current_zombie_count-first_zombie_count, growth_rate_per_minute=round(net_growth/15,2)\n| where observed_buckets=4 AND last_bucket-first_bucket=900 AND nondecreasing_steps=3 AND increasing_steps>=2 AND current_zombie_count>=current_threshold AND net_growth>=net_growth_threshold AND _time=last_bucket\n| rename parsed_process_rows as current_parsed_process_rows zombie_processes as current_zombie_processes\n| convert ctime(first_bucket) ctime(last_bucket) ctime(observed_at)\n| table first_bucket last_bucket observed_at host current_zombie_count first_zombie_count min_zombie_count max_zombie_count net_growth growth_rate_per_minute increasing_steps nondecreasing_steps current_threshold net_growth_threshold current_parsed_process_rows current_zombie_processes\n| sort 0 -net_growth -current_zombie_count host",
   "description": "Reports a Linux host when four consecutive observed `ps.sh` buckets show a nondecreasing zombie count, at least two upward transitions, net growth of five or more, and at least ten zombies in the latest closed bucket. It expands table snapshots, recognizes current `STAT` and legacy `S`, counts distinct numeric PIDs per snapshot, and rejects missing or nonconsecutive buckets.",
   "value": "A rising population of terminated-but-unreaped children is stronger evidence of an active lifecycle defect than either a momentary zombie or a large stable baseline. Detecting continued growth gives Linux and application owners time to identify the responsible parent and correct its wait/reaping behavior before process-table slots are exhausted, while keeping stable persistence under UC-1.1.13 avoids duplicate alerts with conflicting semantics.",
@@ -36,16 +28,6 @@
   ],
   "schema": "Splunk_TA_nix table-formatted `ps` events; CIM Performance classification supplies no standard zombie-state or accumulation dataset",
   "dataModelAcceleration": "The add-on classifies `sourcetype=ps` as Performance data, but the CIM Performance model does not preserve process state, per-snapshot PID membership, table completeness, or the ordered four-bucket growth sequence. No accelerated `tstats` equivalent is claimed. A purpose-built summary would need parity tests for `PID`, `STAT`/`S`, snapshot time, host, zero-zombie snapshots, latest-bucket details, and all continuity/growth predicates before replacing the raw search.",
-  "requiredFields": [
-    "_time",
-    "host",
-    "_raw",
-    "PID",
-    "STAT",
-    "S",
-    "COMMAND",
-    "USER"
-  ],
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
@@ -114,23 +96,33 @@
     }
   ],
   "knownFalsePositives": "A leading `Z` is a real Linux state, not a fuzzy textual match. A returned row also represents real nondecreasing counts in the indexed snapshots. A finding can nevertheless be expected, misrouted, or misleading:\n\n1. **Approved lifecycle or fault-injection test** — A test can deliberately create unreaped children and increase their count. Confirm the exact host, application owner, test identifier, expected rate, and bounded change window. Preserve the result as test evidence; do not create a permanent fleet-wide suppression.\n\n2. **Short-lived burst aligned with four polls** — A parent under unusual load can temporarily fall behind and later reap all children. This still satisfies the indexed rising condition, but may not require an incident if the population clears within an approved recovery objective. Compare later snapshots and application latency; do not call it false solely because the zombies disappeared before an operator connected.\n\n3. **Container or PID-namespace mismatch** — Host `ps` sees the host namespace, while a workload operator may use inner namespace PIDs and a different apparent parent. Resolve `NSpid`/namespace and workload ownership before declaring the result stale. The base rule is host-scoped, not pod-scoped.\n\n4. **PID reuse and changing membership** — `dc(PID)` counts concurrent zombie rows in each snapshot; it does not prove the same children persisted across snapshots. A rising count can comprise different short-lived zombies. That is acceptable for an accumulation detector, but latest `zombie_processes` is triage context rather than durable process identity.\n\n5. **Duplicate, delayed, truncated, or locally modified `ps.sh` output** — Duplicate input stanzas, equal timestamps, lost headers, command truncation, changed columns, or forwarding delay can select a misleading latest snapshot or reduce parsed rows. Compare raw tables, effective configuration, `parsed_process_rows`, `_indextime`, and on-host `ps`. Repair source health rather than lowering growth predicates.\n\n6. **Host identity collision or cloned forwarder state** — Two systems writing the same Splunk `host` can interleave counts into an artificial trend. Compare asset identity, forwarder GUID, source metadata, and snapshot origin. Split the identity before acting.\n\n7. **Known defective service awaiting a controlled fix** — An accepted defect may continue to accumulate zombies until a scheduled restart or upgrade. Keep owner, ticket, risk acceptance, maximum count, and hard expiry. Stable high counts belong to UC-1.1.13; renewed growth should remain visible even during an accepted plateau.\n\n**Safe suppression:** keep the catalogue SPL as the unfiltered base. If local policy allows notification suppression, apply a separate post-result lookup keyed by exact `host` and literal `UC-1.1.119`, with `valid_from_epoch`, `valid_until_epoch`, owner, approver, ticket, reason, and optional expected application. Reject wildcards, open-ended entries, command-substring matching, and suppression of missing buckets, extraction failures, host collisions, or source-health alerts. Retain base matches and review every exception at expiry.",
+  "mitreAttack": [
+    "N/A (operational Linux process-lifecycle and capacity monitoring; no adversary behavior or intent is asserted)"
+  ],
+  "detectionType": "Rising state-count trend",
+  "requiredFields": [
+    "_time",
+    "host",
+    "_raw",
+    "PID",
+    "STAT",
+    "S",
+    "COMMAND",
+    "USER"
+  ],
   "equipment": [
     "linux"
   ],
   "equipmentModels": [
     "linux_generic"
   ],
-  "mitreAttack": [
-    "N/A (operational Linux process-lifecycle and capacity monitoring; no adversary behavior or intent is asserted)"
-  ],
-  "detectionType": "Rising state-count trend",
+  "status": "draft",
+  "lastReviewed": "2026-07-28",
   "splunkVersions": [
     "9.2+",
     "10.x",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-28",
   "reviewer": "documentation-only editorial review against Splunk Add-on for Unix and Linux, Splunk search/alerting, procps-ng ps, Linux /proc, and wait-system-call primary documentation; deterministic table fixtures and host-side checks specified but not executed in a live Splunk or Linux deployment; no Splunk, Linux, application, runtime, or SME sign-off",
   "cost": {
     "tier": "medium",
@@ -151,6 +143,14 @@
   "grandmaExplanation": "We watch for finished programs that the server has not cleaned up and warn when their number keeps climbing. That gives the team time to fix the program responsible before the server has trouble starting new work.",
   "prerequisiteUseCases": [
     "UC-1.1.13"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833/",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }

@@ -4,7 +4,10 @@
   "title": "DFS Replication Stale-Data, Sharing-Violation, and Partner Errors",
   "criticality": "high",
   "difficulty": "intermediate",
-  "monitoringType": ["Fault", "Availability"],
+  "monitoringType": [
+    "Fault",
+    "Availability"
+  ],
   "splunkPillar": "Observability",
   "exclusions": "Reports DFS Replication channel events 4012, 4302, 4304, 5002, and 5008. It does not measure backlog count: Microsoft defines backlog through `Get-DfsrBacklog`/DFSRDIAG, and a backlog indicates latency but is not necessarily a problem. Event 4012 is stale-data protection after exceeding MaxOfflineTimeInDays; 4302/4304 are receive/send sharing violations, not quota events; 5002/5008 require message/error/partner interpretation. The search does not cover staging events 4202/4204/4206/4208/4212, current replication state, SYSVOL completeness, automatic repair, runtime, or SME assurance.",
   "evidence": "Retain `windows_dfsr_error_events`, schedule/dispatch/alert history, raw event rows and XML/EventRecordIDs, host/group/folder/partner/error, authorized `Get-DfsrBacklog -Verbose` output for each direction, DFSR state/health report, source coverage, versions, controls, disposition, and bounded exceptions. Documentation review ran no DFSR operation, backlog query, search, or alert.",
@@ -14,7 +17,6 @@
   },
   "dataSources": "Windows `DFS Replication` event channel XML, collected with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:DFS Replication`. Required fields: `_time`, `Computer`/`host`, `EventCode`/`EventID`, `EventRecordID`, `Level`, `Message`; replication group/folder, partner, connection and error fields must be validated per event/OS.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), reviewed at 10.0.1.",
-  "splunkbaseApps": [{"id": 742, "name": "Splunk Add-on for Microsoft Windows", "url": "https://splunkbase.splunk.com/app/742", "minVersion": "10.0.1", "role": "data-source"}],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:DFS Replication\" EventCode IN (4012,4302,4304,5002,5008) earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), host=lower(trim(coalesce(Computer,dest,host))), message=coalesce(Message,RenderedDescription,_raw)\n| where event_id IN (4012,4302,4304,5002,5008) AND len(host)>0\n| eval issue=case(event_id=4012,\"replication_stopped_stale_data\",event_id=4302,\"receive_sharing_violation\",event_id=4304,\"send_sharing_violation\",event_id=5002,\"partner_communication_error\",event_id=5008,\"partner_communication_failed\")\n| rex field=message max_match=1 \"(?i)Error:\\s*(?<dfsr_error>[0-9]+)\"\n| rex field=message max_match=1 \"(?i)Replication Group Name:\\s*(?<replication_group>[^\\r\\n]+)\"\n| rex field=message max_match=1 \"(?i)Replicated Folder Name:\\s*(?<replicated_folder>[^\\r\\n]+)\"\n| rex field=message max_match=1 \"(?i)Partner DNS Address:\\s*(?<partner>[^\\r\\n]+)\"\n| eval dfsr_error=coalesce(dfsr_error,\"not_extracted\"), replication_group=trim(coalesce(replication_group,\"not_extracted\")), replicated_folder=trim(coalesce(replicated_folder,\"not_extracted\")), partner=trim(coalesce(partner,\"not_extracted\"))\n| table _time host event_id issue dfsr_error replication_group replicated_folder partner EventRecordID Level source sourcetype message\n| sort 0 -_time host event_id",
   "description": "Reports one row per selected DFS Replication event in the closed 15-minute window, preserving host, correct event class, error, replication group/folder, partner, record identity and full message. It reports error conditions; backlog is separately measured between a specific source/destination pair.",
   "value": "Correctly distinguishing stale-data protection, locked-file receive/send failures, and partner communication faults prevents dangerous backlog guesses and directs file-service or AD teams to the affected relationship. Pairing events with a directional backlog query helps determine whether users or SYSVOL consumers are actually waiting for updates.",
@@ -23,28 +25,90 @@
   "cimModels": [],
   "schema": "Native Windows DFS Replication event XML",
   "dataModelAcceleration": "No Change CIM substitute preserves DFSR relationship/error semantics. Keep raw events; summarize only after parity and member coverage tests.",
-  "requiredFields": ["_time", "source", "sourcetype", "Computer", "host", "EventCode", "EventID", "EventRecordID", "Level", "Message"],
   "references": [
-    {"title": "Microsoft PowerShell: Get-DfsrBacklog and directional pending-update semantics", "url": "https://learn.microsoft.com/en-us/powershell/module/dfsr/get-dfsrbacklog?view=windowsserver2025-ps", "retrieved": "2026-07-28"},
-    {"title": "Microsoft Support: DFSR 4302/4304 sharing violations and backlog verification", "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dfsr-diagnostics-shows-sharing-violations-events", "retrieved": "2026-07-28"},
-    {"title": "Microsoft: DFS Replication FAQ and backlog definition", "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc773238(v=ws.10)", "retrieved": "2026-07-28"},
-    {"title": "Microsoft: Determine minimum DFSR staging area and staging event IDs", "url": "https://learn.microsoft.com/en-us/windows-server/troubleshoot/how-to-determine-the-minimum-staging-area-dfsr-needs-for-a-replicated-folder", "retrieved": "2026-07-28"},
-    {"title": "Splunk Add-on for Microsoft Windows: DFS Replication XML source contract", "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/", "retrieved": "2026-07-28"},
-    {"title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)", "url": "https://splunkbase.splunk.com/app/742", "retrieved": "2026-07-28"}
+    {
+      "title": "Microsoft PowerShell: Get-DfsrBacklog and directional pending-update semantics",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/dfsr/get-dfsrbacklog?view=windowsserver2025-ps",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft Support: DFSR 4302/4304 sharing violations and backlog verification",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/networking/dfsr-diagnostics-shows-sharing-violations-events",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: DFS Replication FAQ and backlog definition",
+      "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc773238(v=ws.10)",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Microsoft: Determine minimum DFSR staging area and staging event IDs",
+      "url": "https://learn.microsoft.com/en-us/windows-server/troubleshoot/how-to-determine-the-minimum-staging-area-dfsr-needs-for-a-replicated-folder",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows: DFS Replication XML source contract",
+      "url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "retrieved": "2026-07-28"
+    },
+    {
+      "title": "Splunk Add-on for Microsoft Windows (Splunkbase 742)",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "retrieved": "2026-07-28"
+    }
   ],
   "knownFalsePositives": "Events are genuine; impact may have recovered.\n\n1. **Microsoft Office/CAD file lock** — 4302/4304 can occur while users or applications hold exclusive locks. Verify exact file/process/user and directional backlog; use a short file-pattern/app maintenance exception only when approved.\n\n2. **Veeam or antivirus scan** — Backup/Defender/Trellix scanning can hold replicated files. Match product job/process, owner and window; fix exclusions/scheduling rather than allowlisting the host.\n\n3. **Planned WAN/firewall maintenance** — 5002/5008 may accompany partner isolation. Confirm change, pair, DNS/RPC path and recovered backlog; expire exact pair/window suppression.\n\n4. **Server decommission or DR isolation** — 4012 may be expected after a deliberately offline member returns, but stale-data protection is safety-critical. Require DFSR owner recovery plan; do not suppress or raise MaxOfflineTimeInDays casually.\n\n5. **Initial replication or bulk seed** — Sharing/staging activity and backlog can be expected. Verify membership creation, source of truth, state and progress.\n\n**Safe suppression:** post-result `lookup windows_dfsr_notification_exceptions.csv` keyed by exact `host,event_id,replication_group,replicated_folder,partner,exception_id` with owner/reason and numeric validity bounds.",
-  "mitreAttack": ["N/A (DFSR reliability monitoring; no ATT&CK behavior asserted)"],
+  "mitreAttack": [
+    "N/A (DFSR reliability monitoring; no ATT&CK behavior asserted)"
+  ],
   "detectionType": "Event-based fault",
-  "equipment": ["windows"],
-  "equipmentModels": ["windows_generic"],
-  "hardware": "Windows DFS Replication members, including domain controllers using DFSR for SYSVOL where applicable.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "Computer",
+    "host",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "Level",
+    "Message"
+  ],
+  "equipment": [
+    "windows"
+  ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft DFSR event, backlog, sharing-violation and staging guidance plus Splunk Windows add-on documentation; events, backlog, SPL, controls, replication state, alerting, and recovery not executed or SME-signed",
   "splunkVersions": [],
-  "cost": {"tier": "low", "search_load": "light", "search_load_notes": "Five low-volume DFSR event IDs; any scripted backlog telemetry must be separately sized and secured.", "tstats_eligible": false, "storage_class": "hot", "retention_days": 30, "sources": ["DFS Replication event channel"], "last_estimated": "2026-07-28", "estimated_by": "ai-advisory"},
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft DFSR event, backlog, sharing-violation and staging guidance plus Splunk Windows add-on documentation; events, backlog, SPL, controls, replication state, alerting, and recovery not executed or SME-signed",
+  "cost": {
+    "tier": "low",
+    "search_load": "light",
+    "search_load_notes": "Five low-volume DFSR event IDs; any scripted backlog telemetry must be separately sized and secured.",
+    "tstats_eligible": false,
+    "storage_class": "hot",
+    "retention_days": 30,
+    "sources": [
+      "DFS Replication event channel"
+    ],
+    "last_estimated": "2026-07-28",
+    "estimated_by": "ai-advisory"
+  },
   "detailedImplementation": "## Prerequisites and semantics\n\nAssign DFSR/file-service or AD, network, Splunk, incident and exception owners. Inventory groups, folders, members, directional connections and SYSVOL role. Install `Splunk_TA_windows` (Splunkbase 742); grant a read-only search role for `index=wineventlog`. Backlog commands require separate authorized Windows permissions.\n\nTreat events accurately. Microsoft says 4012 stops a stale member after exceeding configured offline time. 4302 is receive-side inability to install an already received update because the local file is in use; 4304 is send-side inability to stage because of a lock. Staging quota events are 4202/4204/4206/4208/4212. Backlog is the number of pending updates in one source-to-destination relationship and can be expected.\n\n## Collection\n\nConfigure `[WinEventLog://DFS Replication]`, `renderXml=true`, deployment-local `index=wineventlog`, and `checkpointInterval=5` in `local/inputs.conf`. Validate `source=XmlWinEventLog:DFS Replication`, `sourcetype=XmlWinEventLog`; preserve original Computer and prevent direct/WEF duplication. Compare EventRecordIDs with Event Viewer:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:DFS Replication\" earliest=-24h\n| table _time Computer EventCode EventRecordID Level Message\n```\n\nValidate message extraction per supported OS/event and retain `not_extracted`. Monitor every member's channel freshness.\n\n## Search, controls, and backlog\n\nSave `windows_dfsr_error_events`; schedule every 15 minutes for `earliest=-20m@m latest=-5m@m`. Measure latency and preserve nonoverlap. Alert immediately on 4012/5002/5008; route individual 4302/4304 to dashboards until repetition/impact policy is approved. Replay controls at exact boundaries and verify event names, source, host and extraction.\n\nFor impact, an authorized operator runs `Get-DfsrBacklog -GroupName RG01 -FolderName RF01 -SourceComputerName FS01 -DestinationComputerName FS02 -Verbose`, then reverses source/destination where needed. Record count, direction, UTC, exit status and truncated first 100 names. Microsoft states listed items have not yet replicated but backlog alone is not necessarily a problem. Never parse an event count as backlog.\n\nTest in nonproduction with an approved locked file and disconnected partner; do not stale or reinitialize production. Record Windows/add-on/Splunk versions, membership, XML, commands, bounds, expected/actual rows, job ID and delivery. Keep draft until owner acceptance.\n\n## Response\n\nVerify source freshness/raw event and exact group/folder/partner/error. Run directional backlog and current DFSR state/health report; inspect DNS, AD configuration replication, RPC/network, disk/staging and file lock owner. For SYSVOL involve AD owners and verify DC advertising/replication. Preserve evidence before changes.\n\nDo not automatically raise MaxOfflineTimeInDays, resume stale replication, delete DFSR database, remove/re-add membership, kill locking processes, enlarge staging, or restart DFSR. 4012 protects against stale data and unsafe recovery can overwrite current content. Follow Microsoft/vendor runbooks with a declared authoritative member and backup.\n\n## Troubleshooting\n\n- No events: verify channel input, source spelling, XML mode, index/RBAC, member inventory and freshness.\n- Missing group/folder/partner: inspect raw event version/message; add tested extraction, not guessed aliases.\n- Persistent 4302/4304 but files replicated: Microsoft documents stale health-report sharing-violation state; use current DFSRDIAG/Get-DfsrBacklog.\n- Backlog command lists only 100: use verbose total as documented; retain that limitation.\n- Communication errors: correlate exact numeric error, partner DNS, DFSR service, RPC/firewall and AD replication.\n- Staging symptoms: inspect 4202/4204/4206/4208/4212 and size based on Microsoft's largest-file guidance; 4304 is not a quota event.\n- Event absent but backlog rises: source health and event IDs are incomplete backlog monitoring; investigate relationship, schedule, bandwidth and workload.",
   "grandmaExplanation": "We watch for Windows saying that its file-copy partners are stale, unreachable, or blocked by files that are still open. Engineers then measure the actual waiting files in each direction before deciding whether replication is truly falling behind.",
+  "hardware": "Windows DFS Replication members, including domain controllers using DFSR for SYSVOL where applicable.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_243 pages indexed; 132 have at least one inbound link; 443 unique source→target edges._
+_244 pages indexed; 132 have at least one inbound link; 443 unique source→target edges._
 
 ---
 
@@ -348,6 +348,10 @@ _No inbound links yet._
 - [`docs/clause-navigator-guide.md`](clause-navigator-guide.md)
 - [`docs/non-technical-view.md`](non-technical-view.md)
 - [`docs/site-user-guide.md`](site-user-guide.md)
+
+## `docs/content-editorial-review-standard.md`
+
+_No inbound links yet._
 
 ## `docs/content-gap-analysis.md`
 

@@ -18,34 +18,12 @@
   },
   "dataSources": "Custom host-local collector emits one JSON row per active libvirt domain to `index=kvm sourcetype=libvirt:capacity`. All rows in a poll share `poll_id`, `poll_epoch`, `host`, `host_logical_cpus`, `host_memtotal_kib`, and `expected_active_domains`; per-domain fields are `domain_uuid`, `domain_name`, `vm_vcpu_current`, and `vm_current_memory_kib`. Obtain logical CPU topology from libvirt capabilities (`/capabilities/host/topology`) or a separately qualified host authority, not legacy `virsh nodeinfo` topology, whose current man page warns can be inaccurate. Obtain VM current vCPU and memory from parsed live libvirt domain XML/API; libvirt documents `<currentMemory>` as actual allocation and `<vcpu current=...>` semantics. `MemTotal` is a collector-defined Linux host value and must be unit-normalized to KiB.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833) for host context, plus a signed custom libvirt capacity collector and JSON parsing. The add-on does not supply these libvirt allocation fields. No premium Splunk app or CIM acceleration is required.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=kvm sourcetype=\"libvirt:capacity\" earliest=-20m latest=now\n| eval poll_epoch=tonumber(poll_epoch), host_logical_cpus=tonumber(host_logical_cpus), host_memtotal_kib=tonumber(host_memtotal_kib), expected_active_domains=tonumber(expected_active_domains), vm_vcpu_current=tonumber(vm_vcpu_current), vm_current_memory_kib=tonumber(vm_current_memory_kib)\n| where isnotnull(poll_id) AND isnotnull(host) AND isnotnull(domain_uuid) AND poll_epoch<=now() AND poll_epoch>=relative_time(now(),\"-20m\") AND host_logical_cpus>0 AND host_memtotal_kib>0 AND expected_active_domains>0 AND vm_vcpu_current>0 AND vm_current_memory_kib>0\n| stats count AS raw_event_count dc(domain_uuid) AS observed_active_domains sum(vm_vcpu_current) AS allocated_vcpus sum(vm_current_memory_kib) AS allocated_memory_kib dc(host_logical_cpus) AS cpu_capacity_variants latest(host_logical_cpus) AS host_logical_cpus dc(host_memtotal_kib) AS memory_capacity_variants latest(host_memtotal_kib) AS host_memtotal_kib dc(expected_active_domains) AS expected_count_variants latest(expected_active_domains) AS expected_active_domains max(_indextime) AS last_indextime by host poll_id poll_epoch\n| where raw_event_count=observed_active_domains AND observed_active_domains=expected_active_domains AND cpu_capacity_variants=1 AND memory_capacity_variants=1 AND expected_count_variants=1\n| eventstats max(poll_epoch) AS latest_poll_epoch by host\n| where poll_epoch=latest_poll_epoch\n| eval cpu_overcommit_ratio=round(allocated_vcpus/host_logical_cpus,2), memory_overcommit_ratio=round(allocated_memory_kib/host_memtotal_kib,2)\n| eval severity=case(memory_overcommit_ratio>1,\"critical\",cpu_overcommit_ratio>=10,\"critical\",cpu_overcommit_ratio>=5,\"warning\",true(),\"informational\"), cpu_warning_ratio=5, cpu_critical_ratio=10, memory_warning_ratio=1, use_case=\"UC-2.3.2\"\n| where severity!=\"informational\"\n| table poll_epoch poll_id host observed_active_domains expected_active_domains allocated_vcpus host_logical_cpus cpu_overcommit_ratio cpu_warning_ratio cpu_critical_ratio allocated_memory_kib host_memtotal_kib memory_overcommit_ratio memory_warning_ratio severity last_indextime use_case\n| sort 0 -severity -memory_overcommit_ratio -cpu_overcommit_ratio host",
   "description": "Detects complete KVM host inventory polls whose configured active-VM vCPU ratio reaches Red Hat's 5:1 caution boundary or whose current-memory allocation exceeds physical `MemTotal`. It validates domain uniqueness, inventory completeness, and consistent host capacity before producing a host-level risk row.",
   "value": "Overcommit can improve consolidation, but aggressive ratios under simultaneous demand can cause response-time collapse, swapping, or out-of-memory termination. A configuration-based early warning lets capacity owners review workload behavior and host reserves before pressure becomes an outage, while completeness gates prevent missing VMs from making a host look safer.",
   "implementation": "Deploy a read-only libvirt collector every five minutes that snapshots host logical CPUs/MemTotal and every active domain's UUID/current vCPU/current memory in one poll. Validate XML/API units and exact inventory count, operate incomplete/stale/duplicate polls separately, then schedule `kvm_host_overcommit_detection`. Treat 5:1 and 10:1 CPU ratios as Red Hat starting guidance and define a stricter memory/headroom policy from workload tests; never remediate automatically from allocation ratio alone.",
   "visualization": "Dashboard `KVM — Host Allocation and Overcommit`: show incomplete/stale polls first, then hosts above CPU or memory policy, fleet allocation headroom, and hosts using device assignment. Use side-by-side allocated-versus-capacity bars, CPU/memory ratio scatter plot, trend lines per host, and a table with expected/observed domains, both numerator/denominator pairs, severity, swap/pressure corroboration, owner, and exception. Drill down to per-domain allocations, live XML, host memory/CPU telemetry, NUMA, swap/OOM, and change records.",
   "cimModels": [],
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "poll_id",
-    "poll_epoch",
-    "host",
-    "domain_uuid",
-    "domain_name",
-    "host_logical_cpus",
-    "host_memtotal_kib",
-    "expected_active_domains",
-    "vm_vcpu_current",
-    "vm_current_memory_kib"
-  ],
   "references": [
     {
       "title": "libvirt virsh manual: capabilities, nodeinfo caveat, and domain commands",
@@ -83,20 +61,35 @@
     "N/A (KVM allocation-capacity risk; no adversary behavior is asserted)"
   ],
   "detectionType": "Complete-poll configured allocation ratio",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "poll_id",
+    "poll_epoch",
+    "host",
+    "domain_uuid",
+    "domain_name",
+    "host_logical_cpus",
+    "host_memtotal_kib",
+    "expected_active_domains",
+    "vm_vcpu_current",
+    "vm_current_memory_kib"
+  ],
   "equipment": [
+    "cisco",
     "linux"
   ],
   "equipmentModels": [
+    "cisco_aci",
     "linux_generic"
   ],
-  "hardware": "Linux KVM/QEMU hosts managed by libvirt. Logical CPU and memory authorities must be qualified for each hardware/NUMA design. Device assignment, huge pages, locked memory, virtio-mem, and host-reserved capacity require explicit local policy beyond this gross ratio.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "documentation-only editorial review against current libvirt virsh/domain XML and Red Hat KVM overcommit guidance plus Splunk Unix/Linux add-on and scripted-input documentation; legacy nodeinfo topology dependence, VMware tags, and generic Linux exceptions were removed; no host, domain XML, capabilities query, MemTotal, collector, index, fixture, search, alert, workload, threshold, or production ratio was executed; no libvirt, Red Hat, Splunk, hardware, runtime, capacity, or SME sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against current libvirt virsh/domain XML and Red Hat KVM overcommit guidance plus Splunk Unix/Linux add-on and scripted-input documentation; legacy nodeinfo topology dependence, VMware tags, and generic Linux exceptions were removed; no host, domain XML, capabilities query, MemTotal, collector, index, fixture, search, alert, workload, threshold, or production ratio was executed; no libvirt, Red Hat, Splunk, hardware, runtime, capacity, or SME sign-off",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -114,8 +107,17 @@
   },
   "detailedImplementation": "## Prerequisites and policy scope\n\nAssign virtualization, Linux, capacity, Splunk collection, and service owners. Inventory hosts, cluster/failover reserve, active/inactive domains, device assignment, huge pages, locked memory, NUMA policy, swap, and workload classes. Qualify exact libvirt/QEMU/kernel/distribution/Splunk versions. Overcommit is a supported design choice, not inherently a fault. Red Hat advises assigning only needed vCPUs, extensive production testing, a typical safe 5:1 vCPU-to-physical-CPU ratio for sub-100% loads, and not exceeding 10:1; these are guidance, not universal guarantees.\n\nDefine numerators and denominators. This UC sums current configured vCPUs and `<currentMemory>` for active domains. Libvirt documents `<memory>` as maximum boot allocation and `<currentMemory>` as actual allocation, defaulting to memory when omitted. The denominator is host online logical CPUs and Linux `MemTotal` in KiB. Gross memory ratio ignores host processes, page cache, reserved huge pages, crash kernel, locked/device-assigned memory and failover headroom; practical warning should normally be below 1.0 after a governed reserve. Inactive domains are excluded from current ratio but must appear in startup/failover scenario planning.\n\nUse libvirt capabilities rather than relying on `nodeinfo` topology: the current virsh manual strongly discourages nodeinfo for modern/asymmetric topology and recommends `/capabilities/host/topology`. Decide whether online CPU count comes from libvirt capabilities, `nodecpumap`, or qualified `/sys` data and keep one authority. Read MemTotal from `/proc/meminfo` and preserve its KiB unit. Validate hotplug/offline behavior.\n\n## Step 1 — Collect one atomic capacity poll\n\nBuild a signed collector using libvirt bindings where possible. At one poll epoch/UUID, read host capacity, enumerate active persistent/transient domains, count expected rows, and parse each live XML/API for UUID, name, current vCPU count and current memory normalized to KiB. XML unit attributes can be bytes, KB, KiB, MB, MiB, and more; use a tested unit parser. Do not assume every numeric memory element is KiB without reading `unit`. Include collector schema/version and errors.\n\nEmit one JSON line per active domain, repeating the poll's host capacities and expected count. Repetition lets SPL verify all rows agree. If any domain cannot be read, mark the poll incomplete in health and do not lower expected count. For zero active domains emit a separate host-summary event; this SPL intentionally requires positive count and should not create an overcommit row.\n\nConfigure a five-minute scripted input in `local/inputs.conf` with `index=kvm`, `sourcetype=libvirt:capacity`, explicit interval, non-overlap lock, timeout, and JSON parsing. Run under a read-only service identity. Splunk schedules the next interval after script completion, so measure runtime/cadence. Capture script hash, ownership/mode, effective `btool` output, libvirt URI, and permission decision.\n\nValidate event rows against `virsh capabilities`, live domain XML (`virsh dumpxml <uuid>`), active inventory and `/proc/meminfo` on canaries. Include domains with maximum/current vCPU distinction, currentMemory omitted, explicit non-KiB units, ballooning, hotplug, migration, transient domains, device assignment, and special-character names.\n\n## Step 2 — Enforce data quality before ratio calculation\n\nThe SPL validates positive numeric fields, then aggregates by host/poll. `count=dc(domain_uuid)` rejects duplicate UUID rows; observed count must equal collector-reported expected count; `dc` of each repeated capacity must equal one. Operate a companion health search for every rejected reason, collector errors, missing host poll, one domain on two hosts, unexpected inventory, stale/future time, capacity change, and indexing delay.\n\nDo not use `stats latest(vm_vcpu) by host` and assume completeness. Never default missing capacity to one or missing VM memory to zero. A partial poll is unknown and potentially more overcommitted than it appears. Keep data-quality severity independent from allocation severity.\n\nThe search selects the latest complete poll per host, calculates ratios, and classifies memory >1, CPU >=10, CPU >=5. String sorting of severity is only presentation; use explicit numeric rank in production if ordering matters. The primary result filters informational rows; a dashboard trend search should retain all complete ratios.\n\n## Step 3 — Tune policy with demand and resilience\n\nSave `kvm_host_overcommit_detection` and schedule after every poll. Start with Red Hat CPU guidance only for applicable RHEL/KVM workloads and confirm vendor guidance for other distributions. Define service-class ratios from simultaneous-demand testing, latency objectives, host scheduler behavior, and failover N+1 capacity. A 5:1 VDI pool can be suitable while 2:1 latency-sensitive SMP workloads may be unsafe.\n\nFor memory, compute a separate effective denominator: MemTotal minus approved host reserve, huge pages, device-assigned/locked memory, platform daemons, and failover margin. This UC exposes gross 1.0 to reveal clear oversubscription; production should add `usable_memory_kib` with documented derivation and tests. Correlate MemAvailable, PSI, swap in/out, major faults, OOM logs and guest balloon data. Allocation alone cannot establish pressure.\n\nDevice assignment is a hard scope concern: Red Hat says memory overcommit is not supported because memory must be statically preallocated for DMA. Tag such hosts/VMs and prevent ordinary exception treatment. Huge-page/preallocation and real-time workloads also need vendor-specific design.\n\n## Step 4 — Validate controls and operationalize\n\nBuild the exact positive fixture and assert all arithmetic. Run negatives individually for duplicate UUID, missing expected row, inconsistent capacities, zero/null, stale/future, and two hosts. Boundary-test CPU 4.99/5/9.99/10 and memory 0.9999/1/1.0001. Test one active domain, hundreds of domains, zero-active host health, unit conversion, live vCPU hotplug, balloon change, memory/CPU hotplug, migration between polls, and partial libvirt failure.\n\nOn canaries compare result to an independent spreadsheet from retained XML/capabilities/MemTotal. Then run controlled workload concurrency tests, recording service latency, guest CPU, host CPU/PSI/swap/OOM and ratios. Synthetic data proves SPL gates; workload tests establish policy. Keep `status=draft` until collection, completeness, denominator, failover, exceptions, dashboard, and response are approved.\n\nDashboard and alert must lead with telemetry completeness. Include both numerator and denominator. Route high ratios with current pressure/service impact; a ratio without impact can be capacity-review severity, while swap/OOM/latency elevates incident severity. Never automatically shut down, balloon, pin, migrate, reduce vCPU/memory, enable swap, or change kernel overcommit from this row.\n\nResponder sequence: verify complete poll and capacity authority; inspect per-domain contributors and recent changes; check current demand, host PSI/swap/OOM/NUMA and service latency; check maintenance/failover context and peer headroom; identify device assignment/locked/huge-page constraints; select authorized rebalance, right-size, host-add, schedule or workload remediation; verify both ratios and service recovery.\n\n## Step 5 — Troubleshoot preserving capacity truth\n\n- **Capacity differs from `lscpu`:** compare online logical CPUs, libvirt capabilities, CPU hotplug/offline and namespace/host authority. Do not multiply sockets/cores/threads from discouraged nodeinfo topology.\n- **Memory units implausible:** inspect XML `unit`, MemTotal KiB, parser conversion and integer precision. Never relabel KB/MB as KiB/MiB.\n- **Observed count below expected:** preserve incomplete poll and inspect domain query error, migration, permission, timeout, parsing and indexing. Do not calculate a reassuring ratio.\n- **Duplicate UUID:** find dual collectors, cluster ownership overlap, replay or duplicated script output. Fix authority.\n- **Ratio jumps after migration:** reconcile source/destination complete polls and in-flight ownership. Use a short policy delay but retain both polls.\n- **High ratio with idle host:** expected distinction between allocation and demand. Review policy/headroom rather than declaring false data.\n- **Low ratio with OOM:** host reserve, huge pages, device assignment, leaks, non-VM processes or per-NUMA exhaustion can dominate. Gross ratio is not sufficient.\n- **`currentMemory` absent:** libvirt says it defaults to `<memory>`; implement that in the collector with a provenance flag and test it.\n- **vCPU current absent:** understand `<vcpu>` current/maximum semantics on the installed version; do not substitute maximum silently.\n- **Alert churn:** use bounded policy, persistence and hysteresis; preserve every complete ratio and all health failures.",
   "grandmaExplanation": "We add up the processors and memory promised to all running virtual machines and compare that promise with what the host physically has. This warns the team when the plan depends heavily on every machine not needing its full share at the same time.",
+  "hardware": "Linux KVM/QEMU hosts managed by libvirt. Logical CPU and memory authorities must be qualified for each hardware/NUMA design. Device assignment, huge pages, locked memory, virtio-mem, and host-reserved capacity require explicit local policy beyond this gross ratio.",
   "prerequisiteUseCases": [
     "UC-2.3.1"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }

@@ -4,7 +4,10 @@
   "title": "Privileged Accounts Used in Windows Explicit-Credential Attempts",
   "criticality": "high",
   "difficulty": "advanced",
-  "monitoringType": ["Security", "Audit"],
+  "monitoringType": [
+    "Security",
+    "Audit"
+  ],
   "splunkPillar": "Security",
   "exclusions": "Detects Windows Security Event 4648 when the account whose credentials were supplied matches a governed privileged-account lookup. Event 4648 records an attempt by a process to use explicitly supplied credentials; it does not by itself prove authentication succeeded, credentials were stolen, privilege was exercised, or lateral movement occurred. The rule does not detect token theft, pass-the-hash without a qualifying event, logons on hosts with missing Audit Logon coverage, or activity by privileged accounts absent from the lookup. No runtime validation, automated containment, regulatory assurance, or SME sign-off is claimed.",
   "evidence": "After deployment, retain saved search `windows_privileged_explicit_credentials_4648` and its ACL, schedule/dispatch/alert history, each result's source host, requesting and supplied identities, process, target server, network address/port, logon IDs/GUIDs, event record ID and exception state, restricted raw 4648 XML, Audit Logon policy/coverage output, privileged-account lookup revision, correlated destination authentication/process/service/task evidence, control results, analyst disposition, and bounded exception approval. This documentation review generated no event and executed no search, alert, credential use, or response.",
@@ -14,15 +17,6 @@
   },
   "dataSources": "Windows Security Event 4648 from the computer where a process attempted to use explicit credentials, with Audit Logon Success enabled; collect the Security channel through Splunk Add-on for Microsoft Windows (Splunkbase 742) as `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`, in deployment-local `index=wineventlog`. Required native/add-on fields are `_time`, `Computer`/`host`, `EventCode`/`EventID`, `EventRecordID`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `LogonGuid`, `TargetUserName`, `TargetDomainName`, `TargetLogonGuid`, `TargetServerName`, `TargetInfo`, `ProcessId`, `ProcessName`, `IpAddress`, and `IpPort`; also maintain governed privileged-account and notification-exception lookups.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), reviewed from the 10.0.1 listing and Splunk XML Event Log documentation. Splunk Security Content provides Event 4648 field and analytic precedents; Enterprise Security is optional.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4648 earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), host=lower(trim(coalesce(Computer,dest,host))), requesting_user=lower(trim(coalesce(SubjectUserName,Caller_User_Name))), requesting_domain=lower(trim(coalesce(SubjectDomainName,Caller_Domain))), supplied_user=lower(trim(coalesce(TargetUserName,Target_User_Name))), supplied_domain=lower(trim(coalesce(TargetDomainName,Target_Domain))), target_server=lower(trim(coalesce(TargetServerName,Target_Server_Name,\"unknown\"))), process_name=lower(trim(coalesce(ProcessName,Process_Name,\"unknown\"))), src_ip=coalesce(IpAddress,src_ip,\"unknown\"), src_port=coalesce(IpPort,src_port,\"unknown\")\n| where event_id=4648 AND len(host)>0 AND len(requesting_user)>0 AND requesting_user!=\"-\" AND len(supplied_user)>0 AND supplied_user!=\"-\"\n| eval requesting_account=if(len(requesting_domain)>0 AND requesting_domain!=\"-\",requesting_domain.\"\\\\\".requesting_user,requesting_user), supplied_account=if(len(supplied_domain)>0 AND supplied_domain!=\"-\",supplied_domain.\"\\\\\".supplied_user,supplied_user)\n| lookup windows_privileged_accounts.csv account as supplied_account OUTPUT account as privileged_account account_owner privilege_tier\n| where isnotnull(privileged_account)\n| table _time host requesting_account supplied_account privileged_account account_owner privilege_tier process_name ProcessId target_server TargetInfo src_ip src_port SubjectLogonId LogonGuid TargetLogonGuid EventRecordID source sourcetype\n| sort 0 -_time host requesting_account supplied_account",
   "description": "Reports one row per closed-window Windows Security 4648 event in which the explicitly supplied account exactly matches the privileged-account lookup. Each row is the attempt observed on one source computer and preserves the requesting identity, supplied identity, initiating process, target/server and network details, logon correlation fields, and raw record identity.",
   "value": "Privileged credentials entered into another process are important investigation pivots even when the action is legitimate. A precise inventory-backed result lets defenders quickly distinguish approved scheduled tasks and run-as administration from unusual operator-to-admin transitions, remote target use, or compromised automation, while retaining the fields needed to correlate success and downstream execution. This accelerates review of privileged credential use and helps contain misuse without blocking approved administration automatically.",
@@ -31,7 +25,6 @@
   "cimModels": [],
   "schema": "Native Microsoft-Windows-Security-Auditing Event 4648 XML plus governed privileged-account lookup",
   "dataModelAcceleration": "No Authentication CIM-only search is supplied because the native 4648 requesting identity, supplied identity, process, target server, network fields, logon GUIDs and EventRecordID are central to this contract. A summary is acceptable only after proving field-complete parity and source-health visibility.",
-  "requiredFields": ["_time", "source", "sourcetype", "Computer", "host", "EventCode", "EventID", "EventRecordID", "SubjectUserName", "SubjectDomainName", "SubjectLogonId", "LogonGuid", "TargetUserName", "TargetDomainName", "TargetLogonGuid", "TargetServerName", "TargetInfo", "ProcessId", "ProcessName", "IpAddress", "IpPort"],
   "references": [
     {
       "title": "Microsoft: 4648(S) A logon was attempted using explicit credentials",
@@ -70,16 +63,44 @@
     }
   ],
   "knownFalsePositives": "Event 4648 can be routine; the lookup match says the supplied identity is privileged, not that the attempt was malicious.\n\n1. **Scheduled task or service with stored credentials** — Match Task Scheduler/service configuration, task or service name, owner, expected source, process and target. Prefer managed service accounts where applicable; suppress only the exact tuple and time bounds.\n\n2. **`runas`/Run as different user administration** — Confirm ticket, operator, interactive source, signed `runas.exe`, target and maintenance window. Unexpected operators or targets remain alertable.\n\n3. **Backup, deployment, vulnerability, EDR or configuration platform** — Verify controller identity, signed agent/process, job ID, target set, service account and UTC schedule. A compromised management server can mimic this pattern.\n\n4. **Mapped drive, SMB or remote-management connection using alternate credentials** — Validate approved resource, port, owner and matching destination 4624/5140/5145 or WinRM/RDP evidence.\n\n5. **Purple-team exercise** — Match approved plan, operator, exact account/hosts and start/end; retain the result in test evidence.\n\n**Safe suppression:** after the base result, use `windows_privileged_explicit_credential_exceptions.csv` keyed on exact `requesting_account,supplied_account,host,process_name,target_server,exception_id`, with owner, approver, reason, ticket and numeric `valid_from`/`valid_until`. Reject wildcards and expired/open-ended entries, preserve unsuppressed rows, and review at least quarterly.",
-  "mitreAttack": ["T1078"],
+  "mitreAttack": [
+    "T1078"
+  ],
   "detectionType": "Hunting",
   "securityDomain": "identity",
-  "equipment": ["windows"],
-  "equipmentModels": ["windows_generic"],
-  "hardware": "Windows workstations and servers with Security Audit Logon Success enabled and Event 4648 collection. Destination-side logs are separately required to establish authentication success and subsequent execution.",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "Computer",
+    "host",
+    "EventCode",
+    "EventID",
+    "EventRecordID",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "LogonGuid",
+    "TargetUserName",
+    "TargetDomainName",
+    "TargetLogonGuid",
+    "TargetServerName",
+    "TargetInfo",
+    "ProcessId",
+    "ProcessName",
+    "IpAddress",
+    "IpPort"
+  ],
+  "equipment": [
+    "windows"
+  ],
+  "equipmentModels": [
+    "windows_generic"
+  ],
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4648/Audit Logon documentation, Splunk Windows collection and Security Content documentation, and MITRE ATT&CK; audit policy, collection, lookup, SPL, controls, alerting, correlation, and response were not executed or SME-signed",
   "splunkVersions": [],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 4648/Audit Logon documentation, Splunk Windows collection and Security Content documentation, and MITRE ATT&CK; audit policy, collection, lookup, SPL, controls, alerting, correlation, and response were not executed or SME-signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -87,12 +108,24 @@
     "tstats_eligible": false,
     "storage_class": "hot",
     "retention_days": 90,
-    "sources": ["Windows Security Event 4648"],
+    "sources": [
+      "Windows Security Event 4648"
+    ],
     "last_estimated": "2026-07-28",
     "estimated_by": "ai-advisory"
   },
   "detailedImplementation": "## Prerequisites and event contract\n\nAssign identity/PAM, Windows audit-policy, endpoint, Splunk data/content, detection, incident-response, service-automation, privacy, and exception owners. Inventory every in-scope workstation/server and every privileged user/service identity as canonical lowercase `domain\\user`, with owner, tier, intended systems, validity, and review date. Restrict Security events and lookup administration because they reveal identities, processes, systems and network relationships. The collector needs Security-log read/forwarding rights; it does not need credentials, account administration, remote-logon, task creation, host-isolation, or password-reset permission.\n\nMicrosoft defines Event 4648 narrowly: a process attempted an account logon while explicitly specifying that account's credentials. Common causes include scheduled tasks and `RUNAS`, and Microsoft says it can occur during normal operating-system activity. The event is generated on the computer where the attempt originates and contains a requesting subject, the account whose credentials were supplied, process information, target-server information and network information. It is not a failed-logon event and does not establish success. Consequently, this rule reports each privileged-account match as an `explicit-credential attempt`; analysts must find destination-side 4624/4625, Kerberos/NTLM, service/task, share, process and EDR evidence before asserting credential abuse or lateral movement.\n\n## Step 1 — Enable and verify collection\n\nUse Group Policy or another governed policy authority to enable **Computer Configuration > Windows Settings > Security Settings > Advanced Audit Policy Configuration > Logon/Logoff > Audit Logon > Success** on every expected source. Size the native Security log and forwarder queues for measured volume and outage duration. Configure the input in a deployment app's `local/inputs.conf`, not in add-on defaults:\n\n```ini\n[WinEventLog://Security]\ndisabled = 0\nrenderXml = true\nindex = wineventlog\ncheckpointInterval = 5\n```\n\n`wineventlog` is a deployment-local index. Splunk documents `renderXml=true`; when XML input filtering is used, apply the documented `$XmlRegex` mechanism. The reviewed search expects `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Security`, but the deployment must inspect its qualified add-on output. Prevent simultaneous direct and WEF collection unless deterministic deduplication is designed, preserve the original `Computer`, encrypt forwarding, and create a separate source-health rule for every expected computer.\n\nVerify representative events before enabling alerting:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=4648 earliest=-7d\n| table _time Computer EventRecordID SubjectUserName SubjectDomainName SubjectLogonId LogonGuid TargetUserName TargetDomainName TargetLogonGuid TargetServerName TargetInfo ProcessId ProcessName IpAddress IpPort\n| head 100\n```\n\nCompare fixed UTC timestamps and EventRecordIDs with Event Viewer on at least two Windows versions and one direct/WEF path in use. Confirm `_time` is event time; `Computer` is the originating machine; requesting and supplied identities are not reversed; hexadecimal IDs remain available; process and target fields preserve `-`/empty values rather than invented data; and source/sourcetype are exact. Qualify the add-on's legacy aliases such as `Caller_User_Name` and `Target_User_Name` before relying on `coalesce`. Missing mandatory identity fields is a collection-quality finding, not permission to merge events under `unknown`.\n\nBuild `windows_privileged_accounts.csv` from the authoritative PAM/identity inventory with lowercase exact `account`, `account_owner`, `privilege_tier`, source system, review date and validity. Do not infer privilege from `admin`, `svc`, `root`, RID fragments or naming regexes. Protect lookup writes, validate duplicate/conflicting rows, and monitor stale/expired records.\n\n## Step 2 — Save, schedule, and alert\n\nSave the supplied SPL as `windows_privileged_explicit_credentials_4648`. Schedule every 15 minutes with `earliest=-20m@m` and `latest=-5m@m`, triggering when result count is greater than zero. This evaluates one complete delayed 15-minute window; `latest` is exclusive. Five minutes is only an initial ingestion allowance. Measure `_indextime-_time` p95/p99 by collection path and adjust delay/lookback together so windows remain complete and nonoverlapping. Do not throttle solely by supplied account: different requestors, processes, sources or targets may be separate incidents.\n\nThe SPL pins the XML Security source and ID, normalizes only case/whitespace, requires source host plus both identities, constructs canonical accounts, and performs an exact lookup. It intentionally does not require `IpAddress`, `TargetServerName` or `ProcessName`, because Microsoft permits missing/placeholder values and dropping those events would hide evidence. It does not use a count threshold, claim failure, join destination data, or apply a notification exception inside the base detector. If classic-rendered events are retained, create a separately tested source contract; do not broaden this search to mixed schemas.\n\nRoute rows involving tier-0/domain administration, new requestor-to-supplied-account pairs, uncommon processes or unexpected targets at higher urgency through governed enrichment. The lookup's privilege classification and asset ownership must not be overwritten by ad hoc SPL. Apply the bounded exception lookup only after the base result so source evidence and detection counts remain available.\n\n## Step 3 — Validate controls and boundaries\n\nReplay the positive fixture in an isolated test index and fixed closed interval. Assert exactly one row and exact values for source host, requesting/supplied accounts, lookup owner/tier, process, process ID, target server/info, IP/port, logon IDs/GUIDs, record ID, source and sourcetype. Test native field names and each qualified legacy alias separately; one physical XML event must never become two rows.\n\nRun every negative fixture independently: wrong event ID, wrong source/channel, unlisted supplied identity, missing requesting user, missing supplied user, and event exactly at the latest boundary. Also test domain case normalization, local-account domain names, unresolved SID/name behavior, IPv4/IPv6/`-` address values, empty process/target fields, two events sharing a logon GUID, and direct-plus-WEF duplication. A scheduled-task fixture for a privileged service account is expected to fire the base detector; then prove that an exact unexpired exception changes notification routing without deleting the event.\n\nWith owners, perform a nonproduction `runas` or approved scheduled-task test using disposable credentials. Never expose a password in scripts, fixture files, command history, search text or evidence exports. Compare source Event Viewer XML and Splunk. If a remote target is used, compare destination 4624/4625 and subsequent process/service/task/share records by UTC, identities, addresses and logon correlation fields. Record Windows, forwarder, add-on and Splunk versions; effective audit policy; fixture hash; lookup revision; exact bounds; expected/actual rows; search job ID; alert delivery; and analyst conclusion. Keep `status=draft` until human owners accept all controls and runtime behavior.\n\n## Step 4 — Investigate and preserve evidence\n\nFor every row: (1) verify source freshness and open the exact raw EventRecordID; (2) identify the requesting principal/session and owner of the supplied privileged account; (3) validate executable path, signer/hash, parent process and command context with 4688, Sysmon or EDR where available; (4) resolve target server and IP at event time; (5) search destination 4624/4625 and Kerberos/NTLM records to establish outcome; (6) correlate remote service creation, scheduled task, WinRM/RDP, SMB share access, process execution, network and EDR evidence; (7) compare PAM checkout, ticket, automation job and approved source/target inventory; and (8) record whether the result was expected, policy-violating, suspicious, or confirmed malicious.\n\nDo not automatically disable or reset the supplied account, isolate the source, kill the process, delete a task/service, block a shared management host, or declare lateral movement from 4648 alone. A legitimate automation controller can be business-critical and can also be compromised. Use approved identity, endpoint and incident-response procedures after corroboration, preserve volatile evidence before disruptive action, and coordinate credential rotation so dependent services are not silently broken.\n\nThe dashboard must lead with expected-host coverage and last-seen time, then trends and exact rows. Restrict process/identity/network exports, preserve raw XML immutably according to policy, and record lookup/exception revisions alongside alert evidence. Review the detector after Windows policy changes, WEF migration, add-on upgrades, PAM/privileged inventory changes, task/service migrations and authentication architecture changes.\n\n## Step 5 — Troubleshooting\n\n- **No 4648 events:** verify effective Audit Logon Success policy, Security input, forwarder/checkpoint/output, XML source, index/RBAC and source-health results. Quiet data is not proof that explicit credentials were unused.\n- **Requesting and supplied users appear reversed:** compare native XML names with the Microsoft event template and add-on aliases. Correct field mapping; do not reinterpret the event from display labels alone.\n- **Privileged account does not match:** canonicalize the authoritative lookup and observed domain/user case, inspect local versus domain naming and lookup validity, and never add broad wildcard privilege rules.\n- **Process, target or IP is `unknown`/`-`:** inspect raw XML and event version. Preserve the event and reduce attribution confidence; do not substitute unrelated 4624 fields.\n- **Many routine scheduled-task results:** inventory exact tasks/services, service accounts, processes, sources and targets; create owner-approved expiring tuple exceptions after verifying destination behavior. Never suppress all 4648 for an account.\n- **Duplicate rows:** compare `Computer`, EventRecordID, timestamp and collector metadata to identify direct/WEF duplication. Repair collection topology before tuning alert counts.\n- **Destination shows no matching logon:** verify clocks, names/IPs, time bounds, protocol and destination coverage. Event 4648 is an attempt and can be local or unsuccessful; absence of corroboration is not proof of either benign or malicious intent.\n- **Known malicious logon without 4648:** this rule is not complete credential-abuse coverage. Investigate 4624/4625, Kerberos/NTLM, EDR, remote-service/task/share and token/hash abuse detections.",
   "grandmaExplanation": "Windows records when a program is handed a different username and password to try. We highlight those records when the supplied account is on the organization's privileged list, then investigators check whether the sign-in worked and whether the action was approved.",
+  "hardware": "Windows workstations and servers with Security Audit Logon Success enabled and Event 4648 collection. Destination-side logs are separately required to establish authentication success and subsequent execution.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

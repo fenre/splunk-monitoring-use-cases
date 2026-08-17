@@ -19,15 +19,6 @@
   },
   "dataSources": "Microsoft Sysmon Process Create Event ID 1 from `Microsoft-Windows-Sysmon/Operational`, collected as XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Sysmon ProcessCreate must retain command line. Required fields are `EventCode`/`EventID`, `Computer`, `EventRecordID`, `UtcTime`, `ProcessGuid`, `ProcessId`, `Image`, `CommandLine`, `CurrentDirectory`, `User`, `LogonGuid`, `LogonId`, `TerminalSessionId`, `IntegrityLevel`, `Hashes`, `ParentProcessGuid`, `ParentProcessId`, `ParentImage`, `ParentCommandLine`, and `RuleName`.",
   "app": "Microsoft Sysmon plus Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. Splunk Enterprise Security and endpoint-response integrations are optional and must not auto-contain from this analytic alone.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=1 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), process_image=lower(trim(Image)), process_name=replace(process_image,\"^.*\\\\\\\\\",\"\"), command_line=lower(trim(CommandLine))\n| where event_code=1 AND len(endpoint)>0 AND len(command_line)>0\n| eval recovery_action=case(process_name=\"vssadmin.exe\" AND like(command_line,\"%delete%shadows%\"),\"delete_volume_shadow_copies\",process_name=\"wmic.exe\" AND like(command_line,\"%shadowcopy%delete%\"),\"delete_volume_shadow_copies_via_wmic\",process_name=\"wbadmin.exe\" AND like(command_line,\"%delete%catalog%\"),\"delete_backup_catalog\",process_name=\"wbadmin.exe\" AND like(command_line,\"%delete%systemstatebackup%\"),\"delete_system_state_backup\",process_name=\"bcdedit.exe\" AND like(command_line,\"%recoveryenabled%no%\"),\"disable_automatic_recovery\",process_name=\"bcdedit.exe\" AND like(command_line,\"%bootstatuspolicy%ignoreallfailures%\"),\"ignore_boot_failures\",true(),null())\n| where isnotnull(recovery_action)\n| eval use_case=\"UC-1.2.90\"\n| table _time endpoint recovery_action User IntegrityLevel process_name Image CommandLine ProcessGuid ProcessId Hashes ParentImage ParentCommandLine ParentProcessGuid ParentProcessId CurrentDirectory EventRecordID RuleName source sourcetype use_case\n| sort 0 -_time endpoint",
   "description": "Reports one Sysmon process-creation row when the exact image and normalized command line match selected Microsoft-documented recovery-inhibition operations. It preserves user, integrity, hashes, process GUID, parent chain, endpoint, and raw identity, but does not assert success or ransomware.",
   "value": "Deleting shadow copies or backup catalogs and disabling recovery can remove restoration options immediately before destructive encryption or sabotage. Fast, evidence-rich detection lets responders verify authorization, protect remaining backups, and correlate broader malicious activity without making a high-impact containment decision from a command string alone.",
@@ -39,29 +30,6 @@
   "cimSpl": "| tstats `summariesonly` count min(_time) as first_seen max(_time) as last_seen values(Processes.process) as process values(Processes.parent_process) as parent_process values(Processes.process_id) as process_ids from datamodel=Endpoint.Processes where Processes.process_name IN (\"vssadmin.exe\",\"wmic.exe\",\"wbadmin.exe\",\"bcdedit.exe\") by Processes.dest Processes.user Processes.process_name\n| rename Processes.* as *\n| where (process_name=\"vssadmin.exe\" AND like(lower(process),\"%delete%shadows%\")) OR (process_name=\"wmic.exe\" AND like(lower(process),\"%shadowcopy%delete%\")) OR (process_name=\"wbadmin.exe\" AND (like(lower(process),\"%delete%catalog%\") OR like(lower(process),\"%delete%systemstatebackup%\"))) OR (process_name=\"bcdedit.exe\" AND (like(lower(process),\"%recoveryenabled%no%\") OR like(lower(process),\"%bootstatuspolicy%ignoreallfailures%\")))",
   "schema": "Microsoft Sysmon Event ID 1 native XML; optional Endpoint.Processes normalization",
   "dataModelAcceleration": "The optional Endpoint.Processes variant is valid only after confirming that `process` contains the full command line and `process_name`, parent, user, destination, and process ID are populated for Sysmon Event 1. It is a triage acceleration and does not preserve raw EventRecordID, ProcessGuid, hashes, or all parent fields; keep raw XML as evidence.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "ProcessGuid",
-    "ProcessId",
-    "Image",
-    "CommandLine",
-    "CurrentDirectory",
-    "User",
-    "IntegrityLevel",
-    "Hashes",
-    "ParentProcessGuid",
-    "ParentProcessId",
-    "ParentImage",
-    "ParentCommandLine",
-    "RuleName"
-  ],
   "references": [
     {
       "title": "Microsoft Defender XDR: ransomware hunting recovery-inhibition commands",
@@ -105,21 +73,43 @@
   ],
   "detectionType": "TTP",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "ProcessGuid",
+    "ProcessId",
+    "Image",
+    "CommandLine",
+    "CurrentDirectory",
+    "User",
+    "IntegrityLevel",
+    "Hashes",
+    "ParentProcessGuid",
+    "ParentProcessId",
+    "ParentImage",
+    "ParentCommandLine",
+    "RuleName"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows endpoints and servers with Sysmon ProcessCreate command-line telemetry. Backup products, hypervisors, storage arrays, and cloud snapshots need separate product telemetry.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft recovery-command, Defender ransomware-hunting, Sysmon, Splunk Windows add-on/CIM, and MITRE ATT&CK documentation; command execution, process fields, SPL, fixtures, alerting, response, and backup impact were specified but not executed or Microsoft/Splunk/backup/IR-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft recovery-command, Defender ransomware-hunting, Sysmon, Splunk Windows add-on/CIM, and MITRE ATT&CK documentation; command execution, process fields, SPL, fixtures, alerting, response, and backup impact were specified but not executed or Microsoft/Splunk/backup/IR-SME signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -136,6 +126,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact command contract\n\nAssign endpoint-security, backup/recovery, Windows, Splunk, and incident-response owners. Install and govern Sysmon plus Splunk Add-on for Microsoft Windows 10.0.1. Restrict process/command/hash data. Microsoft documents legitimate recovery operations, and Defender hunting guidance identifies the same utilities in ransomware activity. Therefore the analytic is high priority but not self-proving.\n\nQualifying branches are exact: vssadmin plus `delete` and `shadows`; wmic plus `shadowcopy` and `delete`; wbadmin plus `delete catalog` or `delete systemstatebackup`; bcdedit plus `recoveryenabled no` or `bootstatuspolicy ignoreallfailures`. The command was observed, not necessarily successful.\n\n## Step 1 — Configure Sysmon and XML collection\n\nEnable Sysmon ProcessCreate Event ID 1 with full command line and hashes under a signed configuration. Record Event ID 16/configuration hash and measure volume. Collect **Applications and Services Logs > Microsoft > Windows > Sysmon > Operational** as XML using an app-owned `inputs.conf` stanza to local `index=wineventlog`. Verify `sourcetype=XmlWinEventLog`, exact source, and every required field against Event Viewer XML. Operate source-health for each expected endpoint.\n\nDo not combine Security 4688 in this primary SPL: its field names and command-line availability depend on separate audit policy. A dedicated 4688 variant is possible only after field and coverage tests.\n\n## Step 2 — Create and understand the detector\n\nSave as `windows_recovery_inhibition_commands`, schedule every five minutes over `earliest=-10m@m latest=-5m@m`, and trigger on any row. The search fixes source and Event ID, lowercases image/command line, derives the executable basename, and requires image plus token sequence. This avoids matching command text in unrelated events and distinguishes `list`/`get` from destructive verbs.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nThrottle only duplicate notifications by endpoint, ProcessGuid, and action. Keep raw rows. If Endpoint.Processes acceleration is used, prove that `process` is the full command line and compare results to raw XML; the CIM row lacks complete forensic identity.\n\n## Step 3 — Validate branches and collisions\n\nRun every positive and negative fixture with fixed bounds, including capitalization, quotes, argument order, alternate spacing, wrong image, wrong event ID/channel, and empty command. Test one branch at a time. Do not execute destructive commands on production. In an isolated disposable VM with expendable snapshots/backups, approved owners may exercise commands and confirm EventRecordID/XML, search row, alert, and actual outcome separately.\n\nVerify source/configuration coverage, event latency, dashboard RBAC, drilldown, exception expiry, and response contact. Record Windows/Sysmon/add-on/Splunk versions, fixture, exact bounds, expected/actual rows, and operator. Keep draft status until human owners accept tests.\n\n## Step 4 — Investigate and respond safely\n\nOn a result: validate raw process event and source health; verify image path/hash/signature and parent chain; contact backup/change owner; inspect current shadow copies and backup catalog through approved read-only procedures; search adjacent processes, services, files, network, and EDR detections; assess protected/offline backup integrity; and invoke ransomware/destructive-attack response if corroborated.\n\nDo not automatically kill the process, isolate a domain controller/backup server, delete more snapshots, modify BCD, start a backup, or restore data from this row alone. Rapid human approval is appropriate; blind action can interrupt legitimate recovery or destroy evidence.\n\n## Step 5 — Troubleshoot\n\n- **No detection for known command:** verify Event ID 1, command-line capture, exact source/type, image basename, token order, schedule delay, and source health.\n- **CommandLine empty:** repair Sysmon configuration/collection; do not infer destructive action from image alone.\n- **Copied/renamed utility missed:** this is an explicit exclusion; add signer/hash/behavior analytics separately, not an unverified filename guess.\n- **Legitimate backup work pages:** validate ticket and action, then apply exact bounded post-result lookup; never allowlist the executable globally.\n- **CIM search differs:** inspect Endpoint.Processes `process`/`process_name` mapping and acceleration freshness; retain raw search as authority.\n- **Duplicate rows:** compare Computer, EventRecordID, ProcessGuid, and direct/WEF paths and correct collection overlap.\n- **Command observed but no change:** expected; process creation is not completion. Capture exit/outcome through separate endpoint or backup telemetry.",
   "grandmaExplanation": "We watch for Windows commands that can erase restore points or weaken recovery. Those commands can be legitimate, but they also appear before destructive attacks, so the team checks who ran them and protects the remaining backups quickly.",
+  "hardware": "Windows endpoints and servers with Sysmon ProcessCreate command-line telemetry. Backup products, hypervisors, storage arrays, and cloud snapshots need separate product telemetry.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

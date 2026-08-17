@@ -18,15 +18,6 @@
   },
   "dataSources": "Windows Application XML from the Microsoft Windows Search provider, Event IDs 7040 and 7042, collected with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Application`. Validate the native provider name on each supported build and normalize from `Provider_Name`, `ProviderName`, or `SourceName` only after observing the XML. Preserve `EventCode`/`EventID`, `Computer`, `EventRecordID`, `Level`, `Keywords`, provider, `Message`, and any observed catalog/error fields; do not invent a stable `CatalogName` extraction.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. No premium app is required.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Application\" EventCode IN (7040,7042) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), event_provider=lower(trim(coalesce(Provider_Name,ProviderName,SourceName)))\n| where in(event_code,7040,7042) AND event_provider=\"microsoft-windows-search\" AND len(endpoint)>0\n| eval issue=case(event_code=7040,\"corrupt_index_rebuild_attempted\",event_code=7042,\"search_stopped_catalog_corrupt\"), use_case=\"UC-1.2.88\"\n| table _time endpoint event_code issue event_provider Level Keywords EventRecordID Message source sourcetype use_case\n| sort 0 -_time endpoint",
   "description": "Reports one row for each Microsoft Windows Search Application event indicating corrupt index data and an attempted rebuild (7040) or Search service shutdown because the catalog is corrupt (7042). The provider-qualified result preserves raw identity and message; it does not infer that rebuilding succeeded or that users were affected.",
   "value": "Repeated catalog corruption can make local or server search incomplete, trigger expensive rebuild activity, and hide a storage, profile, or configuration fault. Provider-qualified evidence helps endpoint teams distinguish a real Search repair cycle from unrelated events and verify that search returns after remediation instead of repeatedly resetting the index. This shortens restoration of reliable search results by exposing the host and documented corruption/rebuild event.",
@@ -35,22 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft Windows Search provider Application event XML",
   "dataModelAcceleration": "No CIM Change mapping is claimed. Catalog-corruption provider/event semantics and raw message identity are not represented by generic `Change.All_Changes`; use the qualified Application events.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "Provider_Name",
-    "ProviderName",
-    "SourceName",
-    "Level",
-    "Keywords",
-    "Message"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: fix problems in Windows Search",
@@ -88,21 +63,36 @@
     "N/A (operational Windows Search catalog reliability; no adversary behavior is asserted)"
   ],
   "detectionType": "Provider-qualified fault event",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "Provider_Name",
+    "ProviderName",
+    "SourceName",
+    "Level",
+    "Keywords",
+    "Message"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Supported Windows endpoints or servers running Windows Search and producing Microsoft Windows Search provider events in the Application log. SharePoint and Exchange search engines are separate products.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Windows Search troubleshooting/service documentation, Microsoft event examples, and Splunk Windows add-on configuration; provider/event schemas, fault generation, SPL, controls, alerting, repair, and post-rebuild user validation were specified but not executed or Microsoft/Splunk/endpoint-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Windows Search troubleshooting/service documentation, Microsoft event examples, and Splunk Windows add-on configuration; provider/event schemas, fault generation, SPL, controls, alerting, repair, and post-rebuild user validation were specified but not executed or Microsoft/Splunk/endpoint-SME signed",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -118,6 +108,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact fault contract\n\nAssign endpoint/Search, Windows platform, Splunk collection, and service-desk owners. Confirm which assets actually depend on Windows Search; do not deploy a user-experience alert to systems where the service is intentionally disabled. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and qualify exact Windows/build/provider schemas. This rule is deliberately limited to 7040 and 7042 from the Search provider because broad Application EventCode searches collide with unrelated providers.\n\n## Step 1 — Collect and verify Application XML\n\nConfigure an app-owned `[WinEventLog://Application]` input with `renderXml=true` and deployment-local `index=wineventlog`. Verify effective `inputs.conf` through `splunk btool inputs list WinEventLog://Application --debug`. In the Event Viewer console at **Windows Logs > Application**, inspect provider, event ID, EventRecordID, level, and XML Data elements on every supported build. Confirm which extracted provider field (`Provider_Name`, `ProviderName`, or `SourceName`) equals `Microsoft-Windows-Search`; do not guess a catalog field from rendered prose.\n\nMaintain source-health coverage by expected endpoint. Application collection is periodic event forwarding, not an API poll; no invented 300-900 second vendor interval applies. Measure event-to-index delay and direct-versus-WEF identity.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL as `windows_search_catalog_corruption`. Schedule it every five minutes over `earliest=-10m@m latest=-5m@m`, triggering when results are present. The base search fixes index, XML source type, Application channel, and two IDs. The provider predicate prevents Service Control Manager or other 7040/7042 collisions. It labels 7040 as corruption with rebuild attempted and 7042 as service stopped because the catalog is corrupt; neither label says repaired.\n\nThrottle duplicate delivery by endpoint and issue for a short incident window while retaining every event. Escalate 7042 immediately to the endpoint team; aggregate repeated 7040 for reliability review. No CIM/tstats substitute is supplied because generic changes lose provider and catalog semantics.\n\n## Step 3 — Validate event identity and recovery\n\nRun exact positive and negative fixtures with fixed bounds. Test both IDs, wrong provider, wrong source, empty endpoint, duplicate records, case normalization, and message localization. On a disposable lab endpoint, use only Microsoft-supported Search troubleshooting/reset procedures under change approval. Compare the same EventRecordID/XML between Event Viewer and Splunk; record Windows/add-on/Splunk version and expected/actual row.\n\nAfter a real or lab event, verify Search service state and perform representative searches for known indexed and intentionally excluded items. Observe rebuild progress using supported Windows interfaces. A service running or absence of a second event is not proof of complete indexing. Record user-impact and recovery evidence.\n\n## Step 4 — Operationalize response\n\nWhen a row appears: validate source/provider/event identity; check approved reset, update, image, or profile work; inspect adjacent Search and Service Control Manager events; check free space, filesystem/storage faults, profile health, and recent security-product changes; confirm whether rebuild starts and completes; test representative queries; and document root cause.\n\nDo not automatically delete the catalog, `%ProgramData%` content, registry configuration, `.BLF`/`.REGTRANS-MS` files, restart services repeatedly, or reboot from this alert. Microsoft's repair steps are symptom-specific and can cause high CPU during rebuild; apply them through normal backup/change procedures.\n\n## Step 5 — Troubleshoot\n\n- **7040/7042 visible but no result:** verify provider extraction, XML source/type, EventCode numeric conversion, index routing, and search role.\n- **Unrelated service events appear:** provider qualification is missing or wrong; inspect native XML and repair extraction rather than adding message keywords.\n- **No Application data:** verify effective input, Event Log permissions, forwarder output/queues, WEF subscription if used, and endpoint source health.\n- **Search service repeatedly rebuilds:** investigate storage/filesystem, profile, Search configuration, software filter handlers, update history, and Microsoft-supported repair sequence.\n- **Catalog rebuilt but searches fail:** verify indexed locations, exclusions, file types, user profile, permissions, and query tests; this detector does not measure completeness.\n- **Duplicate records:** compare Computer, EventRecordID, source path, and direct/WEF collection, then correct topology.\n- **High CPU after repair:** Microsoft notes rebuild can cause high CPU; verify progress and completion before treating it as another corruption signal.",
   "grandmaExplanation": "We notice when the built-in Windows search catalog becomes damaged or the search service stops because of it. That lets support teams repair search and confirm it works again instead of assuming an automatic rebuild solved everything.",
+  "hardware": "Supported Windows endpoints or servers running Windows Search and producing Microsoft Windows Search provider events in the Application log. SharePoint and Exchange search engines are separate products.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

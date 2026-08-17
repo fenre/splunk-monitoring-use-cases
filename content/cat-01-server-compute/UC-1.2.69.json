@@ -17,14 +17,6 @@
   },
   "dataSources": "Windows Performance Counter `\\Paging File(*)\\% Usage`, the current percentage of each page-file instance in use; optionally collect `% Usage Peak` for context, not as the primary predicate. Configure a Splunk Windows perfmon input with Splunk Add-on for Microsoft Windows (Splunkbase 742) to deployment-choice `index=perfmon`, local stanza-derived `sourcetype=Perfmon:Paging_File` (explicitly a deployment convention). Required fields: `_time, _indextime, host, object, counter, instance, Value, source, sourcetype`. Use `useEnglishOnly=true` where supported and validate exact emitted names. Correlate `Memory\\% Committed Bytes In Use`, `Available MBytes`, `Modified Page List Bytes`, page input/output and hosting-disk metrics.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) and the Splunk platform Windows perfmon input. A local operations app owns the input contract, analytic, source health, dashboard, fixtures and `windows_pagefile_capacity_exceptions.csv`.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=perfmon sourcetype=\"Perfmon:Paging_File\" object=\"Paging File\" counter=\"% Usage\" earliest=-40m@m latest=-5m@m\n| eval destination=lower(trim(host)), pagefile_instance=lower(trim(instance)), usage_pct=tonumber(Value)\n| where len(destination)>0 AND len(pagefile_instance)>0 AND pagefile_instance!=\"_total\" AND isnotnull(usage_pct) AND usage_pct>=0 AND usage_pct<=100\n| bin _time span=1m\n| stats avg(usage_pct) AS usage_pct count AS raw_sample_count max(_indextime) AS last_indextime values(source) AS observed_sources values(sourcetype) AS observed_sourcetypes by destination pagefile_instance _time\n| sort 0 destination pagefile_instance _time\n| streamstats window=3 current=true count AS sample_count min(usage_pct) AS minimum_usage_pct avg(usage_pct) AS average_usage_pct earliest(_time) AS first_sample_time latest(_time) AS latest_sample_time by destination pagefile_instance\n| eventstats max(_time) AS newest_instance_sample by destination pagefile_instance\n| where _time=newest_instance_sample AND _time>=relative_time(now(),\"-10m@m\") AND sample_count=3 AND latest_sample_time-first_sample_time=120 AND minimum_usage_pct>90\n| eval latest_usage_pct=round(usage_pct,2), minimum_usage_pct=round(minimum_usage_pct,2), average_usage_pct=round(average_usage_pct,2), threshold_pct=90, required_consecutive_samples=3, sample_interval_seconds=60, close_delay_minutes=5, analytic_interpretation=\"sustained high usage of one allocated page-file instance; correlate commit, modified list, physical memory and disk; not proof of exhaustion\", use_case=\"UC-1.2.69\"\n| table destination pagefile_instance first_sample_time latest_sample_time sample_count raw_sample_count minimum_usage_pct average_usage_pct latest_usage_pct threshold_pct required_consecutive_samples sample_interval_seconds close_delay_minutes observed_sources observed_sourcetypes last_indextime analytic_interpretation use_case\n| sort 0 -latest_usage_pct destination pagefile_instance",
   "description": "Reports the latest row per host and non-total page-file instance when three gap-free one-minute `% Usage` buckets are each above 90% in the closed search slice. It reports minimum, average and latest percentage at host/instance grain and explicitly requires memory/commit correlation before diagnosing exhaustion.",
   "value": "Persistent high utilization of an allocated page file can identify capacity risk or changing memory demand that merits correlation before applications fail or a hosting disk loses growth headroom. Per-instance, gap-aware results support defensible page-file and RAM planning without treating a single percentage as proof of memory pressure. This improves memory-capacity decisions by separating sustained page-file pressure from a single transient sample.",
@@ -33,17 +25,6 @@
   "cimModels": [],
   "schema": "Windows Paging File performance object, % Usage counter, per-page-file instance",
   "dataModelAcceleration": "No standard CIM field is claimed as exact parity for per-instance `Paging File\\% Usage` with native instance, one-minute continuity and dynamic allocated-size semantics. `swap_used_percent` mappings may collapse instances or represent another platform concept. No `cimSpl` is provided; a metrics-index or summary implementation must preserve host/instance/value, sample timing and raw parity.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "host",
-    "object",
-    "counter",
-    "instance",
-    "Value",
-    "source",
-    "sourcetype"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: determine appropriate page-file size and interpret Paging File % Usage",
@@ -84,20 +65,32 @@
   "knownFalsePositives": "A result reflects real sampled utilization above local policy; benign or non-actionable explanations include:\n\n1. **Crash-dump sizing or intentionally fixed small page file** — a small file can show high percentage while system commit remains safe. Verify page-file purpose/size, dump policy, commit charge/limit, modified list and disk headroom with the platform owner.\n2. **System-managed page-file resize** — Windows can grow the allocated file, changing the percentage denominator. Correlate configured/current size, System events, disk free space and timing; do not interpret a falling percentage as workload recovery without size context.\n3. **Planned load, backup, compilation, analytics or application warm-up** — temporary committed-memory demand can persist for minutes. Match exact job/change, process private bytes/commit, service SLO, duration and return to baseline.\n4. **Failover, restart or cache repopulation** — clustered/application recovery can increase commit temporarily. Validate orchestration ID, node role, process ownership, availability and completion.\n5. **New deployment or memory-intensive service** — legitimate growth can exceed a historical page-file design. Correlate release, process commit, host sizing, workload forecast and capacity ticket; sustained use still requires action.\n6. **Duplicate or irregular perfmon collection** — overlapping stanzas/forwarders can create duplicate buckets and missing samples can falsify persistence. Repair source ownership and interval health.\n7. **Authorized capacity test** — preserve the result and test metrics; suppress duplicate notification only for exact hosts/instances and approved UTC bounds.\n\n**Safe suppression:** apply lookup windows_pagefile_capacity_exceptions.csv after base detection. Require exact `destination,pagefile_instance`, exception ID, numeric inclusive `valid_from_epoch`, exclusive `valid_until_epoch`, owner, approver, change/capacity ticket, purpose and maximum approved percentage/duration. Reject wildcard fleets, `_Total` rules and open-ended dates. Never suppress missing/duplicate/interval health; retain all base results.",
   "mitreAttack": [],
   "detectionType": "Threshold",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "host",
+    "object",
+    "counter",
+    "instance",
+    "Value",
+    "source",
+    "sourcetype"
+  ],
   "equipment": [
+    "cisco",
     "windows"
   ],
   "equipmentModels": [
+    "cisco_aci",
     "windows_generic"
   ],
-  "hardware": "Windows hosts exposing the Paging File performance object and at least one page-file instance through a validated perfmon input. Hosts without a page file, localized/untranslated counters, non-Windows swap, container-only memory and systems collected only through another metric schema require separate analytics.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft page-file sizing/counter semantics and primary Splunk Windows perfmon documentation; collection, fields, SPL continuity, fixtures, source health, dashboard, exceptions and capacity response were specified but not executed or Microsoft/Windows-performance/Splunk-SME signed",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft page-file sizing/counter semantics and primary Splunk Windows perfmon documentation; collection, fields, SPL continuity, fixtures, source health, dashboard, exceptions and capacity response were specified but not executed or Microsoft/Windows-performance/Splunk-SME signed",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -113,6 +106,15 @@
   },
   "detailedImplementation": "## Define the counter contract\n\nAssign Windows performance, application/service, capacity, storage, Splunk collection/content and on-call owners. Inventory each host, service, environment, RAM, page-file mode (system-managed/fixed/none), configured and current allocated file sizes, hosting volume/free-space policy, crash-dump requirement, expected instances, maintenance windows and forwarding path. Restrict detailed process/capacity dashboards with an operations Splunk role.\n\nMicrosoft defines `Paging File(*)\\% Usage` as the percentage of each page-file instance in use. It is not the paging-I/O rate. Microsoft also states 100% use is not itself a performance problem if system commit has not reached its limit and a significant modified page list is not waiting. The local alert requires strictly above 90% for three consecutive one-minute buckets; this is a triage policy, not a Microsoft limit.\n\n## Configure and validate Perfmon\n\nDeploy Splunk Add-on for Microsoft Windows from Splunkbase 742. Manage a deployment-app `inputs.conf` stanza:\n\n```ini\n[perfmon://Paging_File]\nobject = Paging File\ncounters = % Usage;% Usage Peak\ninstances = *\ninterval = 60\nmode = single\nuseEnglishOnly = true\nindex = perfmon\ndisabled = 0\n```\n\nValidate the emitted event contract. `index=perfmon` and stanza-derived `sourcetype=Perfmon:Paging_File` are local choices, not universal vendor defaults. Confirm object `Paging File`, counter `% Usage`, per-file instance names, numeric Value, host, source and one sample each 60 seconds. Exclude `_Total` from the primary rule so each row has a concrete page-file denominator.\n\nCollect correlation counters in separately tested stanzas: `Memory\\% Committed Bytes In Use`, `Committed Bytes`, `Commit Limit`, `Available MBytes`, `Modified Page List Bytes`, `Page Reads/sec`, `Page Writes/sec`, `Page Inputs/sec`, and disk free/latency for page-file volumes. Do not call `Pages/sec` page-file I/O; hard faults can read mapped files and executables.\n\n```spl\nindex=perfmon sourcetype=\"Perfmon:Paging_File\" earliest=-30m\n| table _time _indextime host object counter instance Value source sourcetype\n| sort 0 host instance _time\n```\n\nCompare with **Performance Monitor > Paging File > % Usage** and current Windows page-file configuration. Test fixed and system-managed files, multiple files and a host with no page file.\n\n## Monitor source quality\n\nBuild expected-host/instance health for absent/stale samples, interval outside 50–90 seconds, excessive `_indextime-_time`, duplicate host/instance/counter/time, nonnumeric or outside-0–100 values, unknown instances, localization/name drift, disabled stanzas and forwarder backlog. Track configuration/current-size changes because dynamic growth changes the percentage denominator.\n\nMissing samples invalidate a three-minute sequence. Overlapping stanzas can overweight an average even when timestamps match. Repair collection instead of using arbitrary `dedup`. Route page-file-hosting disk free-space risk separately.\n\n## Schedule and understand the SPL\n\nSave as `windows_pagefile_sustained_utilization`, schedule every five minutes and trigger on result count greater than zero. It scans `earliest=-40m@m latest=-5m@m`, leaving five minutes for arrival. The 35-minute history tolerates scheduling while selecting only the newest eligible instance row.\n\nThe query validates host/instance and a 0–100 numeric value, bins to one minute and averages duplicate raw samples within a bucket while retaining their count. Ordered `streamstats` computes the last three buckets. The result requires three samples, exactly 120 seconds from first to last, minimum above 90 and a newest sample no older than the final five-minute band. One result means one page-file instance met persistence; it does not mean every page file is high or commit is exhausted.\n\nNo CIM query is asserted. A metrics-index implementation can reduce event cost but must preserve object/counter/instance dimensions, sampling time, continuity and parity.\n\n## Validate and operationalize\n\nReplay the exact 91/92/93 fixture and assert all fields. Run each negative independently: boundary 90, two points, gap, invalid values, Peak, `_Total`, wrong source/object, delayed and duplicate data. Test multiple instances, system-managed growth, clock skew, latest/earliest boundaries, host renaming and add-on upgrades. Confirm source-health alerts independently.\n\nUse Windows Performance Recorder/Monitor or an approved disposable workload in a lab to raise committed memory without risking production. Capture page-file allocated-size changes, commit charge/limit, Available MBytes, modified list, page I/O and disk headroom. A synthetic Splunk fixture proves SPL; a lab workload proves collection; neither proves production thresholds.\n\nDashboard and alert testing must verify ACLs, exact instance drilldown, ticket routing, notification throttle and exception expiry. Alert title: `Sustained page-file utilization <latest_usage_pct>% on <destination>/<pagefile_instance>`.\n\nAnalysts verify raw samples and continuity, then compare commit percentage/limit, modified list, available physical memory, page reads/writes, process commit/private bytes, current page-file allocation, system-managed growth, hosting-volume free/latency, workload/change and service impact. Capacity owners decide whether to fix a leak, add RAM, resize/add a page file, relocate storage or change workload. Preserve crash-dump requirements. Never automatically resize page files or terminate processes from this result.\n\nApply lookup windows_pagefile_capacity_exceptions.csv after detection. Retain base results and source health. Review repeated findings, dynamic size and exception expiry weekly.\n\n## Troubleshoot\n\n- No samples: verify object/counter spelling, `useEnglishOnly`, stanza deployment, forwarder permissions/health, index route and page-file existence.\n- Only `_Total`: collect `instances=*` and inspect per-file names; do not silently use aggregate semantics.\n- Value exceeds 100/nonnumeric: inspect raw event, locale/extraction and duplicate stanzas.\n- High percentage without pressure: expected possibility; inspect commit and modified list per Microsoft guidance.\n- Usage drops suddenly: check system-managed growth or restart before calling recovery.\n- Gaps prevent alert: repair interval/forwarding; do not weaken continuity without documenting changed semantics.\n- Metric/CIM counts differ: audit dimensions, rollups and time alignment; event source remains authoritative until parity.",
   "grandmaExplanation": "We watch each Windows page file for several minutes of very high use. That is a reason to check memory and disk capacity, but the percentage alone does not mean the computer has run out of memory.",
+  "hardware": "Windows hosts exposing the Paging File performance object and at least one page-file instance through a validated perfmon input. Hosts without a page file, localized/untranslated counters, non-Windows swap, container-only memory and systems collected only through another metric schema require separate analytics.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source"
+    }
+  ],
   "wave": "walk"
 }

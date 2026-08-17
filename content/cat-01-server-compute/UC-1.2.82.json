@@ -18,15 +18,6 @@
   },
   "dataSources": "Primary source: a governed Splunk PowerShell v3 modular input on each required Windows host, every 900 seconds, querying Microsoft WMI/CIM class `root\\Microsoft\\Windows\\DeviceGuard:Win32_DeviceGuard` and emitting one JSON record to local `index=windows`, `sourcetype=windows:credential_guard:status`, `source=powershell:credential_guard_status`. Required fields: `sample_time_utc`, `computer`, `sample_ok`, `credential_guard_configured`, `credential_guard_running`, `security_services_configured`, `security_services_running`, `virtualization_based_security_status`, `script_version`, and `error_type`. Roster lookup `windows_credential_guard_expected_hosts.csv` requires `dest,credential_guard_required,owner`. Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1 is optional supporting collection for WinInit System events.",
   "app": "Splunk Enterprise/Universal Forwarder built-in PowerShell v3 modular input is the primary collector. Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) 10.0.1 is optional supporting context for WinInit events; it does not create the Win32_DeviceGuard status snapshot.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "supporting-data"
-    }
-  ],
   "spl": "index=windows sourcetype=\"windows:credential_guard:status\" source=\"powershell:credential_guard_status\" earliest=-40m@m latest=-10m@m\n| spath\n| eval dest=lower(trim(coalesce(computer,host))), sample_ok=lower(tostring(sample_ok)), credential_guard_running=lower(tostring(credential_guard_running)), credential_guard_configured=lower(tostring(credential_guard_configured))\n| where len(dest)>0\n| stats latest(_time) as last_sample latest(sample_time_utc) as sample_time_utc latest(sample_ok) as sample_ok latest(credential_guard_running) as credential_guard_running latest(credential_guard_configured) as credential_guard_configured latest(security_services_running) as security_services_running latest(security_services_configured) as security_services_configured latest(virtualization_based_security_status) as virtualization_based_security_status latest(script_version) as script_version latest(error_type) as error_type by dest\n| append [| inputlookup windows_credential_guard_expected_hosts.csv | eval dest=lower(trim(dest)), credential_guard_required=lower(trim(credential_guard_required)), expected=if(credential_guard_required=\"true\",1,0), expected_owner=trim(owner) | where expected=1 AND len(dest)>0 | fields dest expected expected_owner]\n| stats max(last_sample) as last_sample values(sample_time_utc) as sample_time_utc values(sample_ok) as sample_ok values(credential_guard_running) as credential_guard_running values(credential_guard_configured) as credential_guard_configured values(security_services_running) as security_services_running values(security_services_configured) as security_services_configured values(virtualization_based_security_status) as virtualization_based_security_status values(script_version) as script_version values(error_type) as error_type max(expected) as expected values(expected_owner) as owner by dest\n| where expected=1\n| eval finding=case(isnull(last_sample),\"no_recent_snapshot\",sample_ok!=\"true\",\"collection_error\",credential_guard_running=\"true\",\"running\",credential_guard_configured=\"true\",\"configured_not_running\",1=1,\"not_configured_or_not_running\"), minutes_since_sample=if(isnull(last_sample),null(),round((now()-last_sample)/60,1))\n| where finding!=\"running\"\n| eval use_case=\"UC-1.2.82\", window_minutes=30\n| table dest owner finding last_sample sample_time_utc minutes_since_sample credential_guard_configured credential_guard_running security_services_configured security_services_running virtualization_based_security_status sample_ok error_type script_version window_minutes use_case\n| sort 0 finding dest",
   "description": "Identifies drift by comparing authoritative Win32_DeviceGuard runtime snapshots with a governed expected-host roster. It returns required Windows hosts where the SecurityServicesRunning array does not contain value 1, the query failed, or no recent snapshot arrived, while preserving configuration and VBS context.",
   "value": "Credential Guard isolates reusable sign-in secrets from the normal operating system. A policy can remain assigned while firmware, virtualization, licensing, configuration, or collection problems leave the protection inactive; fleet-level runtime evidence lets owners correct that gap before credential theft is attempted. This prevents policy-assignment success from masking endpoints where Credential Guard is not actually running.",
@@ -35,24 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft Win32_DeviceGuard properties emitted as governed JSON status snapshots",
   "dataModelAcceleration": "No CIM data model represents the Win32_DeviceGuard service arrays and expected-host coverage contract. The Change model cannot safely turn WinInit event numbers into current state, and Endpoint process data must not use LsaIso.exe as a status proxy. Keep raw snapshots plus the roster authoritative; summary-index only after proving exact field, host, and missing-data parity.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "sample_time_utc",
-    "computer",
-    "sample_ok",
-    "credential_guard_configured",
-    "credential_guard_running",
-    "security_services_configured",
-    "security_services_running",
-    "virtualization_based_security_status",
-    "script_version",
-    "error_type",
-    "dest",
-    "credential_guard_required",
-    "owner"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: Configure Credential Guard and verify runtime status",
@@ -101,21 +74,38 @@
   ],
   "detectionType": "Configuration and runtime posture",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "sample_time_utc",
+    "computer",
+    "sample_ok",
+    "credential_guard_configured",
+    "credential_guard_running",
+    "security_services_configured",
+    "security_services_running",
+    "virtualization_based_security_status",
+    "script_version",
+    "error_type",
+    "dest",
+    "credential_guard_required",
+    "owner"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Policy-scoped Windows 10 or Windows 11 devices and Windows Server 2016 or later systems that expose `root\\Microsoft\\Windows\\DeviceGuard:Win32_DeviceGuard`, meet the organization's Credential Guard eligibility requirements, and run a Splunk Universal Forwarder PowerShell input. Default enablement varies by Windows version, hardware, licensing, explicit disablement, domain membership, and server role; the roster must encode local policy rather than assume every Windows host is required.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Credential Guard verification/Win32_DeviceGuard/default-enablement documentation and Splunk PowerShell/inputlookup/spath/add-on documentation; script, fields, lookup, SPL, schedule, source coverage, tests, dashboard, exceptions, and response were specified but not executed or Microsoft/Windows/endpoint/Splunk/SOC-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Credential Guard verification/Win32_DeviceGuard/default-enablement documentation and Splunk PowerShell/inputlookup/spath/add-on documentation; script, fields, lookup, SPL, schedule, source coverage, tests, dashboard, exceptions, and response were specified but not executed or Microsoft/Windows/endpoint/Splunk/SOC-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -132,6 +122,16 @@
   },
   "detailedImplementation": "## Prerequisites and policy contract\n\nAssign Windows endpoint, identity/security, firmware, virtualization, Splunk, asset, and exception owners. Define which supported hosts require Credential Guard in `windows_credential_guard_expected_hosts.csv` with exact `dest,credential_guard_required,owner`; do not assume every domain-joined host has the same requirement. Microsoft documents default enablement conditions and exceptions by Windows release and server role. Record OS edition/build, hardware eligibility, explicit policy, and exclusions.\n\nUse Splunk Enterprise 9.3+/10.x or Splunk Cloud, a Windows Universal Forwarder running the PowerShell v3 modular input, and a search role able to read index=windows plus the roster lookup. Splunk Add-on for Microsoft Windows (Splunkbase 742) 10.0.1 is optional for WinInit corroboration. Microsoft specifically advises against using LsaIso.exe process presence as the status test. The authoritative periodic test is the Win32_DeviceGuard `SecurityServicesRunning` array: integer 1 present means Credential Guard is running; integer 2 means memory integrity, not Credential Guard.\n\n## Step 1 — Build and deploy the status input\n\nPackage a reviewed script as `$SPLUNK_HOME\\etc\\apps\\org_windows_posture\\bin\\credential_guard_status.ps1`, sign it according to endpoint policy, and version it. A minimal output contract is:\n\n```powershell\n$ErrorActionPreference = 'Stop'\n$sampleTime = [DateTime]::UtcNow.ToString('o')\ntry {\n  $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace 'root\\Microsoft\\Windows\\DeviceGuard'\n  $configured = @($dg.SecurityServicesConfigured | ForEach-Object { [int]$_ })\n  $running = @($dg.SecurityServicesRunning | ForEach-Object { [int]$_ })\n  $row = [ordered]@{\n    sample_time_utc = $sampleTime; computer = $env:COMPUTERNAME; sample_ok = $true\n    credential_guard_configured = ($configured -contains 1)\n    credential_guard_running = ($running -contains 1)\n    security_services_configured = ($configured -join ',')\n    security_services_running = ($running -join ',')\n    virtualization_based_security_status = [int]$dg.VirtualizationBasedSecurityStatus\n    script_version = '1.0.0'; error_type = ''\n  }\n} catch {\n  $row = [ordered]@{\n    sample_time_utc = $sampleTime; computer = $env:COMPUTERNAME; sample_ok = $false\n    credential_guard_configured = $null; credential_guard_running = $null\n    security_services_configured = ''; security_services_running = ''\n    virtualization_based_security_status = $null; script_version = '1.0.0'\n    error_type = $_.Exception.GetType().FullName\n  }\n}\n$row | ConvertTo-Json -Compress\n```\n\nConfigure inputs.conf:\n\n```ini\n[powershell://credential_guard_status]\nscript = . \"$SPLUNK_HOME\\etc\\apps\\org_windows_posture\\bin\\credential_guard_status.ps1\"\nschedule = 900\nsource = powershell:credential_guard_status\nsourcetype = windows:credential_guard:status\nindex = windows\ndisabled = 0\n```\n\nThe Splunk PowerShell input documentation requires a Windows collector and supports seconds or cron in `schedule`. Validate Local System execution and script-signing policy in a nonproduction ring. Emit one JSON object and no banners or progress text. Use `spath` in the search, so this design does not depend on implicit JSON search-time extraction.\n\n## Step 2 — Create and understand the search\n\nSave the supplied SPL as `windows_credential_guard_runtime_status`; schedule every 15 minutes. It examines forty to ten minutes before dispatch, a delayed 30-minute interval expected to contain two 900-second samples. Measure `_indextime-_time`; move the complete window when ten minutes is insufficient.\n\nThe base pins index, source, and sourcetype, then `spath` parses the governed JSON. `latest()` selects the newest snapshot per normalized host. The subsearch reads `windows_credential_guard_expected_hosts.csv`; the second `stats` combines snapshots with required hosts, including those with no events. Evaluation order is deliberate: no sample becomes `no_recent_snapshot`; a failed script becomes `collection_error`; only the literal running value true is healthy; configured true plus running false becomes `configured_not_running`; all other received nonrunning states remain findings. There is no invented mapping from DeviceGuard Operational Event IDs 13, 14, or 15.\n\nApply `windows_credential_guard_status_exceptions.csv` only after this base finding table. Alert immediately for a new nonrunning state and route missing/error states to telemetry owners. Throttle by `dest,finding` for one interval, but notify again on state change or exception expiry.\n\n## Step 3 — Validate Microsoft and Splunk parity\n\nCreate JSON fixtures for running arrays `1` and `1,2`; nonrunning arrays `0`, `2`, and `2,7`; configured value 1 with running value 2; sample failure; malformed JSON; duplicate host samples; mixed case hostnames; delayed events; and absent expected hosts. Prove that 2 alone never passes. Verify lookup rows marked false and hosts absent from the roster are outside policy scope.\n\nOn two representative nonproduction devices, run the script as the forwarder service identity and compare with elevated `(Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\\Microsoft\\Windows\\DeviceGuard).SecurityServicesRunning`. In **System Information > System Summary**, confirm whether Credential Guard appears under Virtualization-based Security Services Running. Review **Windows Logs > System**, source WinInit: Microsoft documents 13 as started, 14 as configuration details, 15 as configured while the secure kernel is not running, and additional warnings for launch/configuration issues. Events are corroboration, not a replacement for current snapshots.\n\nRecord host, OS/build, sample time, native arrays, derived booleans, direct query, System Information result, WinInit records, script/add-on/forwarder/Splunk versions, lookup row, search job ID, expected/actual finding, and operator. Keep draft until fleet runtime tests prove collection, late-data behavior, expected-host completeness, alert delivery, ACLs, exception expiry, and response.\n\n## Step 4 — Operationalize investigation and remediation\n\nTriage the latest raw JSON first. If `sample_ok=false`, fix telemetry before deciding posture. For a healthy sample without value 1, compare configured versus running arrays, VBS status, OS edition/build, explicit Intune/Group Policy/registry state, Windows licensing, Secure Boot/virtualization/firmware settings, recent BIOS/feature updates, hypervisor exposure, and reboot history. Use WinInit warnings and Microsoft known-issue guidance to identify startup failures.\n\nDo not automatically edit registry policy, remove UEFI lock, change firmware, reboot servers, isolate endpoints, or declare compromise from this finding. Credential Guard not running increases exposure but is not proof of credential dumping. Use approved change control to correct policy, licensing, firmware, virtualization, or compatibility problems; then require a healthy snapshot containing running value 1 before closure.\n\nPublish the dashboard described above with roster/input coverage before the compliance percentage. Review required-host population and unsupported exceptions at least monthly, and after Windows servicing or virtualization-platform changes.\n\n## Step 5 — Troubleshoot specific failures\n\n- **No snapshots fleet-wide:** inspect the powershell input stanza with `$SPLUNK_HOME\\bin\\splunk.exe btool inputs list --debug`, app deployment, disabled state, Local System execution, signing policy, index routing, and forwarding queues.\n- **Only one host is missing:** compare forwarder heartbeat, script app/version, host normalization, expected lookup name, and direct local execution.\n- **sample_ok=false:** use `error_type`, then run the exact Get-CimInstance command elevated; verify namespace/class availability and WMI repository health.\n- **JSON fields are null:** inspect raw output for extra text or malformed JSON, confirm `spath`, and test the script under the service identity.\n- **Value 2 treated as healthy:** fix logic to test array membership for 1; value 2 represents memory integrity.\n- **WinInit 13 disagrees with a current snapshot:** compare boot/event time with current CIM state and System Information; retain both and investigate changes since boot.\n- **Expected host is wrongly included:** correct the governed roster with approval; do not create a permanent alert suppression.\n- **False missing-snapshot alerts:** measure ingestion latency and schedule alignment, validate two 900-second samples fit the delayed window, and move the whole window rather than overlap it.\n- **Credential Guard configured but not running after firmware change:** inspect virtualization and Secure Boot configuration, hypervisor exposure, licensing, WinInit 15/16 warnings, and vendor/Microsoft guidance before remediation.",
   "grandmaExplanation": "We ask each protected Windows computer whether its special lockbox for sign-in secrets is actually working. We also notice computers that stop answering, so a broken check cannot be mistaken for healthy protection.",
+  "hardware": "Policy-scoped Windows 10 or Windows 11 devices and Windows Server 2016 or later systems that expose `root\\Microsoft\\Windows\\DeviceGuard:Win32_DeviceGuard`, meet the organization's Credential Guard eligibility requirements, and run a Splunk Universal Forwarder PowerShell input. Default enablement varies by Windows version, hardware, licensing, explicit disablement, domain membership, and server role; the roster must encode local policy rather than assume every Windows host is required.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "supporting-data"
+    }
+  ],
   "wave": "crawl"
 }

@@ -17,14 +17,6 @@
   },
   "dataSources": "Primary source: Windows Security provider `Microsoft-Windows-Security-Auditing`, successful logon event 4624, collected in classic or XML rendering with Splunk Add-on for Microsoft Windows (Splunkbase 742). Enable Success auditing for Advanced Audit Policy `Audit Logon` on every destination. Required fields: `TargetUserSid`, `TargetUserName`, `TargetDomainName`, `TargetLogonId`, `LogonType`/`Logon_Type`, `WorkstationName`, `IpAddress`/`Source_Network_Address`, `IpPort`, `LogonProcessName`, `AuthenticationPackageName`, `LmPackageName`, `KeyLength`, host/computer, provider/channel/version, EventRecordID/RecordNumber, event time, and index time. Microsoft states event 4624 is recorded on the accessed computer and Type 3 is a network logon. Governance source: exact time-bounded account/source exception records.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) for Security event collection, extraction, and optional Authentication CIM normalization. A deployment-owned Windows authentication analytics app must provide coverage/field health, exact fan-out exceptions, account/source ownership, saved search, fixtures, dashboard, checkpointing, and response runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=windows source IN (\"WinEventLog:Security\",\"XmlWinEventLog:Security\") sourcetype IN (\"WinEventLog\",\"XmlWinEventLog\") EventCode=4624 earliest=-15m@m latest=@m\n| eval dest_host=lower(coalesce(Computer,dest,host)), event_record_id=coalesce(EventRecordID,RecordNumber), provider=coalesce(Provider_Name,ProviderName), logon_type=tonumber(coalesce(LogonType,Logon_Type)), user_name=lower(trim(TargetUserName)), user_domain=lower(trim(TargetDomainName)), user_sid=coalesce(TargetUserSid,Security_ID), src_ip=lower(trim(coalesce(IpAddress,Source_Network_Address)))\n| eval src_ip=replace(src_ip,\"^::ffff:\",\"\"), user_key=if(len(user_domain)>0 AND user_domain!=\"-\",user_domain.\"\\\\\".user_name,user_name)\n| where provider=\"Microsoft-Windows-Security-Auditing\" AND logon_type=3 AND len(dest_host)>0 AND len(event_record_id)>0 AND len(user_name)>0 AND len(user_key)>0 AND len(src_ip)>0 AND NOT in(src_ip,\"-\",\"::1\",\"127.0.0.1\",\"localhost\")\n| dedup dest_host source event_record_id\n| stats dc(dest_host) AS distinct_destinations values(dest_host) AS destinations count AS event_count min(_time) AS first_seen max(_time) AS last_seen min(_indextime) AS first_indexed max(_indextime) AS last_indexed values(user_sid) AS user_sids values(WorkstationName) AS workstation_names values(IpPort) AS source_ports values(LogonProcessName) AS logon_processes values(AuthenticationPackageName) AS authentication_packages values(LmPackageName) AS ntlm_packages values(TargetLogonId) AS target_logon_ids values(event_record_id) AS event_record_ids by user_key src_ip\n| eval threshold_destinations=6, observation_window_seconds=900\n| where distinct_destinations>=threshold_destinations\n| lookup windows_network_logon_fanout_exceptions.csv user_key src_ip OUTPUTNEW exception_start_epoch exception_end_epoch exception_id exception_owner approver expected_destination_scope exception_revision\n| eval exception_complete=if(len(exception_id)>0 AND len(exception_owner)>0 AND len(approver)>0 AND len(expected_destination_scope)>0 AND len(exception_revision)>0 AND isnotnull(tonumber(exception_start_epoch)) AND isnotnull(tonumber(exception_end_epoch)),1,0), exception_state=if(exception_complete=1 AND first_seen>=tonumber(exception_start_epoch) AND last_seen<tonumber(exception_end_epoch),\"active\",\"none\")\n| where exception_state=\"none\"\n| table first_seen last_seen first_indexed last_indexed user_key user_sids src_ip distinct_destinations threshold_destinations observation_window_seconds destinations event_count workstation_names source_ports logon_processes authentication_packages ntlm_packages target_logon_ids event_record_ids exception_state exception_id exception_owner approver expected_destination_scope exception_revision\n| sort 0 - distinct_destinations - event_count user_key src_ip",
   "description": "Reports aggregate results from successful Security event 4624 Type 3 records over one scheduled 15-minute window at account-plus-source-IP grain and returns a row when that pair reaches six or more distinct destination hosts without an exact active exception. Event count and target identities are retained; repeated logons to one host do not increase the fan-out count.",
   "value": "Rapid use of one account from one source across many Windows systems can expose credential misuse, overbroad automation, or uncontrolled service behavior early. A transparent host-density rule gives responders a concrete account/source/target set to validate, while exact bounded exceptions keep known backup, deployment, and scanning workflows accountable. This shortens investigation of compromised credentials without blocking legitimate fleet automation on count alone.",
@@ -33,35 +25,6 @@
   "cimModels": [],
   "schema": "Windows Security event 4624 Type 3 destination-side logon schema plus exact account/source exception governance",
   "dataModelAcceleration": "Not applicable to the primary contract. Splunk Add-on for Microsoft Windows can map successful authentication fields to the Authentication model, but accelerated summaries do not reliably preserve raw LogonType 3, TargetLogonId, event-record identity, provider/version, missing-source semantics, or exact exception evidence. A deployment may build a tested summary that retains type, user, src, dest, times, and raw references; the original failure-oriented CIM query was invalid because 4624 is successful, not `action=failure`.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "host",
-    "Computer",
-    "dest",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventRecordID",
-    "RecordNumber",
-    "Provider_Name",
-    "ProviderName",
-    "TargetUserSid",
-    "Security_ID",
-    "TargetUserName",
-    "TargetDomainName",
-    "TargetLogonId",
-    "LogonType",
-    "Logon_Type",
-    "WorkstationName",
-    "IpAddress",
-    "Source_Network_Address",
-    "IpPort",
-    "LogonProcessName",
-    "AuthenticationPackageName",
-    "LmPackageName",
-    "KeyLength"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: Security event 4624 — An account was successfully logged on",
@@ -120,20 +83,49 @@
   ],
   "detectionType": "TTP-aligned deterministic authentication host-density analytic",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "host",
+    "Computer",
+    "dest",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventRecordID",
+    "RecordNumber",
+    "Provider_Name",
+    "ProviderName",
+    "TargetUserSid",
+    "Security_ID",
+    "TargetUserName",
+    "TargetDomainName",
+    "TargetLogonId",
+    "LogonType",
+    "Logon_Type",
+    "WorkstationName",
+    "IpAddress",
+    "Source_Network_Address",
+    "IpPort",
+    "LogonProcessName",
+    "AuthenticationPackageName",
+    "LmPackageName",
+    "KeyLength"
+  ],
   "equipment": [
+    "checkpoint",
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows clients and servers that audit successful logons and forward Security event 4624 with reliable destination and source/account fields. Detection quality depends on destination coverage and source-IP semantics; systems behind shared intermediaries or with missing network fields require separate design.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft Security event 4624 and Audit Logon semantics, current MITRE ATT&CK Valid Accounts/logon-session/fan-out strategy, Splunk Microsoft Windows add-on and Authentication CIM documentation; auditing, fields, 15-minute/six-host threshold, exceptions, SPL, fixtures, coverage denominator, alerting, dashboard, and response were specified but not executed or Windows/identity/Splunk-SME signed",
   "splunkVersions": [
     "9.3+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft Security event 4624 and Audit Logon semantics, current MITRE ATT&CK Valid Accounts/logon-session/fan-out strategy, Splunk Microsoft Windows add-on and Authentication CIM documentation; auditing, fields, 15-minute/six-host threshold, exceptions, SPL, fixtures, coverage denominator, alerting, dashboard, and response were specified but not executed or Windows/identity/Splunk-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
@@ -152,6 +144,15 @@
   },
   "detailedImplementation": "## Prerequisites and claim boundary\n\nAssign Windows auditing, Active Directory/identity, network, endpoint, service-account, Splunk data/content, change, privacy, and incident owners. Inventory every destination expected to emit Security 4624, stable destination identity/criticality, OS/build, audit policy source, Security channel capacity, WEC/forwarder routes, add-on version, account/source ownership, DHCP/NAT/proxy semantics, exception owner, and retirement time.\n\nMicrosoft defines event 4624 as a successful logon and says it is generated on the accessed computer. Logon Type 3 means a user or computer logged on from the network. It does not identify a particular remote service or prove an interactive person, credential theft, or lateral movement. The source address/workstation is supplied according to authentication context; Microsoft notes Kerberos can lack workstation information and NTLM can lack TCP/IP details. This detector uses only records with a usable source IP and treats missing source as health data.\n\nThe analytic is deterministic, not “anomaly detection”: one account plus source IP reaches six distinct collected destination hosts in the prior 15 complete minutes. Six and 900 seconds are explicit starting parameters. They must be validated against coverage and legitimate workflow labels before production. Do not call the result a deviation from personal baseline unless a separately validated statistical model exists.\n\n## Step 1 — Enable and prove Audit Logon coverage\n\nEnable Success for Advanced Audit Policy Configuration > Logon/Logoff > `Audit Logon` on every covered destination through governed GPO/MDM/baseline. Verify effective policy with `auditpol /get /subcategory:\"Logon\"` or localized equivalent and record policy source/time. Size Security logs and WEC subscriptions for successful-logon volume and outage queues; protect audit policy and channel configuration.\n\nBuild `windows_4624_destination_coverage_health` from authoritative asset inventory. Report covered destination with no Security heartbeat, no recent 4624, failed policy attestation, channel overwrite, WEC lag, forwarder queue, source/type drift, duplicate route, time skew, or stale owner. Show the denominator next to fan-out. Six observed hosts means little if only a small or changing fraction of the estate is collected.\n\nBuild `windows_4624_type3_field_health` for provider/channel/version, LogonType extraction, Computer/dest, TargetUserSid/Name/Domain, TargetLogonId, IpAddress, WorkstationName, EventRecordID, and authentication package. Quantify missing/`-`/loopback source by protocol, host, and account; do not silently count them as one “unknown” source.\n\n## Step 2 — Collect and verify event 4624\n\nUse Splunk Add-on for Microsoft Windows (Splunkbase 742). Configure `inputs.conf`/WEC for Security into deployment-local `index=windows`; the index is a local convention. Qualify `source=WinEventLog:Security,sourcetype=WinEventLog` and `source=XmlWinEventLog:Security,sourcetype=XmlWinEventLog`, then narrow production to actual supported pairs. Splunkbase 742 is the authoritative add-on ID; test upgrades because field/source behavior can change.\n\nIn an isolated domain/lab, access a file share or supported network service to generate a Type 3 event on the destination. Export raw XML and verify provider `Microsoft-Windows-Security-Auditing`, event/version, Computer, TargetUserSid/Name/Domain/LogonId, LogonType=3, WorkstationName, IpAddress, IpPort, LogonProcessName, AuthenticationPackageName, LmPackageName, KeyLength, EventRecordID, event time, and index time. Compare classic/XML field aliases `LogonType` and `Logon_Type`, `IpAddress` and `Source_Network_Address`.\n\nVerify Type 2 and Type 10 do not match. Verify IPv4-mapped IPv6 (`::ffff:192.0.2.44`) normalizes to IPv4, while `::1` and `127.0.0.1` are excluded. Test `-`, empty, IPv6 native, hostname, NAT, and proxy cases; document unsupported transformations rather than forcing inaccurate IP attribution.\n\n## Step 3 — Define identity, destination, threshold, and exceptions\n\nNormalize `user_key` as lowercase `domain\\name` when domain is present/nonplaceholder, otherwise lowercase name. Retain SID values to detect naming collisions/renames. For production, enrich SID and account class/owner from an effective-time identity source, but do not exclude names ending `$`, ANONYMOUS LOGON, or service accounts at collection. Each can be abused and has different expected patterns.\n\nNormalize destination from Computer/dest/host. If aliases, FQDN/short names, clusters, or cloned IDs can refer to one asset, create a governed asset-ID enrichment before `dc`; test it and preserve raw host values. The sidecar deliberately uses normalized host text because no universal CMDB contract exists.\n\nStart with `threshold_destinations=6` in `observation_window_seconds=900`. Analyze at least 30 days of complete data by account class/source/workflow and critical target. Label deployments, backups, scans, clusters, admin, tests, and incidents. Measure p50/p95/p99 distinct-host density, source-field completeness, and alert volume. Lower threshold for privileged/critical contexts via a separately versioned policy analytic rather than changing this UC's claim; raise it only with documented detection-loss tests.\n\nPopulate `windows_network_logon_fanout_exceptions.csv` using the exact contract in `knownFalsePositives`. Keep an external expected-target set keyed by exception ID; before suppressing delivery, require every observed destination to belong to it. The SPL's account/source/time match is a candidate because CSV lookup cannot safely validate arbitrary target sets by itself.\n\n## Step 4 — Create and understand the SPL\n\nSave as `windows_network_logon_fanout`. Schedule every five minutes over `earliest=-15m@m latest=@m`, which scans the preceding 15 complete minutes. Overlap is deliberate. Use a durable checkpoint/notable identity based on user_key, src_ip, sorted destination-set hash, first/last bucket, threshold/policy revision; close/update rather than repeatedly page while the same spread persists.\n\nThe base term fixes `index=windows`, Security source/rendering, event 4624, and time. Eval normalizes destination, record/provider aliases, numeric logon type, account, SID, and source. It removes only an IPv4-mapped prefix. The where clause requires exact provider, Type 3, complete event/destination/account/source identity, and excludes placeholders/loopback.\n\nDedup uses destination, source route, and event record ID. Stats produces one account/source row with distinct destinations, list, event count, first/last event/index times, SIDs, workstation/port, authentication metadata, target logon IDs, and record IDs. `dc(dest_host)` means repeated sessions to one host count once; threshold is >=6.\n\nThe exception lookup validates complete metadata and applies inclusive start/exclusive end to the entire observed first/last interval. A result straddling expiry alerts. Preserve a companion report before the final exception filter and perform expected-destination subset validation. Cap or summarize evidence lists only after preserving raw-event drilldown; `values` cardinality can grow on high-volume sources.\n\n## Step 5 — CIM and adjacent correlation\n\nDo not use the original `Authentication.action=failure` query: event 4624 is successful. Splunk Add-on for Microsoft Windows may normalize action/user/src/dest into Authentication, but this UC must preserve LogonType 3 and event identities. Keep primary CIM empty until a deployment proves accelerated fields include all contract elements.\n\nCorrelate event 4648 (explicit credentials) where present, 4672 special privileges on the destination logon session, 4634/4647 termination, 4688/Sysmon/EDR process activity tied to TargetLogonId/session, and service creation/task/WMI/SMB/WinRM/DCOM/RDP evidence. Type 3 alone does not identify SMB or any remote-service technique.\n\nQuery domain-controller Kerberos 4768/4769, NTLM 4776, source host logon/process/network, DHCP/NAC/CMDB source ownership, VPN/jump/proxy/NAT mappings, and network flow. Account/source time and protocol limitations require tested joins. Absence of 4648 does not prove Pass-the-Hash, and NTLM Type 3 alone does not prove hash use.\n\nMITRE T1078 is applicable as a TTP-aligned account-use analytic; DET0560 names anomalous logon patterns and host-density concepts. Do not map T1078.002 unless enrichment proves a domain account, or T1550.002 unless the broader authentication/process chain supports Pass-the-Hash.\n\n## Step 6 — Validate threshold and nonclaims\n\nCreate fixed-time fixtures for six destinations/one source/account; five; ten records/one destination; six split across two sources; two accounts; duplicate destination aliases; duplicate EventRecordID; machine account; local/domain account; missing SID/domain; IPv4-mapped/native IPv6; loopback; placeholder IP; wrong provider/channel/source/type; event 4625; LogonType 2/10; late events; and clock skew. Assert exact grain/count/list/times.\n\nTest exception at inclusive start, one second before end, exactly at exclusive end, result spanning end, future/expired, wrong account/source, missing owner/scope/revision, duplicate key, stale bundle, and wildcard rejection. Validate target-set subset externally: one destination outside expected scope must alert/escalate even if account/source/time matches.\n\nRun controlled network logons from one lab source/account to six disposable destinations, then repeat one destination ten times. Use synthetic accounts/data, not stolen credentials or production lateral tools. Verify each raw destination event and coverage denominator. Test legitimate deployment/backup fixtures with owners.\n\nBacktest 30 days and replay labeled windows. Measure true workflow causes, detection delay, overlapping duplicates, scheduler duration, memory from values lists, source-field nulls, target alias inflation, WEC delay, and coverage changes. Document chosen threshold and residual risk.\n\n## Step 7 — Alert, investigate, and respond\n\nAlert title: `Network logon fan-out: <account> from <source> reached <N> Windows hosts in 15 minutes`. Include UTC first/last/index times, account/SID/class/owner, source IP/asset/owner, destination count/list/criticality/coverage, event count, authentication/logon process/package, workstation/ports, logon IDs/record IDs, threshold, exception/target-scope result, and links.\n\nResponder sequence:\n1. Verify raw 4624 events on each destination, exact Type 3/provider, record dedup, account/source/destination normalization, times, and source/coverage health.\n2. Resolve account SID/type/owner/status and source asset at event time through identity, DHCP/NAC/CMDB, NAT/proxy/jump/VPN context.\n3. Validate deployment/backup/scan/cluster/admin/test exception, exact job/ticket, expected target scope, and expiry. Escalate any out-of-scope destination.\n4. Review target criticality and 4648/4672/session/process/service/task/WMI/remote-management evidence on destinations.\n5. Review DC Kerberos/NTLM and source process/user/network telemetry; determine protocol and initiating workload where possible.\n6. Search authentication failures, source changes, additional accounts, privilege escalation, credential access, payload execution, persistence, and exfiltration.\n7. If unauthorized, follow accountable identity/endpoint/network incident procedure to preserve sessions and contain account/source according to evidence and business impact.\n8. Revalidate credentials/tokens, source/destinations, approved service jobs, audit/source coverage, and no continued spread before closure.\n\nDo not automatically disable the account, block the source, isolate six hosts, terminate sessions, or rotate service credentials from fan-out alone. Central management and backup jobs can affect production; response requires owner and corroborating evidence.\n\n## Step 8 — Troubleshooting and maintenance\n\n- **No Type 3:** verify effective Audit Logon Success, actual network access, destination Security channel, WEC/input, forwarder queues, source/type/index/RBAC, and event retention.\n- **Source blank/`-`:** inspect protocol/authenticating service and raw XML; monitor the gap. Do not group missing sources into one entity.\n- **Kerberos workstation blank:** Microsoft documents context-dependent fields; source IP may still exist. Do not require WorkstationName.\n- **Too many machine/service results:** onboard exact account/source/time/target-scope workflows; never exclude `$` accounts or service classes globally.\n- **Counts inflated:** inspect host aliases/clones, duplicate routes/record IDs, backfill, and asset enrichment.\n- **Counts too low:** inspect destination coverage denominator, delayed events, source splitting/NAT, user-domain normalization, and 15-minute boundary.\n- **Repeated pages:** verify durable destination-set/window checkpoint and result updates; do not use broad alert throttling by account alone.\n- **CIM mismatch:** expected if LogonType or raw identity is absent; raw event contract governs.\n\nReview destination/audit coverage, Security sizing, source/rendering/fields, account/source/asset enrichment, NAT/DHCP semantics, threshold/window, exception target scopes, scheduler/checkpoint, ATT&CK mapping, adjacent correlation, RBAC/retention, dashboard, runbook, and tests quarterly and after Windows, AD/identity, network, service workflow, WEC/forwarder, add-on, lookup, or Splunk changes. Keep `status=draft` until Windows/identity/network/Splunk owners execute and sign the matrix.",
   "grandmaExplanation": "We look for one account coming from one network address and successfully reaching six or more Windows computers in fifteen minutes. That can be normal automation or a stolen account spreading, so the team checks the source, targets, and approved jobs before acting.",
+  "hardware": "Windows clients and servers that audit successful logons and forward Security event 4624 with reliable destination and source/account fields. Detection quality depends on destination coverage and source-IP semantics; systems behind shared intermediaries or with missing network fields require separate design.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

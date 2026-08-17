@@ -26,17 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built JSON HostAccessManager lockdown snapshot joined to governed host policy",
   "dataModelAcceleration": "Not applicable. No documented CIM dataset preserves HostAccessManager's three lockdown enums, vCenter/managed-object identity, complete snapshot status, and versioned expected mode.",
-  "requiredFields": [
-    "vcenter",
-    "cluster",
-    "host",
-    "host_moid",
-    "actual_mode",
-    "collector_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: HostLockdownMode enum",
@@ -64,21 +53,33 @@
     "N/A (ESXi configuration-policy drift; no adversary behavior asserted)"
   ],
   "detectionType": "Newest complete HostAccessManager mode differs from exact approved mode",
+  "requiredFields": [
+    "vcenter",
+    "cluster",
+    "host",
+    "host_moid",
+    "actual_mode",
+    "collector_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
+    "syslog",
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "vCenter-managed ESXi hosts. Normal mode leaves DCUI running; strict mode stops it, so emergency-access and vCenter availability design are part of policy approval.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware security and availability validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware security and availability validation pending",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -88,6 +89,7 @@
   },
   "detailedImplementation": "## Prerequisites and policy semantics\n\nAssign VMware security, platform, availability, emergency-access, Splunk, and change owners. Inventory governed vCenters and hosts by stable managed-object ID, cluster, service owner, host profile, emergency access, and decommission state. Broadcom defines `lockdownDisabled`, `lockdownNormal` (lockdown enabled with DCUI running), and `lockdownStrict` (lockdown enabled with DCUI stopped). Approve expected mode per host only after testing loss-of-vCenter procedures; this UC does not decide that policy.\n\nRun supported VCF PowerCLI on a hardened collector with TLS access to vCenter and a least-privilege read role. Prove the exact API path and privileges in a lab. The Splunk role needs only index, lookup, scheduled-search, and alert rights. Keep collector credentials out of events and scripts.\n\n## Step 1 — Collect complete HostAccessManager state\n\nBuild `TA_vmware_host_security_state` to enumerate the authoritative host set and call the host's `HostAccessManager.QueryLockdownMode`. Emit one JSON event per host using only the documented enum plus stable IDs. Use one unique snapshot ID and mark success only after all intended hosts return; send permission, connection, and partial-enumeration errors to a separate health source. Configure a daily scripted input and explicit JSON source type in the app's `local` directory.\n\nCompare at least two hosts with vSphere Client Host > Configure > System > Security Profile/Lockdown Mode as exposed by the deployed release and a direct API read. Verify vCenter, managed-object ID, FQDN, cluster, enum, collector time, and snapshot. Do not infer SSH or DCUI state from lockdown mode; collect those separately if required.\n\nCreate `vmware_lockdown_policy.csv` with exactly one effective row per vCenter/host_moid. Preflight enum, duplicate keys, effective dates, owner, version, and orphan/missing inventory. A missing row is a governance defect, not an implicit `lockdownNormal` default.\n\n## Step 2 — Create and understand the SPL\n\nSave sidecar `spl` as `vmware_esxi_lockdown_mode_drift` and run after collection. It accepts only complete successful observations from 36 hours, validates identities and one of the three enums, sorts by collector time, and retains the newest host record. It rejects future/stale collectors. The exact lookup supplies expected mode and ownership; only currently effective normal/strict policies enter comparison. A mismatch from disabled receives local high priority, while normal-versus-strict receives medium pending local risk review. These are routing labels, not Broadcom event severities.\n\nRun separate searches for missing expected hosts, missing/duplicate/expired policy, unknown modes, collector errors, and stale snapshots. The primary zero-row result is meaningful only when those controls are healthy.\n\n## Step 3 — Validate modes and governance\n\nUse fixed fixtures for all actual/expected combinations, exact case, blank/unknown enum, duplicate snapshot, older mismatch followed by newer match, stale/future epochs, failed/partial status, duplicate policy, missing policy, expired/future policy, moved host, and rerun determinism. Assert that the search never calls a match compliant and never rewrites actual mode.\n\nIn a nonproduction cluster, compare API, vSphere Client, and Splunk. Under an approved change, exercise normal and strict only after documenting DCUI behavior and a recovery path; capture task/audit events separately. Test vCenter unavailability and break-glass procedures without creating production lockout. Keep draft status until security and availability owners approve both desired state and tests.\n\n## Step 4 — Triage and safe response\n\nAlert text should say `ESXi lockdown mode differs from approved policy`. Include actual/expected values, stable identity, policy version/owner, collector age, source health, raw link, and change context. First verify raw snapshot and live UI/API; then verify policy applicability, host movement, emergency change, Host Profile remediation, exception users, DCUI/SSH state, and vCenter health. Classify approved temporary change, rollout lag, policy defect, unauthorized drift, collector defect, or unresolved.\n\nNever automatically enable strict mode from this result. Broadcom states strict mode stops DCUI; an untested automated change can remove emergency recovery when vCenter is lost. Use an approved VMware procedure with console access, impact review, rollback, and post-change API/UI proof. Close only when policy is still approved, live state and a fresh complete snapshot match, emergency access remains tested, source health is green, and the disposition is retained.\n\n## Step 5 — Troubleshoot\n\n- **No records:** verify inventory, collector permissions, vCenter TLS/session, HostAccessManager access, scripted input, index/RBAC, and separate error events.\n- **Unknown value:** preserve the native response and verify API/release mapping; do not coerce it to disabled.\n- **UI and API differ:** align host identity, vCenter, refresh time, pending task, and cached session; repeat a fresh read.\n- **Policy disappears:** inspect exact vCenter/moid key, effective dates, CSV parsing, duplicate rows, host replacement, and lookup deployment.\n- **Mode changes back:** inspect Host Profiles, desired-state automation, API tasks/events, emergency procedures, and policy ownership.\n- **Many mismatches:** validate policy revision and host movement before bulk remediation; never suppress an entire cluster indefinitely.\n\nRetention follows local policy. This documentation specifies detection and evidence boundaries, not a universal lockdown requirement or compliance conclusion.",
   "grandmaExplanation": "We compare each virtualization host's direct-access safety setting with the setting its owners approved. If they differ, the team investigates without assuming the strictest option is always the safest during an emergency.",
+  "hardware": "vCenter-managed ESXi hosts. Normal mode leaves DCUI running; strict mode stops it, so emergency-access and vCenter availability design are part of policy approval.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

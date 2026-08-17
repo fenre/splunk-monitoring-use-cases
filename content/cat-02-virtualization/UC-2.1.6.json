@@ -17,26 +17,6 @@
   },
   "dataSources": "Splunk Add-on for VMware (Splunkbase 3215) vCenter API `event` task, documented default `index=vmware-taskevent`, `sourcetype=vmware:events`. Required event evidence: raw class token VmMigratedEvent or DrsVmMigratedEvent, key, createdTime/_time, VM name/moid; sourceHost, host/destination, userName, fullFormattedMessage, and collector host are contextual and must be validated in the deployed serialization.",
   "app": "Splunk Add-on for VMware (`Splunk_TA_vmware` and `SA-Hydra`, Splunkbase 3215) for vCenter API collection; Splunk Add-on for VMware Indexes (Splunkbase 5640) and Splunk Add-on for VMware Extractions (Splunkbase 5641) are deployment components required by current packaging. A local virtualization-operations app owns searches, lookups, dashboards, scripted inputs where stated, and runbooks.",
-  "splunkbaseApps": [
-    {
-      "id": 3215,
-      "name": "Splunk Add-on for VMware",
-      "url": "https://splunkbase.splunk.com/app/3215",
-      "role": "data-source"
-    },
-    {
-      "id": 5640,
-      "name": "Splunk Add-on for VMware Indexes",
-      "url": "https://splunkbase.splunk.com/app/5640",
-      "role": "data-source"
-    },
-    {
-      "id": 5641,
-      "name": "Splunk Add-on for VMware Extractions",
-      "url": "https://splunkbase.splunk.com/app/5641",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=vmware-taskevent sourcetype=\"vmware:events\" earliest=-20m@m latest=-5m@m (\"VmMigratedEvent\" OR \"DrsVmMigratedEvent\")\n| spath path=key output=event_key\n| spath path=createdTime output=created_time\n| spath path=userName output=user_name\n| spath path=vm.name output=vm_name\n| spath path=vm.moid output=vm_moid\n| spath path=host.name output=destination_host\n| spath path=sourceHost.name output=source_host\n| eval event_class=case(searchmatch(\"DrsVmMigratedEvent\"),\"DrsVmMigratedEvent\",searchmatch(\"VmMigratedEvent\"),\"VmMigratedEvent\"), event_key=coalesce(event_key,key), user_name=coalesce(user_name,user), vm_name=coalesce(vm_name,'vm.name'), vm_moid=coalesce(vm_moid,'vm.moid'), message=coalesce(fullFormattedMessage,message,_raw)\n| where isnotnull(event_class) AND len(tostring(event_key))>0 AND len(vm_name)>0\n| eval event_identity=host.\"|\".event_key\n| dedup event_identity\n| eval use_case_id=\"UC-2.1.6\", migration_origin=if(event_class=\"DrsVmMigratedEvent\",\"DRS-recommended\",\"other/undetermined\")\n| table _time event_key event_class migration_origin vm_name vm_moid source_host destination_host user_name message host use_case_id\n| sort 0 -_time event_key",
   "description": "Reports deduplicated vCenter migration events from a delayed 15-minute window, distinguishing the documented DRS-recommended migration subclass while preserving VM, actor, host, message, and event identity when present.",
   "value": "A durable migration trail helps operators explain placement changes, correlate transient network or storage symptoms, review manual versus scheduler-driven movement, and resolve ownership questions without relying on short-lived console history.",
@@ -80,22 +60,45 @@
     "fullFormattedMessage"
   ],
   "equipment": [
+    "snmp",
     "vmware"
   ],
   "equipmentModels": [
+    "snmp_ups",
     "vmware_esxi",
     "vmware_ta_vmware",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
+  "status": "draft",
+  "lastReviewed": "2026-07-29",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
-  "status": "draft",
-  "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/Splunk SME validation pending",
   "detailedImplementation": "## Prerequisites and source contract\n\nThis is a documentation-reviewed implementation, not a record that the search ran in production. Use Splunk Add-on for VMware (Splunkbase 3215) with its compatible `Splunk_TA_vmware` and `SA-Hydra` packages. Current packaging also requires the VMware Indexes and Extractions packages on the tiers named by Splunk's installation guide. The scheduler assigns API jobs to Data Collection Nodes; a DCN must reach vCenter over HTTPS and forward collected data to the indexer. Use a dedicated vCenter account whose effective privileges have been tested against the inventory, performance, task, or event objects required here. Do not copy an unverified role name from this page.\n\nThe indexes in the SPL are Splunk's documented defaults from `ta_vmware_collection.conf`: `index=vmware-perf`, `index=vmware-inv`, and `index=vmware-taskevent`. If local index names differ, change only the base index after proving equivalent routing and access. The relevant documented default tasks are `hostvmperf`, `otherperf`, `datastoreinv`, `vminv`, and `event`; enable only the task named below. Keep vCenter, scheduler, DCNs, indexers, and search heads time-synchronized. Install matching search-time extractions before relying on extracted fields.\n\n## Step 1 — Configure and verify collection\n\nEnable `event`; Splunk documents a 300-second default. VMware defines VmMigratedEvent as recording a VM migration and DrsVmMigratedEvent as a subclass recording a migration recommended by DRS. Inspect raw add-on JSON to map inherited Event properties and event arguments. Do not assume a plain VmMigratedEvent was manually initiated, and never parse localized fullFormattedMessage as the sole class or identity.\n\nBefore saving the analytic, run a discovery search over at least two expected collection intervals:\n\n```spl\nindex=vmware-taskevent sourcetype=\"vmware:events\" earliest=-30m\n| eval migration_event=if(searchmatch(\"VmMigratedEvent\") OR searchmatch(\"DrsVmMigratedEvent\"),1,0)\n| stats count sum(migration_event) as migration_events latest(_time) as latest_event by host\n| convert ctime(latest_event)\n```\n\nConfirm the expected entities appear, compare them with the named vSphere or PowerCLI view, and inspect representative `_raw` events. Verify every required field rather than treating a sourcetype count as proof of semantic completeness. Record the add-on version, collection task, configured interval, target index, vCenter, entity scope, and p95/p99 indexing delay. A missing entity or stale poll is a source-health finding and must not be interpreted as a healthy virtualization condition.\n\n## Step 2 — Create and understand the search\n\nSave the sidecar SPL verbatim as `vmware_vm_migration_audit` after substituting only an approved local index name. Run every 15 minutes over `earliest=-20m@m latest=-5m@m`; trigger on any row only if the deployment needs notification, otherwise retain as an audit report.\n\n```spl\nindex=vmware-taskevent sourcetype=\"vmware:events\" earliest=-20m@m latest=-5m@m (\"VmMigratedEvent\" OR \"DrsVmMigratedEvent\")\n| spath path=key output=event_key\n| spath path=createdTime output=created_time\n| spath path=userName output=user_name\n| spath path=vm.name output=vm_name\n| spath path=vm.moid output=vm_moid\n| spath path=host.name output=destination_host\n| spath path=sourceHost.name output=source_host\n| eval event_class=case(searchmatch(\"DrsVmMigratedEvent\"),\"DrsVmMigratedEvent\",searchmatch(\"VmMigratedEvent\"),\"VmMigratedEvent\"), event_key=coalesce(event_key,key), user_name=coalesce(user_name,user), vm_name=coalesce(vm_name,'vm.name'), vm_moid=coalesce(vm_moid,'vm.moid'), message=coalesce(fullFormattedMessage,message,_raw)\n| where isnotnull(event_class) AND len(tostring(event_key))>0 AND len(vm_name)>0\n| eval event_identity=host.\"|\".event_key\n| dedup event_identity\n| eval use_case_id=\"UC-2.1.6\", migration_origin=if(event_class=\"DrsVmMigratedEvent\",\"DRS-recommended\",\"other/undetermined\")\n| table _time event_key event_class migration_origin vm_name vm_moid source_host destination_host user_name message host use_case_id\n| sort 0 -_time event_key\n```\n\nUnderstanding this SPL: The base search requires an authoritative class token, then `spath` reads documented inherited properties and event arguments where serialized. Event key plus collector identity removes replay in-window. DRS subclass classification is exact; all other initiation remains undetermined.\n\nThe query emits stable columns and preserves the observed values needed for triage. Its threshold or status filter is an explicit local monitoring policy, not a VMware universal limit unless the cited VMware source says otherwise. Keep the unsuppressed result as evidence. Apply delivery suppression only after the row exists through a governed `vmware_uc_dispositions.csv` lookup keyed by `use_case_id` plus the exact entity key, with owner, ticket, reason, start time, and finite `exception_until`; expired, malformed, or wildcard entries must not suppress.\n\n## Step 3 — Validate semantics and controls\n\nIn a lab, perform one approved manual vMotion and one DRS-recommended migration. Compare event key, created time, VM and event class with vSphere Client **VM > Monitor > Tasks and Events** and PowerCLI `Get-VIEvent`. Record which source/destination/user paths the deployed add-on actually emits; update aliases only from raw evidence.\n\nRun the positive and negative `controlTest` scenarios in an isolated search index or lab vCenter. Assert the exact row count and output fields. Also test duplicate input, null required fields, wrong sourcetype/index, events outside the scheduled window, late indexing, and reruns. Compare raw values with the authoritative vSphere Client or PowerCLI result identified above. Measure source coverage, latest event age, duplicate rate, field-null rate, scheduler skips, search runtime, and alert delivery. Keep `status=draft` until VMware, Splunk, service ownership, and operations reviewers approve the data contract and runtime results.\n\n## Step 4 — Operationalize and investigate\n\nValidate raw event/key; determine class and available arguments; correlate vCenter task and approved change; verify current VM host, network/storage reachability and application health; investigate unexpected actor, destination, repeated movement or missing task; classify approved DRS, manual change, maintenance, remediation, unexplained movement, duplicate, or source defect.\n\nUse the dashboard design in `visualization`. Put source health before findings so silence cannot render as green. Restrict raw event, user, VM, datastore, and infrastructure identifiers to roles with an operational need. Alert titles must describe the observed metric, state, or event; they must not claim root cause, outage, data loss, unauthorized activity, or successful remediation without corroboration.\n\n## Step 5 — Troubleshoot safely\n\nIf class tokens exist but fields are null, inspect raw JSON shape, extraction cutoff and add-on extraction package. If only tasks appear, confirm the `event` task is enabled. If source/destination are absent, use vSphere task/event arguments rather than message regex. If delayed events cross buckets, measure delay and add a separately reviewed reconciliation search without overlapping the primary schedule.\n\nFor no data, verify the exact collection task in the scheduler, DCN assignment and health, vCenter credential reach, API scope, target index, extraction package, and time synchronization. Splunk documents that inventory JSON can exceed the default `spath` extraction cutoff; inspect `_raw` and adjust the supported search-command limit only when truncation is demonstrated. For stale or partial inventory, remember that the add-on performs full inventory followed by change sets and later full refreshes. For missing VM performance, verify hierarchy collection and the generated VM managed-object list. Do not change vSphere resources merely to make a monitor pass.\n\nClosure requires a healthy source contract, a reconciled authoritative view, a documented owner decision, and an observed recovery or accepted finite exception. This UC performs no automatic vMotion, restart, snapshot removal, datastore expansion, alarm reset, host remediation, or vSAN repair.",
   "grandmaExplanation": "We keep a record when a virtual machine moves from one host to another, including whether the scheduler recommended the move, so later questions have a reliable trail.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 3215,
+      "name": "Splunk Add-on for VMware",
+      "url": "https://splunkbase.splunk.com/app/3215",
+      "role": "data-source"
+    },
+    {
+      "id": 5640,
+      "name": "Splunk Add-on for VMware Indexes",
+      "url": "https://splunkbase.splunk.com/app/5640",
+      "role": "data-source"
+    },
+    {
+      "id": 5641,
+      "name": "Splunk Add-on for VMware Extractions",
+      "url": "https://splunkbase.splunk.com/app/5641",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

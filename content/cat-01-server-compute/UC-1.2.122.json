@@ -19,15 +19,6 @@
   },
   "dataSources": "Microsoft-Windows-Security-Auditing Event ID 4720 from the local Security log after `Audit User Account Management` Success is effective, collected as XML to deployment-chosen `index=windows`, `source=XmlWinEventLog:Security`, `sourcetype=XmlWinEventLog` with Splunk Add-on for Microsoft Windows. Required fields are `_time`, `_indextime`, `Computer`/`host`, `Provider_Name`/`SourceName`, `EventCode`, `EventRecordID`, `TargetUserName`, `TargetDomainName`, `TargetSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectUserSid`, `SubjectLogonId`, `NewUacValue`, and `UserAccountControl`. A governed endpoint identity/role inventory is required to validate derived local scope and exclude domain controllers from local-account coverage claims.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742) 10.0.1 or a later compatible release supplies XML Windows Event Log collection, Event ID 4720 extraction, and Change.Account_Management knowledge. A deployment app supplies the Security input, source-health/identity checks, raw saved search, dashboard, fixtures, and exact bounded exception lookup. No premium Splunk app is required.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "primary"
-    }
-  ],
   "spl": "index=windows sourcetype=XmlWinEventLog source=\"XmlWinEventLog:Security\" EventCode=4720 earliest=-10m@m latest=-5m@m\n| eval provider=lower(trim(coalesce(Provider_Name,SourceName,\"unknown\"))), endpoint=lower(trim(coalesce(Computer,dest,host))), endpoint_short=lower(mvindex(split(endpoint,\".\"),0)), target_domain=lower(trim(coalesce(TargetDomainName,New_Account_Domain,\"\"))), target_user=coalesce(TargetUserName,New_Account_Account_Name,user_name,\"\"), target_sid=coalesce(TargetSid,New_Account_Security_ID,object_id,\"unknown\"), actor_user=coalesce(SubjectUserName,src_user_name,\"unknown\"), actor_domain=coalesce(SubjectDomainName,\"unknown\"), actor_sid=coalesce(SubjectUserSid,\"unknown\"), actor_logon_id=coalesce(SubjectLogonId,\"unknown\"), event_record_id=coalesce(EventRecordID,RecordNumber,\"unknown\")\n| where provider=\"microsoft-windows-security-auditing\" AND len(endpoint)>0 AND len(target_user)>0 AND target_domain=endpoint_short\n| eval scope=\"local\", action=\"user_created\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\"), indexed_time=strftime(_indextime,\"%Y-%m-%dT%H:%M:%SZ\"), use_case=\"UC-1.2.122\"\n| table _time event_time indexed_time endpoint scope action target_user target_domain target_sid actor_user actor_domain actor_sid actor_logon_id NewUacValue UserAccountControl SamAccountName DisplayName UserPrincipalName event_record_id source sourcetype use_case\n| sort 0 -_time endpoint target_user",
   "description": "Detects each successful Security Event ID 4720 creation whose target account domain matches the originating Windows endpoint's short name, yielding a local-user creation row in the completed dispatch slice. The result preserves target SID/name, requesting subject/logon, UAC details, event identity, event/index times, and exact source without claiming privilege or execution.",
   "value": "Unexpected local accounts can provide credentialed access outside centralized identity lifecycle and may support persistence on servers or workstations. Exact local-domain scoping and actor/logon evidence accelerate ownership checks and fleetwide investigation while avoiding domain-controller noise and the unsupported assumption that every new account is an administrator or attacker-created.",
@@ -38,27 +29,6 @@
   ],
   "schema": "Native Microsoft-Windows-Security-Auditing Event ID 4720 XML; optional Change.Account_Management context",
   "dataModelAcceleration": "Not used by the primary detector. Splunk maps Event ID 4720 to Change.Account_Management and Splunk Security Content publishes a generic `All_Changes.result_id=4720` analytic, but that result also fires for domain-account creation on domain controllers unless target-domain/endpoint role is preserved. Enable acceleration only after proving Computer, target account/domain/SID, subject/logon, result ID, source identity, and local-scope parity. A generic count by user/dest is not an evidentiary local-account detector.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "Computer",
-    "host",
-    "Provider_Name",
-    "SourceName",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventRecordID",
-    "TargetUserName",
-    "TargetDomainName",
-    "TargetSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectUserSid",
-    "SubjectLogonId",
-    "NewUacValue",
-    "UserAccountControl"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: 4720(S) A user account was created",
@@ -112,20 +82,40 @@
   ],
   "detectionType": "TTP and account-management change",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "Computer",
+    "host",
+    "Provider_Name",
+    "SourceName",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventRecordID",
+    "TargetUserName",
+    "TargetDomainName",
+    "TargetSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectUserSid",
+    "SubjectLogonId",
+    "NewUacValue",
+    "UserAccountControl"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows member servers and workstations with a local SAM, effective Audit User Account Management Success, and XML Security collection. Domain controllers have no ordinary local SAM user-account scope and must be identified separately; unsupported/offline endpoints and accounts created before retained telemetry require current-state inventory.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft Event ID 4720 and Audit User Account Management documentation, adjacent event semantics, current Splunk Windows add-on/CIM and Security Content documentation, and MITRE ATT&CK; no account creation, audit-policy deployment, XML event, identity lookup, SPL/CIM execution, fixture replay, exception, alert, dashboard, response, or Microsoft/Splunk/Windows-security SME runtime sign-off",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft Event ID 4720 and Audit User Account Management documentation, adjacent event semantics, current Splunk Windows add-on/CIM and Security Content documentation, and MITRE ATT&CK; no account creation, audit-policy deployment, XML event, identity lookup, SPL/CIM execution, fixture replay, exception, alert, dashboard, response, or Microsoft/Splunk/Windows-security SME runtime sign-off",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -142,6 +132,16 @@
   },
   "detailedImplementation": "## Prerequisites and local-scope contract\n\nAssign Windows endpoint, identity, local-account policy, audit-policy/GPO, Splunk collection/content, software-deployment, source-health, and incident owners. Inventory stable asset ID, Computer FQDN, NetBIOS name, role, domain/workgroup, domain-controller flag, owner, approved local accounts, and lifecycle. Domain controllers must not be counted as local-account-covered endpoints; their 4720 events represent directory objects and belong to domain-account monitoring.\n\nMicrosoft defines Event ID 4720 as successful user-object creation under `Audit User Account Management`. Subject fields identify the security principal/process token that requested creation, not necessarily the human who initiated an automation chain. Target fields identify the created account. The event contains no creator executable or parent process, no group membership, and no later sign-in. This rule derives local scope only when lowercase TargetDomainName equals the short component of originating Computer. Qualify that equality for every Windows naming/forwarding pattern and maintain a separate mismatch report.\n\nExactly one qualifying event produces one row; no frequency threshold is needed. One unauthorized account can matter, while many approved build accounts can be legitimate. Use change and identity evidence for classification rather than claiming local creation is “almost always suspicious.”\n\n## Step 1 — Configure audit policy and Security collection\n\nEnable **Advanced Audit Policy Configuration > Account Management > Audit User Account Management > Success** through governed policy for member endpoints. Verify effective policy with the supported audit-policy tooling and record GPO/MDM precedence; do not rely only on a configured GPO object. Failure auditing is not required for successful 4720 creation and does not turn access-denied attempts into this event. Coordinate Security log size/retention and policy rollback.\n\nCollect Security as XML through an app-owned stanza:\n\n```ini\n[WinEventLog://Security]\ndisabled = 0\nrenderXml = true\nindex = windows\ncheckpointInterval = 5\n```\n\nInstall Splunk Add-on for Microsoft Windows 10.0.1 on the topology tiers required by its guide. Keep `sourcetype=XmlWinEventLog` and `source=XmlWinEventLog:Security`; do not edit add-on `default`. If WEF/WEC is used, preserve originating Computer, secure the subscription, measure latency, and prevent duplicate endpoint plus collector routes. Restrict Security/account/SID data to appropriate roles.\n\nOn representative domain members, workgroup systems, renamed endpoints, and domain controllers, inspect raw Event ID 4720 XML. Verify provider, Computer, TargetUserName/DomainName/Sid, SubjectUserName/DomainName/Sid/LogonId, NewUacValue, UserAccountControl, SamAccountName, EventRecordID, and event version. Microsoft documents formats as variable, so compare extraction with Event Viewer XML rather than assuming rendered labels.\n\n## Step 2 — Build source and identity health\n\nMaintain expected Security-source inventory and test recurring audit events or controlled health telemetry; account creation itself is too rare as a heartbeat. Detect absent Security data, wrong source/type/provider, excessive `_indextime-_time`, clock skew, duplicate Computer/channel/EventRecordID, extraction loss, audit-policy drift, WEC subscription failure, add-on drift, and Security log overwrite. Route these as coverage findings.\n\nBuild an identity-quality search comparing Computer/host/dest, derived endpoint short name, TargetDomainName, asset NetBIOS name, role, and domain-controller status. Alert on unknown/renamed/cloned/alias endpoints. A nonmatching TargetDomainName can be a domain account or identity defect; it must not be reported as local by this rule or silently treated as proof no local event occurred. Separately inventory current local users through approved endpoint management where baseline assurance is required; events do not reconstruct accounts created before retention.\n\n## Step 3 — Save, schedule, and understand the SPL\n\nSave the sidecar SPL as `windows_local_user_account_creation`. Schedule every five minutes with `earliest=-10m@m latest=-5m@m`, evaluating one completed five-minute slice after five minutes of ingestion allowance. Measure p99 endpoint/WEC/index delay and adjust schedule plus tests together. Trigger on every result and group notification only on exact endpoint, target SID, EventRecordID, and bounded time.\n\nThe base clause requires exact Security XML metadata and EventCode 4720. `provider` protects against event-number collision. `Computer` is preferred for endpoint identity; its first DNS label becomes the comparison name. Raw and add-on aliases are coalesced only where documented, with `unknown` preserving missing optional evidence. The `where` clause requires provider, endpoint, target account, and exact target-domain/endpoint-short equality. Output retains target and subject identities, UAC/account attributes, record ID, source, and event/index time.\n\nDo not exclude `NT AUTHORITY` or localized equivalents. TargetDomainName is the created account's domain/computer, while NT AUTHORITY commonly describes principals—not a reliable local-account filter—and localized string lists are brittle. Do not aggregate IDs 4722, 4724, and 4738 into “modification”: Microsoft defines enable, attempted reset, and user-object change separately, with different success/failure and evidence semantics. Event 4781 handles rename; 4741 handles computer-account creation. Build separate searches when those risks are in scope.\n\n## Step 4 — Validate identity, fields, and controls\n\nUse authentic-shaped Security XML from the qualified Windows/add-on pair and absolute dispatch times. Run both control scenarios. Add positives for FQDN Computer with NetBIOS target domain, mixed case, workgroup member, local automation actor, unresolved SID, null display/UPN/UAC optional fields, and Unicode account names. Add negatives for domain TargetDomainName on a DC, endpoint aliases, provider collision, missing target, IDs 4722/4724/4738/4741/4781, wrong source/type/index, and exact time boundaries.\n\nOn a disposable member endpoint under account-policy approval, create a harmless temporary nonprivileged local user using supported Windows tooling, capture 4720, verify the account with read-only local-user inventory, then delete it and preserve the separate deletion evidence. Never create an account on production solely to test detection. Compare Event Viewer **Details > XML View**, raw Splunk event, search row, actor logon, Computer/TargetDomainName, and current account. Test a DC/domain account only in an authorized identity lab to prove exclusion.\n\nTest WEC original-computer behavior, delayed events, forwarder restart/checkpoint, direct-plus-WEC duplication, endpoint rename, clone/image reuse, log overwrite, audit-policy disable/restore, exact exception, expiry, malformed lookup, and alert delivery. Keep `status=draft` until source coverage, identity scope, fixtures, schedule, dashboard, exception policy, and response are runtime-accepted by endpoint, identity, security, and Splunk owners.\n\n## Step 5 — Investigate and respond\n\nAlert text should state `Local user account created: <target> on <endpoint>`, not `local admin created`. Include target SID/domain/name, actor SID/domain/name/logon ID, UAC values, event/index times, EventRecordID, endpoint role/owner, source health, current account/group state, change/software context, exception, and runbook.\n\nResponder sequence:\n1. Verify Security source/provider/EventCode, raw XML, endpoint and target-domain equality, record ID, times, extraction, and duplicate route state.\n2. Confirm endpoint asset identity/role and query the exact current local account read-only; preserve SID, enabled state, timestamps, description, expiry, and group memberships.\n3. Correlate SubjectLogonId with 4624 and authorized process telemetry (4688 or Sysmon Event ID 1), remote-management channel, parent/command line, service/task, and user/session. Event 4720 itself has no process field.\n4. Compare target/actor and timing with image/build, endpoint-management policy, installer/package, ticket, account naming/baseline, password/LAPS strategy, and account owner.\n5. Search fleetwide for target SID/name patterns and subsequent 4722/4732/group changes, 4624 sign-ins, privilege use, remote access, service/task creation, and suspicious activity.\n6. If unauthorized, follow approved account/endpoint containment after preserving evidence and considering business/recovery impact. If authorized, document exact lifecycle and add only a bounded exception.\n7. Verify intended account state/removal, group/access cleanup, actor disposition, source health, no recreation, and retained evidence before closure.\n\nDo not automatically disable/delete the account, reset a password, remove groups, or isolate the host from one event. Legitimate break-glass or service accounts can be operationally critical. Review exceptions and approved local-account inventory at least quarterly and after image, naming, domain, GPO, WEC, add-on, or local-account policy changes.\n\n## Step 6 — Troubleshoot product-specific failures\n\n- **No 4720 during controlled creation:** verify effective Audit User Account Management Success, local Security log, log capacity, input/deployment, forwarder/WEC queues, index/RBAC, and dispatch time.\n- **4720 exists but is excluded:** compare raw Computer and TargetDomainName with current NetBIOS/asset identity. Investigate rename/alias/clone and correct the identity contract; do not weaken to every 4720.\n- **Domain account appears local:** verify the endpoint is not a DC, Computer is the origin rather than collector, and target domain truly equals local NetBIOS. Fix WEC host attribution/inventory.\n- **Subject appears as SYSTEM/service/server:** Subject is the requesting security context. Correlate logon/process/automation chain; do not invent a human actor.\n- **Process path is unavailable:** expected in Event 4720. Correlate SubjectLogonId and time with Security 4688/Sysmon/EDR; do not populate a guessed process.\n- **Target fields null:** inspect raw XML Data names/event version, XML rendering, add-on extraction placement/version, and conflicting props/transforms. Preserve field-quality failure.\n- **Duplicate alert:** compare Computer/channel/EventRecordID/raw hash and direct/WEC/checkpoint routes. Repair collection; do not dedup all events by username.\n- **CIM count differs:** inspect Change.Account_Management tags, `result_id`, field mappings, acceleration lag/range, source population, and domain-controller events. Keep the raw locally scoped search authoritative.\n- **Account already absent:** creation and later deletion can both be true. Find 4726/current-state evidence and preserve historical 4720 rather than calling it false.",
   "grandmaExplanation": "We watch when a Windows computer creates a sign-in that belongs only to that machine. It may be planned setup work or an unwanted back door, so the team checks who requested it, what access it received, and whether it should still exist.",
+  "hardware": "Windows member servers and workstations with a local SAM, effective Audit User Account Management Success, and XML Security collection. Domain controllers have no ordinary local SAM user-account scope and must be identified separately; unsupported/offline endpoints and accounts created before retained telemetry require current-state inventory.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "primary"
+    }
+  ],
   "wave": "crawl"
 }

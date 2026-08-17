@@ -17,20 +17,6 @@
   },
   "dataSources": "Primary source is vCenter Events API data collected by Splunk Add-on for VMware Metrics with pool task `event` into the deployment-selected event index (documented default `index=vmware-taskevent`) and `sourcetype=vmware_inframon:events`. Required native properties are `eventClass=vim.event.HostConnectionLostEvent`, unique `key`, `createdTime`, `host.name` and host managed-object reference, collector vCenter/host, message, `_time` and `_indextime`; compute-resource/datacenter arguments are useful context. Current `VMInv:HostSystem` connection/power/maintenance state, subsequent host events, ESXi syslog uptime/boot, BMC, network and HA/VM events are separate corroboration.",
   "app": "Splunk Add-on for VMware Metrics (Splunkbase 5089) collects vCenter event and host inventory data. Splunk Add-on for VMware ESXi Logs may optionally supply independent ESXi syslog; hardware add-ons may supply BMC evidence. A local availability app owns source/current-state reconciliation, saved search, correlation, tests, dashboard, routing and runbook.",
-  "splunkbaseApps": [
-    {
-      "id": 5089,
-      "name": "Splunk Add-on for VMware Metrics",
-      "url": "https://splunkbase.splunk.com/app/5089",
-      "role": "data-source"
-    },
-    {
-      "id": 5603,
-      "name": "Splunk Add-on for VMware ESXi Logs",
-      "url": "https://splunkbase.splunk.com/app/5603",
-      "role": "optional"
-    }
-  ],
   "spl": "index=vmware-taskevent sourcetype=\"vmware_inframon:events\" eventClass=\"vim.event.HostConnectionLostEvent\" earliest=-15m@m latest=-10m@m\n| spath path=host.name output=esxi_host\n| spath path=host.host.value output=host_moid\n| eval vcenter=lower(coalesce(nullif(trim(vcenter),\"\"),nullif(trim(host),\"\"))), event_key=trim(tostring(key)), esxi_host=lower(trim(esxi_host))\n| where len(vcenter)>0 AND len(event_key)>0 AND len(esxi_host)>0\n| eval event_identity=vcenter.\"|\".event_key\n| dedup event_identity\n| eval finding=\"host_connection_lost\", reboot_status=\"unconfirmed\", local_severity=\"critical\", use_case=\"UC-2.1.21\", event_time=strftime(_time,\"%Y-%m-%dT%H:%M:%SZ\")\n| table _time vcenter event_key esxi_host host_moid finding reboot_status local_severity fullFormattedMessage event_time _indextime use_case\n| sort 0 -_time vcenter event_key",
   "description": "Surfaces each complete vCenter event recording loss of connection to an ESXi host in a closed five-minute bucket. Each result retains host/event identity and explicitly labels reboot status unconfirmed until independent boot or uptime evidence exists.",
   "value": "Prompt connection-loss visibility lets virtualization teams assess cluster capacity, management-network reachability and VM/HA impact quickly. Separating the observed vCenter event from an unproven reboot avoids misdirected hardware response and supports defensible root-cause chronology.",
@@ -41,17 +27,6 @@
   ],
   "schema": "Native vSphere HostConnectionLostEvent plus separate current-state and reboot corroboration",
   "dataModelAcceleration": "No CIM dataset preserves the native vSphere host event class/key and managed-object argument or proves reboot chronology. Keep raw event identity authoritative; summaries may support recurrence trends only after parity tests.",
-  "requiredFields": [
-    "eventClass",
-    "key",
-    "createdTime",
-    "host.name",
-    "host.host.value",
-    "fullFormattedMessage",
-    "vcenter",
-    "_time",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom vSphere API: HostConnectionLostEvent",
@@ -99,19 +74,29 @@
     "N/A (vCenter management-plane availability event; no adversary behavior asserted)"
   ],
   "detectionType": "Raw vCenter ESXi host connection-loss event",
+  "requiredFields": [
+    "eventClass",
+    "key",
+    "createdTime",
+    "host.name",
+    "host.host.value",
+    "fullFormattedMessage",
+    "vcenter",
+    "_time",
+    "_indextime"
+  ],
   "equipment": [
-    "vmware",
+    "hardware_bmc",
     "syslog",
-    "hardware_bmc"
+    "vmware"
   ],
   "equipmentModels": [
-    "vmware_vcenter",
-    "vmware_vsphere",
-    "vmware_esxi",
+    "hardware_bmc_idrac",
     "hardware_bmc_ipmi",
-    "hardware_bmc_idrac"
+    "vmware_esxi",
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "ESXi hosts managed by vCenter; management network, cluster/HA, BMC and host syslog are separate evidence layers.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
   "reviewer": "Source-backed editorial review; production VMware/network/hardware/Splunk SME validation pending",
@@ -124,6 +109,21 @@
   },
   "detailedImplementation": "## Prerequisites and evidence boundary\n\nAssign vCenter, ESXi, network, hardware, workload, Splunk and incident owners. Inventory vCenters, host MOIDs/names/hardware IDs, clusters, HA/admission control, management paths, BMC, syslog, VM ownership and maintenance. Broadcom says HostConnectionLostEvent records loss of a host connection. Do not rename it a reboot signal.\n\n## Step 1 — Collect events and current state\n\nDeploy supported Splunk Add-on for VMware Metrics with read-only vCenter API access over TCP 443. Include `event` and `hostinv` in the collection pool. Verify actual event output at documented default `index=vmware-taskevent`, `sourcetype=vmware_inframon:events`, and host inventory in `vmware-inv`.\n\nCompare representative event JSON with vSphere Client Tasks and Events. Prove exact eventClass, key, nested host.name/reference, createdTime, message, vCenter, `_time` and `_indextime`. Build independent source health from event-job status/records_written, common event classes, expected vCenters, delays, duplicate keys, DCN/auth/API/forwarding and clocks. Build current HostSystem health for connectionState, powerState, maintenance and freshness.\n\nOptionally collect ESXi syslog through the supported ESXi Logs add-on and hardware/BMC logs through supported paths. Validate exact boot/uptime and hardware schemas locally; they are corroboration and must not be invented in the base SPL.\n\n## Step 2 — Save the exact event search\n\nSave sidecar SPL as `vcenter_esxi_connection_lost`, every five minutes. At 12:15 its closed range is 12:00–12:05. Shift both bounds after p99 delay measurement or add a reviewed late-event reconciliation.\n\nThe query fixes one native class, extracts structured host fields, requires vCenter/key/host, deduplicates vCenter+key, and labels reboot unconfirmed. Critical is local routing priority because connection loss can affect cluster operations; it is not a Broadcom event severity or proof of workload outage.\n\n## Step 3 — Validate loss, recovery and reboot boundary\n\nUse fixtures for connection lost, intentional disconnected, shutdown, reconnect and unrelated classes; blank host/key; same key on two vCenters; duplicate/replay; delayed/future time; rename/replacement and wrong source. Assert only HostConnectionLostEvent returns and reboot remains unconfirmed.\n\nIn an isolated lab, interrupt only the vCenter management path through an approved reversible method, then test an approved graceful host restart separately. Capture connection-loss/reconnect/shutdown events, current state, VM/HA behavior, ESXi uptime/boot evidence, syslog and BMC. Demonstrate that management-path loss and reboot can both involve connection loss but require different corroboration. Do not crash or reboot production to validate monitoring.\n\n## Step 4 — Operationalize and respond\n\nImmediately enrich a row with current host state, subsequent events, loss duration, host/cluster capacity, affected/unreachable VMs, HA events, management-network health, BMC power/hardware and ESXi boot/uptime evidence. Triage: verify raw event/source/time; determine recovered versus current; inspect scope across hosts/vCenters; assess VM/service impact and HA; check maintenance; then classify management network, vCenter, authentication, planned work, reboot/crash/hardware or unresolved.\n\nNever automatically reconnect/remove a host, enter maintenance, migrate/power VMs, restart agents/services, reboot/power-cycle hardware or alter HA/network settings from one event. Use out-of-band access and approved incident/change procedures with capacity and rollback.\n\n## Step 5 — Troubleshoot\n\n- No events: verify pool `event`, API credentials/443, scheduler/DCN, index/RBAC and ordinary event health.\n- Host name null: inspect native JSON and `spath`; do not substitute collector host (vCenter) as ESXi identity.\n- Alert after recovery: compare event/index delay and subsequent reconnect/current inventory; preserve chronology.\n- Many hosts simultaneously: investigate vCenter/service/network/DCN scope before assuming mass reboot.\n- Reboot suspected: require new boot time/uptime reset, boot syslog or BMC power evidence; connection loss alone is insufficient.\n- Current inventory stale: fix `hostinv` health and query vCenter directly through approved operations; do not infer current outage.\n- Duplicate pages: compare vCenter/key, schedule windows, routes and checkpoints.\n\nKeep draft status until VMware, network, hardware and Splunk owners validate event semantics, corroboration, fixtures, routing and response. Documentation review is not production availability validation.",
   "grandmaExplanation": "We warn when the virtualization manager says it has unexpectedly lost contact with a host. That does not prove the host restarted or failed, so the team checks the current connection, network, running machines and independent boot records before deciding what happened.",
+  "hardware": "ESXi hosts managed by vCenter; management network, cluster/HA, BMC and host syslog are separate evidence layers.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5089,
+      "name": "Splunk Add-on for VMware Metrics",
+      "url": "https://splunkbase.splunk.com/app/5089",
+      "role": "data-source"
+    },
+    {
+      "id": 5603,
+      "name": "Splunk Add-on for VMware ESXi Logs",
+      "url": "https://splunkbase.splunk.com/app/5603",
+      "role": "optional"
+    }
+  ],
   "wave": "crawl"
 }

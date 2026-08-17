@@ -19,15 +19,6 @@
   },
   "dataSources": "Microsoft Sysmon Process Create Event ID 1 from `Microsoft-Windows-Sysmon/Operational`, collected as XML with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Required fields are `Computer`, `EventRecordID`, `ProcessGuid`, `ProcessId`, `Image`, `CommandLine`, `CurrentDirectory`, `User`, `LogonGuid`, `LogonId`, `TerminalSessionId`, `IntegrityLevel`, `Hashes`, `ParentProcessGuid`, `ParentProcessId`, `ParentImage`, `ParentCommandLine`, `RuleName`, and event ID. Separate Intune/WSL inventory is needed to judge policy.",
   "app": "Microsoft Sysmon plus Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. Microsoft Intune and Defender for Endpoint are optional policy/WSL visibility sources.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=1 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), process_image=lower(trim(Image)), process_name=replace(process_image,\"^.*\\\\\\\\\",\"\"), command_line=lower(trim(CommandLine))\n| where event_code=1 AND process_name=\"wsl.exe\" AND len(endpoint)>0\n| eval invocation_type=case(match(command_line,\"(?i)(^|\\s)(--exec|-e)(\\s|$)\"),\"explicit_linux_command\",match(command_line,\"(?i)(^|\\s)(--install|--unregister|--import|--import-in-place|--export|--update|--set-default|--set-default-version|--set-version|--mount|--unmount|--shutdown)(\\s|$)\"),\"management_command\",match(command_line,\"(?i)(^|\\s)(--system|--debug-shell|--user\\s+root|-u\\s+root)(\\s|$)\"),\"privileged_or_debug_option\",true(),\"interactive_or_default_command\"), use_case=\"UC-1.2.94\"\n| table _time endpoint invocation_type User IntegrityLevel Image CommandLine ProcessGuid ProcessId Hashes ParentImage ParentCommandLine ParentProcessGuid ParentProcessId CurrentDirectory LogonGuid LogonId TerminalSessionId EventRecordID RuleName source sourcetype use_case\n| sort 0 -_time endpoint",
   "description": "Reports one Sysmon process-creation row for every exact `wsl.exe` launcher invocation and classifies its observed command line as explicit Linux command, management command, privileged/debug option, or interactive/default invocation. It preserves process and parent evidence without claiming the Linux command succeeded or was malicious.",
   "value": "WSL is legitimate enterprise and developer tooling, but it also provides a path to execute Linux commands from Windows and can create monitoring gaps when unmanaged. A complete launcher trail lets teams enforce server/workstation policy, understand normal development automation, and investigate unusual parent, user, option, or command context without treating all WSL use as an attack. This shortens review of unexpected WSL execution while preserving approved developer and container workflows.",
@@ -39,32 +30,6 @@
   "cimSpl": "| tstats `summariesonly` count min(_time) as first_seen max(_time) as last_seen values(Processes.process) as command_lines values(Processes.parent_process_name) as parent_process_names values(Processes.parent_process) as parent_commands values(Processes.process_id) as process_ids from datamodel=Endpoint.Processes where Processes.process_name=\"wsl.exe\" by Processes.dest Processes.user\n| rename Processes.* as *",
   "schema": "Microsoft Sysmon Event ID 1 native XML; optional Endpoint.Processes normalization",
   "dataModelAcceleration": "The optional Endpoint.Processes inventory is valid only after confirming `process_name=wsl.exe`, full command line in `process`, destination, user, parent and process ID mappings. It does not preserve ProcessGuid, hashes, integrity, EventRecordID, or every invocation row; raw XML remains authoritative.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "ProcessGuid",
-    "ProcessId",
-    "Image",
-    "CommandLine",
-    "CurrentDirectory",
-    "User",
-    "IntegrityLevel",
-    "Hashes",
-    "ParentProcessGuid",
-    "ParentProcessId",
-    "ParentImage",
-    "ParentCommandLine",
-    "LogonGuid",
-    "LogonId",
-    "TerminalSessionId",
-    "RuleName"
-  ],
   "references": [
     {
       "title": "Microsoft Learn: WSL open-source architecture and Windows entry points",
@@ -108,21 +73,47 @@
   ],
   "detectionType": "Execution audit",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "ProcessGuid",
+    "ProcessId",
+    "Image",
+    "CommandLine",
+    "CurrentDirectory",
+    "User",
+    "IntegrityLevel",
+    "Hashes",
+    "ParentProcessGuid",
+    "ParentProcessId",
+    "ParentImage",
+    "ParentCommandLine",
+    "LogonGuid",
+    "LogonId",
+    "TerminalSessionId",
+    "RuleName"
+  ],
   "equipment": [
+    "defender",
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows endpoints or servers capable of running WSL. WSL 2 Linux VM/distributions, Intune policy, Defender WSL telemetry, and internal Linux audit data are separate sources.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft WSL architecture/commands/enterprise policy, Sysmon, Splunk Windows add-on/CIM, and MITRE ATT&CK; WSL installation, policy state, process fields, SPL, controls, source health, alerting, and Linux-side visibility were specified but not executed or Microsoft/WSL/Splunk/endpoint-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft WSL architecture/commands/enterprise policy, Sysmon, Splunk Windows add-on/CIM, and MITRE ATT&CK; WSL installation, policy state, process fields, SPL, controls, source health, alerting, and Linux-side visibility were specified but not executed or Microsoft/WSL/Splunk/endpoint-SME signed",
   "cost": {
     "tier": "high",
     "search_load": "light",
@@ -140,6 +131,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact launcher contract\n\nAssign endpoint/WSL, Intune, developer-platform, Splunk, and security owners. Inventory where WSL is allowed, prohibited, or managed; approved distributions; WSL 1/2 policy; Docker/VS Code dependencies; and sensitive server roles. Install Sysmon and Splunk Add-on for Microsoft Windows 10.0.1 on required tiers. Restrict command/hash/user data.\n\nMicrosoft documents `wsl.exe` as the Windows entry point for executing Linux commands and managing distributions. `wslservice.exe` manages the WSL VM/distributions but is outside this launcher rule. The four invocation labels are triage helpers, not severity: `--exec/-e`, management options, privileged/debug options, or all other/bare commands.\n\n## Step 1 — Collect Sysmon and policy context\n\nEnable Sysmon ProcessCreate Event ID 1 with command line, hashes, parent and process GUIDs in a signed configuration. Record Event ID 16/configuration hash and measure volume. Collect **Applications and Services Logs > Microsoft > Windows > Sysmon > Operational** as XML through an app-owned `inputs.conf` stanza to local `index=wineventlog`. Verify `sourcetype=XmlWinEventLog`, exact source, and every required field against Event Viewer XML. Operate source health per endpoint.\n\nIn Microsoft Intune admin center use **Devices > Configuration Profiles > Settings catalog** and govern `AllowWSL`, `AllowInboxWSL`, `AllowWSL1`, debug-shell, networking, mount, and command settings appropriate to the environment. Export effective policy/inventory separately; process telemetry cannot prove policy state.\n\n## Step 2 — Save and understand the report\n\nSave as `windows_wsl_launcher_activity`, schedule every five minutes over `earliest=-10m@m latest=-5m@m`, and retain all rows. The base search fixes Sysmon channel/Event ID, derives image basename, and requires exact `wsl.exe`; command strings in other processes do not match. Ordered classification first identifies explicit execution, then management, then privileged/debug options, otherwise interactive/default use. Because a command may contain multiple categories, raw CommandLine remains authoritative.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nBuild alert policy after enrichment: any launcher on prohibited servers; first-seen host/user; unusual parent; root/debug/mount options; or commands inconsistent with developer automation. Keep base rows even when a post-result exception suppresses paging.\n\n## Step 3 — Validate process semantics and policy\n\nRun exact positive and negative fixtures with fixed bounds. Test System32 and Store/package paths, case, quoting, `-e`, `--exec`, management options, `--system`, `--debug-shell`, `-u root`, bare invocation, wrong executable/event/channel, and empty command. Verify ProcessGuid, parent and hashes. Do not require wslhost/wslservice child behavior for this report.\n\nOn an approved lab/developer endpoint, run harmless commands such as `wsl.exe --list --verbose` and `wsl.exe --distribution <lab> --exec /usr/bin/id`; compare Event Viewer XML, Splunk rows, Intune effective policy, and distribution inventory. Record versions, exact bounds, expected/actual rows, operator, alert delivery, and exception expiry.\n\n## Step 4 — Operationalize investigation and response\n\nFor a review row: verify raw process/source health; validate image path/hash/signature and parent; check endpoint WSL policy and approved role; inspect user, integrity, command and distribution; correlate Windows process/network/file telemetry and Defender WSL/Linux visibility where deployed; contact owner; and determine whether the command is normal automation, policy drift, or suspicious execution.\n\nDo not automatically unregister a distribution, run `wsl --shutdown`, disable WSL, delete VHDX files, isolate a developer workstation, or block a user solely from a launcher event. Those actions can destroy work or disrupt Docker/build systems. Use governed incident and endpoint-management procedures.\n\n## Step 5 — Troubleshoot\n\n- **No wsl.exe events:** verify Sysmon ProcessCreate configuration, channel input, command-line fields, source health, image path, and schedule delay.\n- **Linux command not visible:** confirm it appears in Windows `CommandLine`; interactive commands entered after bare wsl launch need Linux-side audit/Defender telemetry.\n- **Docker or VS Code noise:** validate signed parent/hash and managed asset context, then apply a narrow expiring post-result lookup.\n- **WSL prohibited but events appear:** confirm effective Intune assignment, Store versus inbox policy, user/device scope, sync state, and whether the event preceded enforcement.\n- **CIM inventory differs:** inspect Endpoint.Processes process/process_name mappings and acceleration freshness; raw XML is authority.\n- **Renamed or distribution launcher missed:** explicit exclusion; add a separately sourced analytic rather than broad `*wsl*` matching.\n- **Duplicate events:** compare Computer, EventRecordID, ProcessGuid, and direct/WEF collection paths and repair topology.",
   "grandmaExplanation": "We keep a record whenever someone starts the Linux environment built into Windows. It is useful and often approved, but the record helps the team spot it on computers where it is not allowed and review unusual commands without blaming every developer.",
+  "hardware": "Windows endpoints or servers capable of running WSL. WSL 2 Linux VM/distributions, Intune policy, Defender WSL telemetry, and internal Linux audit data are separate sources.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

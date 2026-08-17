@@ -18,14 +18,6 @@
   },
   "dataSources": "Primary source: complete `index=os source=vmstat sourcetype=vmstat` events produced once per minute by the supplied `vmstat.sh` scripted event input in the Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833). Required fields are `_time`, `host`, and numeric cumulative `pgSwapOut`; numeric `swapUsedPct` is optional context. On Linux the add-on derives `pgSwapOut` from the `vmstat -s` pages-swapped-out counter. `os`, `source=vmstat`, and the 60-second interval are explicit deployment conventions and must be changed consistently if local configuration differs.",
   "app": "Splunk Add-on for Unix and Linux (`Splunk_TA_nix`, Splunkbase 833), installed on the Linux collection forwarders that execute `vmstat.sh` and on the Splunk tiers required for its parsing and search-time knowledge. A Universal Forwarder transports the data but is not Splunkbase app 617 and is not itself the field contract.",
-  "splunkbaseApps": [
-    {
-      "id": 833,
-      "name": "Splunk Add-on for Unix and Linux",
-      "url": "https://splunkbase.splunk.com/app/833",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=os source=vmstat sourcetype=vmstat host=* earliest=-90m@m latest=-5m@m\n| eval pgSwapOut=tonumber(pgSwapOut), swapUsedPct=tonumber(swapUsedPct)\n| where isnotnull(pgSwapOut) AND pgSwapOut>=0\n| stats max(pgSwapOut) as pgSwapOut latest(swapUsedPct) as swapUsedPct by host _time\n| sort 0 host _time\n| streamstats current=f window=1 last(pgSwapOut) as previous_pgSwapOut last(_time) as previous_time by host\n| eval elapsed_seconds=_time-previous_time\n| eval swapout_delta_pages=if(pgSwapOut>=previous_pgSwapOut,pgSwapOut-previous_pgSwapOut,null())\n| eval swapout_pages_per_second=if(elapsed_seconds>0 AND elapsed_seconds<=180,swapout_delta_pages/elapsed_seconds,null())\n| where isnotnull(swapout_pages_per_second)\n| bin _time span=5m\n| stats avg(swapout_pages_per_second) as swapout_pages_per_second max(swapout_pages_per_second) as peak_swapout_pages_per_second count as rate_samples latest(swapUsedPct) as swap_used_pct by host _time\n| where rate_samples>=4\n| eval baseline_start=relative_time(now(),\"-80m@m\"), candidate_start=relative_time(now(),\"-20m@m\"), candidate_end=relative_time(now(),\"-5m@m\")\n| eval baseline_rate=if(_time>=baseline_start AND _time<candidate_start,swapout_pages_per_second,null())\n| eventstats avg(baseline_rate) as prior_hour_avg_pages_per_second count(baseline_rate) as baseline_buckets by host\n| where _time>=candidate_start AND _time<candidate_end\n| eval threshold_pages_per_second=max(4,2*prior_hour_avg_pages_per_second), breached=if(swapout_pages_per_second>=threshold_pages_per_second,1,0)\n| sort 0 host _time\n| stats count as observed_buckets sum(breached) as breach_buckets min(_time) as window_start max(_time) as window_end min(swapout_pages_per_second) as minimum_swapout_pages_per_second avg(swapout_pages_per_second) as average_swapout_pages_per_second latest(swapout_pages_per_second) as current_swapout_pages_per_second max(peak_swapout_pages_per_second) as peak_swapout_pages_per_second latest(swap_used_pct) as current_swap_used_pct latest(prior_hour_avg_pages_per_second) as prior_hour_avg_pages_per_second latest(baseline_buckets) as baseline_buckets latest(threshold_pages_per_second) as threshold_pages_per_second by host\n| where baseline_buckets>=9 AND observed_buckets=3 AND breach_buckets=3\n| eval window_end=window_end+300, minimum_swapout_pages_per_second=round(minimum_swapout_pages_per_second,2), average_swapout_pages_per_second=round(average_swapout_pages_per_second,2), current_swapout_pages_per_second=round(current_swapout_pages_per_second,2), peak_swapout_pages_per_second=round(peak_swapout_pages_per_second,2), prior_hour_avg_pages_per_second=round(prior_hour_avg_pages_per_second,2), threshold_pages_per_second=round(threshold_pages_per_second,2), current_swap_used_pct=round(current_swap_used_pct,1), severity=\"medium\"\n| sort 0 -average_swapout_pages_per_second host\n| table host severity window_start window_end baseline_buckets observed_buckets breach_buckets prior_hour_avg_pages_per_second minimum_swapout_pages_per_second average_swapout_pages_per_second current_swapout_pages_per_second peak_swapout_pages_per_second threshold_pages_per_second current_swap_used_pct",
   "description": "Reports a Linux host when all three recent closed five-minute buckets have at least four valid swap-out rates and average at least both 4 pages/second and twice the host's prior-hour average. The search derives pages/second from adjacent cumulative `pgSwapOut` observations, rejects decreases and gaps longer than 180 seconds, and requires at least nine complete baseline buckets. “Trend” means a sustained departure from the preceding hour, not a claim that every individual sample rises monotonically.",
   "value": "Sustained swap-out means the kernel is repeatedly evicting memory pages to swap, which can precede storage contention, later swap-in latency, and workload degradation. Comparing a complete recent window with the same host's prior hour shortens diagnosis by giving Linux operators a unit-safe early signal without confusing an ever-growing lifetime counter or an old swap allocation with current activity.",
@@ -35,11 +27,6 @@
     "Performance"
   ],
   "dataModelAcceleration": "No exact accelerated CIM search is asserted. The Performance.Memory model defines memory and swap capacity in megabytes, including `swap_used`, but it does not preserve the source-specific cumulative `pgSwapOut` page counter, adjacent sample time, reset/gap guards, or derived pages/second. CIM memory panels can supply occupancy context only; substituting swap-used percentage would change this detector's meaning.",
-  "requiredFields": [
-    "_time",
-    "host",
-    "pgSwapOut"
-  ],
   "references": [
     {
       "title": "Splunk Add-on for Unix and Linux (Splunkbase 833)",
@@ -92,6 +79,11 @@
     "N/A (operational Linux memory-performance monitoring; no adversary behavior is asserted)"
   ],
   "detectionType": "Baseline",
+  "requiredFields": [
+    "_time",
+    "host",
+    "pgSwapOut"
+  ],
   "equipment": [
     "linux"
   ],
@@ -119,6 +111,14 @@
   "grandmaExplanation": "We watch whether a Linux server keeps pushing memory onto slower disk space much faster than it did during the previous hour. That warning helps the team investigate growing memory pressure before people notice a slowdown.",
   "prerequisiteUseCases": [
     "UC-1.1.2"
+  ],
+  "splunkbaseApps": [
+    {
+      "id": 833,
+      "name": "Splunk Add-on for Unix and Linux",
+      "url": "https://splunkbase.splunk.com/app/833",
+      "role": "data-source"
+    }
   ],
   "wave": "walk"
 }

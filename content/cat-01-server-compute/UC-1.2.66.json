@@ -17,14 +17,6 @@
   },
   "dataSources": "Microsoft Sysinternals Sysmon Operational Event ID 11 (`FileCreate`) from `Microsoft-Windows-Sysmon/Operational`, generated only where the installed Sysmon configuration includes the operation. Collect XML with Splunk Add-on for Sysmon (Splunkbase 5709) or a validated Splunk Windows Event Log input to deployment-choice `index=wineventlog`, exact `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`. Required fields: `_time, _indextime, Computer|dest|host, EventCode|EventID, Provider_Name|ProviderName, EventRecordID|RecordNumber, UtcTime, Image, ProcessGuid, ProcessId, TargetFilename, User`; preserve RuleName. Sysmon configuration, event manifest, and raw XML are authoritative for field/version behavior.",
   "app": "Splunk Add-on for Sysmon (`Splunk_TA_microsoft_sysmon`, Splunkbase 5709) for Sysmon collection/CIM knowledge; a restricted local content app owns the raw analytic, source health, dashboard, fixtures, and `windows_sysmon_file_create_exceptions.csv`.",
-  "splunkbaseApps": [
-    {
-      "id": 5709,
-      "name": "Splunk Add-on for Sysmon",
-      "url": "https://splunkbase.splunk.com/app/5709",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=11 earliest=-20m@m latest=-5m@m\n| eval event_id=tonumber(coalesce(EventCode,EventID)), provider=lower(trim(coalesce(Provider_Name,ProviderName))), destination=lower(trim(coalesce(Computer,dest,host))), event_record_id=trim(tostring(coalesce(EventRecordID,RecordNumber))), image=lower(replace(trim(Image),\"/\",\"\\\\\")), target_filename=lower(replace(trim(TargetFilename),\"/\",\"\\\\\"))\n| eval extension=lower(replace(target_filename,\"^.*\\.\",\"\"))\n| eval path_class=case(match(target_filename,\"^.:\\\\users\\\\[^\\\\]+\\\\appdata\\\\local\\\\temp\\\\\"),\"user_temp\",match(target_filename,\"^.:\\\\windows\\\\temp\\\\\"),\"windows_temp\",match(target_filename,\"\\\\start menu\\\\programs\\\\startup\\\\\"),\"startup\",match(target_filename,\"^.:\\\\programdata\\\\\"),\"programdata\")\n| where event_id=11 AND provider=\"microsoft-windows-sysmon\" AND len(destination)>0 AND len(event_record_id)>0 AND len(image)>0 AND len(target_filename)>0 AND isnotnull(path_class) AND in(extension,\"exe\",\"dll\",\"ps1\",\"bat\",\"cmd\",\"vbs\",\"js\",\"jse\",\"hta\",\"scr\")\n| stats count AS duplicate_count min(_time) AS event_time max(_indextime) AS last_indextime values(UtcTime) AS sysmon_utc values(ProcessGuid) AS process_guids values(ProcessId) AS process_ids values(User) AS users values(RuleName) AS rule_names values(source) AS observed_sources values(sourcetype) AS observed_sourcetypes by destination event_record_id image target_filename path_class extension\n| where duplicate_count=1\n| eval aggregation_window_minutes=15, close_delay_minutes=5, analytic_interpretation=\"selected-path file create or overwrite; investigate context; path and extension do not prove malware, execution, or persistence\", use_case=\"UC-1.2.66\"\n| table event_time destination event_record_id image process_guids process_ids target_filename path_class extension users rule_names sysmon_utc observed_sources observed_sourcetypes last_indextime aggregation_window_minutes close_delay_minutes analytic_interpretation use_case\n| sort 0 -event_time destination target_filename",
   "description": "Reports one destination/EventRecordID row for each unique Sysmon Event 11 in a closed 15-minute interval whose normalized target has a selected executable/script extension and falls under the configured Temp, Startup, or ProgramData path classes. The row preserves creator-process and file context; it is a triage lead, not a malware verdict.",
   "value": "Focused file-creation telemetry can expose payload staging, persistence preparation, administrative tooling, packaging, or software-delivery activity early enough to correlate the creating process and file reputation. Explicit path and extension scope makes volume and tuning measurable while avoiding the unsupported claim that every write in a user-writable directory is malicious.",
@@ -35,28 +27,6 @@
   ],
   "schema": "Sysmon FileCreate Event ID 11 native XML fields",
   "dataModelAcceleration": "Splunk Add-on for Sysmon maps supported events into Endpoint, but accelerated Filesystem field names and event identity must be verified against the installed add-on/CIM versions. The raw rule requires native Event 11 provider, Image, ProcessGuid, TargetFilename, RuleName and EventRecordID uniqueness. No `cimSpl` is claimed until a local parity test proves the same path, extension, closed-window and duplicate semantics.",
-  "requiredFields": [
-    "_time",
-    "_indextime",
-    "source",
-    "sourcetype",
-    "Computer",
-    "dest",
-    "host",
-    "EventCode",
-    "EventID",
-    "Provider_Name",
-    "ProviderName",
-    "EventRecordID",
-    "RecordNumber",
-    "UtcTime",
-    "Image",
-    "ProcessGuid",
-    "ProcessId",
-    "TargetFilename",
-    "User",
-    "RuleName"
-  ],
   "references": [
     {
       "title": "Microsoft Sysinternals Sysmon: Event ID 11 FileCreate semantics",
@@ -98,20 +68,41 @@
   "mitreAttack": [],
   "detectionType": "Behavioral",
   "securityDomain": "endpoint",
+  "requiredFields": [
+    "_time",
+    "_indextime",
+    "source",
+    "sourcetype",
+    "Computer",
+    "dest",
+    "host",
+    "EventCode",
+    "EventID",
+    "Provider_Name",
+    "ProviderName",
+    "EventRecordID",
+    "RecordNumber",
+    "UtcTime",
+    "Image",
+    "ProcessGuid",
+    "ProcessId",
+    "TargetFilename",
+    "User",
+    "RuleName"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Windows endpoints and servers running a supported Sysmon build with FileCreate Event 11 configured and the Operational channel collected. Systems without Sysmon, filters that omit selected paths, non-Windows endpoints, network appliances, and products that do not preserve original destination/EventRecordID require separate analytics.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only editorial review against primary Microsoft Sysmon Event 11/configuration guidance and primary Splunk Sysmon/Windows XML documentation; collection, fields, path policy, SPL, fixtures, source health, dashboard, suppression and response were specified but not executed or Microsoft/Sysmon/Splunk/endpoint-SME signed",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "documentation-only editorial review against primary Microsoft Sysmon Event 11/configuration guidance and primary Splunk Sysmon/Windows XML documentation; collection, fields, path policy, SPL, fixtures, source health, dashboard, suppression and response were specified but not executed or Microsoft/Sysmon/Splunk/endpoint-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "moderate",
@@ -127,6 +118,15 @@
   },
   "detailedImplementation": "## Define and own the signal\n\nAssign Sysmon engineering, Windows endpoint, Splunk collection/content, SOC, incident-response and exception owners. Inventory every host in scope with canonical destination, environment, owner, criticality, Sysmon version, configuration hash, FileCreate include/exclude policy, forwarding route and expected silence. Restrict access because file paths, users and process identifiers can expose sensitive activity.\n\nMicrosoft states Event 11 records when a file is created or overwritten. It does not state that the operation executed the file or established persistence. The local policy selects executable/script suffixes under per-user AppData Local Temp, Windows Temp, any Start Menu Programs Startup segment, and root ProgramData. Document this exact list and review it after software-baseline changes. Junctions, aliases, 8.3 names and paths outside those classes can evade literal matching.\n\n## Configure Sysmon and XML collection\n\nDeploy Sysmon from Microsoft Sysinternals with a version-controlled configuration and the Splunk-supported add-on from Splunkbase 5709. Include FileCreate events needed by this rule and estimate volume before broad rollout. Use `sysmon64 -c` and the Operational Event 16 configuration-change record to verify effective configuration; export the schema for the installed version when field behavior is in doubt. Never copy an unreviewed community configuration into production.\n\nCollect `Microsoft-Windows-Sysmon/Operational` as XML through Splunk Add-on for Sysmon or a tested Windows input. Route to local `wineventlog`; that index name is not a vendor default. Preserve `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Microsoft-Windows-Sysmon/Operational`, original Computer and EventRecordID. Size channel retention and forwarder queues for outages. During WEF migration, prevent direct and forwarded copies from both being authoritative.\n\nInspect raw events:\n\n```spl\nindex=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Microsoft-Windows-Sysmon/Operational\" EventCode=11 earliest=-30m\n| table _time _indextime Computer EventRecordID Provider_Name UtcTime Image ProcessGuid ProcessId TargetFilename User RuleName\n| head 50\n```\n\nCompare the fields to Event Viewer XML and the installed Sysmon manifest. Verify destination, UTC conversion, process GUID/PID, image, target, user and rule name. A PID can be reused; ProcessGuid plus Event 1 is stronger process correlation. Event 11 does not include file content or a guaranteed hash.\n\n## Maintain source and configuration health\n\nCreate an expected-host monitor for absent/stale Sysmon data, excessive `_indextime-_time`, unknown hosts, missing provider/Computer/EventRecordID/Image/TargetFilename, configuration-hash drift, service stop/change events, channel clear/full conditions and duplicate destination/EventRecordID across direct/WEF routes. The analytic rejects duplicate identities rather than allowing duplicate ingest to double pages; health must preserve and route the defect.\n\nTrack Event 11 rates by host, Image and RuleName before and after every Sysmon/config/add-on upgrade. An abrupt decrease can mean filtering loss, while an increase can mean a noisy include. Preserve original target paths; do not perform irreversible index-time redaction without a privacy design.\n\n## Schedule and understand the analytic\n\nSave as `windows_sysmon_selected_path_file_create`, run every 15 minutes, and alert when results exceed zero. `earliest=-20m@m latest=-5m@m` selects a nonoverlapping closed 15-minute event-time slice with five minutes for arrival. Measure p99 forwarding delay and lengthen the delay if required.\n\nThe query validates numeric Event 11 and provider, normalizes slash and case, derives the last extension, then assigns one selected path class. It requires destination, record identity, creator Image and target. The first and only aggregation groups destination/EventRecordID and retains forensic fields; `duplicate_count=1` prevents duplicate routes from becoming results. One output row means one qualifying file operation, not one unique file forever. Repeated overwrites with distinct EventRecordIDs remain visible.\n\n## Validate and operationalize\n\nReplay the documented positive fixtures under absolute time bounds and assert every output field. Run each negative separately, including wrong event/provider/source, missing identity, nonselected extension/path, newest delayed events and duplicated records. Test upper/lower case, `/` separators, long paths, Unicode, native and 8.3 names, junction-resolved paths, multiple dots, no extension and boundary timestamps. Confirm duplicate and missing-host health independently.\n\nIn an isolated endpoint lab, create a harmless `.ps1` in the selected Temp directory and a signed test executable in an approved Startup test path, then compare raw XML and results. Remove them under the change plan. This proves collection/search behavior only. Measure search runtime, ingest volume, alert delivery, dashboard ACLs, drilldowns and exception expiry before production.\n\nAlert title: `Selected-path file creation on <destination>: <target_filename>`. Analysts verify raw identity and source health, resolve the creating process through Event 1/EDR, inspect parent tree, signer/hash/prevalence and Zone.Identifier, determine whether execution followed, compare deployment/change records, and assess account/asset sensitivity. Escalate only with corroborating evidence. Do not automatically delete/quarantine a file or terminate a process from path alone.\n\nApply finite exceptions after aggregation and retain the base result. Review path/extension policy, exceptions, source inventory, Sysmon configuration and alert outcomes after every tooling or OS change.\n\n## Troubleshoot\n\n- No Event 11: verify Sysmon service/version, effective FileCreate filter, Operational channel, Windows input, permissions, routing and retention.\n- Wrong destination: repair WEF original Computer preservation before searching.\n- Missing Image/TargetFilename: compare raw XML, schema version and add-on extraction; do not substitute RenderedDescription silently.\n- High volume: identify exact Images/paths and tune Sysmon/configuration or finite alert exceptions; never blanket-exclude Temp.\n- Expected file absent: it may be outside selected paths/extensions, created before collection, filtered by Sysmon, renamed rather than created, or represented through an alias.\n- CIM differs: audit add-on/CIM version, tags, field aliases, acceleration lag and native event identity; raw XML remains authoritative until parity passes.",
   "grandmaExplanation": "We record when Windows programs create certain runnable files in temporary or startup-style folders. Many legitimate installers do this too, so the alert gives investigators the process and path without calling the file malware.",
+  "hardware": "Windows endpoints and servers running a supported Sysmon build with FileCreate Event 11 configured and the Operational channel collected. Systems without Sysmon, filters that omit selected paths, non-Windows endpoints, network appliances, and products that do not preserve original destination/EventRecordID require separate analytics.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 5709,
+      "name": "Splunk Add-on for Sysmon",
+      "url": "https://splunkbase.splunk.com/app/5709",
+      "role": "data-source"
+    }
+  ],
   "wave": "walk"
 }

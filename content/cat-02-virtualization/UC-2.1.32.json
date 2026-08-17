@@ -26,20 +26,6 @@
   "cimModels": [],
   "schema": "Purpose-built JSON ESXi machine-certificate snapshot contract; no applicable CIM dataset",
   "dataModelAcceleration": "Not applicable. No documented CIM dataset preserves ESXi certificate scope, X.509 bounds, SHA-256 thumbprint, collector completeness, and snapshot identity. Keep the raw purpose-built event and independent coverage control.",
-  "requiredFields": [
-    "vcenter",
-    "host",
-    "certificate_scope",
-    "subject",
-    "issuer",
-    "thumbprint_sha256",
-    "not_before_epoch",
-    "not_after_epoch",
-    "collector_epoch",
-    "snapshot_id",
-    "collector_status",
-    "_indextime"
-  ],
   "references": [
     {
       "title": "Broadcom PowerCLI: Get-VIMachineCertificate",
@@ -72,21 +58,35 @@
     "N/A (operational ESXi certificate-lifecycle monitoring)"
   ],
   "detectionType": "Newest complete ESXi machine-certificate snapshot inside local expiry horizon",
+  "requiredFields": [
+    "vcenter",
+    "host",
+    "certificate_scope",
+    "subject",
+    "issuer",
+    "thumbprint_sha256",
+    "not_before_epoch",
+    "not_after_epoch",
+    "collector_epoch",
+    "snapshot_id",
+    "collector_status",
+    "_indextime"
+  ],
   "equipment": [
     "vmware"
   ],
   "equipmentModels": [
     "vmware_esxi",
-    "vmware_vcenter"
+    "vmware_vcenter",
+    "vmware_vsphere"
   ],
-  "hardware": "Governed ESXi hosts managed by vCenter. VMCA-managed and custom-CA-managed hosts have different renewal procedures and must be identified before action.",
   "status": "draft",
   "lastReviewed": "2026-07-29",
-  "reviewer": "Source-backed documentation-only editorial review; production VMware, PKI, and Splunk validation pending",
   "splunkVersions": [
     "9.2+",
     "Cloud"
   ],
+  "reviewer": "Source-backed documentation-only editorial review; production VMware, PKI, and Splunk validation pending",
   "cost": {
     "tier": "low",
     "search_load": "light",
@@ -94,8 +94,9 @@
     "tstats_eligible": false,
     "storage_class": "hot"
   },
-  "detailedImplementation": "## Prerequisites and certificate boundary\n\nAssign VMware platform, PKI, VCF lifecycle, Splunk, and change owners. Inventory every governed vCenter and ESXi host, certificate authority/mode, root expiry, workload-domain membership, maintenance constraints, owner, and decommission state. Run a supported VCF PowerCLI from a hardened collection tier with HTTPS access to vCenter. Grant only the vCenter privileges proven necessary to read host machine certificate information; the Splunk search account needs read and scheduled-search rights only. Store credentials in the platform credential facility, never script or event output.\n\nBroadcom documents `Get-VIMachineCertificate` as retrieving vCenter and ESXi machine SSL certificate information; use `-EsxOnly` or explicit `-VMHost` so this UC cannot silently mix scopes. Inspect the returned object on every supported PowerCLI/vCenter combination and map actual X.509 properties. Convert UTC dates to Unix seconds once. Do not claim the Metrics or ESXi Logs add-on supplies these fields.\n\n## Step 1 — Build and prove collection\n\nPackage a reviewed PowerShell collector in `TA_vmware_certificate_inventory`. For each connected, governed ESXi host emit one compact JSON object with the fields in `dataSources`, one shared `snapshot_id`, and `collector_status=ok` only after the entire intended host enumeration succeeds. Emit errors to a separate source type; never output a partial snapshot as healthy. Configure a daily scripted input in the app's `local/inputs.conf` with the deployment's real index and `sourcetype=vmware:host_certificate`. Use JSON event breaking and UTC timestamps, retain the script hash, and cap permissions.\n\nCompare two hosts with vSphere Client > Hosts and Clusters > host > Configure > System > Certificate and a fresh `Get-VIMachineCertificate -VMHost`. Prove subject, issuer, SHA-256 thumbprint, valid-from, valid-to, host identity, and vCenter. Build independent expected-host and freshness checks from authoritative inventory; disconnected or missing hosts must alert as coverage failures.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` verbatim as `vmware_esxi_machine_certificate_expiration` and run after the daily poll. The search accepts only successful machine-SSL observations from 36 hours, normalizes identities, validates a 64-hex SHA-256 thumbprint and numeric epochs, sorts newest first, and selects one host snapshot. It rejects future collectors and snapshots older than 36 hours. `floor((not_after_epoch-now())/86400)` intentionally produces -1 immediately after expiry and whole remaining days before expiry. Exactly 90 days is included; exactly 30 is high; expired is critical. Those bands are local policy, not vendor severity.\n\nDo not broaden the search to vCenter, roots, STS, or trusted certificates without separate identities, ownership, tests, and pages. Keep source-health results separate so a missing certificate never disappears as a healthy zero-row result.\n\n## Step 3 — Validate safely\n\nUse fixed JSON fixtures, not production certificate manipulation. Test valid dates at 91 days, exactly 90 days, 30 days, zero seconds, and one second past; malformed hashes; milliseconds; not-after before not-before; blank identity; duplicate delivery; older/newer conflicting observations; failed/partial status; stale/future collection; and rerun determinism. Assert no floating-day ambiguity at boundaries.\n\nIn a nonproduction vCenter, compare result rows to PowerCLI and the host Certificate page. If the owner approves a renewal exercise, capture old/new thumbprints and expiries, VMCA/custom mode, task result, reconnect behavior, and the next complete snapshot. Do not expire or replace a production certificate for testing. Keep draft status until VMware, PKI, VCF, and Splunk owners approve coverage, fixtures, routing, and response.\n\n## Step 4 — Operationalize and respond\n\nRoute 31-90 days to planned work, 1-30 days to accelerated change, and expired to the applicable incident path only after confirming raw observation and live state. Before renewal, identify VMCA versus custom mode, root lifetime, lifecycle jobs, host connectivity, compatibility, maintenance requirements, backup/rollback, and certificate subject/SAN policy. Broadcom notes VMCA renewal depends on certificate-management mode and cannot extend past the issuing root; VCF lifecycle checks can require more than 30 days.\n\nNever auto-renew or replace from this search. Close only when authoritative live state and a subsequent complete snapshot show the approved new thumbprint/expiry, related lifecycle checks pass, collection is healthy, and the change record captures impact and rollback.\n\n## Step 5 — Troubleshoot\n\n- **No events:** verify authoritative host inventory, vCenter reachability/TLS, credentials, PowerCLI module, scripted-input status, index/RBAC, and collector-error source.\n- **Null dates or thumbprint:** inspect the actual cmdlet object and serializer for the deployed versions; do not invent property aliases.\n- **Values thousands of years away:** prove Unix seconds rather than milliseconds and UTC rather than locale text.\n- **Host differs from UI:** reconcile FQDN, managed-object identity, connected vCenter, stale snapshot, certificate refresh, and duplicate host names.\n- **Renew button unavailable:** check vCenter certificate-management mode and custom-CA process; do not bypass governance.\n- **Renewed certificate still alerts:** compare thumbprint and poll time, then inspect collector caching, failed partial snapshot, routing delay, and search window.\n\nRetention and thresholds follow local risk policy; this page asserts no universal retention period or unattended remediation."
-  ,"grandmaExplanation": "We check when each virtualization host's secure identity card will expire. The team gets time to renew the right certificate, while missing checks are treated as missing information rather than good news.",
+  "detailedImplementation": "## Prerequisites and certificate boundary\n\nAssign VMware platform, PKI, VCF lifecycle, Splunk, and change owners. Inventory every governed vCenter and ESXi host, certificate authority/mode, root expiry, workload-domain membership, maintenance constraints, owner, and decommission state. Run a supported VCF PowerCLI from a hardened collection tier with HTTPS access to vCenter. Grant only the vCenter privileges proven necessary to read host machine certificate information; the Splunk search account needs read and scheduled-search rights only. Store credentials in the platform credential facility, never script or event output.\n\nBroadcom documents `Get-VIMachineCertificate` as retrieving vCenter and ESXi machine SSL certificate information; use `-EsxOnly` or explicit `-VMHost` so this UC cannot silently mix scopes. Inspect the returned object on every supported PowerCLI/vCenter combination and map actual X.509 properties. Convert UTC dates to Unix seconds once. Do not claim the Metrics or ESXi Logs add-on supplies these fields.\n\n## Step 1 — Build and prove collection\n\nPackage a reviewed PowerShell collector in `TA_vmware_certificate_inventory`. For each connected, governed ESXi host emit one compact JSON object with the fields in `dataSources`, one shared `snapshot_id`, and `collector_status=ok` only after the entire intended host enumeration succeeds. Emit errors to a separate source type; never output a partial snapshot as healthy. Configure a daily scripted input in the app's `local/inputs.conf` with the deployment's real index and `sourcetype=vmware:host_certificate`. Use JSON event breaking and UTC timestamps, retain the script hash, and cap permissions.\n\nCompare two hosts with vSphere Client > Hosts and Clusters > host > Configure > System > Certificate and a fresh `Get-VIMachineCertificate -VMHost`. Prove subject, issuer, SHA-256 thumbprint, valid-from, valid-to, host identity, and vCenter. Build independent expected-host and freshness checks from authoritative inventory; disconnected or missing hosts must alert as coverage failures.\n\n## Step 2 — Create and understand the search\n\nSave sidecar `spl` verbatim as `vmware_esxi_machine_certificate_expiration` and run after the daily poll. The search accepts only successful machine-SSL observations from 36 hours, normalizes identities, validates a 64-hex SHA-256 thumbprint and numeric epochs, sorts newest first, and selects one host snapshot. It rejects future collectors and snapshots older than 36 hours. `floor((not_after_epoch-now())/86400)` intentionally produces -1 immediately after expiry and whole remaining days before expiry. Exactly 90 days is included; exactly 30 is high; expired is critical. Those bands are local policy, not vendor severity.\n\nDo not broaden the search to vCenter, roots, STS, or trusted certificates without separate identities, ownership, tests, and pages. Keep source-health results separate so a missing certificate never disappears as a healthy zero-row result.\n\n## Step 3 — Validate safely\n\nUse fixed JSON fixtures, not production certificate manipulation. Test valid dates at 91 days, exactly 90 days, 30 days, zero seconds, and one second past; malformed hashes; milliseconds; not-after before not-before; blank identity; duplicate delivery; older/newer conflicting observations; failed/partial status; stale/future collection; and rerun determinism. Assert no floating-day ambiguity at boundaries.\n\nIn a nonproduction vCenter, compare result rows to PowerCLI and the host Certificate page. If the owner approves a renewal exercise, capture old/new thumbprints and expiries, VMCA/custom mode, task result, reconnect behavior, and the next complete snapshot. Do not expire or replace a production certificate for testing. Keep draft status until VMware, PKI, VCF, and Splunk owners approve coverage, fixtures, routing, and response.\n\n## Step 4 — Operationalize and respond\n\nRoute 31-90 days to planned work, 1-30 days to accelerated change, and expired to the applicable incident path only after confirming raw observation and live state. Before renewal, identify VMCA versus custom mode, root lifetime, lifecycle jobs, host connectivity, compatibility, maintenance requirements, backup/rollback, and certificate subject/SAN policy. Broadcom notes VMCA renewal depends on certificate-management mode and cannot extend past the issuing root; VCF lifecycle checks can require more than 30 days.\n\nNever auto-renew or replace from this search. Close only when authoritative live state and a subsequent complete snapshot show the approved new thumbprint/expiry, related lifecycle checks pass, collection is healthy, and the change record captures impact and rollback.\n\n## Step 5 — Troubleshoot\n\n- **No events:** verify authoritative host inventory, vCenter reachability/TLS, credentials, PowerCLI module, scripted-input status, index/RBAC, and collector-error source.\n- **Null dates or thumbprint:** inspect the actual cmdlet object and serializer for the deployed versions; do not invent property aliases.\n- **Values thousands of years away:** prove Unix seconds rather than milliseconds and UTC rather than locale text.\n- **Host differs from UI:** reconcile FQDN, managed-object identity, connected vCenter, stale snapshot, certificate refresh, and duplicate host names.\n- **Renew button unavailable:** check vCenter certificate-management mode and custom-CA process; do not bypass governance.\n- **Renewed certificate still alerts:** compare thumbprint and poll time, then inspect collector caching, failed partial snapshot, routing delay, and search window.\n\nRetention and thresholds follow local risk policy; this page asserts no universal retention period or unattended remediation.",
+  "grandmaExplanation": "We check when each virtualization host's secure identity card will expire. The team gets time to renew the right certificate, while missing checks are treated as missing information rather than good news.",
+  "hardware": "Governed ESXi hosts managed by vCenter. VMCA-managed and custom-CA-managed hosts have different renewal procedures and must be identified before action.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }

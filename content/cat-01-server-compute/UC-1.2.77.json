@@ -18,15 +18,6 @@
   },
   "dataSources": "Windows Security Event ID 5136 from all Active Directory DCs, with **Audit Directory Service Changes** Success and a reviewed SACL that audits successful writes to `servicePrincipalName` on governed user objects/OUs. Collect Security as XML through Splunk Add-on for Microsoft Windows (Splunkbase 742) into local `wineventlog`. Contract: `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`; required fields are `Computer`, `EventRecordID`, subject identity/logon, `DSName`, `ObjectDN`, `ObjectGUID`, `ObjectClass`, `AttributeLDAPDisplayName`, `AttributeSyntaxOID`, `AttributeValue`, `OperationType`, and `OpCorrelationID`.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1. Splunk Security Content provides the directly matching `Windows AD ServicePrincipalName Added To Domain Account` analytic. Enterprise Security is optional.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode=5136 earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), dest=lower(trim(coalesce(Computer,host))), actor=if(len(trim(SubjectDomainName))>0,trim(SubjectDomainName).\"\\\\\".trim(SubjectUserName),trim(SubjectUserName)), target_dn=trim(ObjectDN), spn=trim(AttributeValue), object_class=lower(trim(ObjectClass)), attribute=lower(trim(AttributeLDAPDisplayName)), operation=trim(OperationType)\n| where event_code=5136 AND object_class=\"user\" AND attribute=\"serviceprincipalname\" AND operation=\"%%14674\" AND len(dest)>0 AND len(target_dn)>0 AND len(spn)>0 AND len(OpCorrelationID)>0\n| eval change_type=\"spn_value_added_to_user\", use_case=\"UC-1.2.77\"\n| table _time dest EventRecordID DSName target_dn ObjectGUID object_class attribute AttributeSyntaxOID spn operation OpCorrelationID AppCorrelationID actor SubjectUserSid SubjectLogonId change_type source sourcetype use_case\n| sort 0 -_time dest target_dn spn EventRecordID",
   "description": "Reports one evidence row for each complete 5136 value-add record that assigns a service principal name to an AD user object in a closed five-minute interval. The row preserves the target, exact SPN, actor/logon, domain controller, correlation, object, and event identity needed to determine authorization.",
   "value": "An SPN on a user account is necessary for many legitimate Kerberos services, but it also makes service tickets available for that account and can be abused as preparation for credential attack. Early change evidence lets identity teams verify service ownership, uniqueness, password strength, and subsequent ticket activity before an unauthorized assignment becomes durable risk. This reduces the time an unauthorized or mis-scoped user SPN can expose a service identity to ticket-based attack.",
@@ -35,28 +26,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-Security-Auditing Event ID 5136 native XML fields",
   "dataModelAcceleration": "No exact CIM substitute is claimed. Generic Change summaries may not retain object class/DN/GUID, exact SPN value, operation token, correlation ID, actor logon, and EventRecordID. A summary may replace raw search only after one-row-per-addition parity and source/SACL completeness tests.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "EventRecordID",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "DSName",
-    "ObjectDN",
-    "ObjectGUID",
-    "ObjectClass",
-    "AttributeLDAPDisplayName",
-    "AttributeSyntaxOID",
-    "AttributeValue",
-    "OperationType",
-    "OpCorrelationID"
-  ],
   "references": [
     {
       "title": "Microsoft Security Auditing: Event 5136 directory object modified",
@@ -105,21 +74,42 @@
   ],
   "detectionType": "TTP precursor / directory change",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "DSName",
+    "ObjectDN",
+    "ObjectGUID",
+    "ObjectClass",
+    "AttributeLDAPDisplayName",
+    "AttributeSyntaxOID",
+    "AttributeValue",
+    "OperationType",
+    "OpCorrelationID"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Active Directory domain controllers and user objects in governed on-premises forests. Computer/gMSA SPNs, Entra service principals, AD LDS, Samba, and managed directories without native 5136/SACL collection require separate controls.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 5136, SPN schema/setspn/uniqueness documentation, Splunk Security Content and Windows add-on, and MITRE Kerberoasting scope; auditing/SACLs, XML fields, SPL, fixtures, SPN inventory/uniqueness, 4769 correlation, alerting, exceptions, and response were specified but not executed or AD/Kerberos/Splunk/SOC-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft Event 5136, SPN schema/setspn/uniqueness documentation, Splunk Security Content and Windows add-on, and MITRE Kerberoasting scope; auditing/SACLs, XML fields, SPL, fixtures, SPN inventory/uniqueness, 4769 correlation, alerting, exceptions, and response were specified but not executed or AD/Kerberos/Splunk/SOC-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -136,6 +126,16 @@
   },
   "detailedImplementation": "## Prerequisites and scope\n\nAssign AD/Kerberos, service-account, audit-policy, Splunk, SOC, and application owners. Inventory every domain/DC, user-based service account, current SPN, service/host, owner, password/gMSA posture, delegation, privilege, and approved management path. Microsoft defines servicePrincipalName as a multivalued Unicode attribute used to identify service instances for mutual authentication. SPNs on domain user accounts can be necessary; their presence is not inherently malicious.\n\nThis rule detects only a 5136 value addition to ObjectClass user. It does not see a failed duplicate attempt, prove that a ticket was requested, or prove offline cracking. ATT&CK T1558.003 describes TGS requests and cracking; this change is best treated as Account Manipulation and a Kerberoasting precursor requiring separate 4769 correlation.\n\n## Step 1 — Configure auditing and collection\n\nEnable **Audit Directory Service Changes** Success on every DC and verify effective policy. Configure reviewed SACL coverage for successful writes to servicePrincipalName on governed user/service-account OUs. Policy without an applicable SACL does not guarantee 5136. Monitor SACL/GPO drift and the exact DC that accepts writes.\n\nCollect Security XML through a governed `[WinEventLog://Security]` stanza with `renderXml=true`; current add-on events use `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Preserve original Computer through WEF, avoid duplicate direct collection, and maintain DC freshness.\n\nVerify native EventData against Event Viewer **Windows Logs > Security**: actor SID/name/domain/logon, DSName, target DN/GUID/class, exact attribute/value, operation `%%14674`, correlation ID, and record ID. An add uses value-added; Microsoft documents `%%14675` as value deleted. This rule intentionally excludes deletes.\n\n## Step 2 — Create and understand the search\n\nSave the SPL as `windows_ad_spn_added_to_user`, run every five minutes over the delayed closed bucket, and trigger on every row. The base fixes local index, XML source/type, and 5136. Lowercase normalization applies only to comparison fields; the exact SPN and DN remain preserved. Requiring complete destination, target, SPN, and correlation prevents weak rows from paging; route incomplete records to parser health.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Security`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nThe user-class predicate avoids normal computer SPN registration volume and matches Splunk Security Content's analytic. It does not determine whether the user is privileged, whether the SPN is unique, or whether a service exists. Enrich after the base result with current directory inventory, service owner, group exposure, password age/type, and approved change. Preserve event-time identity because enrichment can change later.\n\nNo CIM search is provided. Do not replace this with `All_Changes` unless exact class, attribute, value, operation, actor/logon, correlation, and event identity survive and raw parity passes.\n\n## Step 3 — Validate and compare to Active Directory\n\nReplay the positive fixture with fixed bounds and assert every output field and one row. Run all negatives independently. Test case variation in ObjectClass/attribute, SPNs with port and service instance, Unicode DN, missing AppCorrelationID, two additions under one correlation, duplicate collection, and earliest/latest boundaries. Add and delete are separate events and must not be conflated.\n\nIn an isolated AD lab, use duplicate-safe syntax such as `setspn -U -S HTTP/lab-web.example.com EXAMPLE\\svc-lab` under change control, capture 5136, query `setspn -Q` and `-X`, then remove the lab value. Never add an SPN to a production privileged account solely to test. Compare with the target's current servicePrincipalName using approved AD tooling and preserve timestamps.\n\nRecord versions, audit/SACL revisions, DC, fixture, bounds, expected/actual result, SPN query, job ID, and operator. Keep draft until human owners approve runtime tests, DC/SACL coverage, alert delivery, enrichment, response, and cleanup.\n\n## Step 4 — Triage and respond\n\nWhen a result fires: verify raw 5136 and source health; resolve target GUID/DN and current SPNs; identify actor logon and administration source/process; validate service owner, host/port, deployment ticket, and `setspn -S` uniqueness evidence; inspect target privileges, group memberships, password age/strength and delegation; search for rapid SPN deletion; correlate subsequent 4769 requests for the exact SPN/account and requester without declaring causality; and preserve evidence.\n\nIf unauthorized, coordinate service and identity owners before removing the SPN. Determine whether tickets were requested, rotate the account credential where exposure is credible, remove unauthorized rights, and investigate the actor/source. Do not automatically delete the SPN, disable the account, reset a production service password, block a DC, or alter Kerberos policy from this event alone.\n\n## Step 5 — Troubleshoot specific failures\n\n- **No 5136:** verify Directory Service Changes Success, applicable SPN-write SACL, the DC that accepted the write, Security input, filters, queues, and freshness.\n- **Computer SPNs absent:** expected; this rule is user-only. Build separate inventory/change controls for computer and gMSA objects.\n- **Addition failed but no result:** expected; 5136 value-added represents a successful audited change. Investigate directory errors separately.\n- **SPN exists but no historical event:** it may predate auditing/retention or arrive through a coverage gap. Current inventory and change auditing are complementary.\n- **Duplicate rows:** compare Computer/EventRecordID across direct/WEF paths and repair collection; do not arbitrary-dedup by SPN.\n- **Target is approved but actor unexpected:** investigate delegation and administration path; service legitimacy does not authorize every writer.\n- **4769 absent:** no request may have occurred, auditing/collection may be incomplete, or timing differs. Do not claim no credential risk solely from absence.\n- **Exception does not match:** compare exact case-normalized target/SPN/actor and validity. Fix the approved bounded record; never broaden to domain-wide suppression.",
   "grandmaExplanation": "We notice when someone gives a normal directory account a special name used by network services. That may be part of a real deployment, but it can also make the account's password easier to attack, so the team checks it quickly.",
+  "hardware": "Active Directory domain controllers and user objects in governed on-premises forests. Computer/gMSA SPNs, Entra service principals, AD LDS, Samba, and managed directories without native 5136/SACL collection require separate controls.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }

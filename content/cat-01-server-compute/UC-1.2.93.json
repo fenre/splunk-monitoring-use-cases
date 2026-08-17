@@ -19,15 +19,6 @@
   },
   "dataSources": "Windows Security XML on Active Directory domain controllers: Event ID 5136 (`A directory service object was modified`) and 5137 (`... created`) under **DS Access > Audit Directory Service Changes**, with a SACL that generates events for relevant objects. Collect with Splunk Add-on for Microsoft Windows (Splunkbase 742) into deployment-local `index=wineventlog`, `sourcetype=XmlWinEventLog`, `source=XmlWinEventLog:Security`. Required native fields include `SubjectUserSid`, `SubjectUserName`, `SubjectDomainName`, `SubjectLogonId`, `DSName`, `DSType`, `ObjectDN`, `ObjectGUID`, `ObjectClass`, `AttributeLDAPDisplayName`, `AttributeSyntaxOID`, `AttributeValue`, `OperationType`, `OpCorrelationID`, `AppCorrelationID`, `Computer`, and `EventRecordID` where applicable.",
   "app": "Splunk Add-on for Microsoft Windows (`Splunk_TA_windows`, Splunkbase 742), version 10.0.1, plus Active Directory Domain Services and Group Policy management. Microsoft Advanced Group Policy Management is optional context, not a collection dependency.",
-  "splunkbaseApps": [
-    {
-      "id": 742,
-      "name": "Splunk Add-on for Microsoft Windows",
-      "url": "https://splunkbase.splunk.com/app/742",
-      "minVersion": "10.0.1",
-      "role": "data-source"
-    }
-  ],
   "spl": "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Security\" EventCode IN (5136,5137) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), domain_controller=lower(trim(coalesce(Computer,host))), object_class=lower(trim(ObjectClass)), object_dn=trim(ObjectDN), subject_user=trim(SubjectUserName), operation_type=trim(OperationType)\n| where in(event_code,5136,5137) AND object_class=\"grouppolicycontainer\" AND len(domain_controller)>0 AND len(object_dn)>0\n| eval change_action=case(event_code=5137,\"created\",event_code=5136 AND operation_type=\"%%14674\",\"modified_value_added\",event_code=5136 AND operation_type=\"%%14675\",\"modified_value_deleted\",event_code=5136,\"modified_other\"), use_case=\"UC-1.2.93\"\n| table _time domain_controller event_code change_action SubjectUserSid SubjectDomainName subject_user SubjectLogonId DSName DSType object_dn ObjectGUID ObjectClass AttributeLDAPDisplayName AttributeSyntaxOID AttributeValue OperationType OpCorrelationID AppCorrelationID EventRecordID source sourcetype use_case\n| sort 0 -_time domain_controller object_dn",
   "description": "Reports one evidence-rich row for each audited creation or attribute-value change to an Active Directory `groupPolicyContainer`. It preserves subject, object, attribute, value operation, directory service, correlation IDs, DC, and record identity, and explicitly distinguishes the added/deleted halves of a 5136 replacement.",
   "value": "A GPO can change security, software, scripts, firewall, audit, and privilege behavior across many systems. Prompt, attributable directory-container evidence helps defenders compare an edit with approved Group Policy administration and investigate broad policy abuse, while honest scope prevents the AD record from being mistaken for a complete SYSVOL or client-application audit.",
@@ -36,31 +27,6 @@
   "cimModels": [],
   "schema": "Microsoft-Windows-Security-Auditing Event IDs 5136 and 5137 native XML",
   "dataModelAcceleration": "No generic Change CIM substitute is claimed. `Change.All_Changes` cannot be assumed to preserve ObjectClass, ObjectDN/GUID, LDAP attribute/syntax/value, OperationType, and correlation IDs required to interpret 5136 pairs.",
-  "requiredFields": [
-    "_time",
-    "source",
-    "sourcetype",
-    "EventCode",
-    "EventID",
-    "Computer",
-    "host",
-    "EventRecordID",
-    "SubjectUserSid",
-    "SubjectUserName",
-    "SubjectDomainName",
-    "SubjectLogonId",
-    "DSName",
-    "DSType",
-    "ObjectDN",
-    "ObjectGUID",
-    "ObjectClass",
-    "AttributeLDAPDisplayName",
-    "AttributeSyntaxOID",
-    "AttributeValue",
-    "OperationType",
-    "OpCorrelationID",
-    "AppCorrelationID"
-  ],
   "references": [
     {
       "title": "Microsoft Security Auditing: Event 5136 directory service object modified",
@@ -99,21 +65,45 @@
   ],
   "detectionType": "TTP",
   "securityDomain": "identity",
+  "requiredFields": [
+    "_time",
+    "source",
+    "sourcetype",
+    "EventCode",
+    "EventID",
+    "Computer",
+    "host",
+    "EventRecordID",
+    "SubjectUserSid",
+    "SubjectUserName",
+    "SubjectDomainName",
+    "SubjectLogonId",
+    "DSName",
+    "DSType",
+    "ObjectDN",
+    "ObjectGUID",
+    "ObjectClass",
+    "AttributeLDAPDisplayName",
+    "AttributeSyntaxOID",
+    "AttributeValue",
+    "OperationType",
+    "OpCorrelationID",
+    "AppCorrelationID"
+  ],
   "equipment": [
     "windows"
   ],
   "equipmentModels": [
     "windows_generic"
   ],
-  "hardware": "Active Directory domain controllers generating Directory Service Changes events. GPMC/AGPM consoles, SYSVOL/DFSR, and domain-joined clients provide separate correlation.",
   "status": "draft",
   "lastReviewed": "2026-07-28",
-  "reviewer": "documentation-only Cursor AI editorial review against Microsoft 5136/5137, Directory Service Changes, groupPolicyContainer schema, Splunk Windows add-on, and MITRE ATT&CK; audit policy, SACL, field extraction, SPL, controls, GPO/SYSVOL correlation, alerting, and rollback were specified but not executed or Microsoft/AD/Splunk-SME signed",
   "splunkVersions": [
     "9.3+",
     "10.x",
     "Cloud"
   ],
+  "reviewer": "documentation-only Cursor AI editorial review against Microsoft 5136/5137, Directory Service Changes, groupPolicyContainer schema, Splunk Windows add-on, and MITRE ATT&CK; audit policy, SACL, field extraction, SPL, controls, GPO/SYSVOL correlation, alerting, and rollback were specified but not executed or Microsoft/AD/Splunk-SME signed",
   "cost": {
     "tier": "medium",
     "search_load": "light",
@@ -130,6 +120,16 @@
   },
   "detailedImplementation": "## Prerequisites and exact directory contract\n\nAssign AD/Group Policy, Windows security, Splunk collection, change-management, and incident owners. Inventory high-impact GPOs, GUIDs, links, owners, AGPM use, SYSVOL/DFSR topology, DCs, and approved admin identities. Install Splunk Add-on for Microsoft Windows 10.0.1 on required tiers and restrict raw directory values.\n\nMicrosoft documents `groupPolicyContainer` as the AD object representing a GPO. Event 5136 records attribute value modifications and usually emits deleted/added records for replacement; `%%14674` is value added and `%%14675` value deleted. Event 5137 records object creation. OpCorrelationID groups related LDAP operations. These AD records are not a complete registry.pol/script/SYSVOL diff.\n\n## Step 1 — Enable policy, SACL, and Security XML\n\nThrough domain-controller Advanced Audit Policy enable Success for **DS Access > Audit Directory Service Changes**. Verify with `auditpol` and winning GPO. Microsoft states events are generated only when an object's SACL matches the access; design and test a focused SACL for `CN=Policies,CN=System,<domain DN>`/groupPolicyContainer operations. Avoid indiscriminate directory-wide auditing.\n\nCollect `[WinEventLog://Security]` as XML into local `index=wineventlog` through an app-owned `inputs.conf`; verify with `splunk btool inputs list WinEventLog://Security --debug`. In the Event Viewer console at **Windows Logs > Security**, compare 5136/5137 XML and fixed EventRecordIDs on two DCs. Operate source health for every writable/read-only DC in scope and monitor audit-policy/SACL drift.\n\n## Step 2 — Save and understand the search\n\nSave as `windows_ad_gpo_container_changes`, schedule every five minutes over `earliest=-10m@m latest=-5m@m`, and trigger on any row. The search fixes Security XML and IDs, requires exact lowercased ObjectClass, DC and ObjectDN, then labels creation or 5136 operation type. It retains values and correlation IDs rather than aggregating away forensic context.\n\nConfigure the Universal Forwarder input and a least-privilege search-head RBAC role for this saved search. Keep its source restriction literal: `index=wineventlog`, `source=XmlWinEventLog:Security`, and `sourcetype=XmlWinEventLog`; dispatch one closed event-time window lasting 5 minutes each run.\n\nGroup rows by OpCorrelationID in the analyst view but preserve each raw event. A deleted/added pair is usually one attribute replacement, not two separate admins. No CIM tstats variant is offered. Apply any exception after the base result.\n\n## Step 3 — Validate SACL, pairs, and scope\n\nRun the positive and negative controls with fixed bounds. Test 5136 add/delete pairs, 5137 creation, other object classes, wrong source/ID, empty identities, same correlation across multiple attributes, duplicate WEF/direct collection, and DC replication observations. In an isolated lab domain, make one approved GPMC change and compare AD event XML, GPO backup/diff, SYSVOL files, and client Resultant Set of Policy.\n\nTest SACL coverage for every change type in scope; absence of 5136 can be an audit-policy/SACL gap. Record DC/Windows/add-on/Splunk versions, GPO GUID, exact bounds, EventRecordIDs, expected/actual rows, operator, alert delivery, and dashboard ACL. Keep draft until human acceptance.\n\n## Step 4 — Operationalize investigation and response\n\nOn a result: verify raw XML and DC source health; group correlation ID; resolve GPO GUID/name and subject SID/logon; compare ticket, GPMC/AGPM history and backup; inspect both old/new value events; review SYSVOL/DFSR and link-object changes; identify affected scope; and validate client application. Escalate unexpected security-sensitive edits immediately.\n\nDo not automatically unlink, disable, restore, delete, or edit a GPO; disable an admin; force replication; or purge SYSVOL from this event. An incomplete rollback can create AD/SYSVOL version mismatch and widespread impact. Preserve evidence and use AD change/incident procedures with tested backup.\n\n## Step 5 — Troubleshoot\n\n- **No GPO events:** verify DC-only generation, Success audit policy, SACL on Policies/container/object, exact operation, Security input, and source health.\n- **Only value-added or deleted half:** inspect event loss, SACL scope, search bounds, DC routing, and correlation ID; do not invent the missing value.\n- **ObjectClass or attributes null:** inspect raw XML and add-on knowledge placement; do not parse localized Message as the primary contract.\n- **GPMC change but only SYSVOL files changed:** expected scope gap; add governed SYSVOL integrity/change telemetry.\n- **Same edit appears on multiple DCs:** compare EventRecordID, DC, subject and correlation; distinguish independent audit generation from collection duplication.\n- **Alert volume high:** narrow SACL/watch policy based on governed GPO scope and route approved workflows; never suppress all versionNumber events.\n- **Client policy differs:** investigate AD/SYSVOL versions, DFSR, links, security/WMI filters, inheritance, and gpresult; this UC proves directory changes, not client application.",
   "grandmaExplanation": "We record changes to the directory objects behind company-wide Windows rules. Because one rule can affect thousands of computers, the team checks who changed it, what value moved, whether it was approved, and whether the matching files reached computers correctly.",
+  "hardware": "Active Directory domain controllers generating Directory Service Changes events. GPMC/AGPM consoles, SYSVOL/DFSR, and domain-joined clients provide separate correlation.",
   "prerequisiteUseCases": [],
+  "splunkbaseApps": [
+    {
+      "id": 742,
+      "name": "Splunk Add-on for Microsoft Windows",
+      "url": "https://splunkbase.splunk.com/app/742",
+      "minVersion": "10.0.1",
+      "role": "data-source"
+    }
+  ],
   "wave": "crawl"
 }
