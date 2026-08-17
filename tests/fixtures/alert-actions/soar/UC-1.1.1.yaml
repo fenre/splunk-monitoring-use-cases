@@ -1,21 +1,21 @@
 # Splunk SOAR playbook stub — generated from catalogue metadata.
 # Import manually into SOAR; customise escalation contacts before production use.
-name: "FP Triage: CPU Utilization Trending (Linux)"
+name: "FP Triage: Sustained Linux CPU Utilization Above 90 Percent"
 uc_id: "UC-1.1.1"
 uc_url: "https://fenre.github.io/splunk-monitoring-use-cases/uc/UC-1.1.1/"
 description: |
-  Surfaces UC-1.1.1 — CPU, Utilization, Trending, (Linux) — using `index=os` sourcetype `cpu`, grouped by `host`. Outputs `avg_cpu` each `1h`; alert when `avg_cpu` > 90. Primary focus: Trending (Linux). Purpose-built for 'CPU Utilization Trending (Linux)' in Linux workflows.
+  Reports one row per Linux host whose valid `cpu=all` samples have an arithmetic mean above 90 percentage points during a delayed, closed 60-minute window. Each row exposes the average, minimum, maximum, and number of admitted samples used by the threshold.
 
-  Business value: UC-1.1.1 gives Linux teams earlier visibility into Trending (Linux) through `cpu` feeds, lowering capacity incidents, patch regressions, and service outages.
+  Business value: Sustained processor saturation can reduce workload headroom and precede slow queues, missed batch deadlines, or difficult failovers. A host-level signal gives operations teams time to correlate demand, identify consumers, rebalance work, and make evidence-based capacity decisions before an incident expands.
 human_acknowledgement_required: true
 escalation_contact_placeholder: "{customer-on-call}"
 pre_conditions: |
-  Human-in-the-loop required for OT/safety-critical actions. Confirm alert is not a known maintenance window or approved test activity.
+  Human-in-the-loop required for OT/safety-critical actions. Confirm alert is not a known maintenance window or approved test activity. OT engineering acknowledgement is mandatory before any action that touches process control or safety systems.
 do_not_section: |
-  No OT/safety-specific prohibitions apply to this use case. Follow standard change-management for any containment action.
-spl_reference: "index=os sourcetype=cpu host=* CPU=\"all\"\n| eval cpu_used = 100 - pctIdle\n| timechart span=1h avg(cpu_used) as avg_cpu by host\n| where avg_cpu > 90"
+  Do NOT disable safety instrumented functions, write to PLCs/HMIs/DCS/RTUs, or execute automated containment against Level 0/1/2 OT assets without human-in-the-loop approval from OT engineering.
+spl_reference: "index=os sourcetype=cpu cpu=all earliest=-75m@m latest=-15m@m\n| eval cpu_load_percent=tonumber(cpu_load_percent), observed_host=lower(trim(coalesce(dest,host)))\n| where isnotnull(cpu_load_percent) AND cpu_load_percent>=0 AND cpu_load_percent<=100 AND len(observed_host)>0\n| stats count as sample_count avg(cpu_load_percent) as avg_cpu_percent min(cpu_load_percent) as min_cpu_percent max(cpu_load_percent) as max_cpu_percent by observed_host\n| where avg_cpu_percent>90\n| eval avg_cpu_percent=round(avg_cpu_percent,2), min_cpu_percent=round(min_cpu_percent,2), max_cpu_percent=round(max_cpu_percent,2), threshold_percent=90, aggregation_window=\"60 minutes\", detection=\"average aggregate CPU utilization above 90 percent\"\n| table observed_host avg_cpu_percent min_cpu_percent max_cpu_percent sample_count threshold_percent aggregation_window detection\n| sort 0 -avg_cpu_percent observed_host"
 mitre_tags:
-  []
+  - "N/A (operational Linux capacity signal; no adversary behavior is inferred)"
 regulatory_tags:
   []
 playbook_contract:
