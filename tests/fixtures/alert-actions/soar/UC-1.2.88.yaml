@@ -1,0 +1,29 @@
+# Splunk SOAR playbook stub — generated from catalogue metadata.
+# Import manually into SOAR; customise escalation contacts before production use.
+name: "FP Triage: Windows Search Catalog Corruption"
+uc_id: "UC-1.2.88"
+uc_url: "https://fenre.github.io/splunk-monitoring-use-cases/uc/UC-1.2.88/"
+description: |
+  Reports one row for each Microsoft Windows Search Application event indicating corrupt index data and an attempted rebuild (7040) or Search service shutdown because the catalog is corrupt (7042). The provider-qualified result preserves raw identity and message; it does not infer that rebuilding succeeded or that users were affected.
+
+  Business value: Repeated catalog corruption can make local or server search incomplete, trigger expensive rebuild activity, and hide a storage, profile, or configuration fault. Provider-qualified evidence helps endpoint teams distinguish a real Search repair cycle from unrelated events and verify that search returns after remediation instead of repeatedly resetting the index. This shortens restoration of reliable search results by exposing the host and documented corruption/rebuild event.
+human_acknowledgement_required: true
+escalation_contact_placeholder: "{customer-on-call}"
+pre_conditions: |
+  Human-in-the-loop required for OT/safety-critical actions. Confirm alert is not a known maintenance window or approved test activity.
+do_not_section: |
+  No OT/safety-specific prohibitions apply to this use case. Follow standard change-management for any containment action.
+spl_reference: "index=wineventlog sourcetype=\"XmlWinEventLog\" source=\"XmlWinEventLog:Application\" EventCode IN (7040,7042) earliest=-10m@m latest=-5m@m\n| eval event_code=tonumber(coalesce(EventCode,EventID)), endpoint=lower(trim(coalesce(Computer,host))), event_provider=lower(trim(coalesce(Provider_Name,ProviderName,SourceName)))\n| where in(event_code,7040,7042) AND event_provider=\"microsoft-windows-search\" AND len(endpoint)>0\n| eval issue=case(event_code=7040,\"corrupt_index_rebuild_attempted\",event_code=7042,\"search_stopped_catalog_corrupt\"), use_case=\"UC-1.2.88\"\n| table _time endpoint event_code issue event_provider Level Keywords EventRecordID Message source sourcetype use_case\n| sort 0 -_time endpoint"
+mitre_tags:
+  - "N/A (operational Windows Search catalog reliability; no adversary behavior is asserted)"
+regulatory_tags:
+  []
+playbook_contract:
+  start: filter_and_decide
+  branches:
+    - investigate
+    - notify
+    - end
+  notes: |
+    One playbook per UC alert. Mirror the atomic runbook for UC-1.2.88.
+    Never execute OT/safety-impacting containment without human approval.
