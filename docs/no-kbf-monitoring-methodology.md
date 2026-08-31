@@ -36,7 +36,7 @@ Norwegian grid operators may also be subject to **NIS2** (national transposition
 - Adds **dual `compliance[]` entries** on shared OT UCs (cat-14, cat-05) rather than duplicating SPL.
 - Does **not** use `derivesFrom` automatic inheritance — KBF clause numbers and Norwegian terminology require explicit mapping.
 
-Related Norwegian frameworks in subcategory 22.26: Sikkerhetsloven (`no-sikkerhetsloven`), Petroleumsforskriften, Personopplysningsloven.
+Machine-readable dual-mapping: `data/no-kbf-nis2-dual-mapping.json`.
 
 ## Privacy and minimisation
 

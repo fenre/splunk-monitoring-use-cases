@@ -1,6 +1,6 @@
 # Kraftberedskapsforskriften — compliance expansion spec
 
-Status: **Phase 2 implemented** (2026-08-31)  
+Status: **Phase 3 implemented** (2026-08-31)  
 Regulation ID: `no-kbf-nve`  
 Authoritative source: [Lovdata SF/forskrift/2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157)
 
@@ -33,14 +33,20 @@ Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — 
 | 22.26.27 | §6-7 | KBF personkontroll privileged access correlation |
 | 22.26.28 | §6-8 | Kraftsensitiv system backup and restore-test monitoring |
 
-## Phase 3 backlog
+## Phase 3 (implemented)
+
+- **18 NIS2 dual-mapping entries** on KBF UCs (22.26.6–28) and OT cross-maps (14.2.4, 14.2.9, 14.2.11, 14.6.6, 14.9.14)
+- Machine-readable map: `data/no-kbf-nis2-dual-mapping.json` (15 clause-pair rows)
+- Prose uplift: fixed stale §6-1 references in UC-22.26.7–10 `detailedImplementation`
+
+## Phase 4 backlog
 
 | Priority | Work |
 |----------|------|
-| P1 | NIS2 dual-mapping for shared energy-sector controls |
-| P2 | Dedicated evidence-pack SME review + Norwegian primer section |
-| P3 | Optional `audit-no-kbf-coverage` matrix drift gate |
-| P4 | Prose uplift on legacy 22.26.6–10 detailedImplementation (§6-1 stale refs) |
+| P1 | Gold-standard lift on crawl-tier 22.26.21–28 |
+| P2 | Optional `audit-no-kbf-coverage` matrix drift gate |
+| P3 | Norwegian regulatory primer in non-technical-view |
+| P4 | SME review of dual-mapping assurance levels |
 
 ## Success metrics (Phase 1 target)
 
@@ -54,3 +60,4 @@ Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — 
 - [`docs/no-kbf-monitoring-methodology.md`](../no-kbf-monitoring-methodology.md)
 - [`data/per-regulation/no-kbf-nve-coverage-expansion.json`](../../data/per-regulation/no-kbf-nve-coverage-expansion.json)
 - [`data/no-kbf-nve-source-map.json`](../../data/no-kbf-nve-source-map.json)
+- [`data/no-kbf-nis2-dual-mapping.json`](../../data/no-kbf-nis2-dual-mapping.json)
