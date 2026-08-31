@@ -1,6 +1,6 @@
 # Kraftberedskapsforskriften — compliance expansion spec
 
-Status: **Phase 3 implemented** (2026-08-31)  
+Status: **Phase 4 implemented** (2026-08-31)  
 Regulation ID: `no-kbf-nve`  
 Authoritative source: [Lovdata SF/forskrift/2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157)
 
@@ -39,14 +39,20 @@ Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — 
 - Machine-readable map: `data/no-kbf-nis2-dual-mapping.json` (15 clause-pair rows)
 - Prose uplift: fixed stale §6-1 references in UC-22.26.7–10 `detailedImplementation`
 
-## Phase 4 backlog
+## Phase 4 (implemented)
+
+- **Silver-depth uplift** on UC-22.26.21–28: expanded `detailedImplementation` with vendor UI validation (Step 3) and product-specific troubleshooting (Step 5); lift scores 80–90/100.
+- **`audit-no-kbf-coverage`** drift gate: `python3 -m splunk_uc audit-no-kbf-coverage` validates matrix rows, source-map URLs, `regulations.json` alignment, and UC traceability (`targetUcIds` ↔ compliance entries). Makefile target: `make audit-no-kbf-coverage`.
+- **Matrix traceability fixes**: §6-3 targets UC-22.26.7 only (14.2.4 remains §7-10); §4-1 targets UC-22.26.24 only; added NVE §6-1 veileder URL to source map.
+- **Norwegian regulatory primer** expanded in `non-technical-view.js` / `non-technical-view.data.ts` (18-clause KBF coverage, NIS2 dual-mapping, KBO-enheter).
+
+## Phase 5 backlog
 
 | Priority | Work |
 |----------|------|
-| P1 | Gold-standard lift on crawl-tier 22.26.21–28 |
-| P2 | Optional `audit-no-kbf-coverage` matrix drift gate |
-| P3 | Norwegian regulatory primer in non-technical-view |
-| P4 | SME review of dual-mapping assurance levels |
+| P1 | SME review of dual-mapping assurance levels |
+| P2 | Gold-tier lift (90+) on 22.26.21–28 if product-specificity score needs bump |
+| P3 | Wire `audit-no-kbf-coverage` into CI validate.yml (optional ratchet) |
 
 ## Success metrics (Phase 1 target)
 

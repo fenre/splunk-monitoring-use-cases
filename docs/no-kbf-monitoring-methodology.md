@@ -52,6 +52,7 @@ Run after matrix or UC changes:
 make audit-regulation-alignment
 make audit-compliance-mappings
 make audit-compliance-gaps
+make audit-no-kbf-coverage
 make generate-evidence-packs
 make generate-api-surface
 ```

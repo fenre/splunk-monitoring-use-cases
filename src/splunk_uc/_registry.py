@@ -335,6 +335,14 @@ register(
 )
 register(
     Verb(
+        name="audit-no-kbf-coverage",
+        module="audits.no_kbf_coverage",
+        help="Validate the NO KBF coverage matrix and per-UC traceability.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-oscal-roundtrip",
         module="audits.oscal_roundtrip",
         help="Validate OSCAL component-definitions against NIST schema + canonical byte equality.",
