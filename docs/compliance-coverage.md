@@ -1,6 +1,6 @@
 # Compliance coverage report
 
-_Generated: 2026-08-17T13:35:26Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
+_Generated: 2026-08-24T09:38:10Z_ by `python -m splunk_uc audit-compliance-mappings`. Do not hand-edit.
 
 Status: **passed**
 
@@ -8,22 +8,22 @@ Status: **passed**
 
 * UC files checked: **16644**
 * UC files valid:   **16644**
-* Compliance entries: **3836**
+* Compliance entries: **3844**
 * Findings: **0** (errors: **0**, baselined: **0**)
 * Baseline (`tests/golden/audit-baseline.json`): total **0**, tolerated this run **0**, new errors **0**, unused fingerprints **0** (see `docs/coverage-methodology.md` § 12)
 
 ## Global coverage (all tiers)
 
-* Clause coverage %: **100.0**
-* Priority-weighted %: **100.0**
-* Assurance-adjusted %: **75.9919**
+* Clause coverage %: **98.8113**
+* Priority-weighted %: **98.8744**
+* Assurance-adjusted %: **74.6592**
 
 ## Per tier
 
 | Tier | Clause % | Priority-weighted % | Assurance-adjusted % |
 |------|----------|----------------------|-----------------------|
 | tier-1 | 100.0 | 100.0 | 81.0738 |
-| tier-2 | 100.0 | 100.0 | 65.036 |
+| tier-2 | 96.3801 | 96.6271 | 61.8646 |
 | tier-3 | 100.0 | 100.0 | 79.4118 |
 
 ## Per family (derivesFrom roots)
@@ -82,7 +82,7 @@ Status: **passed**
 | nis2 | 100.0 | 100.0 | 49.4444 |
 | nist-800-53 | 100.0 | 100.0 | 81.3853 |
 | nist-csf | 100.0 | 100.0 | 75.3927 |
-| no-kbf-nve | 100.0 | 100.0 | 50.0 |
+| no-kbf-nve | 55.5556 | 57.7381 | 24.4048 |
 | no-personopplysningsloven | 100.0 | 100.0 | 50.0 |
 | no-petroleumsforskriften | 100.0 | 100.0 | 50.0 |
 | no-sikkerhetsloven | 100.0 | 100.0 | 50.0 |
@@ -169,7 +169,7 @@ Status: **passed**
 | NIST 800-53@Rev. 5 | 1 | 100.0 | 100.0 | 81.3853 |
 | NIST CSF@1.1 | 1 | 100.0 | 100.0 | 100.0 |
 | NIST CSF@2.0 | 1 | 100.0 | 100.0 | 70.8075 |
-| NO KBF@2012 as amended | 2 | 100.0 | 100.0 | 50.0 |
+| NO KBF@2012 as amended | 2 | 55.5556 | 57.7381 | 24.4048 |
 | NO Personopplysningsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |
 | NO Petroleumsforskriften@1997 as amended | 2 | 100.0 | 100.0 | 50.0 |
 | NO Sikkerhetsloven@2018 | 2 | 100.0 | 100.0 | 50.0 |

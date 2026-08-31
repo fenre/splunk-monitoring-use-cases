@@ -126,6 +126,7 @@ PACK_TARGETS = [
     "awia",
     "circia",
     "clc-ts-50701",
+    "no-kbf-nve",
 ]
 
 # Fixed order for display in the index and README to ensure stable sort.
