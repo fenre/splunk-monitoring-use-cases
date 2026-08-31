@@ -1,0 +1,87 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.26.22",
+  "title": "KBF grid incident notification chain latency",
+  "criticality": "critical",
+  "difficulty": "expert",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Excludes test/sandbox environments, pre-production systems, development instances without regulated data, and any systems formally documented as out-of-scope in the NO KBF programme scope statement approved by the control owner.",
+  "evidence": "Saved search results archived to the `audit_evidence` index with NO KBF control tagging; scheduled PDF/CSV exports for auditor consumption; Splunk dashboard screenshots with timestamp watermarks capturing control operating effectiveness over the review period.",
+  "compliance": [
+    {
+      "regulation": "NO KBF",
+      "version": "2012 as amended",
+      "clause": "§2-5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NO KBF §2-5 — Detect-to-notify latency from integrated SOAR/ITSM proves varslings chain effectiveness; statutory notification content remains outside Splunk.",
+      "controlObjective": "Evidence that NO KBF §2-5 (Varsling) is enforced — Splunk UC-22.26.22: KBF grid incident notification chain latency.",
+      "evidenceArtifact": "Saved search 'UC-22.26.22' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "no-kbf-nve@2012 as amended#§2-5",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "UC-22.26.22 positive: Notable with ack >60 min after detect — expect alert.",
+    "negativeScenario": "UC-22.26.22 negative: Ack within 15 min — expect zero rows."
+  },
+  "dataSources": "ES notables, Splunk SOAR/Phantom container logs, PagerDuty/Opsgenie ack events",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621) (Splunkbase)",
+  "spl": "index=notable tag=kbf earliest=-7d\n| eval detect_time=_time\n| join notable_id [\n    search index=soar sourcetype=phantom:container earliest=-7d\n    | rename container_id AS notable_id\n    | eval ack_time=strptime(start_time,\"%Y-%m-%dT%H:%M:%S\")\n    | stats min(ack_time) as first_ack by notable_id\n  ]\n| eval notify_min=round((first_ack-detect_time)/60,1)\n| where notify_min>60 OR isnull(first_ack)\n| sort - notify_min",
+  "description": "Measures detect-to-ack intervals for KBF-tagged ES notables through SOAR container creation, alerting when varslings chain exceeds 60 minutes or lacks any ack record.",
+  "value": "Immutable timestamps prove §2-5 varslings chain performance during grid incidents — critical for NVE preparedness audits and post-exercise reviews.",
+  "implementation": "(1) Tag grid-preparedness notables with `tag=kbf`. (2) Ingest Phantom/SOAR container events with `notable_id` join key. (3) Tune SLA threshold per beredskapsplan. Indexes: `index=notable`, `index=soar`.",
+  "visualization": "Table (violations by asset/user), Single value (open gaps), Trend (30-day)",
+  "cimModels": [
+    "Risk"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Risk.Risk by _time | sort - _time",
+  "dataModelAcceleration": "Enable acceleration for Risk (CIM data model).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Kraftberedskapsforskriften (Lovdata)",
+      "url": "https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157"
+    },
+    {
+      "title": "NVE veileder — kapittel 6",
+      "url": "https://veiledere.nve.no/kraftberedskapsforskriften/"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled register refresh lag** — Lookup sync delayed after planned CMMS/GRC export; compare `_time` with export job completion.\n\n2. **Authorised KBF testing** — Control exercises during beredskapsøvelse; match calendar in `no_kbf_exception_register.csv`.\n\n3. **Emergency break-glass access** — Documented temporary elevation; suppress via exception register.\n\n**Suppression:** `no_kbf_exception_register.csv` keyed on entity, `exception_reason`, `valid_until`.",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "lastReviewed": "2026-08-31",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk** ≥9.2 or Splunk Cloud.\n• **Regulatory mapping**: This detection evidences NO KBF `§2-5` (Varsling).\n• **Lookups**: Deploy and version all KBF registers referenced in the SPL.\n\n## Step 1 — Data collection\n\n(1) Tag grid-preparedness notables with `tag=kbf`. (2) Ingest Phantom/SOAR container events with `notable_id` join key. (3) Tune SLA threshold per beredskapsplan. Indexes: `index=notable`, `index=soar`.\n\n## Step 2 — Implement the search\n\n```spl\nindex=notable tag=kbf earliest=-7d\n| eval detect_time=_time\n| join notable_id [\n    search index=soar sourcetype=phantom:container earliest=-7d\n    | rename container_id AS notable_id\n    | eval ack_time=strptime(start_time,\"%Y-%m-%dT%H:%M:%S\")\n    | stats min(ack_time) as first_ack by notable_id\n  ]\n| eval notify_min=round((first_ack-detect_time)/60,1)\n| where notify_min>60 OR isnull(first_ack)\n| sort - notify_min\n```\n\n## Step 3 — Validate\n\nRun positive/negative control tests per `controlTest` block.\n\n## Step 4 — Evidence archive\n\nRoute results to `index=audit_evidence` with `reg=NO_KBF,uc=22.26.22,clause=§2-5` markers.",
+  "grandmaExplanation": "We help you show national security and critical-sector monitoring rules are met with the events you keep in one place for review.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

@@ -40,9 +40,9 @@ Applies to KBO-enheter in the Norwegian power supply chain: production, transmis
 ## 3. Catalogue coverage at a glance
 
 - **Clauses tracked**: 18
-- **Clauses covered by at least one UC**: 10 / 18 (55.6%)
-- **Priority-weighted coverage**: 57.7%
-- **Contributing UCs**: 10
+- **Clauses covered by at least one UC**: 18 / 18 (100.0%)
+- **Priority-weighted coverage**: 100.0%
+- **Contributing UCs**: 18
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -52,18 +52,18 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 | Clause | Topic | Priority | Assurance | UCs |
 |---|---|---|---|---|
-| [`§2-3`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Risikovurdering | 1.0 | `—` | _not yet covered_ |
-| [`§2-5`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Varsling | 1.0 | `—` | _not yet covered_ |
+| [`§2-3`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Risikovurdering | 1.0 | `partial` | [UC-22.26.21](#uc-22-26-21) |
+| [`§2-5`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Varsling | 1.0 | `partial` | [UC-22.26.22](#uc-22-26-22) |
 | [`§2-6`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Rapportering til NVE | 1.0 | `partial` | [UC-22.26.9](#uc-22-26-9) |
 | [`§2-7`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Kriseøvelser | 0.7 | `partial` | [UC-22.26.8](#uc-22-26-8) |
-| [`§2-10`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Internkontrollsystem | 0.7 | `—` | _not yet covered_ |
-| [`§4-1`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Reparasjonsberedskap | 1.0 | `—` | _not yet covered_ |
+| [`§2-10`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Internkontrollsystem | 0.7 | `contributing` | [UC-22.26.23](#uc-22-26-23) |
+| [`§4-1`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Reparasjonsberedskap | 1.0 | `partial` | [UC-22.26.24](#uc-22-26-24) |
 | [`§4-3`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Gjenoppretting av funksjon | 1.0 | `partial` | [UC-22.26.10](#uc-22-26-10) |
-| [`§6-1`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Identifisering av kraftsensitiv informasjon og rettmessige brukere | 1.0 | `—` | _not yet covered_ |
+| [`§6-1`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Identifisering av kraftsensitiv informasjon og rettmessige brukere | 1.0 | `partial` | [UC-22.26.25](#uc-22-26-25) |
 | [`§6-3`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Beskyttelse, avskjerming og tilgangskontroll | 1.0 | `contributing` | [UC-22.26.7](#uc-22-26-7) |
-| [`§6-5`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Anskaffelser og sikkerhetsavtaler | 0.7 | `—` | _not yet covered_ |
-| [`§6-7`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Personkontroll | 0.7 | `—` | _not yet covered_ |
-| [`§6-8`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Sikkerhetskopier | 1.0 | `—` | _not yet covered_ |
+| [`§6-5`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Anskaffelser og sikkerhetsavtaler | 0.7 | `partial` | [UC-22.26.26](#uc-22-26-26) |
+| [`§6-7`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Personkontroll | 0.7 | `partial` | [UC-22.26.27](#uc-22-26-27) |
+| [`§6-8`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Sikkerhetskopier | 1.0 | `partial` | [UC-22.26.28](#uc-22-26-28) |
 | [`§6-9`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Digitale informasjonssystemer | 1.0 | `contributing` | [UC-14.2.11](#uc-14-2-11) |
 | [`§7-1`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Generell plikt til å beskytte driftskontrollsystemet | 1.0 | `partial` | [UC-14.2.11](#uc-14-2-11) |
 | [`§7-4`](https://veiledere.nve.no/kraftberedskapsforskriften/) | Kontroll med brukertilgang | 1.0 | `partial` | [UC-14.9.14](#uc-14-9-14), [UC-22.26.6](#uc-22-26-6), [UC-22.26.7](#uc-22-26-7) |
@@ -105,6 +105,54 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Source: [``](../../)
 <a id='uc-22-26-10'></a>
 - **UC-22.26.10** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-21'></a>
+- **UC-22.26.21** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-22'></a>
+- **UC-22.26.22** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-23'></a>
+- **UC-22.26.23** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-24'></a>
+- **UC-22.26.24** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-25'></a>
+- **UC-22.26.25** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-26'></a>
+- **UC-22.26.26** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-27'></a>
+- **UC-22.26.27** —
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 0
+  - Source: [``](../../)
+<a id='uc-22-26-28'></a>
+- **UC-22.26.28** —
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 0
@@ -198,18 +246,7 @@ Overtredelsesgebyr and tvangsmulkt under kap. 8; straff etter energiloven §8-6 
 
 ## 11. Pack gaps and remediation backlog
 
-Clauses tracked in `data/regulations.json` that are **not yet covered** by any UC in this catalogue are listed below. These are the backlog items for the next release. Priority order follows priorityWeight.
-
-| Clause | Topic | Priority |
-|---|---|---|
-| `§2-3` | Risikovurdering | 1.0 |
-| `§2-5` | Varsling | 1.0 |
-| `§4-1` | Reparasjonsberedskap | 1.0 |
-| `§6-1` | Identifisering av kraftsensitiv informasjon og rettmessige brukere | 1.0 |
-| `§6-8` | Sikkerhetskopier | 1.0 |
-| `§2-10` | Internkontrollsystem | 0.7 |
-| `§6-5` | Anskaffelser og sikkerhetsavtaler | 0.7 |
-| `§6-7` | Personkontroll | 0.7 |
+All clauses tracked in `data/regulations.json` for this regulation version are covered by at least one UC. **100 % common-clause coverage**. Remaining work is assurance-upgrade (for example, moving `contributing` entries to `partial` or `full` via explicit control tests) rather than new clause authoring.
 
 ## 12. Questions an auditor should ask
 

@@ -1,6 +1,6 @@
 # Kraftberedskapsforskriften — compliance expansion spec
 
-Status: **Phase 1 implemented** (2026-08-31)  
+Status: **Phase 2 implemented** (2026-08-31)  
 Regulation ID: `no-kbf-nve`  
 Authoritative source: [Lovdata SF/forskrift/2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157)
 
@@ -18,16 +18,29 @@ Bootstrap coverage reported **100 % clause coverage** with a single `commonClaus
 
 ## ID strategy
 
-Subcategory **22.26 remains at 20 UCs** (four Norwegian frameworks × five UCs). New KBF depth is delivered via **cross-mapping** and future **22.26.21+** or a dedicated subcategory in Phase 2.
+Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — e.g. 22.11 has 110). Phase 2 adds **22.26.21–28** for uncovered NO KBF clauses. The only ID rule is **gap-free ordering within the subcategory** (DESIGN.md).
 
-## Phase 2 backlog
+## Phase 2 (implemented)
+
+| UC | Clause | Title |
+|----|--------|-------|
+| 22.26.21 | §2-3 | KBF emergency risk register freshness monitoring |
+| 22.26.22 | §2-5 | KBF grid incident notification chain latency |
+| 22.26.23 | §2-10 | KBF internkontroll control-test evidence archive |
+| 22.26.24 | §4-1 | KBF reparasjonsberedskap spare-parts register monitoring |
+| 22.26.25 | §6-1 | Kraftsensitiv information access path monitoring |
+| 22.26.26 | §6-5 | KBF supplier security agreement access compliance |
+| 22.26.27 | §6-7 | KBF personkontroll privileged access correlation |
+| 22.26.28 | §6-8 | Kraftsensitiv system backup and restore-test monitoring |
+
+## Phase 3 backlog
 
 | Priority | Work |
 |----------|------|
-| P1 | New UCs: §6-1, §6-8, §2-3, §2-5, §4-1 (2026 amendment) |
-| P2 | NIS2 dual-mapping for shared energy-sector controls |
-| P3 | Dedicated evidence-pack SME review + Norwegian primer section |
-| P4 | Optional `audit-no-kbf-coverage` matrix drift gate |
+| P1 | NIS2 dual-mapping for shared energy-sector controls |
+| P2 | Dedicated evidence-pack SME review + Norwegian primer section |
+| P3 | Optional `audit-no-kbf-coverage` matrix drift gate |
+| P4 | Prose uplift on legacy 22.26.6–10 detailedImplementation (§6-1 stale refs) |
 
 ## Success metrics (Phase 1 target)
 
