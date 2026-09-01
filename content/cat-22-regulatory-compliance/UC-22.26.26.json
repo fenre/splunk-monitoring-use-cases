@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.26.26",
+  "title": "KBF supplier security agreement access compliance",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Excludes test/sandbox environments, pre-production systems, development instances without regulated data, and any systems formally documented as out-of-scope in the NO KBF programme scope statement approved by the control owner.",
+  "evidence": "Saved search results archived to the `audit_evidence` index with NO KBF control tagging; scheduled PDF/CSV exports for auditor consumption; Splunk dashboard screenshots with timestamp watermarks capturing control operating effectiveness over the review period.",
+  "compliance": [
+    {
+      "regulation": "NO KBF",
+      "version": "2012 as amended",
+      "clause": "§6-5",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NO KBF §6-5 — Vendor access correlation with agreement register supports anskaffelser controls; signed avtaler remain in document management.",
+      "controlObjective": "Evidence that NO KBF §6-5 (Anskaffelser og sikkerhetsavtaler) is enforced — Splunk UC-22.26.26: KBF supplier security agreement access compliance.",
+      "evidenceArtifact": "Saved search 'UC-22.26.26' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "no-kbf-nve@2012 as amended#§6-5",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "nis2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(d)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Supplier agreement access checks support Art.21(2)(d) supply-chain security for vendor OT access.",
+      "controlObjective": "Contributes NIS2 Art.21(2)(d) evidence — Splunk UC-22.26.26: KBF supplier security agreement access compliance.",
+      "evidenceArtifact": "Same saved search as primary mapping; archived to audit_evidence with dual reg tags.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(d)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "UC-22.26.26 positive: Vendor user with expired agreement — expect alert.",
+    "negativeScenario": "UC-22.26.26 negative: Active agreement and valid_until in future — expect zero rows."
+  },
+  "dataSources": "VPN logs, IAM/Okta/Azure AD, supplier security agreement register lookup",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621) (Splunkbase)",
+  "spl": "index=vpn OR index=iam earliest=-30d\n| search user=\"*vendor*\" OR user=\"*supplier*\" OR access_type=\"vendor\"\n| lookup supplier_security_agreement_register.csv user OUTPUT agreement_status valid_until\n| eval expired=if(now()>strptime(valid_until,\"%Y-%m-%d\"), \"true\", \"false\")\n| where agreement_status!=\"active\" OR expired=\"true\"\n| stats latest(_time) as last_seen count by user, agreement_status, valid_until\n| sort - count",
+  "description": "Flags active vendor/supplier VPN or IAM sessions where no valid sikkerhetsavtale exists in the supplier register — supporting §6-5 anskaffelser controls.",
+  "value": "Detects §6-5 violations when suppliers access kraftsensitiv systems without active security agreements — reducing third-party audit findings.",
+  "implementation": "(1) Sync procurement register to `supplier_security_agreement_register.csv`. (2) Tag vendor accounts consistently in IAM. (3) Monthly vendor access review export.",
+  "visualization": "Table (violations by asset/user), Single value (open gaps), Trend (30-day)",
+  "cimModels": [
+    "Authentication"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Authentication.Authentication by _time | sort - _time",
+  "dataModelAcceleration": "Enable acceleration for Authentication (CIM data model).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Kraftberedskapsforskriften (Lovdata)",
+      "url": "https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157"
+    },
+    {
+      "title": "NVE veileder — kapittel 6",
+      "url": "https://veiledere.nve.no/kraftberedskapsforskriften/"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled register refresh lag** — Lookup sync delayed after planned CMMS/GRC export; compare `_time` with export job completion.\n\n2. **Authorised KBF testing** — Control exercises during beredskapsøvelse; match calendar in `no_kbf_exception_register.csv`.\n\n3. **Emergency break-glass access** — Documented temporary elevation; suppress via exception register.\n\n**Suppression:** `no_kbf_exception_register.csv` keyed on entity, `exception_reason`, `valid_until`.",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "lastReviewed": "2026-08-31",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk** ≥9.2 or Splunk Cloud.\n• **Regulatory mapping**: This detection evidences NO KBF `§6-5` (Anskaffelser og sikkerhetsavtaler).\n• **Lookups**: Deploy and version all KBF registers referenced in the SPL.\n\n## Step 1 — Data collection\n\n(1) Sync procurement register to `supplier_security_agreement_register.csv`. (2) Tag vendor accounts consistently in IAM. (3) Monthly vendor access review export.\n\n(4) Route VPN concentrator logs via modular input to `index=vpn` with vendor sourcetype preserved.\n\n## Step 2 — Implement the search\n\n```spl\nindex=vpn OR index=iam earliest=-30d\n| search user=\"*vendor*\" OR user=\"*supplier*\" OR access_type=\"vendor\"\n| lookup supplier_security_agreement_register.csv user OUTPUT agreement_status valid_until\n| eval expired=if(now()>strptime(valid_until,\"%Y-%m-%d\"), \"true\", \"false\")\n| where agreement_status!=\"active\" OR expired=\"true\"\n| stats latest(_time) as last_seen count by user, agreement_status, valid_until\n| sort - count\n```\n\n## Step 3 — Validate deployment\n\n**(a) Field extraction check:** Run the following to confirm required fields appear in recent data:\n\n```spl\nindex=vpn sourcetype=cisco:asa earliest=-1h\n| fieldsummary\n| where count=0\n| table field\n```\n\nAny row returned is a field the detection relies on but is not present — check TA version, upstream rename, or data-format change.\n\n**(b) Required-field presence:** This detection needs: `vendor_id, user, agreement_status, session_start`. Run:\n\n```spl\nindex=vpn sourcetype=cisco:asa earliest=-1h\n| head 100\n| table vendor_id, user, agreement_status, session_start\n```\n\nEvery row should have non-null values for fields used in `where` clauses.\n\n**(c) Vendor UI cross-check:** Verify against the ES dashboard that vendor VPN sessions match Access Center remote-access views. Counts and top offenders should align within one scheduling interval; persistent gaps indicate enrichment or index routing issues, not detection logic.\n\n## Step 4 — Evidence archive\n\nRoute results to `index=audit_evidence` with `reg=NO_KBF,uc=22.26.26,clause=§6-5` markers.\n\n## Step 5 — Troubleshooting and regulation-specific caveats\n\n**Search returns no results when violations are expected:** Verify time-window alignment, index existence, and field extractions in that order. Inspect **Activity → Jobs → Inspect** on the scheduled search to see whether fetch, command, or summary phases drop rows.\n\n**Search times out:** Narrow the earliest window, enable CIM/datamodel acceleration where applicable, or push heavy joins into a summary index populated by a lighter intermediate search.\n\n**NO KBF-specific failure modes:**\n\n• no vpn events for vendor accounts — confirm VPN logs reach index=vpn and supplier_security_agreement_register.csv includes active vendor_id rows\n• NULL agreement_status after lookup — supplier register field names may differ; compare lookup columns against the procurement vendor-management UI\n• fewer sessions than expected — split-tunnel VPN may bypass corporate concentrators; verify logging on all vendor entry concentrators\n\n**Suppression:** Maintain `no_kbf_exception_register.csv` for documented beredskapsøvelser, emergency break-glass, and planned maintenance windows.",
+  "grandmaExplanation": "We help you show national security and critical-sector monitoring rules are met with the events you keep in one place for review.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

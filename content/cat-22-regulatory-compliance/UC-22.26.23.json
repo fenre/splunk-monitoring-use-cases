@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.26.23",
+  "title": "KBF internkontroll control-test evidence archive",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Excludes test/sandbox environments, pre-production systems, development instances without regulated data, and any systems formally documented as out-of-scope in the NO KBF programme scope statement approved by the control owner.",
+  "evidence": "Saved search results archived to the `audit_evidence` index with NO KBF control tagging; scheduled PDF/CSV exports for auditor consumption; Splunk dashboard screenshots with timestamp watermarks capturing control operating effectiveness over the review period.",
+  "compliance": [
+    {
+      "regulation": "NO KBF",
+      "version": "2012 as amended",
+      "clause": "§2-10",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "NO KBF §2-10 — Archived control-test cadence supports internkontroll evidence; management attestation remains organisational.",
+      "controlObjective": "Evidence that NO KBF §2-10 (Internkontrollsystem) is enforced — Splunk UC-22.26.23: KBF internkontroll control-test evidence archive.",
+      "evidenceArtifact": "Saved search 'UC-22.26.23' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "no-kbf-nve@2012 as amended#§2-10",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "nis2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(g)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Control-test archive cadence supports Art.21(2)(g) cybersecurity measure effectiveness assessment.",
+      "controlObjective": "Contributes NIS2 Art.21(2)(g) evidence — Splunk UC-22.26.23: KBF internkontroll control-test evidence archive.",
+      "evidenceArtifact": "Same saved search as primary mapping; archived to audit_evidence with dual reg tags.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(g)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "UC-22.26.23 positive: UC export older than expected_cadence_days — expect alert.",
+    "negativeScenario": "UC-22.26.23 negative: Recent export within cadence — expect zero rows."
+  },
+  "dataSources": "`index=audit_evidence`, GRC finding exports, KBF control schedule lookup",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621) (Splunkbase)",
+  "spl": "index=audit_evidence reg=NO_KBF earliest=-90d\n| stats latest(_time) as last_run count by uc_id, clause\n| lookup kbf_control_schedule.csv uc_id OUTPUT expected_cadence_days\n| eval days_since=round((now()-last_run)/86400,1)\n| where days_since>expected_cadence_days OR count=0\n| sort - days_since",
+  "description": "Audits archived NO KBF control-test outputs in `audit_evidence`, flagging UCs whose scheduled exports missed expected cadence — supporting §2-10 internkontroll evidence.",
+  "value": "Searchable control-test history demonstrates §2-10 internkontrollsystem operating effectiveness without manual spreadsheet tracking.",
+  "implementation": "(1) Route all KBF saved searches to `summary_compliance` → `audit_evidence`. (2) Maintain `kbf_control_schedule.csv` with per-UC cadence. (3) Weekly review dashboard for internal audit.",
+  "visualization": "Table (violations by asset/user), Single value (open gaps), Trend (30-day)",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.Change by _time | sort - _time",
+  "dataModelAcceleration": "Enable acceleration for Change (CIM data model).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Kraftberedskapsforskriften (Lovdata)",
+      "url": "https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157"
+    },
+    {
+      "title": "NVE veileder — kapittel 6",
+      "url": "https://veiledere.nve.no/kraftberedskapsforskriften/"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled register refresh lag** — Lookup sync delayed after planned CMMS/GRC export; compare `_time` with export job completion.\n\n2. **Authorised KBF testing** — Control exercises during beredskapsøvelse; match calendar in `no_kbf_exception_register.csv`.\n\n3. **Emergency break-glass access** — Documented temporary elevation; suppress via exception register.\n\n**Suppression:** `no_kbf_exception_register.csv` keyed on entity, `exception_reason`, `valid_until`.",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "lastReviewed": "2026-08-31",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk** ≥9.2 or Splunk Cloud.\n• **Regulatory mapping**: This detection evidences NO KBF `§2-10` (Internkontrollsystem).\n• **Lookups**: Deploy and version all KBF registers referenced in the SPL.\n\n## Step 1 — Data collection\n\n(1) Route all KBF saved searches to `summary_compliance` → `audit_evidence`. (2) Maintain `kbf_control_schedule.csv` with per-UC cadence. (3) Weekly review dashboard for internal audit.\n\n## Step 2 — Implement the search\n\n```spl\nindex=audit_evidence reg=NO_KBF earliest=-90d\n| stats latest(_time) as last_run count by uc_id, clause\n| lookup kbf_control_schedule.csv uc_id OUTPUT expected_cadence_days\n| eval days_since=round((now()-last_run)/86400,1)\n| where days_since>expected_cadence_days OR count=0\n| sort - days_since\n```\n\n## Step 3 — Validate deployment\n\n**(a) Field extraction check:** Run the following to confirm required fields appear in recent data:\n\n```spl\nindex=audit_evidence sourcetype=audit:evidence earliest=-1h\n| fieldsummary\n| where count=0\n| table field\n```\n\nAny row returned is a field the detection relies on but is not present — check TA version, upstream rename, or data-format change.\n\n**(b) Required-field presence:** This detection needs: `control_id, test_result, clause, uc_id`. Run:\n\n```spl\nindex=audit_evidence sourcetype=audit:evidence earliest=-1h\n| head 100\n| table control_id, test_result, clause, uc_id\n```\n\nEvery row should have non-null values for fields used in `where` clauses.\n\n**(c) Vendor UI cross-check:** Verify against the Splunk dashboard that archived control-test runs match Settings → Saved Searches. Counts and top offenders should align within one scheduling interval; persistent gaps indicate enrichment or index routing issues, not detection logic.\n\n## Step 4 — Evidence archive\n\nRoute results to `index=audit_evidence` with `reg=NO_KBF,uc=22.26.23,clause=§2-10` markers.\n\n## Step 5 — Troubleshooting and regulation-specific caveats\n\n**Search returns no results when violations are expected:** Verify time-window alignment, index existence, and field extractions in that order. Inspect **Activity → Jobs → Inspect** on the scheduled search to see whether fetch, command, or summary phases drop rows.\n\n**Search times out:** Narrow the earliest window, enable CIM/datamodel acceleration where applicable, or push heavy joins into a summary index populated by a lighter intermediate search.\n\n**NO KBF-specific failure modes:**\n\n• no audit_evidence events — confirm the scheduled search action writes to index=audit_evidence and the role running the search has index write permission\n• empty fields for test_result — upstream GRC control-test export may omit pass/fail; compare against the internkontroll register in the GRC vendor UI\n• fewer records than expected — duplicate suppression in the scheduled search may collapse rows; inspect the search job inspector for summary-phase drops\n\n**Suppression:** Maintain `no_kbf_exception_register.csv` for documented beredskapsøvelser, emergency break-glass, and planned maintenance windows.",
+  "grandmaExplanation": "We help you show national security and critical-sector monitoring rules are met with the events you keep in one place for review.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}

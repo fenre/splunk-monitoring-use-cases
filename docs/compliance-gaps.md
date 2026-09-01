@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-07-24T16:09:16Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
+_Generated: 2026-08-31T10:14:24Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -9,7 +9,7 @@ This report inverts the compliance coverage audit: for every regulation-version 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
 | tier-1 | 450 | 450 | 100.00 | 418.6000 | 418.6000 | 100.00 |
-| tier-2 | 204 | 204 | 100.00 | 194.7000 | 194.7000 | 100.00 |
+| tier-2 | 221 | 221 | 100.00 | 210.5000 | 210.5000 | 100.00 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
 ## Tier 1 frameworks
@@ -1480,14 +1480,31 @@ _Norwegian Kraftberedskapsforskriften (NVE Power-sector emergency preparedness r
 
 #### NO KBF@2012 as amended
 
-- Common clauses: **1**
-- Covered: **1** (100.00%)
-- Priority-weighted coverage: **100.00%** (1.0000 / 1.0000)
+- Common clauses: **18**
+- Covered: **18** (100.00%)
+- Priority-weighted coverage: **100.00%** (16.8000 / 16.8000)
 - Authoritative source: https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§6-1` | Informasjonssikkerhet | 1.00 | ✔ 5 | partial | 22.26.10, 22.26.6, 22.26.7, 22.26.8, 22.26.9 |
+| `§2-3` | Risikovurdering | 1.00 | ✔ 1 | partial | 22.26.21 |
+| `§2-5` | Varsling | 1.00 | ✔ 1 | partial | 22.26.22 |
+| `§2-6` | Rapportering til NVE | 1.00 | ✔ 1 | partial | 22.26.9 |
+| `§2-7` | Kriseøvelser | 0.70 | ✔ 1 | partial | 22.26.8 |
+| `§2-10` | Internkontrollsystem | 0.70 | ✔ 1 | contributing | 22.26.23 |
+| `§4-1` | Reparasjonsberedskap | 1.00 | ✔ 1 | partial | 22.26.24 |
+| `§4-3` | Gjenoppretting av funksjon | 1.00 | ✔ 1 | partial | 22.26.10 |
+| `§6-1` | Identifisering av kraftsensitiv informasjon og rettmessige brukere | 1.00 | ✔ 1 | partial | 22.26.25 |
+| `§6-3` | Beskyttelse, avskjerming og tilgangskontroll | 1.00 | ✔ 1 | contributing | 22.26.7 |
+| `§6-5` | Anskaffelser og sikkerhetsavtaler | 0.70 | ✔ 1 | partial | 22.26.26 |
+| `§6-7` | Personkontroll | 0.70 | ✔ 1 | partial | 22.26.27 |
+| `§6-8` | Sikkerhetskopier | 1.00 | ✔ 1 | partial | 22.26.28 |
+| `§6-9` | Digitale informasjonssystemer | 1.00 | ✔ 1 | contributing | 14.2.11 |
+| `§7-1` | Generell plikt til å beskytte driftskontrollsystemet | 1.00 | ✔ 1 | partial | 14.2.11 |
+| `§7-4` | Kontroll med brukertilgang | 1.00 | ✔ 3 | partial | 14.9.14, 22.26.6, 22.26.7 |
+| `§7-5` | Kontroll ved endringer i driftskontrollsystemet | 1.00 | ✔ 2 | partial | 14.2.9, 14.6.6 |
+| `§7-7` | Feil, sårbarheter og sikkerhetsbrudd | 1.00 | ✔ 1 | contributing | 14.9.14 |
+| `§7-10` | Ekstern tilkobling til driftskontrollsystem | 1.00 | ✔ 1 | partial | 14.2.4 |
 
 ### NO Personopplysningsloven — `no-personopplysningsloven`
 

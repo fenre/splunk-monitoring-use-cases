@@ -1,0 +1,100 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "22.26.24",
+  "title": "KBF reparasjonsberedskap spare-parts register monitoring",
+  "criticality": "high",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Security",
+    "Compliance"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Excludes test/sandbox environments, pre-production systems, development instances without regulated data, and any systems formally documented as out-of-scope in the NO KBF programme scope statement approved by the control owner.",
+  "evidence": "Saved search results archived to the `audit_evidence` index with NO KBF control tagging; scheduled PDF/CSV exports for auditor consumption; Splunk dashboard screenshots with timestamp watermarks capturing control operating effectiveness over the review period.",
+  "compliance": [
+    {
+      "regulation": "NO KBF",
+      "version": "2012 as amended",
+      "clause": "§4-1",
+      "mode": "satisfies",
+      "assurance": "partial",
+      "assurance_rationale": "NO KBF §4-1 (2026 amendment) — Register freshness and incident correlation support reparasjonsberedskap telemetry; physical stock verification requires CMMS integration.",
+      "controlObjective": "Evidence that NO KBF §4-1 (Reparasjonsberedskap) is enforced — Splunk UC-22.26.24: KBF reparasjonsberedskap spare-parts register monitoring.",
+      "evidenceArtifact": "Saved search 'UC-22.26.24' running on catalogue-defined data sources (see UC detailedImplementation), archived to the restricted audit_evidence index (default 7-year retention).",
+      "obligationRef": "no-kbf-nve@2012 as amended#§4-1",
+      "requires_sme_review": false,
+      "provenance": "maintainer"
+    },
+    {
+      "regulation": "nis2",
+      "version": "Directive (EU) 2022/2555",
+      "clause": "Art.21(2)(c)",
+      "clauseUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj",
+      "mode": "satisfies",
+      "assurance": "contributing",
+      "assurance_rationale": "Spare-parts register monitoring supports business continuity and repair preparedness for grid assets.",
+      "controlObjective": "Contributes NIS2 Art.21(2)(c) evidence — Splunk UC-22.26.24: KBF reparasjonsberedskap spare-parts register monitoring.",
+      "evidenceArtifact": "Same saved search as primary mapping; archived to audit_evidence with dual reg tags.",
+      "obligationRef": "nis2@Directive (EU) 2022/2555#Art.21(2)(c)",
+      "provenance": "maintainer"
+    }
+  ],
+  "controlTest": {
+    "positiveScenario": "UC-22.26.24 positive: Register row with last_verified >90d — expect alert.",
+    "negativeScenario": "UC-22.26.24 negative: Verified within 30d and stock OK — expect zero rows."
+  },
+  "dataSources": "CMMS/GRC spare-parts register lookup, ITSI grid service alerts",
+  "app": "Splunk Enterprise Security (263), Splunk Add-on for Microsoft Windows (742), Splunk Add-on for Unix and Linux (833), Splunk OT Security Add-on (5151), Splunk ITSI (1841), Splunk Common Information Model Add-on (1621) (Splunkbase)",
+  "spl": "| inputlookup grid_spare_parts_register.csv\n| eval age_days=round((now()-strptime(last_verified,\"%Y-%m-%d\"))/86400,1)\n| where age_days>90 OR quantity_below_minimum=\"true\"\n| join type=left part_id [\n    search index=itsi_summary source=itsi_grouped_alerts service_title=\"*Grid*\" earliest=-30d\n    | stats count as grid_incidents by part_id\n  ]\n| table part_id, site, age_days, quantity_below_minimum, grid_incidents\n| sort - age_days",
+  "description": "Monitors freshness of grid spare-parts/reserve register entries per 2026 §4-1 reparasjonsberedskap, correlating stale inventory records with recent grid ITSI incidents.",
+  "value": "Splunk surfaces §4-1 reparasjonsberedskap gaps when reserve registers go stale or minimum stock flags fire — complementing UC-22.26.10 MTTR evidence.",
+  "implementation": "(1) Sync CMMS spare-parts export to `grid_spare_parts_register.csv` weekly. (2) Join part_id to ITSI service/component mapping. (3) Review before NVE beredskapsrevisjon.",
+  "visualization": "Table (violations by asset/user), Single value (open gaps), Trend (30-day)",
+  "cimModels": [
+    "Change"
+  ],
+  "cimSpl": "| tstats summariesonly=t count from datamodel=Change.Change by _time | sort - _time",
+  "dataModelAcceleration": "Enable acceleration for Change (CIM data model).",
+  "references": [
+    {
+      "title": "Splunk Enterprise Security",
+      "url": "https://splunkbase.splunk.com/app/263"
+    },
+    {
+      "title": "Kraftberedskapsforskriften (Lovdata)",
+      "url": "https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157"
+    },
+    {
+      "title": "NVE veileder — kapittel 6",
+      "url": "https://veiledere.nve.no/kraftberedskapsforskriften/"
+    }
+  ],
+  "knownFalsePositives": "1. **Scheduled register refresh lag** — Lookup sync delayed after planned CMMS/GRC export; compare `_time` with export job completion.\n\n2. **Authorised KBF testing** — Control exercises during beredskapsøvelse; match calendar in `no_kbf_exception_register.csv`.\n\n3. **Emergency break-glass access** — Documented temporary elevation; suppress via exception register.\n\n**Suppression:** `no_kbf_exception_register.csv` keyed on entity, `exception_reason`, `valid_until`.",
+  "requiredFields": [
+    "_time"
+  ],
+  "equipment": [
+    "itsi"
+  ],
+  "equipmentModels": [
+    "itsi_generic"
+  ],
+  "lastReviewed": "2026-08-31",
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "reviewer": "Compliance SME Panel",
+  "premiumApps": [
+    "Splunk Enterprise Security",
+    {
+      "name": "Splunk ITSI",
+      "displayName": "Splunk IT Service Intelligence",
+      "note": "ITSI"
+    }
+  ],
+  "detailedImplementation": "## Prerequisites\n\n• **Splunk** ≥9.2 or Splunk Cloud.\n• **Regulatory mapping**: This detection evidences NO KBF `§4-1` (Reparasjonsberedskap).\n• **Lookups**: Deploy and version all KBF registers referenced in the SPL.\n\n## Step 1 — Data collection\n\n(1) Sync CMMS spare-parts export to `grid_spare_parts_register.csv` weekly. (2) Join part_id to ITSI service/component mapping. (3) Review before NVE beredskapsrevisjon.\n\n(4) Enable the ITSI modular input or HEC receiver for CMMS spare-parts exports (Splunkbase 1841).\n\n## Step 2 — Implement the search\n\n```spl\n| inputlookup grid_spare_parts_register.csv\n| eval age_days=round((now()-strptime(last_verified,\"%Y-%m-%d\"))/86400,1)\n| where age_days>90 OR quantity_below_minimum=\"true\"\n| join type=left part_id [\n    search index=itsi_summary source=itsi_grouped_alerts service_title=\"*Grid*\" earliest=-30d\n    | stats count as grid_incidents by part_id\n  ]\n| table part_id, site, age_days, quantity_below_minimum, grid_incidents\n| sort - age_days\n```\n\n## Step 3 — Validate deployment\n\n**(a) Field extraction check:** Run the following to confirm required fields appear in recent data:\n\n```spl\nindex=itsi_summary sourcetype=itsi_grouped_alerts earliest=-1h\n| fieldsummary\n| where count=0\n| table field\n```\n\nAny row returned is a field the detection relies on but is not present — check TA version, upstream rename, or data-format change.\n\n**(b) Required-field presence:** This detection needs: `service_title, avg_mttr, spare_part_id, register_age_days`. Run:\n\n```spl\nindex=itsi_summary sourcetype=itsi_grouped_alerts earliest=-1h\n| head 100\n| table service_title, avg_mttr, spare_part_id, register_age_days\n```\n\nEvery row should have non-null values for fields used in `where` clauses.\n\n**(c) Vendor UI cross-check:** Verify against the ITSI dashboard that stale spare-parts rows match Service Analyzer grid services. Counts and top offenders should align within one scheduling interval; persistent gaps indicate enrichment or index routing issues, not detection logic.\n\n## Step 4 — Evidence archive\n\nRoute results to `index=audit_evidence` with `reg=NO_KBF,uc=22.26.24,clause=§4-1` markers.\n\n## Step 5 — Troubleshooting and regulation-specific caveats\n\n**Search returns no results when violations are expected:** Verify time-window alignment, index existence, and field extractions in that order. Inspect **Activity → Jobs → Inspect** on the scheduled search to see whether fetch, command, or summary phases drop rows.\n\n**Search times out:** Narrow the earliest window, enable CIM/datamodel acceleration where applicable, or push heavy joins into a summary index populated by a lighter intermediate search.\n\n**NO KBF-specific failure modes:**\n\n• no itsi_summary events — verify ITSI module is installed and grouped alert summaries are written to itsi_summary\n• NULL values for spare_part_id — grid_spare_parts_register.csv lookup may be stale; compare lookup freshness against the CMMS spare-parts inventory UI\n• fewer services than expected — service titles may not match the Grid filter; confirm service naming in the ITSI service analyzer dashboard\n\n**Suppression:** Maintain `no_kbf_exception_register.csv` for documented beredskapsøvelser, emergency break-glass, and planned maintenance windows.",
+  "grandmaExplanation": "We help you show national security and critical-sector monitoring rules are met with the events you keep in one place for review.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
