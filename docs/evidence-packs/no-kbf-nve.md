@@ -35,7 +35,7 @@ Forskrift om sikkerhet og beredskap i kraftforsyningen (kraftberedskapsforskrift
 
 Applies to KBO-enheter in the Norwegian power supply chain: production, transmission, distribution, and system operators designated under energiloven. Scope includes informasjonssikkerhet (kap. 6), driftskontrollsystem (kap. 7), beredskap (kap. 2), and reparasjonsberedskap (kap. 4). Physical security of classified facilities (kap. 5) is primarily organisational and physical — Splunk evidence is supplementary.
 
-**Territorial scope.** Norway. KBO-enheter operating cross-border interconnectors must also satisfy bilateral and NIS2-derived obligations where applicable; this pack covers KBF only.
+**Territorial scope.** Norway. KBO-enheter operating cross-border interconnectors must also satisfy bilateral and NIS2<sup class="ref">[<a href="#ref-1">1</a>]</sup>-derived obligations where applicable; this pack covers KBF only.
 
 ## 3. Catalogue coverage at a glance
 
@@ -182,12 +182,46 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 0
   - Source: [``](../../)
 
+### 4.2 NIS2 dual-mapping crosswalk (energy sector)
+
+Norwegian KBO-enheter that are also NIS2 essential entities may reuse Splunk evidence tagged for NO KBF when building Art.21 / Art.23 readiness packs. **This crosswalk does not assert legal equivalence** — it links catalogue UCs that carry both `NO KBF` and `nis2` compliance entries with `contributing` or `partial` assurance only.
+
+> **SME assurance policy (2026-09-01):** NIS2 dual-mapping entries on KBF-tagged UCs must use contributing or partial assurance only. Splunk telemetry supports cross-framework evidence packs; it does not establish legal equivalence between NO KBF paragraphs and NIS2 articles.
+
+| KBF clause | NIS2 clause | Topic | Primary UCs |
+|---|---|---|---|
+| `§2-3` | `Art.21(2)(a)` | Risk analysis | UC-22.26.21 |
+| `§2-5` | `Art.23` | Incident notification | UC-22.26.22 |
+| `§2-6` | `Art.23` | Authority reporting | UC-22.26.9 |
+| `§2-7` | `Art.21(2)(c)` | Crisis exercises / BC | UC-22.26.8 |
+| `§2-10` | `Art.21(2)(g)` | Measure effectiveness | UC-22.26.23 |
+| `§4-1` | `Art.21(2)(c)` | Repair preparedness / BC | UC-22.26.24 |
+| `§4-3` | `Art.21(2)(c)` | Restoration | UC-22.26.10 |
+| `§6-1` | `Art.21(2)(a)` | Information system security | UC-22.26.25 |
+| `§6-5` | `Art.21(2)(d)` | Supply chain security | UC-22.26.26 |
+| `§6-7` | `Art.21(2)(j)` | Access control / crypto | UC-22.26.27 |
+| `§6-8` | `Art.21(2)(c)` | Backup / BC | UC-22.26.28 |
+| `§7-4` | `Art.21(2)(d)` | ICS / network security | UC-22.26.6, UC-22.26.7, UC-14.9.14 |
+| `§7-10` | `Art.21(2)(d)` | Network segmentation | UC-14.2.4 |
+| `§7-5` | `Art.21(2)(d)` | ICS change control | UC-14.2.9, UC-14.6.6 |
+| `§7-7` | `Art.21(2)(b)` | Incident handling | UC-14.9.14 |
+
+Machine-readable source: [`data/no-kbf-nis2-dual-mapping.json`](../../data/no-kbf-nis2-dual-mapping.json). Validated by `python3 -m splunk_uc audit-no-kbf-coverage`.
+
 ## 5. Evidence collection
 
 ### 5.1 Common evidence sources
 
 Auditors typically request the following records when examining this regulation:
 
+- Splunk OT Security / ICS add-on event streams (SCADA, DCS, historian)
+- Firewall and jump-host logs for IT-OT segmentation (§7-4, §7-10)
+- Change-management and CMDB records for DCS/PLC changes (§7-5)
+- Identity and privileged-access management logs (§6-7, §7-4)
+- Incident-ticketing and NVE/Altinn reporting workflow timestamps (§2-5, §2-6)
+- Crisis-exercise and beredskapsplan document repositories with revision metadata (§2-3, §2-7)
+- Spare-parts and restoration-time registers for reparasjonsberedskap (§4-1, §4-3)
+- Splunk audit_evidence saved searches tagged NO KBF / no-kbf-nve
 
 ### 5.2 Retention requirements
 
@@ -199,7 +233,7 @@ Auditors typically request the following records when examining this regulation:
 | OT/SCADA security event logs and access reviews (§7-4, §7-7) | Minimum 12 months online + 5 years archive for audit | Kraftberedskapsforskriften kap. 7; IEC 62443-aligned practice |
 | Splunk audit_evidence exports for KBF-tagged controls | 7 years default for tier-2 compliance evidence in this catalogue | Catalogue convention; verify against longest-applicable KBO retention policy |
 
-> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR<sup class="ref">[<a href="#ref-1">1</a>]</sup> Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
+> Retention figures above are the legal minimums or regulator-stated expectations. Organisation-specific retention schedules may be longer where business, tax, litigation-hold, or contractual obligations apply. Where a figure conflicts with local data-protection law (e.g. GDPR<sup class="ref">[<a href="#ref-2">2</a>]</sup> Art.5(1)(e) storage-limitation principle), the shorter conformant period governs for personal-data content; the evidence-of-compliance retention retains the longer period for audit purposes, scrubbed of excess personal data.
 
 ### 5.3 Evidence integrity expectations
 
@@ -222,6 +256,11 @@ NVE tilsyn reviews beredskapsplan, risikovurdering, øvelser, and OT security co
 
 | Role | Responsibility |
 |---|---|
+| **KBO-enhet (kraftforsyningsbedrift)** | Pliktig etter energiloven og kraftberedskapsforskriften; opprettholder beredskapsorganisasjon, risikovurdering, rapportering og OT-sikkerhet. |
+| **Beredskapsansvarlig** | Eier beredskapsplan, koordinerer varsling og kriseøvelser (kap. 2); rapporterer til NVE ved hendelser (§2-5, §2-6). |
+| **NVE (beredskapsmyndigheten)** | Tilsynsmyndighet; mottar rapportering, gjennomfører tilsyn, kan ilegge pålegg og overtredelsesgebyr (kap. 8). |
+| **OT/ICS sikkerhetsansvarlig** | Sikrer driftskontrollsystem (kap. 7): tilgangskontroll, endringsstyring, segmentering og hendelsesdeteksjon. |
+| **IT-sikkerhetsansvarlig (kraftsensitiv informasjon)** | Kap. 6: beskyttelse av kraftsensitiv informasjon, leverandøravtaler (§6-5), personkontroll (§6-7), sikkerhetskopier (§6-8). |
 
 ## 8. Authoritative guidance
 
@@ -252,6 +291,14 @@ All clauses tracked in `data/regulations.json` for this regulation version are c
 
 These are the questions a regulator, certification body, or external auditor is likely to ask. The pack helps preparers stage evidence and pre-test responses before the review opens.
 
+- Vis gjeldende beredskapsplan og risikovurdering (§2-3, §2-4); når ble de sist revidert og godkjent av ledelsen?
+- Produser varslingskjede-evidence for siste hendelse med NVE-rapporteringsplikt (§2-5, §2-6); vis tidsstempler fra deteksjon til NVE/Altinn-innsending.
+- Dokumenter siste kriseøvelse (§2-7); ble øvelsesrapport levert innen fristen og er tiltak fra funn fulgt opp?
+- Vis internkontroll- og tiltakseffektivitetsevidence (§2-10); hvilke kontrolltester er kjørt siste 12 måneder?
+- Er reparasjonsberedskap dimensjonert for samtidig sabotasje etter endringen 2026-07-01 (§4-1)? Vis reservedelsregister og gjenopprettingstider (§4-3).
+- Vis tilgangslogger og segmenteringskontroller for driftskontrollsystem (kap. 7); er IT-til-OT-tilkoblinger begrenset til godkjente stier (§7-4, §7-10)?
+- For KBO-enheter som også er NIS2 essential entities: vis dual-mapping crosswalk (§4.2 i dette pakken); bekreft at NIS2-assurance er contributing/partial — ikke full — på delte UCs.
+- Hvilke kraftsensitive systemer er i scope for §6-1–§6-8, og hvordan verifiseres personkontroll mot privilegert tilgang (§6-7)?
 
 ## 13. Machine-readable twin
 
@@ -283,7 +330,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 8.25.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     bce068831a1e77eefefbb021a1055a7fe8f4908c82c4f7a1534d90b90e431a86
+inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```
 
 To re-generate:
@@ -312,18 +359,20 @@ python3 scripts/generate_evidence_packs.py --check
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+<a id="ref-1"></a>**[1]** European Parliament and Council of the European Union. (2022, December). *Directive (EU) 2022/2555 — NIS2 Directive on cybersecurity*. Official Journal of the European Union, L 333. ELI: dir/2022/2555. https://eur-lex.europa.eu/eli/dir/2022/2555/oj
 
-<a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-2"></a>**[2]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
+
+<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
 
 <details>
 <summary>Additional online sources cited in the document body (3)</summary>
 
-<a id="ref-3"></a>**[3]** lovdata.no. *lovdata.no: 2012 12 07 1157*. Retrieved May 11, 2026, from https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157
+<a id="ref-4"></a>**[4]** lovdata.no. *lovdata.no: 2012 12 07 1157*. Retrieved May 11, 2026, from https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157
 
-<a id="ref-4"></a>**[4]** veiledere.nve.no. *veiledere.nve.no: Kraftberedskapsforskriften*. Retrieved May 11, 2026, from https://veiledere.nve.no/kraftberedskapsforskriften/
+<a id="ref-5"></a>**[5]** veiledere.nve.no. *veiledere.nve.no: Kraftberedskapsforskriften*. Retrieved May 11, 2026, from https://veiledere.nve.no/kraftberedskapsforskriften/
 
-<a id="ref-5"></a>**[5]** lovdata.no. *lovdata.no: 2026 05 04 717*. Retrieved May 11, 2026, from https://lovdata.no/dokument/SF/forskrift/2026-05-04-717
+<a id="ref-6"></a>**[6]** lovdata.no. *lovdata.no: 2026 05 04 717*. Retrieved May 11, 2026, from https://lovdata.no/dokument/SF/forskrift/2026-05-04-717
 
 </details>
 

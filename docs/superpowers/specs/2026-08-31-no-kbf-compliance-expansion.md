@@ -1,6 +1,6 @@
 # Kraftberedskapsforskriften — compliance expansion spec
 
-Status: **Phase 5 implemented** (2026-09-01)  
+Status: **Phase 6 implemented** (2026-09-01)  
 Regulation ID: `no-kbf-nve`  
 Authoritative source: [Lovdata SF/forskrift/2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157)
 
@@ -53,13 +53,13 @@ Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — 
 - **`audit-no-kbf-coverage` in CI**: wired into `.github/workflows/validate.yml` after regulation-alignment.
 - Extended audit validates dual-mapping traceability (primary UC ↔ KBF/NIS2 clauses).
 
-## Phase 6 backlog
+## Phase 6 (implemented)
 
-| Priority | Work |
-|----------|------|
-| P1 | External legal SME sign-off on dual-mapping clause pairs |
-| P2 | Evidence-pack refresh with dual-mapping crosswalk section |
-| P3 | Quarterly NVE veileder / Lovdata amendment watch integration |
+- **Evidence-pack §4.2 crosswalk**: `generate-evidence-packs` renders NIS2 dual-mapping table for `no-kbf-nve`; JSON twin includes `nis2DualMapping`.
+- **Evidence-pack extras**: `auditorQuestions`, `roles`, and `commonEvidenceSources` for KBF in `data/evidence-pack-extras.json`.
+- **Regulatory change watch**: tier-2 `no-kbf-nve` entry in `data/regulations-watch.json` (Lovdata http-head + NVE veileder notes).
+- **SME signoff**: KBF expansion cohort in `data/provenance/sme-signoffs.json` (18 UCs: 22.26.6–28 + OT cross-maps).
+- **Legal attestation**: conditional dual-mapping signoff in `data/provenance/legal-review-signoffs.json` (NIS2 overlay scope).
 
 ## Success metrics (Phase 1 target)
 

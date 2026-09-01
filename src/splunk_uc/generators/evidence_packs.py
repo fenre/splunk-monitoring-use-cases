@@ -75,6 +75,7 @@ ROOT = Path(__file__).resolve().parents[3]
 REGULATIONS_PATH = ROOT / "data" / "regulations.json"
 EXTRAS_PATH = ROOT / "data" / "evidence-pack-extras.json"
 EXTRAS_SCHEMA_PATH = ROOT / "schemas" / "evidence-pack-extras.schema.json"
+NO_KBF_DUAL_MAPPING_PATH = ROOT / "data" / "no-kbf-nis2-dual-mapping.json"
 GAPS_REPORT_PATH = ROOT / "reports" / "compliance-gaps.json"
 UC_SIDECAR_GLOB = "content/cat-*/UC-*.json"
 DOCS_OUT_DIR = ROOT / "docs" / "evidence-packs"
@@ -528,6 +529,53 @@ def _fmt_pct(value: float | None) -> str:
     return f"{value:.1f}%"
 
 
+def _load_nis2_dual_crosswalk() -> dict[str, Any] | None:
+    if not NO_KBF_DUAL_MAPPING_PATH.exists():
+        return None
+    return _load_json(NO_KBF_DUAL_MAPPING_PATH)
+
+
+def _render_nis2_dual_crosswalk_lines(reg_id: str) -> list[str]:
+    if reg_id != "no-kbf-nve":
+        return []
+    dual = _load_nis2_dual_crosswalk()
+    if not dual:
+        return []
+    lines: list[str] = []
+    review = dual.get("assuranceReview") or {}
+    lines.append("### 4.2 NIS2 dual-mapping crosswalk (energy sector)")
+    lines.append("")
+    lines.append(
+        "Norwegian KBO-enheter that are also NIS2 essential entities may "
+        "reuse Splunk evidence tagged for NO KBF when building Art.21 / "
+        "Art.23 readiness packs. **This crosswalk does not assert legal "
+        "equivalence** — it links catalogue UCs that carry both `NO KBF` "
+        "and `nis2` compliance entries with `contributing` or `partial` "
+        "assurance only."
+    )
+    lines.append("")
+    if review.get("policy"):
+        reviewed_on = review.get("reviewedOn") or "—"
+        lines.append(f"> **SME assurance policy ({reviewed_on}):** {review['policy']}")
+        lines.append("")
+    lines.append("| KBF clause | NIS2 clause | Topic | Primary UCs |")
+    lines.append("|---|---|---|---|")
+    for row in dual.get("mappings") or []:
+        kbf = row.get("kbfClause") or ""
+        nis2 = row.get("nis2Clause") or ""
+        topic = row.get("topic") or ""
+        ucs = ", ".join(f"UC-{u}" for u in (row.get("primaryUcIds") or []))
+        lines.append(f"| `{kbf}` | `{nis2}` | {topic} | {ucs} |")
+    lines.append("")
+    lines.append(
+        "Machine-readable source: "
+        "[`data/no-kbf-nis2-dual-mapping.json`](../../data/no-kbf-nis2-dual-mapping.json). "
+        "Validated by `python3 -m splunk_uc audit-no-kbf-coverage`."
+    )
+    lines.append("")
+    return lines
+
+
 def _render_markdown_pack(
     framework: dict[str, Any],
     version: dict[str, Any],
@@ -766,6 +814,8 @@ def _render_markdown_pack(
             lines.append(f"  - Evidence fields declared in sidecar: {ev_count}")
             lines.append(f"  - Source: [`{source_path}`](../../{source_path})")
         lines.append("")
+
+    lines.extend(_render_nis2_dual_crosswalk_lines(reg_id))
 
     # Section 5: evidence collection
     lines.append("## 5. Evidence collection")
@@ -1058,7 +1108,7 @@ def _render_json_twin(
         for uid in clause.get("uc_ids") or []:
             covered_uc_ids.add(uid)
 
-    return {
+    twin: dict[str, Any] = {
         "id": reg_id,
         "shortName": framework.get("shortName"),
         "name": framework.get("name"),
@@ -1109,6 +1159,15 @@ def _render_json_twin(
         "penaltyStructure": extras.get("penaltyStructure"),
         "generationMetadata": generation_metadata,
     }
+    if reg_id == "no-kbf-nve":
+        dual = _load_nis2_dual_crosswalk()
+        if dual:
+            twin["nis2DualMapping"] = {
+                "assuranceReview": dual.get("assuranceReview"),
+                "mappings": dual.get("mappings"),
+                "source": "data/no-kbf-nis2-dual-mapping.json",
+            }
+    return twin
 
 
 # ----------------------------------------------------------------------
@@ -1293,8 +1352,9 @@ def _inputs_sha256() -> str:
     coverage is already a function of those — this hash captures the
     non-UC inputs that the generator reads directly)."""
     hasher = hashlib.sha256()
-    for path in [REGULATIONS_PATH, EXTRAS_PATH, EXTRAS_SCHEMA_PATH]:
-        hasher.update(path.read_bytes())
+    for path in [REGULATIONS_PATH, EXTRAS_PATH, EXTRAS_SCHEMA_PATH, NO_KBF_DUAL_MAPPING_PATH]:
+        if path.exists():
+            hasher.update(path.read_bytes())
     return hasher.hexdigest()
 
 

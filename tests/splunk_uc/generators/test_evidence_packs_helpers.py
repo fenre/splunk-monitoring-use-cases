@@ -1062,6 +1062,21 @@ class TestRenderMarkdownPack:
         assert isinstance(out, str)
 
 
+class TestRenderNis2DualCrosswalk:
+    def test_returns_empty_for_other_regulations(self):
+        assert ep._render_nis2_dual_crosswalk_lines("gdpr") == []
+
+    def test_renders_crosswalk_for_no_kbf_nve(self):
+        lines = ep._render_nis2_dual_crosswalk_lines("no-kbf-nve")
+        text = "\n".join(lines)
+        assert "### 4.2 NIS2 dual-mapping crosswalk" in text
+        assert "§2-3" in text
+        assert "Art.21(2)(a)" in text
+        assert "UC-22.26.21" in text
+        assert "audit-no-kbf-coverage" in text
+        assert "does not assert legal equivalence" in text
+
+
 # ---------------------------------------------------------------------------
 # Inputs hash
 # ---------------------------------------------------------------------------
