@@ -1,6 +1,6 @@
 # ADR-0005: Three-part numeric UC ID with gap-free ordering
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0016](0016-permanent-uc-identifiers.md)
 - **Date:** 2023-03-15 (ratified retroactively 2026-04-16)
 - **Deciders:** Repository maintainers
 
@@ -69,7 +69,7 @@ The `UC-` prefix is present in human-readable contexts (markdown headings, relea
 - Implementation: [`build.py:parse_category_file()`](../../build.py)
 - Enforcement: [`python3 -m splunk_uc audit-uc-ids`](../../scripts/audit_uc_ids.py)
 - Cross-ref tracking: [`python3 -m splunk_uc audit-changelog-uc-refs`](../../scripts/audit_changelog_uc_refs.py), [`python3 -m splunk_uc audit-non-technical-sync`](../../scripts/audit_non_technical_sync.py)
-- Superseded by: —
+- Superseded by: [ADR-0016](0016-permanent-uc-identifiers.md)
 
 ---
 

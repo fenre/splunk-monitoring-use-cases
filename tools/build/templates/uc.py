@@ -474,7 +474,9 @@ def render_markdown_twin(
     lines.append("")
     lines.append(
         f"Source: [Splunk Monitoring Use Cases]({ctx.site_url}/) — "
-        f"licensed MIT. UC-IDs are stable; see "
+        f"licensed MIT. UC IDs are permanent from catalogue version 8.25.0 "
+        f"onward: an ID always refers to the same use case, is never reused, "
+        f"and gaps in numbering are expected. See "
         f"[/llms.txt]({ctx.site_url}/llms.txt) for the catalog index "
         f"and [/AGENTS.md]({ctx.site_url}/AGENTS.md) for the agent "
         f"entrypoint."

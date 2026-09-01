@@ -10,8 +10,8 @@ audit:
     sidecar, validates id grammar / filename matching / category
     correctness, and reports duplicates / gaps / wrong-Z within
     subcategories.
-(c) ``main`` adds the cross-category global UC-ID uniqueness check
-    and honours ``--warn-gaps`` (gaps-only → exit 0).
+(c) ``main`` adds the cross-category global UC-ID uniqueness check and
+    permanent-identity ledger validation via ``data/id-ledger.json``.
 """
 
 from __future__ import annotations
@@ -265,24 +265,10 @@ class TestAuditCategoryWrongCategory:
 
 
 class TestAuditCategoryGaps:
-    def test_simple_gap(self, make_cat_dir: MakeCatDir, make_uc: MakeUC) -> None:
+    def test_gaps_are_not_flagged(self, make_cat_dir: MakeCatDir, make_uc: MakeUC) -> None:
         cat = make_cat_dir(1)
         make_uc(cat, "1.1.1")
         make_uc(cat, "1.1.3")
-        issues = uc_ids.audit_category(cat)
-        assert any("Gap in Z for UC-1.1.*" in i and "missing [2]" in i for i in issues)
-
-    def test_multi_element_gap(self, make_cat_dir: MakeCatDir, make_uc: MakeUC) -> None:
-        cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.5")
-        issues = uc_ids.audit_category(cat)
-        assert any("missing [2, 3, 4]" in i for i in issues)
-
-    def test_no_gap_in_consecutive(self, make_cat_dir: MakeCatDir, make_uc: MakeUC) -> None:
-        cat = make_cat_dir(1)
-        for z in (1, 2, 3):
-            make_uc(cat, f"1.1.{z}")
         issues = uc_ids.audit_category(cat)
         assert not any("Gap in Z" in i for i in issues)
 
@@ -403,8 +389,7 @@ class TestMainPrintFormatting:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.3")  # forces a gap
+        make_uc(cat, "9.1.1")  # wrong category forces an issue
         uc_ids.main([])
         out = capsys.readouterr().out
         assert "## content/cat-01-test-cat" in out
@@ -418,75 +403,10 @@ class TestMainPrintFormatting:
         capsys: pytest.CaptureFixture[str],
     ) -> None:
         cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.3")
+        make_uc(cat, "9.1.1")
         uc_ids.main([])
         out = capsys.readouterr().out
-        assert "  - Gap in Z" in out
-
-
-class TestMainWarnGaps:
-    def test_warn_gaps_off_returns_one_on_gap(
-        self,
-        make_cat_dir: MakeCatDir,
-        make_uc: MakeUC,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.3")
-        rc = uc_ids.main([])
-        out = capsys.readouterr().out
-        assert rc == 1
-        assert "Gap in Z" in out
-        # No warn-gaps footer when the flag isn't set.
-        assert "treated as warnings" not in out
-
-    def test_warn_gaps_on_returns_zero_when_gap_only(
-        self,
-        make_cat_dir: MakeCatDir,
-        make_uc: MakeUC,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.3")
-        rc = uc_ids.main(["--warn-gaps"])
-        out = capsys.readouterr().out
-        assert rc == 0
-        assert "gaps treated as warnings" in out
-
-    def test_warn_gaps_on_returns_one_on_mixed_issues(
-        self,
-        make_cat_dir: MakeCatDir,
-        make_uc: MakeUC,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """``--warn-gaps`` does NOT suppress non-gap issues."""
-        cat = make_cat_dir(1)
-        make_uc(cat, "1.1.1")
-        make_uc(cat, "1.1.3")  # gap
-        make_uc(cat, "9.1.1")  # wrong category — non-gap
-        rc = uc_ids.main(["--warn-gaps"])
-        out = capsys.readouterr().out
-        assert rc == 1
-        assert "Wrong category" in out
-
-    def test_warn_gaps_on_returns_one_when_cross_dup_only(
-        self,
-        make_cat_dir: MakeCatDir,
-        make_uc: MakeUC,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """Cross-category duplicates are NOT gap-only — flag does not
-        suppress them. Pins that ``__cross_category__`` issues count
-        toward the gap_only computation."""
-        cat_a = make_cat_dir(1, "first")
-        cat_b = make_cat_dir(2, "second")
-        make_uc(cat_a, "1.1.1")
-        make_uc(cat_b, "1.1.1")
-        rc = uc_ids.main(["--warn-gaps"])
-        assert rc == 1
+        assert "  - Wrong category" in out
 
 
 class TestMainHelp:
@@ -497,4 +417,4 @@ class TestMainHelp:
             uc_ids.main(["--help"])
         out = capsys.readouterr().out
         assert excinfo.value.code == 0
-        assert "--warn-gaps" in out
+        assert "permanent-identity" in out

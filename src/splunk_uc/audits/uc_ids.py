@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Audit UC-* IDs in the JSON SSOT for duplicates, gaps, wrong category, order.
-
-Pre-v8.2.0 this audit walked ``use-cases/cat-*.md`` and parsed ``### UC-X.Y.Z``
-headers. The legacy markdown corpus is gone; the JSON SSOT
-(``content/cat-*/UC-*.json``) is now the only source.
-"""
+"""Audit UC identifier structure and permanent-identity ledger invariants."""
 
 from __future__ import annotations
 
@@ -14,8 +9,13 @@ import os
 import re
 import sys
 from collections import Counter, defaultdict
-from itertools import pairwise
 from pathlib import Path
+
+from splunk_uc.id_ledger import (
+    LEDGER_PATH,
+    load_ledger,
+    validate_catalogue_against_ledger,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT = REPO_ROOT / "content"
@@ -56,48 +56,28 @@ def audit_category(cat_dir: Path) -> list[str]:
             continue
         x, y, z = int(m.group(1)), int(m.group(2)), int(m.group(3))
         full = f"UC-{x}.{y}.{z}"
-        # Filename invariant: UC-<id>.json
         expected_fname = f"UC-{uc_id}.json"
         if uc_path.name != expected_fname:
             issues.append(f"{uc_path.name}: filename does not match id ({expected_fname!r})")
         ordered.append((full, x, y, z, uc_path.name))
 
-    # Duplicates within this category folder
     counts = Counter(t[0] for t in ordered)
     for uid, c in sorted(counts.items()):
         if c > 1:
             issues.append(f"Duplicate UC ID inside {cat_dir.name}: {uid} appears {c} times")
 
-    # Wrong-category check (X must equal cat folder number)
     for full, x, _y, _z, _fn in ordered:
         if x != expected_cat:
             issues.append(
                 f"Wrong category: {full} has X={x} but folder is cat-{expected_cat:02d}-*"
             )
 
-    # Per-subcategory ordering and gaps
     by_sub: dict[tuple[int, int], list[tuple[str, int]]] = defaultdict(list)
     for full, x, y, z, _fn in ordered:
         by_sub[(x, y)].append((full, z))
 
     for x, y in sorted(by_sub.keys()):
-        seq = by_sub[(x, y)]
-        # Sort by Z so we can audit ordering and find gaps without
-        # depending on filesystem sort order — JSON sidecars don't have
-        # an intrinsic order in the filesystem the way `### UC-` blocks
-        # in a single markdown file did.
-        seq_sorted = sorted(seq, key=lambda x: x[1])
-        zs_in_order = [z for _, z in seq_sorted]
-
-        z_set = sorted(set(zs_in_order))
-        for a, b in pairwise(z_set):
-            if b > a + 1:
-                missing = list(range(a + 1, b))
-                issues.append(
-                    f"Gap in Z for UC-{x}.{y}.*: between Z={a} and Z={b}, missing {missing}"
-                )
-
-        # Duplicate Z (same id appearing twice with the same Z)
+        zs_in_order = [z for _, z in by_sub[(x, y)]]
         duplicate_z = [z for z, count in Counter(zs_in_order).items() if count > 1]
         for dup_z in sorted(duplicate_z):
             issues.append(
@@ -107,27 +87,28 @@ def audit_category(cat_dir: Path) -> list[str]:
     return issues
 
 
+def audit_ledger() -> list[str]:
+    if not LEDGER_PATH.is_file():
+        return [f"Missing ledger file: {LEDGER_PATH.relative_to(REPO_ROOT)}"]
+    try:
+        ledger = load_ledger()
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"Failed to parse id-ledger.json: {exc}"]
+    return validate_catalogue_against_ledger(ledger=ledger)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Audit UC-* IDs in content/cat-*/UC-*.json for duplicates, gaps, "
-            "wrong category, filename mismatch."
+            "Audit UC-* IDs in content/cat-*/UC-*.json for duplicates, wrong category, "
+            "filename mismatch, and permanent-identity ledger invariants."
         )
     )
-    parser.add_argument(
-        "--warn-gaps",
-        action="store_true",
-        help="When the only issues are gaps in Z within a subcategory, exit 0.",
-    )
-    args = parser.parse_args(argv)
-    warn_only = args.warn_gaps
+    parser.parse_args(argv)
 
     cat_dirs = sorted(p for p in CONTENT.iterdir() if p.is_dir() and p.name.startswith("cat-"))
-
     all_issues: dict[str, list[str]] = {}
 
-    # Cross-category global uniqueness — UC IDs must be unique repo-wide,
-    # not just within a single category folder.
     global_ids: dict[str, list[str]] = defaultdict(list)
     for cd in cat_dirs:
         for uc_path in sorted(cd.glob("UC-*.json")):
@@ -152,11 +133,13 @@ def main(argv: list[str] | None = None) -> int:
         if issues:
             all_issues[str(cd.relative_to(REPO_ROOT))] = issues
 
+    ledger_issues = audit_ledger()
+    if ledger_issues:
+        all_issues["__id_ledger__"] = ledger_issues
+
     if not all_issues:
         print("No issues found.")
         return 0
-
-    gap_only = all(all(line.startswith("Gap in Z") for line in v) for v in all_issues.values())
 
     for p in sorted(all_issues.keys()):
         print(f"\n## {p}")
@@ -166,11 +149,6 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n---\nTotal categories with issues: {len(all_issues)}")
     total = sum(len(v) for v in all_issues.values())
     print(f"Total issue lines: {total}")
-
-    if gap_only and warn_only:
-        print("\n(--warn-gaps: gaps treated as warnings, not errors)")
-        return 0
-
     return 1
 
 
