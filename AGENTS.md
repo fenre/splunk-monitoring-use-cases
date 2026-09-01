@@ -182,6 +182,11 @@ PYTHONPATH=src python3 -m splunk_uc lift-prompt UC-X.Y.Z         # emit AI promp
 PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of worst-N UCs in a category
 PYTHONPATH=src python3 -m splunk_uc generate-equipment-app-map       # regenerate equipment slug → Splunkbase/DSA map
 PYTHONPATH=src python3 -m splunk_uc audit-equipment-app-map --check  # validate data/equipment-app-map.json
+PYTHONPATH=src python3 -m splunk_uc audit-uc-ids # UC ID uniqueness + permanent-identity ledger gate
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger # regenerate data/id-ledger.json after UC add/remove/title+SPL edit
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check # CI drift gate for the identifier ledger
+PYTHONPATH=src python3 -m splunk_uc audit-uc-id-migration-blast --check # bulk identifier remap blast-radius guard
+PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
 ```
 
 ## Content-quality lift loop
