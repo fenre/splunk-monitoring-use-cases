@@ -177,6 +177,10 @@ PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate impl
 PYTHONPATH=src python3 -m splunk_uc lift-score UC-X.Y.Z          # depth score + gap report for one UC
 PYTHONPATH=src python3 -m splunk_uc lift-prompt UC-X.Y.Z         # emit AI prompt for one UC (orchestrator-consumed)
 PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of worst-N UCs in a category
+PYTHONPATH=src python3 -m splunk_uc audit-uc-ids # UC ID uniqueness + permanent-identity ledger gate
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger # regenerate data/id-ledger.json after UC add/remove/title+SPL edit
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check # CI drift gate for the identifier ledger
+PYTHONPATH=src python3 -m splunk_uc audit-uc-id-migration-blast --check # bulk identifier remap blast-radius guard
 PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
 ```
 
