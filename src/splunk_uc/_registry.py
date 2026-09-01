@@ -225,7 +225,21 @@ register(
     Verb(
         name="audit-uc-ids",
         module="audits.uc_ids",
-        help="Audit UC IDs in content/cat-*/UC-*.json for duplicates, gaps, wrong category, ordering.",
+        help=(
+            "Audit UC IDs in content/cat-*/UC-*.json for duplicates, wrong category, "
+            "filename mismatch, and permanent-identity ledger invariants."
+        ),
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-uc-id-migration-blast",
+        module="audits.uc_id_migration_blast",
+        help=(
+            "Fail when a PR changes more than the identifier blast-radius threshold "
+            "without a committed migration manifest."
+        ),
         category="audits",
     )
 )
@@ -670,6 +684,14 @@ register(
         name="generate-mapping-ledger",
         module="generators.mapping_ledger",
         help="Phase 5.4 signed provenance ledger generator (compliance mappings).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-id-ledger",
+        module="generators.id_ledger",
+        help="Generate or verify the append-only UC identifier ledger (data/id-ledger.json).",
         category="generators",
     )
 )

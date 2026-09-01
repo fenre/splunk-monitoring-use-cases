@@ -51,7 +51,7 @@ for the build stages.
 
 ## Identity scheme
 
-- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide, gap-free within subcategories.
+- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide; permanent from v8.25.0 (see [ADR-0016](docs/adr/0016-permanent-uc-identifiers.md) and `data/id-ledger.json`). Gaps are expected.
 - **Category folders:** `cat-NN-kebab-case` (zero-padded category number).
 - **JSON sidecar IDs:** `X.Y.Z` (no `UC-` prefix in the `id` field; the prefix is display-only).
 
@@ -130,7 +130,8 @@ share the same identity, last-modified stamp, and catalogue version.
 
 All audits are in `.github/workflows/validate.yml`. Key steps:
 
-- UC ID uniqueness and gap-free ordering
+- UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`)
+- UC identifier blast-radius guard (`audit-uc-id-migration-blast` — bulk remaps require a manifest)
 - UC structure and required fields
 - Non-technical view sync
 - Changelog cross-references
