@@ -1,6 +1,6 @@
 # Kraftberedskapsforskriften — compliance expansion spec
 
-Status: **Phase 4 implemented** (2026-08-31)  
+Status: **Phase 5 implemented** (2026-09-01)  
 Regulation ID: `no-kbf-nve`  
 Authoritative source: [Lovdata SF/forskrift/2012-12-07-1157](https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157)
 
@@ -46,13 +46,20 @@ Subcategory **22.26** had 20 UCs at Phase 1 bootstrap (not a schema maximum — 
 - **Matrix traceability fixes**: §6-3 targets UC-22.26.7 only (14.2.4 remains §7-10); §4-1 targets UC-22.26.24 only; added NVE §6-1 veileder URL to source map.
 - **Norwegian regulatory primer** expanded in `non-technical-view.js` / `non-technical-view.data.ts` (18-clause KBF coverage, NIS2 dual-mapping, KBO-enheter).
 
-## Phase 5 backlog
+## Phase 5 (implemented)
+
+- **Gold-depth uplift** on UC-22.26.21–28: vendor UI phrasing aligned with gold-profile regex; lift scores **90/100** on all eight Phase 2 UCs.
+- **Dual-mapping assurance review**: `assuranceReview` block in `data/no-kbf-nis2-dual-mapping.json`; audit rejects `full` NIS2 assurance on dual-mapped UCs.
+- **`audit-no-kbf-coverage` in CI**: wired into `.github/workflows/validate.yml` after regulation-alignment.
+- Extended audit validates dual-mapping traceability (primary UC ↔ KBF/NIS2 clauses).
+
+## Phase 6 backlog
 
 | Priority | Work |
 |----------|------|
-| P1 | SME review of dual-mapping assurance levels |
-| P2 | Gold-tier lift (90+) on 22.26.21–28 if product-specificity score needs bump |
-| P3 | Wire `audit-no-kbf-coverage` into CI validate.yml (optional ratchet) |
+| P1 | External legal SME sign-off on dual-mapping clause pairs |
+| P2 | Evidence-pack refresh with dual-mapping crosswalk section |
+| P3 | Quarterly NVE veileder / Lovdata amendment watch integration |
 
 ## Success metrics (Phase 1 target)
 

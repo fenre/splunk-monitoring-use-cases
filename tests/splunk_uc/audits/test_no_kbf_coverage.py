@@ -109,3 +109,46 @@ def test_validate_uc_traceability_flags_target_mismatch(
 def test_main_passes_on_real_repo() -> None:
     rc = nk.main([])
     assert rc == 0
+
+
+def test_validate_dual_mapping_requires_assurance_review() -> None:
+    errs = nk._validate_dual_mapping({"mappings": [{"kbfClause": "§2-3", "nis2Clause": "Art.21(2)(a)", "topic": "x", "rationale": "y", "primaryUcIds": ["1.1.1"]}]})
+    assert any("assuranceReview" in e for e in errs)
+
+
+def test_validate_dual_mapping_rejects_full_nis2_assurance(
+    fake_repo: Path,
+) -> None:
+    dual = {
+        "assuranceReview": {
+            "reviewedOn": "2026-09-01",
+            "reviewer": "SME",
+            "policy": "contributing only",
+            "outcome": "approved",
+        },
+        "mappings": [
+            {
+                "kbfClause": "§2-3",
+                "nis2Clause": "Art.21(2)(a)",
+                "topic": "Risk",
+                "rationale": "test",
+                "primaryUcIds": ["22.26.21"],
+            }
+        ],
+    }
+    cat = fake_repo / "content" / "cat-22-regulatory-compliance"
+    cat.mkdir(parents=True)
+    (cat / "UC-22.26.21.json").write_text(
+        json.dumps(
+            {
+                "id": "22.26.21",
+                "compliance": [
+                    {"regulation": "NO KBF", "clause": "§2-3"},
+                    {"regulation": "nis2", "clause": "Art.21(2)(a)", "assurance": "full"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    errs = nk._validate_dual_mapping(dual)
+    assert any("must not claim full assurance" in e for e in errs)

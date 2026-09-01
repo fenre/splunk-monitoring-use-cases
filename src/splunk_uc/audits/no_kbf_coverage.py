@@ -164,6 +164,104 @@ def _validate_regulation_alignment(matrix: dict[str, Any], reg: dict[str, Any]) 
     return errors
 
 
+def _iter_nis2_compliance_entries() -> list[tuple[str, str, dict[str, Any]]]:
+    entries: list[tuple[str, str, dict[str, Any]]] = []
+    for path in sorted(CONTENT_ROOT.glob("cat-*/UC-*.json")):
+        try:
+            doc = _load_json(path)
+        except Exception:
+            continue
+        uc_id = str(doc.get("id", path.stem.replace("UC-", "")))
+        for entry in doc.get("compliance", []) or []:
+            if str(entry.get("regulation", "")).strip().lower() == "nis2":
+                entries.append((uc_id, str(path.relative_to(REPO_ROOT)), entry))
+    return entries
+
+
+def _uc_compliance_clauses(uc_id: str, regulation: str) -> set[str]:
+    path = _uc_path(uc_id)
+    if path is None:
+        return set()
+    doc = _load_json(path)
+    reg_norm = regulation.strip().lower()
+    clauses: set[str] = set()
+    for entry in doc.get("compliance", []) or []:
+        reg = str(entry.get("regulation", "")).strip().lower()
+        if reg_norm == "no kbf" and reg in {"no kbf", "no-kbf-nve", "kbf"}:
+            clause = str(entry.get("clause", "")).strip()
+            if clause:
+                clauses.add(clause)
+        elif reg_norm == "nis2" and reg == "nis2":
+            clause = str(entry.get("clause", "")).strip()
+            if clause:
+                clauses.add(clause)
+    return clauses
+
+
+def _validate_dual_mapping(dual_map: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    mappings = dual_map.get("mappings")
+    if not isinstance(mappings, list) or not mappings:
+        return ["dual-mapping has no mappings"]
+
+    review = dual_map.get("assuranceReview")
+    if not isinstance(review, dict):
+        errors.append("dual-mapping missing assuranceReview block")
+    else:
+        for field in ("reviewedOn", "reviewer", "policy", "outcome"):
+            if not _is_non_empty(review.get(field)):
+                errors.append(f"dual-mapping assuranceReview missing {field}")
+        outcome = str(review.get("outcome", "")).strip().lower()
+        if outcome and outcome not in {"approved", "approved-with-caveats"}:
+            errors.append(f"dual-mapping assuranceReview invalid outcome {outcome!r}")
+
+    dual_uc_ids: set[str] = set()
+    for index, row in enumerate(mappings, start=1):
+        label = f"{row.get('kbfClause', '?')}↔{row.get('nis2Clause', '?')}"
+        for field in ("kbfClause", "nis2Clause", "topic", "rationale"):
+            if not _is_non_empty(row.get(field)):
+                errors.append(f"dual-mapping row {index} ({label}): missing {field}")
+        primary = row.get("primaryUcIds") or []
+        if not isinstance(primary, list) or not primary:
+            errors.append(f"dual-mapping row {index} ({label}): primaryUcIds must be non-empty")
+            continue
+        kbf_clause = str(row.get("kbfClause", "")).strip()
+        nis2_clause = str(row.get("nis2Clause", "")).strip()
+        nis2_covered = False
+        for uc_id in primary:
+            uc_id = str(uc_id)
+            dual_uc_ids.add(uc_id)
+            if _uc_path(uc_id) is None:
+                errors.append(f"dual-mapping row {index}: missing UC-{uc_id}")
+                continue
+            kbf_clauses = _uc_compliance_clauses(uc_id, "NO KBF")
+            if kbf_clause and kbf_clause not in kbf_clauses:
+                errors.append(
+                    f"dual-mapping row {index}: UC-{uc_id} missing NO KBF compliance for {kbf_clause}"
+                )
+            nis2_clauses = _uc_compliance_clauses(uc_id, "nis2")
+            if nis2_clause in nis2_clauses:
+                nis2_covered = True
+        if nis2_clause and not nis2_covered:
+            errors.append(
+                f"dual-mapping row {index} ({label}): no primary UC carries NIS2 {nis2_clause}"
+            )
+
+    for uc_id, path, entry in _iter_nis2_compliance_entries():
+        if uc_id not in dual_uc_ids:
+            continue
+        assurance = str(entry.get("assurance", "")).strip().lower()
+        if assurance == "full":
+            errors.append(
+                f"UC-{uc_id} {path}: dual-mapped NIS2 entry must not claim full assurance"
+            )
+        if assurance not in {"contributing", "partial"}:
+            errors.append(
+                f"UC-{uc_id} {path}: dual-mapped NIS2 assurance must be contributing or partial"
+            )
+    return errors
+
+
 def _validate_uc_traceability(matrix: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     matrix_by_clause: dict[str, dict[str, Any]] = {
@@ -222,6 +320,10 @@ def main(argv: list[str] | None = None) -> int:
         errors.extend(_validate_matrix(matrix, source_map))
         errors.extend(_validate_regulation_alignment(matrix, reg))
         errors.extend(_validate_uc_traceability(matrix))
+        if DUAL_MAP_PATH.exists():
+            errors.extend(_validate_dual_mapping(_load_json(DUAL_MAP_PATH)))
+        else:
+            errors.append(f"missing {DUAL_MAP_PATH.relative_to(REPO_ROOT)}")
 
     payload: dict[str, Any] = {
         "status": "passed" if not errors else "failed",
