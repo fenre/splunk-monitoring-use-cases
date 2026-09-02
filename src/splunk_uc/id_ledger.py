@@ -31,6 +31,11 @@ ID_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 # Catalogue version from which the permanent-identity guarantee is enforced in CI.
 IDENTITY_GUARANTEE_SINCE = "8.25.0"
+IDENTITY_POLICY_STATEMENT = (
+    "An identifier, once published, permanently refers to one use case. "
+    "It is never reused and never reassigned to different content. "
+    "Gaps are expected and correct."
+)
 UNKNOWN_FINGERPRINT = "738e208be61f7e63270a458ad721fcb56be8dd4aad9f1a144c6fde10323603e9"
 
 
@@ -90,6 +95,92 @@ def load_collisions(path: Path | None = None) -> dict[str, Any]:
     if not target.is_file():
         return {"collisions": []}
     return load_json(target)
+
+
+def identity_guarantee_metadata() -> dict[str, str]:
+    """Machine-readable identity contract for catalog.json and API manifests."""
+    return {
+        "identityGuaranteeSince": IDENTITY_GUARANTEE_SINCE,
+        "identityPolicy": IDENTITY_POLICY_STATEMENT,
+        "identityPolicyDoc": "/docs/adr/0016-permanent-uc-identifiers.md",
+        "identityLedgerPath": "/data/id-ledger.json",
+    }
+
+
+def _revision_record(
+    fingerprint: str,
+    catalogue_version: str,
+    catalogue_commit: str | None = None,
+) -> dict[str, Any]:
+    revision: dict[str, Any] = {
+        "contentFingerprint": fingerprint,
+        "catalogueVersion": catalogue_version,
+    }
+    if catalogue_commit:
+        revision["catalogueCommit"] = catalogue_commit
+    return revision
+
+
+def entry_fingerprint_revisions(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return persisted revisions, migrating legacy single-fingerprint rows."""
+    revisions = entry.get("fingerprintRevisions")
+    if isinstance(revisions, list) and revisions:
+        return [r for r in revisions if isinstance(r, dict)]
+    legacy = str(entry.get("contentFingerprint", "")).strip()
+    if legacy:
+        version = str(entry.get("firstSeenVersion") or "unknown")
+        return [_revision_record(legacy, version)]
+    return []
+
+
+def latest_fingerprint(entry: dict[str, Any]) -> str:
+    revisions = entry_fingerprint_revisions(entry)
+    if revisions:
+        return str(revisions[-1].get("contentFingerprint", "")).strip()
+    return str(entry.get("contentFingerprint", "")).strip()
+
+
+def merge_fingerprint_revisions(
+    prior_entry: dict[str, Any],
+    current_fp: str,
+    catalogue_version: str,
+    catalogue_commit: str,
+) -> list[dict[str, Any]]:
+    """Append a revision when content changes; never shorten the list."""
+    revisions = list(entry_fingerprint_revisions(prior_entry))
+    if not revisions:
+        return [_revision_record(current_fp, catalogue_version, catalogue_commit)]
+    latest = str(revisions[-1].get("contentFingerprint", "")).strip()
+    if latest != current_fp:
+        revisions.append(_revision_record(current_fp, catalogue_version, catalogue_commit))
+    return revisions
+
+
+def validate_ledger_revision_monotonicity(
+    previous: dict[str, Any] | None,
+    new_doc: dict[str, Any],
+) -> list[str]:
+    """Fail when regeneration shortens any identifier's revision history."""
+    if not previous:
+        return []
+    prev_by_id = ledger_entries_by_id(previous)
+    new_by_id = ledger_entries_by_id(new_doc)
+    issues: list[str] = []
+    for uc_id, prior in prev_by_id.items():
+        old_count = len(entry_fingerprint_revisions(prior))
+        if old_count == 0:
+            continue
+        new_entry = new_by_id.get(uc_id)
+        if new_entry is None:
+            continue
+        new_count = len(entry_fingerprint_revisions(new_entry))
+        if new_count < old_count:
+            issues.append(
+                f"Fingerprint revision history shortened for {uc_id!r}: "
+                f"{old_count} -> {new_count} revisions "
+                "(regenerate-id-ledger must append only)"
+            )
+    return issues
 
 
 def ledger_entries_by_id(ledger: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -246,6 +337,7 @@ def build_ledger_document(
     removed_ids = discover_removed_ids(catalogue)
     version = read_catalogue_version()
     now = _catalogue_generated_at(catalogue)
+    commit = _git_short_head()
 
     entries: list[dict[str, Any]] = []
 
@@ -253,10 +345,12 @@ def build_ledger_document(
         uc = catalogue[uc_id]
         fp = content_fingerprint(uc.payload)
         prior = previous_entries.get(uc_id, {})
+        revisions = merge_fingerprint_revisions(prior, fp, version, commit)
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "active",
             "contentFingerprint": fp,
+            "fingerprintRevisions": revisions,
             "firstSeenVersion": prior.get("firstSeenVersion") or version,
         }
         if not prior.get("firstSeenVersion"):
@@ -272,13 +366,15 @@ def build_ledger_document(
             continue
         prior = previous_entries.get(uc_id, {})
         payload = _git_last_payload(uc_id)
-        fp = content_fingerprint(payload) if payload else prior.get("contentFingerprint", "")
+        fp = content_fingerprint(payload) if payload else latest_fingerprint(prior)
         if not fp:
             fp = UNKNOWN_FINGERPRINT
+        revisions = merge_fingerprint_revisions(prior, fp, version, commit)
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "removed",
             "contentFingerprint": fp,
+            "fingerprintRevisions": revisions,
             "firstSeenVersion": prior.get("firstSeenVersion") or "unknown",
             "removedInVersion": prior.get("removedInVersion") or version,
         }
@@ -288,7 +384,7 @@ def build_ledger_document(
                 "Removal inferred from git history and/or cat-25 remap; "
                 "exact first-publication version may be ambiguous."
             )
-        if fp == UNKNOWN_FINGERPRINT and not payload and not prior.get("contentFingerprint"):
+        if fp == UNKNOWN_FINGERPRINT and not payload and not latest_fingerprint(prior):
             entry["contentFingerprintNote"] = (
                 "Fingerprint unavailable — git history did not yield a parseable sidecar; "
                 "sentinel hash of empty title+spl recorded."
@@ -297,9 +393,9 @@ def build_ledger_document(
 
     return {
         "$schema": "../schemas/id-ledger.schema.json",
-        "schemaVersion": "1.0.0",
+        "schemaVersion": "1.1.0",
         "generatedAt": now,
-        "catalogueCommit": _git_short_head(),
+        "catalogueCommit": commit,
         "catalogueVersion": version,
         "identityGuaranteeSince": IDENTITY_GUARANTEE_SINCE,
         "hashAlgorithm": "sha256",
@@ -342,7 +438,7 @@ def validate_catalogue_against_ledger(
             issues.append(f"Catalogue id {uc_id!r} has unexpected ledger status {status!r}")
             continue
         expected = content_fingerprint(uc.payload)
-        recorded = str(entry.get("contentFingerprint", "")).strip()
+        recorded = latest_fingerprint(entry)
         if recorded and recorded != expected:
             issues.append(
                 f"Fingerprint mismatch for {uc_id!r}: ledger has {recorded[:12]}… "

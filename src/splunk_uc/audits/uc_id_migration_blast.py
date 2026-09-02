@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Blast-radius guard for bulk UC identifier changes.
 
-Fails CI when a PR changes more than ``--threshold`` UC identifiers unless a
-committed migration manifest under ``data/uc-id-migrations/`` explicitly lists
-every change and whether content identity is preserved.
+Fails CI when a PR changes more than ``--threshold`` UC identifiers (add,
+remove, remap, or same-id fingerprint churn) unless a committed migration
+manifest under ``data/uc-id-migrations/`` explicitly lists every change and
+whether content identity is preserved.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from splunk_uc.id_ledger import content_fingerprint
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT = REPO_ROOT / "content"
 MIGRATIONS_DIR = REPO_ROOT / "data" / "uc-id-migrations"
@@ -31,7 +34,7 @@ DEFAULT_BASE = "origin/main"
 
 @dataclass(frozen=True)
 class IdentifierChange:
-    kind: str  # add | remove | remap
+    kind: str  # add | remove | remap | fingerprint_change
     from_id: str | None
     to_id: str | None
 
@@ -69,6 +72,17 @@ def changed_sidecar_paths(base_ref: str) -> list[str]:
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "git diff failed")
     return [line for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _read_payload_at_ref(path: str, ref: str) -> dict[str, Any] | None:
+    show = _run_git(["git", "show", f"{ref}:{path}"])
+    if show.returncode != 0:
+        return None
+    try:
+        payload = json.loads(show.stdout)
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _read_id_at_ref(path: str, ref: str) -> str | None:
@@ -116,6 +130,15 @@ def detect_identifier_changes(base_ref: str) -> list[IdentifierChange]:
             head_id = _read_id_at_ref(path, "HEAD")
             if base_id and head_id and base_id != head_id:
                 changes.append(IdentifierChange("remap", base_id, head_id))
+            elif base_id and head_id and base_id == head_id:
+                base_payload = _read_payload_at_ref(path, base_ref)
+                head_payload = _read_payload_at_ref(path, "HEAD")
+                if (
+                    base_payload
+                    and head_payload
+                    and content_fingerprint(base_payload) != content_fingerprint(head_payload)
+                ):
+                    changes.append(IdentifierChange("fingerprint_change", base_id, base_id))
             elif base_id is None and head_id:
                 changes.append(IdentifierChange("add", None, head_id))
             elif head_id is None and base_id:

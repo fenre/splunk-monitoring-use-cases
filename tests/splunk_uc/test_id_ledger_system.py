@@ -56,19 +56,91 @@ def _write_uc(cat: pathlib.Path, uc_id: str, title: str = "Test UC", spl: str = 
 
 
 def _write_ledger(fake_repo: pathlib.Path, entries: list[dict[str, Any]]) -> None:
+    normalized: list[dict[str, Any]] = []
+    for entry in entries:
+        row = dict(entry)
+        fp = row.get("contentFingerprint", "")
+        if fp and "fingerprintRevisions" not in row:
+            row["fingerprintRevisions"] = [
+                {
+                    "contentFingerprint": fp,
+                    "catalogueVersion": row.get("firstSeenVersion", "9.9.9"),
+                }
+            ]
+        normalized.append(row)
     doc = {
-        "schemaVersion": "1.0.0",
+        "schemaVersion": "1.1.0",
         "generatedAt": "2026-09-01T00:00:00Z",
         "catalogueCommit": "abc1234",
         "catalogueVersion": "9.9.9",
         "identityGuaranteeSince": "8.25.0",
         "hashAlgorithm": "sha256",
         "fingerprintFields": ["title", "spl"],
-        "entryCount": len(entries),
-        "entries": entries,
+        "entryCount": len(normalized),
+        "entries": normalized,
     }
     path = fake_repo / "data" / "id-ledger.json"
     path.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+
+
+class TestFingerprintRevisions:
+    def test_merge_appends_on_content_change(self) -> None:
+        prior = {
+            "contentFingerprint": "a" * 64,
+            "fingerprintRevisions": [
+                {
+                    "contentFingerprint": "a" * 64,
+                    "catalogueVersion": "8.25.0",
+                }
+            ],
+        }
+        new_fp = "b" * 64
+        revisions = id_ledger.merge_fingerprint_revisions(
+            prior, new_fp, "8.26.0", "deadbeef"
+        )
+        assert len(revisions) == 2
+        assert revisions[-1]["contentFingerprint"] == new_fp
+        assert revisions[-1]["catalogueVersion"] == "8.26.0"
+
+    def test_merge_does_not_duplicate_same_fingerprint(self) -> None:
+        fp = "c" * 64
+        prior = {
+            "contentFingerprint": fp,
+            "fingerprintRevisions": [{"contentFingerprint": fp, "catalogueVersion": "8.25.0"}],
+        }
+        revisions = id_ledger.merge_fingerprint_revisions(prior, fp, "8.26.0", "deadbeef")
+        assert len(revisions) == 1
+
+    def test_revision_shortening_fails_validation(self) -> None:
+        previous = {
+            "entries": [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "a" * 64,
+                    "fingerprintRevisions": [
+                        {"contentFingerprint": "a" * 64, "catalogueVersion": "8.25.0"},
+                        {"contentFingerprint": "b" * 64, "catalogueVersion": "8.26.0"},
+                    ],
+                    "firstSeenVersion": "8.25.0",
+                }
+            ]
+        }
+        new_doc = {
+            "entries": [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "b" * 64,
+                    "fingerprintRevisions": [
+                        {"contentFingerprint": "b" * 64, "catalogueVersion": "8.26.0"},
+                    ],
+                    "firstSeenVersion": "8.25.0",
+                }
+            ]
+        }
+        issues = id_ledger.validate_ledger_revision_monotonicity(previous, new_doc)
+        assert any("shortened" in i for i in issues)
 
 
 class TestContentFingerprint:
@@ -260,3 +332,30 @@ class TestMigrationBlastGuard:
             uc_id_migration_blast, "migration_files_in_diff", lambda _b: [manifest_path]
         )
         assert uc_id_migration_blast.main(["--check"]) == 0
+
+    def test_fingerprint_churn_counts_toward_threshold(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        changes = [
+            uc_id_migration_blast.IdentifierChange("fingerprint_change", f"25.59.{i}", f"25.59.{i}")
+            for i in range(1, 15)
+        ]
+        monkeypatch.setattr(uc_id_migration_blast, "resolve_base_ref", lambda _x: "base")
+        monkeypatch.setattr(uc_id_migration_blast, "detect_identifier_changes", lambda _b: changes)
+        monkeypatch.setattr(uc_id_migration_blast, "migration_files_in_diff", lambda _b: [])
+        assert uc_id_migration_blast.main(["--check"]) == 1
+
+    def test_fingerprint_churn_manifest_key(self) -> None:
+        change = uc_id_migration_blast.IdentifierChange("fingerprint_change", "25.59.1", "25.59.1")
+        manifest = {
+            "changes": [
+                {
+                    "kind": "fingerprint_change",
+                    "from": "25.59.1",
+                    "to": "25.59.1",
+                    "identityPreserved": False,
+                }
+            ]
+        }
+        keys = uc_id_migration_blast.manifest_change_keys(manifest)
+        assert uc_id_migration_blast.change_key(change) in keys
