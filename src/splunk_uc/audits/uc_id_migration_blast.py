@@ -68,6 +68,12 @@ def resolve_base_ref(explicit: str | None) -> str:
 
 
 def changed_sidecar_paths(base_ref: str) -> list[str]:
+    """Return sidecar path changes from merge-base(base_ref, HEAD) through HEAD.
+
+    Uses the three-dot diff form so the count spans the whole PR branch, not
+    individual commits — chunking edits into commits of nine cannot bypass the
+    threshold.
+    """
     proc = _run_git(["git", "diff", "--name-status", f"{base_ref}...HEAD", "--", "content"])
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "git diff failed")
@@ -160,6 +166,12 @@ def manifest_change_keys(manifest: dict[str, Any]) -> set[tuple[str, str | None,
         if not isinstance(row, dict):
             continue
         kind = str(row.get("kind", "")).strip()
+        if kind == "bulk_fingerprint_change":
+            for raw_id in row.get("identifiers", []):
+                uc_id = str(raw_id).strip()
+                if uc_id:
+                    keys.add(("fingerprint_change", uc_id, uc_id))
+            continue
         from_id = row.get("from")
         to_id = row.get("to")
         from_s = str(from_id).strip() if from_id else None

@@ -359,3 +359,35 @@ class TestMigrationBlastGuard:
         }
         keys = uc_id_migration_blast.manifest_change_keys(manifest)
         assert uc_id_migration_blast.change_key(change) in keys
+
+    def test_bulk_fingerprint_manifest_covers_many_ids(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        changes = [
+            uc_id_migration_blast.IdentifierChange("fingerprint_change", f"3.1.{i}", f"3.1.{i}")
+            for i in range(1, 24)
+        ]
+        manifest_path = fake_repo / "data" / "uc-id-migrations" / "spl-refresh.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schemaVersion": "1.0.0",
+                    "description": "Bulk SPL refresh across cluster monitoring UCs",
+                    "changes": [
+                        {
+                            "kind": "bulk_fingerprint_change",
+                            "identifiers": [f"3.1.{i}" for i in range(1, 24)],
+                            "identityPreserved": True,
+                            "reason": "Replace deprecated stats syntax; monitoring intent unchanged",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(uc_id_migration_blast, "resolve_base_ref", lambda _x: "base")
+        monkeypatch.setattr(uc_id_migration_blast, "detect_identifier_changes", lambda _b: changes)
+        monkeypatch.setattr(
+            uc_id_migration_blast, "migration_files_in_diff", lambda _b: [manifest_path]
+        )
+        assert uc_id_migration_blast.main(["--check"]) == 0
