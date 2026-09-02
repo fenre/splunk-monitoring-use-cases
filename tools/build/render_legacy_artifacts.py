@@ -72,11 +72,9 @@ from typing import Any
 
 from .parse_content import Catalog
 from build import enrichment as _enrichment  # type: ignore[import-not-found]
+from splunk_uc.id_ledger import identity_guarantee_metadata
 
 SITE_BASE_URL = _enrichment.SITE_BASE_URL
-
-
-# ---------------------------------------------------------------------------
 # Public entrypoint
 # ---------------------------------------------------------------------------
 
@@ -203,6 +201,7 @@ def _build_catalog_dict(
         "_ai_policy_url": f"{SITE_BASE_URL}/ai.txt",
         "version": version,
         "lastModified": last_modified,
+        **identity_guarantee_metadata(),
         "_readme": _CATALOG_README,
         "_field_map": _CATALOG_FIELD_MAP,
         "DATA": data,

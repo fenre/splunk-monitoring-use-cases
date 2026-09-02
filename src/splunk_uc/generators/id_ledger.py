@@ -13,6 +13,7 @@ from splunk_uc.id_ledger import (
     build_ledger_document,
     catalogue_index,
     load_ledger,
+    validate_ledger_revision_monotonicity,
 )
 
 
@@ -36,11 +37,17 @@ def main(argv: list[str] | None = None) -> int:
     catalogue = catalogue_index()
     previous = load_ledger() if LEDGER_PATH.is_file() else None
     generated = build_ledger_document(catalogue=catalogue, previous=previous)
+    revision_issues = validate_ledger_revision_monotonicity(previous, generated)
     rendered = _canonical_json(generated)
 
     if args.check:
         if not LEDGER_PATH.is_file():
             print(f"FAIL: missing {LEDGER_PATH.relative_to(Path.cwd())}", file=sys.stderr)
+            return 1
+        if revision_issues:
+            print("FAIL: fingerprint revision history would be shortened:", file=sys.stderr)
+            for issue in revision_issues:
+                print(f"  - {issue}", file=sys.stderr)
             return 1
         on_disk = LEDGER_PATH.read_text(encoding="utf-8")
         if on_disk != rendered:
@@ -52,6 +59,12 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f"PASS: id-ledger OK ({generated['entryCount']} entries)")
         return 0
+
+    if revision_issues:
+        print("FAIL: fingerprint revision history would be shortened:", file=sys.stderr)
+        for issue in revision_issues:
+            print(f"  - {issue}", file=sys.stderr)
+        return 1
 
     LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     LEDGER_PATH.write_text(rendered, encoding="utf-8")

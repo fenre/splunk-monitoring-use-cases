@@ -107,6 +107,8 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from splunk_uc.id_ledger import identity_guarantee_metadata
+
 # Path of this module: src/splunk_uc/generators/api_surface.py
 # Repo root = this file's fourth-level ancestor.
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
@@ -1805,6 +1807,7 @@ def _manifest(
         "apiVersion": API_VERSION,
         "catalogueVersion": _read_version(),
         "generatedAt": _deterministic_timestamp(),
+        **identity_guarantee_metadata(),
         "status": coverage.get("status", "unknown"),
         "methodologyDoc": "/docs/coverage-methodology.md",
         "versioningDoc": "/docs/api-versioning.md",
