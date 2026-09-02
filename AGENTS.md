@@ -51,7 +51,7 @@ for the build stages.
 
 ## Identity scheme
 
-- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide, gap-free within subcategories.
+- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide; permanent from v8.25.0 (see [ADR-0016](docs/adr/0016-permanent-uc-identifiers.md) and `data/id-ledger.json`). Gaps are expected.
 - **Category folders:** `cat-NN-kebab-case` (zero-padded category number).
 - **JSON sidecar IDs:** `X.Y.Z` (no `UC-` prefix in the `id` field; the prefix is display-only).
 
@@ -130,7 +130,8 @@ share the same identity, last-modified stamp, and catalogue version.
 
 All audits are in `.github/workflows/validate.yml`. Key steps:
 
-- UC ID uniqueness and gap-free ordering
+- UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`)
+- UC identifier blast-radius guard (`audit-uc-id-migration-blast` — bulk remaps require a manifest)
 - UC structure and required fields
 - Non-technical view sync
 - Changelog cross-references
@@ -176,6 +177,10 @@ PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate impl
 PYTHONPATH=src python3 -m splunk_uc lift-score UC-X.Y.Z          # depth score + gap report for one UC
 PYTHONPATH=src python3 -m splunk_uc lift-prompt UC-X.Y.Z         # emit AI prompt for one UC (orchestrator-consumed)
 PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of worst-N UCs in a category
+PYTHONPATH=src python3 -m splunk_uc audit-uc-ids # UC ID uniqueness + permanent-identity ledger gate
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger # regenerate data/id-ledger.json after UC add/remove/title+SPL edit
+PYTHONPATH=src python3 -m splunk_uc generate-id-ledger --check # CI drift gate for the identifier ledger
+PYTHONPATH=src python3 -m splunk_uc audit-uc-id-migration-blast --check # bulk identifier remap blast-radius guard
 PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
 ```
 
