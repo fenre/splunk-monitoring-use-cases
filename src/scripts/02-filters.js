@@ -10,6 +10,73 @@ function isEquipmentModelId(compoundId) {
   return false;
 }
 
+function _equipmentFilterLabel(eqId) {
+  if (!eqId) return '';
+  if (isEquipmentModelId(eqId)) {
+    var sep = eqId.indexOf('_');
+    var baseId = eqId.slice(0, sep);
+    var modelId = eqId.slice(sep + 1);
+    var eq = _eqById[baseId];
+    if (eq && eq.models) {
+      for (var i = 0; i < eq.models.length; i++) {
+        if (eq.models[i].id === modelId) return eq.label + ' — ' + eq.models[i].label;
+      }
+    }
+    return eq ? (eq.label + ' — ' + modelId) : eqId;
+  }
+  var eq = _eqById[eqId];
+  return eq ? eq.label : eqId;
+}
+
+function _syncEquipmentFilterControls(eqId) {
+  var es = document.getElementById('equipment-select');
+  var ms = document.getElementById('equipment-model-select');
+  var mw = document.getElementById('equipment-model-wrap');
+  if (!eqId) {
+    if (es) es.value = '';
+    _resetEquipmentModelSelect(ms);
+    if (mw) mw.style.display = 'none';
+    return;
+  }
+  if (isEquipmentModelId(eqId)) {
+    var sep = eqId.indexOf('_');
+    var baseId = eqId.slice(0, sep);
+    var modelId = eqId.slice(sep + 1);
+    var eq = _eqById[baseId];
+    if (es) es.value = baseId;
+    if (eq && eq.models && eq.models.length && ms && mw) {
+      mw.style.display = 'flex';
+      _resetEquipmentModelSelect(ms);
+      eq.models.forEach(function(m) { _appendEquipmentModelOption(ms, m); });
+      ms.value = modelId;
+    } else {
+      _resetEquipmentModelSelect(ms);
+      if (mw) mw.style.display = 'none';
+    }
+    return;
+  }
+  if (es) es.value = eqId;
+  _resetEquipmentModelSelect(ms);
+  if (mw) mw.style.display = 'none';
+}
+
+function filterByEquipmentFromPicker(eqId, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (typeof closeInventoryModal === 'function') closeInventoryModal();
+  inventorySelections = [];
+  try { localStorage.removeItem(INVENTORY_STORAGE_KEY); } catch (e) {}
+  if (typeof _updateInventoryBadge === 'function') _updateInventoryBadge();
+  selectedEquipmentId = eqId || '';
+  _syncEquipmentFilterControls(selectedEquipmentId);
+  ovGroupFilter = 'alluc';
+  currentCat = null;
+  currentSearch = '';
+  var siEl = document.getElementById('search-input');
+  if (siEl) siEl.value = '';
+  reRender();
+  updateHash(false);
+}
+
 function getCatById(id) {
   if (id == null) return null;
   return DATA.find(function(c) { return c.i === id; }) || null;
@@ -825,10 +892,7 @@ function activeFilterTags() {
   }
   if (currentTrendFilter) tags.push({ label: 'Trend', fn: "clearTrendFilter()" });
   if (selectedEquipmentId) {
-    var _eqLabel = selectedEquipmentId;
-    var _eqObj = (EQUIPMENT||[]).find(function(x){return x.id===selectedEquipmentId;});
-    if (_eqObj) _eqLabel = _eqObj.label;
-    tags.push({ label: 'Equipment: ' + _eqLabel, fn: "clearEquipmentFilter()" });
+    tags.push({ label: 'Equipment: ' + _equipmentFilterLabel(selectedEquipmentId), fn: "clearEquipmentFilter()" });
   }
   if (inventorySelections.length) tags.push({ label: 'Inventory (' + inventorySelections.length + ' items)', fn: "clearInventoryFilter()" });
   if (ovHeroGroupFilter) tags.push({ label: 'Domain: ' + ovHeroGroupFilter, fn: 'clearHeroFilter()' });
@@ -847,12 +911,7 @@ function clearAdvSearch(key) {
 }
 function clearEquipmentFilter() {
   selectedEquipmentId = '';
-  var es = document.getElementById('equipment-select');
-  var ms = document.getElementById('equipment-model-select');
-  var mw = document.getElementById('equipment-model-wrap');
-  if (es) es.value = '';
-  _resetEquipmentModelSelect(ms);
-  if (mw) mw.style.display = 'none';
+  _syncEquipmentFilterControls('');
   if (typeof reRender === 'function') reRender();
 }
 function clearInventoryFilter() {

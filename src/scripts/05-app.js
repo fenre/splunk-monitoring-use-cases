@@ -229,6 +229,205 @@ function switchHelpTab(id) {
 }
 
 var _invUCCounts = {};
+var _invAppIndex = null;
+var _invAppIndexPromise = null;
+var _invGroupBy = 'category';
+var _INV_ROLE_ORDER = { primary: 0, 'data-source': 1, optional: 2, premium: 3 };
+
+function _invAppIndexURL() {
+  return (typeof window.__EQUIPMENT_APP_INDEX_URL === 'string' && window.__EQUIPMENT_APP_INDEX_URL)
+    ? window.__EQUIPMENT_APP_INDEX_URL
+    : '/api/v1/equipment/app-index.json';
+}
+
+function _invEnsureAppIndex() {
+  if (_invAppIndex) return Promise.resolve(_invAppIndex);
+  if (_invAppIndexPromise) return _invAppIndexPromise;
+  _invAppIndexPromise = fetch(_invAppIndexURL(), { credentials: 'same-origin' })
+    .then(function(res) {
+      if (!res.ok) throw new Error('equipment app-index HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function(data) {
+      var raw = (data && data.equipment && typeof data.equipment === 'object') ? data.equipment
+        : ((data && data.entries && typeof data.entries === 'object') ? data.entries : {});
+      _invAppIndex = raw;
+      return _invAppIndex;
+    })
+    .catch(function(err) {
+      console.warn('[inventory] equipment app-index fetch failed:', err);
+      _invAppIndex = {};
+      return _invAppIndex;
+    });
+  return _invAppIndexPromise;
+}
+
+function _invTopEquipmentId(id) {
+  return String(id || '').split('_')[0];
+}
+
+function _invAppEntry(eqId) {
+  if (!_invAppIndex) return null;
+  return _invAppIndex[_invTopEquipmentId(eqId)] || null;
+}
+
+function _invAppCount(eqId) {
+  var entry = _invAppEntry(eqId);
+  return (entry && Array.isArray(entry.apps)) ? entry.apps.length : 0;
+}
+
+function _invRoleLabel(role) {
+  if (role === 'primary') return 'Primary TA';
+  if (role === 'data-source') return 'Data source';
+  if (role === 'optional') return 'Optional';
+  if (role === 'premium') return 'Premium';
+  return role || 'App';
+}
+
+function _invBuildGroups(filterText) {
+  var ft = (filterText || '').toLowerCase().trim();
+  var groups = [];
+  if (_invGroupBy === 'manufacturer') {
+    var byVendor = {};
+    (EQUIPMENT || []).forEach(function(eq) {
+      if (!eq || !eq.id) return;
+      var vendor = (eq.vendor && String(eq.vendor).trim()) ? String(eq.vendor).trim() : 'Other';
+      if (!byVendor[vendor]) byVendor[vendor] = [];
+      byVendor[vendor].push(eq.id);
+    });
+    Object.keys(byVendor).sort(function(a, b) { return a.localeCompare(b); }).forEach(function(vendor) {
+      groups.push({ name: vendor, ids: byVendor[vendor].sort() });
+    });
+  } else {
+    groups = EQUIPMENT_GROUPS.slice();
+  }
+  if (!ft) return groups;
+  return groups.map(function(grp) {
+    var ids = grp.ids.filter(function(eid) {
+      var eq = _eqById[eid];
+      if (!eq) return false;
+      if (eq.label.toLowerCase().indexOf(ft) !== -1 || eq.id.toLowerCase().indexOf(ft) !== -1) return true;
+      if (eq.vendor && String(eq.vendor).toLowerCase().indexOf(ft) !== -1) return true;
+      if (eq.models) {
+        return eq.models.some(function(m) {
+          return m.label.toLowerCase().indexOf(ft) !== -1
+            || (eq.id + '_' + m.id).toLowerCase().indexOf(ft) !== -1;
+        });
+      }
+      return false;
+    });
+    return { name: grp.name, ids: ids };
+  }).filter(function(grp) { return grp.ids.length > 0; });
+}
+
+function _invRefreshBody() {
+  document.getElementById('inv-body').innerHTML = _invBuildBody(document.getElementById('inv-search').value.trim());
+}
+
+function _invSetGroupBy(mode) {
+  if (mode !== 'category' && mode !== 'manufacturer') return;
+  _invGroupBy = mode;
+  var root = document.getElementById('inv-overlay');
+  if (root) {
+    root.querySelectorAll('.inv-groupby-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-groupby') === mode);
+    });
+  }
+  _invRefreshBody();
+}
+
+function _invRenderAppsPanel() {
+  var panel = document.getElementById('inv-apps-panel');
+  if (!panel) return;
+  var selected = Array.from(_invTempSelections);
+  if (!selected.length) {
+    panel.innerHTML = '<div class="inv-apps-empty">Select equipment to see recommended Splunkbase apps and ingest guidance.</div>';
+    return;
+  }
+  var apps = [];
+  var seen = new Set();
+  var ingestOnly = [];
+  selected.forEach(function(eqId) {
+    var entry = _invAppEntry(eqId);
+    if (!entry) {
+      ingestOnly.push(eqId);
+      return;
+    }
+    if (Array.isArray(entry.apps)) {
+      entry.apps.forEach(function(app) {
+        if (!app || !app.id) return;
+        var key = app.id + '|' + (app.role || '');
+        if (seen.has(key)) return;
+        seen.add(key);
+        apps.push(app);
+      });
+    }
+    if ((!entry.apps || !entry.apps.length) && Array.isArray(entry.dsaSourceIds) && entry.dsaSourceIds.length) {
+      ingestOnly.push(eqId);
+    }
+  });
+  apps.sort(function(a, b) {
+    var ra = _INV_ROLE_ORDER[a.role] != null ? _INV_ROLE_ORDER[a.role] : 9;
+    var rb = _INV_ROLE_ORDER[b.role] != null ? _INV_ROLE_ORDER[b.role] : 9;
+    if (ra !== rb) return ra - rb;
+    return String(a.displayName || a.id).localeCompare(String(b.displayName || b.id));
+  });
+
+  var html = '<div class="inv-apps-title">Recommended Apps</div>';
+  html += '<div class="inv-apps-note">Install order: primary technical add-on first, then data-source and optional apps. Premium listings may require a paid Splunkbase license.</div>';
+  if (apps.length) {
+    html += '<div class="inv-apps-list">';
+    apps.forEach(function(app) {
+      html += '<div class="inv-app-row">'
+        + '<div class="inv-app-main">'
+        + '<a class="inv-app-name" href="https://splunkbase.splunk.com/app/' + esc(app.id) + '/" target="_blank" rel="noopener">' + esc(app.displayName || ('Splunkbase #' + app.id)) + '</a>'
+        + '<div class="inv-app-meta">'
+        + '<span class="inv-app-role role-' + esc(app.role || 'optional') + '">' + esc(_invRoleLabel(app.role)) + '</span>';
+      if (app.premium) html += '<span class="inv-app-premium">Premium</span>';
+      html += '</div></div>'
+        + '<code class="inv-app-install">splunk install app ' + esc(app.id) + '</code>'
+        + '</div>';
+    });
+    html += '</div>';
+    html += '<button type="button" class="inv-btn inv-apps-copy" onclick="invCopyInstallList()">Copy install list</button>';
+  } else {
+    html += '<div class="inv-apps-empty">No Splunkbase technical add-on is mapped for the selected equipment.</div>';
+  }
+  if (ingestOnly.length) {
+    html += '<div class="inv-ingest-guidance">'
+      + '<div class="inv-ingest-title">Ingest guidance</div>'
+      + '<p>For equipment without a curated TA mapping, collect logs with a universal forwarder, HEC, or syslog and route through an index pipeline. Open the Data Sizing tool for source-level volume estimates.</p>'
+      + '<button type="button" class="inv-btn" onclick="launchDSAFromInventory()">Open Data Sizing</button>'
+      + '</div>';
+  }
+  panel.innerHTML = html;
+}
+
+function invCopyInstallList() {
+  var lines = [];
+  var seen = new Set();
+  Array.from(_invTempSelections).forEach(function(eqId) {
+    var entry = _invAppEntry(eqId);
+    if (!entry || !Array.isArray(entry.apps)) return;
+    entry.apps.forEach(function(app) {
+      if (!app || !app.id || seen.has(app.id)) return;
+      seen.add(app.id);
+      lines.push('splunk install app ' + app.id + '  # ' + (app.displayName || app.id));
+    });
+  });
+  if (!lines.length) {
+    showToast('No Splunkbase apps to copy for the current selection.');
+    return;
+  }
+  var text = lines.join('\n');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showToast('Install list copied.'); })
+      .catch(function() { showToast(text); });
+  } else {
+    showToast(text);
+  }
+}
+
 function _invComputeUCCounts() {
   _invUCCounts = {};
   allUCs.forEach(function(e) {
@@ -245,12 +444,13 @@ function _invBuildBody(filterText) {
   if (!Object.keys(_invUCCounts).length) _invComputeUCCounts();
   var html = '';
   var totalGroups = 0;
-  EQUIPMENT_GROUPS.forEach(function(grp, gi) {
+  _invBuildGroups(ft).forEach(function(grp, gi) {
     var items = [];
     grp.ids.forEach(function(eid) {
       var eq = _eqById[eid];
       if (!eq) return;
-      var matchesFilter = !ft || eq.label.toLowerCase().indexOf(ft) !== -1 || eq.id.toLowerCase().indexOf(ft) !== -1;
+      var matchesFilter = !ft || eq.label.toLowerCase().indexOf(ft) !== -1 || eq.id.toLowerCase().indexOf(ft) !== -1
+        || (eq.vendor && String(eq.vendor).toLowerCase().indexOf(ft) !== -1);
       var modelMatches = [];
       if (eq.models) eq.models.forEach(function(m) {
         var mid = eq.id + '_' + m.id;
@@ -279,12 +479,14 @@ function _invBuildBody(filterText) {
       var dsaCnt = _invDsaCount(it.eq.id);
       var ucCnt = _invUCCounts[it.eq.id] || 0;
       var modelCnt = it.eq.models ? it.eq.models.length : 0;
+      var appCnt = _invAppCount(it.eq.id);
       html += '<div class="inv-card' + (checked ? ' selected' : '') + '" onclick="invCardClick(event,\'' + it.eq.id + '\')">'
         + '<div class="inv-card-cb"><input type="checkbox" data-inv-id="' + it.eq.id + '"' + (checked ? ' checked' : '') + ' onchange="invItemChg(this)" onclick="event.stopPropagation()"></div>'
         + '<div class="inv-card-info">'
         + '<div class="inv-card-name">' + esc(it.eq.label) + '</div>'
         + '<div class="inv-card-meta">';
-      if (ucCnt > 0) html += '<span class="inv-card-tag ucs">' + ucCnt + ' use case' + (ucCnt !== 1 ? 's' : '') + '</span>';
+      if (ucCnt > 0) html += '<button type="button" class="inv-card-tag ucs inv-uc-link" onclick="event.stopPropagation();filterByEquipmentFromPicker(\'' + it.eq.id + '\', event)">' + ucCnt + ' use case' + (ucCnt !== 1 ? 's' : '') + '</button>';
+      if (appCnt > 0) html += '<span class="inv-card-tag apps">' + appCnt + ' app' + (appCnt !== 1 ? 's' : '') + '</span>';
       if (dsaCnt > 0) html += '<span class="inv-card-tag dsa">' + dsaCnt + ' data source' + (dsaCnt !== 1 ? 's' : '') + '</span>';
       if (modelCnt > 0) html += '<span class="inv-card-tag models">' + modelCnt + ' model' + (modelCnt !== 1 ? 's' : '') + '</span>';
       html += '</div></div></div>';
@@ -299,7 +501,7 @@ function _invBuildBody(filterText) {
             + '<input type="checkbox" data-inv-id="' + mid + '"' + (mc ? ' checked' : '') + ' onchange="invItemChg(this)">'
             + esc(m.label)
             + '</label>';
-          if (mUc > 0) html += '<span class="inv-card-tag ucs">' + mUc + ' UCs</span>';
+          if (mUc > 0) html += '<button type="button" class="inv-card-tag ucs inv-uc-link" onclick="event.stopPropagation();filterByEquipmentFromPicker(\'' + mid + '\', event)">' + mUc + ' UCs</button>';
           if (mDsa > 0) html += '<span class="inv-card-tag dsa">' + mDsa + ' src</span>';
           html += '</div>';
         });
@@ -326,12 +528,18 @@ function _invUpdateFooter() {
   if (dsaEl) dsaEl.textContent = dsaTotal > 0 ? '(' + dsaTotal + ' data source' + (dsaTotal !== 1 ? 's' : '') + ' for sizing)' : '';
   var btn = document.getElementById('inv-estimate-btn');
   if (btn) btn.disabled = dsaTotal === 0;
+  _invRenderAppsPanel();
 }
 function openInventoryModal() {
   _invTempSelections = new Set(inventorySelections);
   document.getElementById('inv-body').innerHTML = _invBuildBody('');
   document.getElementById('inv-search').value = '';
+  _invSetGroupBy(_invGroupBy);
   _invUpdateFooter();
+  _invEnsureAppIndex().then(function() {
+    _invRefreshBody();
+    _invRenderAppsPanel();
+  });
   document.getElementById('inv-overlay').classList.add('open');
   document.body.classList.add('overlay-open');
 }
@@ -344,7 +552,8 @@ function invToggleGroup(headerEl) {
   if (group) group.classList.toggle('open');
 }
 function invToggleGroupAll(gi) {
-  var grp = EQUIPMENT_GROUPS[gi];
+  var groups = _invBuildGroups(document.getElementById('inv-search').value.trim());
+  var grp = groups[gi];
   if (!grp) return;
   var allIds = [];
   grp.ids.forEach(function(eid) {
@@ -355,7 +564,7 @@ function invToggleGroupAll(gi) {
   });
   var allOn = allIds.every(function(id) { return _invTempSelections.has(id); });
   allIds.forEach(function(id) { if (allOn) _invTempSelections.delete(id); else _invTempSelections.add(id); });
-  document.getElementById('inv-body').innerHTML = _invBuildBody(document.getElementById('inv-search').value.trim());
+  _invRefreshBody();
   _invUpdateFooter();
 }
 function invCardClick(ev, id) {
@@ -388,7 +597,7 @@ function applyInventory() {
 }
 function clearInventory() {
   _invTempSelections.clear();
-  document.getElementById('inv-body').innerHTML = _invBuildBody(document.getElementById('inv-search').value.trim());
+  _invRefreshBody();
   _invUpdateFooter();
 }
 function exportInventory() {
@@ -1165,7 +1374,7 @@ function initApp() {
   document.getElementById('equipment-select').addEventListener('change', onEquipmentChange);
   document.getElementById('equipment-model-select').addEventListener('change', onModelChange);
   document.getElementById('inv-search').addEventListener('input', function(ev) {
-    document.getElementById('inv-body').innerHTML = _invBuildBody(ev.target.value);
+    _invRefreshBody();
   });
   document.getElementById('inv-file-input').addEventListener('change', function(ev) {
     var f = ev.target.files[0];
@@ -1176,8 +1385,8 @@ function initApp() {
         var d = JSON.parse(r.result);
         if (d && Array.isArray(d.equipment)) {
           _invTempSelections = new Set(d.equipment);
-          document.getElementById('inv-body').innerHTML = _invBuildBody('');
-          document.getElementById('inv-footer-count').textContent = _invTempSelections.size + ' selected';
+          _invRefreshBody();
+          _invUpdateFooter();
         }
       } catch (e) {}
     };
