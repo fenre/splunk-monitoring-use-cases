@@ -635,6 +635,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-equipment-models",
+        module="audits.equipment_models",
+        help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)

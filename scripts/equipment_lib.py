@@ -18,6 +18,10 @@ imports the live registry directly so any future schema change in
 
 Public API:
     load_equipment() -> list[dict]        Raw EQUIPMENT list.
+    clear_cache() -> None                 Drop cached registry / index state.
+    resolve_equipment_slug(slug) -> str   Map legacy aliases to canonical ids.
+    get_equipment_kind(eq_id) -> str      Registry ``kind`` (default ``equipment``).
+    get_equipment_vendor(eq_id) -> str    Registry ``vendor`` (empty when unknown).
     compile_patterns(equipment) -> list[tuple[str, str, str|None]]
         Flat list of (pattern_lower, equipment_id, model_id_or_None).
     match_equipment(text, patterns, min_pattern_len=4) -> tuple[set, set]
@@ -30,7 +34,7 @@ from __future__ import annotations
 
 import pathlib
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Make ``tools/`` importable so ``from build.enrichment import EQUIPMENT``
 # works even when the package isn't pip-installed (e.g. CI runs that
@@ -58,17 +62,72 @@ if _TOOLS_DIR.is_dir() and str(_TOOLS_DIR) not in sys.path:  # pragma: no branch
 # noqa: E402 — sys.path manipulation above is intentional for in-tree usage.
 from build.enrichment import EQUIPMENT as _SSOT_EQUIPMENT  # type: ignore[import-not-found]
 
-_CACHE: Optional[List[Dict]] = None
+_CACHE: Optional[List[Dict[str, Any]]] = None
+_ID_INDEX: Optional[Dict[str, Dict[str, Any]]] = None
+
+# Legacy / alternate spellings seen in sidecars and prose. Canonical ids
+# match ``tools/build/enrichment.py`` ``EQUIPMENT[].id`` values.
+EQUIPMENT_ALIASES: Dict[str, str] = {
+    "palo_alto": "paloalto",
+    "palo-alto": "paloalto",
+    "paloaltonetworks": "paloalto",
+    "splunk-es": "splunk_es",
+    "splunk-soar": "splunk_soar",
+    "splunk-itsi": "itsi",
+    "splunk-stream": "stream",
+    "5g": "fiveg",
+}
 
 
-def load_equipment() -> List[Dict]:
+def clear_cache() -> None:
+    """Drop cached registry data and derived indexes."""
+    global _CACHE, _ID_INDEX
+    _CACHE = None
+    _ID_INDEX = None
+
+
+def resolve_equipment_slug(slug: str) -> str:
+    """Return the canonical equipment id for ``slug`` (identity when unknown)."""
+    return EQUIPMENT_ALIASES.get(slug, slug)
+
+
+def _id_index() -> Dict[str, Dict[str, Any]]:
+    global _ID_INDEX
+    if _ID_INDEX is None:
+        _ID_INDEX = {entry["id"]: entry for entry in load_equipment()}
+    return _ID_INDEX
+
+
+def get_equipment_kind(eq_id: str) -> str:
+    """Return the registry ``kind`` for ``eq_id`` (default ``equipment``)."""
+    entry = _id_index().get(resolve_equipment_slug(eq_id))
+    if entry is None:
+        return "equipment"
+    kind = entry.get("kind")
+    if isinstance(kind, str) and kind:
+        return kind
+    return "equipment"
+
+
+def get_equipment_vendor(eq_id: str) -> str:
+    """Return the registry ``vendor`` for ``eq_id`` (empty when unknown)."""
+    entry = _id_index().get(resolve_equipment_slug(eq_id))
+    if entry is None:
+        return ""
+    vendor = entry.get("vendor")
+    if isinstance(vendor, str):
+        return vendor
+    return ""
+
+
+def load_equipment() -> List[Dict[str, Any]]:
     """Return the SSOT ``EQUIPMENT`` list from ``tools/build/enrichment.py``.
 
     Cached on first call to avoid repeated validation overhead. The cache is
     a *new* list object — callers may not mutate it in place (the upstream
     SSOT list is a module-level constant and must not be perturbed).
     """
-    global _CACHE
+    global _CACHE, _ID_INDEX
     if _CACHE is not None:
         return _CACHE
     equipment = list(_SSOT_EQUIPMENT)
@@ -86,13 +145,14 @@ def load_equipment() -> List[Dict]:
         if not isinstance(entry, dict) or "id" not in entry or "tas" not in entry:
             raise RuntimeError(f"EQUIPMENT entry malformed: {entry!r}")
     _CACHE = equipment
+    _ID_INDEX = None
     return equipment
 
 
 Pattern = Tuple[str, str, Optional[str]]
 
 
-def compile_patterns(equipment: Optional[List[Dict]] = None) -> List[Pattern]:
+def compile_patterns(equipment: Optional[List[Dict[str, Any]]] = None) -> List[Pattern]:
     """Flatten EQUIPMENT into (pattern_lower, equipment_id, model_id_or_None) tuples.
 
     Each ``tas`` pattern becomes one tuple; models contribute additional
@@ -155,7 +215,12 @@ def match_equipment(
 
 
 __all__ = [
+    "EQUIPMENT_ALIASES",
+    "clear_cache",
     "load_equipment",
+    "resolve_equipment_slug",
+    "get_equipment_kind",
+    "get_equipment_vendor",
     "compile_patterns",
     "match_equipment",
     "Pattern",
