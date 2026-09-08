@@ -40,7 +40,7 @@ against a live Splunk instance.
 | **Auto-generated docs registry** | [`data/auto-generated-docs.json`](data/auto-generated-docs.json) — every doc whose body is overwritten by a CI script, with its generator command, inputs, and refresh cadence. Enforced by [`scripts/audit_auto_gen_provenance.py`](scripts/audit_auto_gen_provenance.py). |
 | **Build telemetry** | `dist/build-telemetry.json` (generated only on non-reproducible builds, schema [`schemas/v2/build-telemetry.schema.json`](schemas/v2/build-telemetry.schema.json)) — per-stage wall-clock duration for the build pipeline. |
 | **Stewardship digest** | `dist/stewardship-digest.{json,md}` (generated on demand, schema [`schemas/v2/stewardship-digest.schema.json`](schemas/v2/stewardship-digest.schema.json)) — release-over-release deltas (counts, quality-tier mix, coverage, top movers in regulations / MITRE / CIM / equipment leaderboards), open audit warnings, and stale-UC backlog. Run `make stewardship-digest` when a snapshot is wanted. |
-| **Equipment app map** | [`data/equipment-app-map.json`](data/equipment-app-map.json) — curated slug → Splunkbase add-ons + DSA ingest ids for the equipment picker; schema [`schemas/equipment-app-map.schema.json`](schemas/equipment-app-map.schema.json); authoring guide [`docs/equipment-app-map.md`](docs/equipment-app-map.md). Regenerate with `python3 -m splunk_uc generate-equipment-app-map`; gated by `audit-equipment-app-map --check`. |
+| **Equipment app map** | [`data/equipment-app-map.json`](data/equipment-app-map.json) — curated slug → Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> add-ons + DSA ingest ids for the equipment picker; schema [`schemas/equipment-app-map.schema.json`](schemas/equipment-app-map.schema.json); authoring guide [`docs/equipment-app-map.md`](docs/equipment-app-map.md). Regenerate with `python3 -m splunk_uc generate-equipment-app-map`; gated by `audit-equipment-app-map --check`. |
 
 ## Content layout
 
@@ -234,6 +234,8 @@ Design + plan: [`docs/superpowers/specs/2026-05-17-content-quality-lift-loop-des
 <a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
 
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 ### Cited by
 

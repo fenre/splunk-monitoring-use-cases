@@ -202,6 +202,7 @@ Read [API Versioning](api-versioning.md) for the full policy.
 - [`docs/catalog-schema.md`](catalog-schema.md)
 - [`docs/clause-navigator-guide.md`](clause-navigator-guide.md)
 - [`docs/compliance-story-guide.md`](compliance-story-guide.md)
+- [`docs/equipment-app-map.md`](equipment-app-map.md)
 - [`docs/mcp-server.md`](mcp-server.md)
 - [`docs/recommender-app.md`](recommender-app.md)
 
@@ -210,6 +211,7 @@ Read [API Versioning](api-versioning.md) for the full policy.
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
 - [`docs/cim-models-inventory.md`](cim-models-inventory.md)
 - [`docs/embedding.md`](embedding.md)
+- [`docs/equipment-app-map.md`](equipment-app-map.md)
 - [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md)
 - [`docs/site-user-guide.md`](site-user-guide.md)
 

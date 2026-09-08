@@ -453,21 +453,21 @@ _EU NIS2 Directive_
 | `Art.20(2)` | Art.20(2) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(1)` | Art.21(1) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 3 | contributing | 22.2.21, 22.2.22, 22.2.32 |
-| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 6 | partial | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6 |
-| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 13 | partial | 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67, 17.1.80 |
-| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 13 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
-| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 15 | full | 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51, 17.1.55, 17.1.66, 17.1.68 |
+| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 9 | partial | 14.2.11, 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6, 22.26.21 |
+| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 14 | partial | 14.9.14, 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67 |
+| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 17 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
+| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 21 | full | 14.2.4, 14.2.9, 14.6.6, 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51 |
 | `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 9 | partial | 17.1.41, 17.1.49, 17.1.53, 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.2.51 |
 | `Art.21(2)(f)` | Policies and procedures effectiveness | 1.00 | ✔ 5 | partial | 22.2.39, 22.2.43, 22.2.51, 22.2.57, 22.2.9 |
-| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 8 | full | 17.1.28, 17.1.34, 17.1.59, 17.1.70, 22.2.10, 22.2.28, 22.46.1, 22.46.2 |
+| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 9 | full | 17.1.28, 17.1.34, 17.1.59, 17.1.70, 22.2.10, 22.2.28, 22.26.23, 22.46.1 |
 | `Art.21(2)(h)` | Cryptography and encryption | 1.00 | ✔ 4 | full | 17.1.31, 22.2.11, 22.2.29, 22.41.2 |
 | `Art.21(2)(i)` | Human resources and access control | 1.00 | ✔ 5 | partial | 22.2.13, 22.2.14, 22.2.30, 22.2.5, 22.2.52 |
-| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 6 | partial | 17.1.38, 17.1.44, 17.1.46, 22.2.12, 22.2.46, 22.2.52 |
+| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 7 | partial | 17.1.38, 17.1.44, 17.1.46, 22.2.12, 22.2.46, 22.2.52, 22.26.27 |
 | `Art.21(3)` | Art.21(3) | 1.00 | ✔ 1 | partial | 22.2.50 |
 | `Art.21(4)` | Art.21(4) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(5)` | Art.21(5) | 1.00 | ✔ 1 | partial | 22.2.56 |
 | `Art.22` | Art.22 | 0.60 | ✔ 1 | partial | 22.2.50 |
-| `Art.23` | Reporting obligations | 1.00 | ✔ 8 | full | 22.2.1, 22.2.33, 22.2.45, 22.2.49, 22.3.44, 22.39.1, 22.39.2, 22.9.4 |
+| `Art.23` | Reporting obligations | 1.00 | ✔ 10 | full | 22.2.1, 22.2.33, 22.2.45, 22.2.49, 22.26.22, 22.26.9, 22.3.44, 22.39.1 |
 | `Art.23(1)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 1 | partial | 22.2.49 |
 | `Art.23(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 2 | partial | 22.2.49, 22.2.7 |
 | `Art.23(3)(a)` | Art.23(3)(a) | 1.00 | ✔ 1 | partial | 22.2.49 |

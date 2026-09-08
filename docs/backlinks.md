@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_244 pages indexed; 132 have at least one inbound link; 443 unique source→target edges._
+_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -224,6 +224,7 @@ _No inbound links yet._
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
 - [`docs/cim-models-inventory.md`](cim-models-inventory.md)
 - [`docs/embedding.md`](embedding.md)
+- [`docs/equipment-app-map.md`](equipment-app-map.md)
 - [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md)
 - [`docs/site-user-guide.md`](site-user-guide.md)
 
@@ -382,10 +383,17 @@ _No inbound links yet._
 
 - [`README.md`](../README.md)
 
+## `docs/equipment-app-map.md`
+
+- [`docs/api-docs-guide.md`](api-docs-guide.md)
+- [`docs/equipment-table.md`](equipment-table.md)
+- [`docs/inventory-and-sizing.md`](inventory-and-sizing.md)
+
 ## `docs/equipment-table.md`
 
 - [`README.md`](../README.md)
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
+- [`docs/equipment-app-map.md`](equipment-app-map.md)
 - [`docs/inventory-and-sizing.md`](inventory-and-sizing.md)
 - [`docs/knowledge-graph-guide.md`](knowledge-graph-guide.md)
 
@@ -466,6 +474,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/evidence-packs/nist-csf.md`
+
+_No inbound links yet._
+
+## `docs/evidence-packs/no-kbf-nve.md`
 
 _No inbound links yet._
 
@@ -998,6 +1010,7 @@ _No inbound links yet._
 ## `docs/inventory-and-sizing.md`
 
 - [`docs/build-artefacts-reference.md`](build-artefacts-reference.md)
+- [`docs/equipment-app-map.md`](equipment-app-map.md)
 - [`docs/site-user-guide.md`](site-user-guide.md)
 
 ## `docs/knowledge-graph-guide.md`
@@ -1064,6 +1077,10 @@ _No inbound links yet._
 - [`docs/research/nis2-source-map.md`](research/nis2-source-map.md)
 
 ## `docs/nis2-self-validation.md`
+
+_No inbound links yet._
+
+## `docs/no-kbf-monitoring-methodology.md`
 
 _No inbound links yet._
 
@@ -1233,6 +1250,10 @@ _No inbound links yet._
 - [`docs/content-quality-audit.md`](content-quality-audit.md)
 
 ## `docs/superpowers/specs/2026-05-22-data-sizing-realism-design.md`
+
+_No inbound links yet._
+
+## `docs/superpowers/specs/2026-08-31-no-kbf-compliance-expansion.md`
 
 _No inbound links yet._
 
