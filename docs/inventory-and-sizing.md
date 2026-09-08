@@ -10,6 +10,8 @@ Two related catalogue features that work together:
 
 For the developer-facing equipment registry (`equipment[]` field, slug
 conventions, API endpoints), see [Equipment Table](equipment-table.md).
+For Splunkbase add-on mappings per equipment slug, see
+[Equipment App Map](equipment-app-map.md).
 
 ## My Inventory
 

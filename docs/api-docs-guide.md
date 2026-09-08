@@ -84,6 +84,9 @@ Every endpoint lives under `/api/v1/`. Five endpoint families:
 
 - `equipment/index.json` — every equipment slug.
 - `equipment/<id>.json` — per-equipment UC list.
+- `equipment/app-index.json` — curated Splunkbase add-ons and DSA ingest
+  source ids per equipment slug (from `data/equipment-app-map.json`; see
+  [Equipment App Map](equipment-app-map.md)).
 
 ### Evidence packs
 

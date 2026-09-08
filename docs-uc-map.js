@@ -1538,6 +1538,10 @@ var DOC_UC_MAP = {
     title: "Equipment Table Reference",
     ucs: ["5.1.1", "14.1.1", "14.2.1"]
   },
+  "docs/equipment-app-map.md": {
+    title: "Equipment App Map Authoring Guide",
+    ucs: ["1.1.1", "5.1.1", "5.2.1", "14.1.1", "14.2.1"]
+  },
   "docs/samples-coverage.md": {
     title: "Sample Data Coverage",
     ucs: ["1.1.1", "1.1.8", "1.2.4", "1.2.6", "1.2.29", "5.1.1", "5.13.1", "9.1.1", "10.1.1", "13.1.1", "14.1.1", "14.2.1", "22.1.1", "22.2.1", "22.4.1"]

@@ -1,0 +1,96 @@
+# Equipment App Map — Authoring Guide
+
+Curated mapping from **equipment registry slugs** (`kind=equipment`) to
+Splunkbase technical add-ons and optional DSA ingest source ids. The map
+powers the equipment picker's **Required Splunkbase apps** panel and the
+`/api/v1/equipment/app-index.json` summary.
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `data/equipment-app-map.json` | Curated slug → `{apps[], dsaSourceIds[]}` entries |
+| `schemas/equipment-app-map.schema.json` | JSON Schema 2020-12 contract |
+| `src/splunk_uc/generators/equipment_app_map.py` | Deterministic generator (sole writer) |
+| `src/splunk_uc/audits/equipment_app_map.py` | CI audit (schema + referential integrity + corroboration) |
+| `data/splunkbase-catalog.json` | Splunkbase metadata cache (display names, URLs) |
+| `data/splunkbase-catalog-overrides.json` | Hand-curated vendor/category corrections |
+| `tools/data-sizing/mapping.js` | `DSA_EQUIPMENT_MAP` — equipment slug → DSA source ids |
+
+## Generator contract
+
+Run the generator after changing the equipment registry, DSA mapping,
+Splunkbase catalog, or UC sidecars that cite Splunkbase app ids:
+
+```bash
+PYTHONPATH=src python3 -m splunk_uc generate-equipment-app-map
+PYTHONPATH=src python3 -m splunk_uc audit-equipment-app-map --check
+```
+
+CI runs both in `--check` mode (drift gate + audit gate).
+
+The generator covers **every** registry entry with `kind=equipment`
+(currently ~127 slugs). Do not hand-edit `data/equipment-app-map.json`.
+
+### How each entry is built
+
+For each equipment slug the generator:
+
+1. **Collects candidate Splunkbase app ids** by substring-matching the
+   equipment's `tas` patterns (including model `tas`) against
+   `SPLUNK_TAS` and `SPLUNK_APPS` in `tools/build/enrichment.py`.
+2. **Filters to corroborated apps only** — a `(equipment slug, app id)`
+   pair is kept only when at least one UC sidecar tags that equipment
+   *and* references the Splunkbase id in `app`, `dataSources`,
+   `implementation`, `detailedImplementation`, or `splunkbaseApps[]`.
+3. **Adds `dsaSourceIds`** from `DSA_EQUIPMENT_MAP` in
+   `tools/data-sizing/mapping.js` when present.
+4. **Falls back to ingest-only** when no app id passes corroboration:
+   the entry carries `dsaSourceIds` only (no `apps[]`). Two cloud slugs
+   (`alibaba`, `openshift`) use a small inline fallback when absent from
+   `DSA_EQUIPMENT_MAP`.
+
+Every entry must have at least one of `apps[]` or `dsaSourceIds[]`.
+
+### App ref fields
+
+Each object in `apps[]`:
+
+| Field | Values | Notes |
+| --- | --- | --- |
+| `id` | Splunkbase numeric id (string) | Must exist in merged catalog |
+| `displayName` | Exact catalog `displayName` | Byte match enforced by audit |
+| `role` | `primary`, `data-source`, `optional`, `premium` | First matching TA → `primary`; companion/dashboard apps → `data-source`; DB Connect / Sysmon → `optional` |
+| `premium` | boolean | `true` for paid listings (e.g. DB Connect) |
+
+## Corroboration rule (audit)
+
+The audit rejects any `(slug, app id)` pair with **zero UC support**.
+To add a new app to a slug:
+
+1. Ensure a UC sidecar tags the equipment slug in `equipment[]`.
+2. Reference the Splunkbase id in narrative fields (or `splunkbaseApps[]`).
+3. Re-run `generate-equipment-tags` if needed, then regenerate the map.
+
+If no UC cites a Splunkbase app for a slug, use **ingest-only**
+(`dsaSourceIds` only). Extend `DSA_EQUIPMENT_MAP` in
+`tools/data-sizing/mapping.js` when a slug lacks DSA coverage.
+
+## Splunkbase catalog freshness
+
+The map depends on `data/splunkbase-catalog.json`. CI validates catalog
+shape via:
+
+```bash
+python3 scripts/sync_splunkbase_catalog.py --check
+```
+
+Scheduled sync (`.github/workflows/splunkbase-sync.yml`) refreshes the
+cache from Splunkbase; overrides in `data/splunkbase-catalog-overrides.json`
+preserve vendor names the REST API omits.
+
+## Related docs
+
+- [Equipment Table](equipment-table.md) — registry and UC tagging
+- [Inventory & Sizing](inventory-and-sizing.md) — My Inventory + DSA tool
+- [API Docs Guide](api-docs-guide.md) — `/api/v1/equipment/*` endpoints

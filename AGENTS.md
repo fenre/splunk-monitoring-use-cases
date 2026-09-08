@@ -40,6 +40,7 @@ against a live Splunk instance.
 | **Auto-generated docs registry** | [`data/auto-generated-docs.json`](data/auto-generated-docs.json) — every doc whose body is overwritten by a CI script, with its generator command, inputs, and refresh cadence. Enforced by [`scripts/audit_auto_gen_provenance.py`](scripts/audit_auto_gen_provenance.py). |
 | **Build telemetry** | `dist/build-telemetry.json` (generated only on non-reproducible builds, schema [`schemas/v2/build-telemetry.schema.json`](schemas/v2/build-telemetry.schema.json)) — per-stage wall-clock duration for the build pipeline. |
 | **Stewardship digest** | `dist/stewardship-digest.{json,md}` (generated on demand, schema [`schemas/v2/stewardship-digest.schema.json`](schemas/v2/stewardship-digest.schema.json)) — release-over-release deltas (counts, quality-tier mix, coverage, top movers in regulations / MITRE / CIM / equipment leaderboards), open audit warnings, and stale-UC backlog. Run `make stewardship-digest` when a snapshot is wanted. |
+| **Equipment app map** | [`data/equipment-app-map.json`](data/equipment-app-map.json) — curated slug → Splunkbase add-ons + DSA ingest ids for the equipment picker; schema [`schemas/equipment-app-map.schema.json`](schemas/equipment-app-map.schema.json); authoring guide [`docs/equipment-app-map.md`](docs/equipment-app-map.md). Regenerate with `python3 -m splunk_uc generate-equipment-app-map`; gated by `audit-equipment-app-map --check`. |
 
 ## Content layout
 
@@ -146,6 +147,8 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 - Metrics shape (`dist/metrics.json` validates against `schemas/v2/metrics.schema.json` on every reproducible build)
 - Stewardship digest schema (PR smoke-test of `python -m splunk_uc generate-stewardship-digest` against `schemas/v2/stewardship-digest.schema.json`)
 - Build reproducibility (nightly + build-pipeline PRs: `python -m splunk_uc audit-reproducibility --keep` runs two consecutive `--reproducible` builds and asserts `dist/integrity.json` byte-identical; see `.github/workflows/build-reproducibility.yml`)
+- Equipment app map (`python3 -m splunk_uc audit-equipment-app-map --check` — Splunkbase ids, DSA ids, UC corroboration for every `kind=equipment` slug; see [`docs/equipment-app-map.md`](docs/equipment-app-map.md))
+- Splunkbase catalog freshness (`python3 scripts/sync_splunkbase_catalog.py --check` — validates cached `data/splunkbase-catalog.json` shape)
 - `splunk_uc` dispatcher smoke (per-PR: `python -m splunk_uc --help` and `--version` succeed; pinned by `tests/splunk_uc/test_dispatcher.py`)
 
 ## Quick commands
@@ -176,7 +179,8 @@ PYTHONPATH=src python3 -m splunk_uc audit-prerequisites --check  # validate impl
 PYTHONPATH=src python3 -m splunk_uc lift-score UC-X.Y.Z          # depth score + gap report for one UC
 PYTHONPATH=src python3 -m splunk_uc lift-prompt UC-X.Y.Z         # emit AI prompt for one UC (orchestrator-consumed)
 PYTHONPATH=src python3 -m splunk_uc lift-batch --category cat-NN # manifest of worst-N UCs in a category
-PYTHONPATH=src python3 -m splunk_uc lift-validate UC-X.Y.Z --diff <path>  # apply + firewall-check an AI diff
+PYTHONPATH=src python3 -m splunk_uc generate-equipment-app-map       # regenerate equipment slug → Splunkbase/DSA map
+PYTHONPATH=src python3 -m splunk_uc audit-equipment-app-map --check  # validate data/equipment-app-map.json
 ```
 
 ## Content-quality lift loop

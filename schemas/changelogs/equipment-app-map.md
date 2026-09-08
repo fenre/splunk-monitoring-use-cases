@@ -4,7 +4,7 @@ Per-schema lifecycle log. Contract: see [`docs/schema-versioning.md`](../../docs
 
 | Version | Released | Stability | Notes |
 |---------|----------|-----------|-------|
-| 1.0.0   | 2026-Q3  | preview   | Initial release. Maps top equipment slugs to Splunkbase app ids and optional DSA ingest source ids for the equipment picker (Phase 2). Gated by `audit-equipment-app-map`. |
+| 1.0.0   | 2026-Q3  | preview   | Initial release (Phase 2). Phase 5 expansion: generator covers all ~127 `kind=equipment` registry slugs with corroboration-gated `apps[]` or ingest-only `dsaSourceIds[]`. Gated by `audit-equipment-app-map`. |
 
 ## Stability commitment
 

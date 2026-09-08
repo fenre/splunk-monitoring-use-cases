@@ -715,6 +715,14 @@ register(
 )
 register(
     Verb(
+        name="generate-equipment-app-map",
+        module="generators.equipment_app_map",
+        help="Generate data/equipment-app-map.json (Splunkbase apps + DSA ids per equipment slug).",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="generate-evidence-signatures",
         module="generators.sign_evidence",
         help="Generate dist/evidence manifests and optional GPG signatures (Phase C-2).",
