@@ -166,7 +166,7 @@ def audit_sidecars(
             if not isinstance(compound, str) or not compound.strip():
                 continue
             model = compound.strip()
-            if model.endswith(_GENERIC_SUFFIX):
+            if model.endswith(_GENERIC_SUFFIX) and model not in compounds:
                 findings.append(
                     Finding(
                         kind="generic-suffix-model",

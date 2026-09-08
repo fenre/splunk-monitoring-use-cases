@@ -12,22 +12,23 @@
 window.EQUIPMENT_GROUPS = [
   { name: 'Servers & OS', ids: ['linux','windows','macos'] },
   { name: 'Virtualization', ids: ['vmware','hyperv','proxmox','ovirt','openstack','nutanix','vxrail'] },
-  { name: 'Cloud & Containers', ids: ['aws','azure','gcp','kubernetes','docker','argocd'] },
-  { name: 'Networking & Security Appliances', ids: ['cisco','paloalto','fortinet','f5','citrix','checkpoint','nsx','infoblox','netflow','snmp','syslog','zscaler','netskope','cloudflare','guardicore','broadcom_symantec','forcepoint','sonicwall'] },
+  { name: 'Cloud & Containers', ids: ['aws','azure','gcp','oci','alibaba','kubernetes','docker','argocd','openshift'] },
+  { name: 'Networking & Security Appliances', ids: ['cisco','juniper','arista','paloalto','fortinet','f5','citrix','checkpoint','nsx','infoblox','netflow','snmp','syslog','zscaler','netskope','cloudflare','guardicore','broadcom_symantec','forcepoint','sonicwall','zeek','aruba','campus'] },
   { name: 'Cisco Security & Observability', ids: ['cisco_duo','cisco_umbrella','cisco_secure_endpoint','cisco_secure_access','cisco_email_security','cisco_web_security','cisco_secure_network_analytics','cisco_xdr','cisco_appdynamics','cisco_cyber_vision','cisco_edge_intelligence','cisco_ind'] },
   { name: 'Web & Application Servers', ids: ['apache','nginx','iis','haproxy','traefik','tomcat','jboss','phpfpm','varnish','squid','memcached','envoy'] },
   { name: 'Databases', ids: ['db_connect','mssql','oracle','postgresql','mysql','mongodb','redis','elasticsearch','clickhouse','cassandra','snowflake'] },
   { name: 'Messaging & Middleware', ids: ['kafka','rabbitmq','activemq','zookeeper'] },
-  { name: 'Identity & Access', ids: ['okta','cyberark','beyondtrust','m365','exchange','sharepoint'] },
+  { name: 'Identity & Access', ids: ['okta','cyberark','beyondtrust','m365','microsoft','exchange','sharepoint','cert_pki'] },
   { name: 'Security Tools', ids: ['security_essentials','crowdstrike','defender','tenable','qualys','proofpoint','suricata','claroty','dragos','nozomi'] },
   { name: 'DevOps & CI/CD', ids: ['jenkins','github','gitlab','ansible','controlm'] },
-  { name: 'Splunk Products', ids: ['itsi','stream','opentelemetry','prometheus','grafana','log_pipeline','edge_hub'] },
-  { name: 'ITSM & Collaboration', ids: ['servicenow','jira','pagerduty'] },
+  { name: 'Splunk Products', ids: ['splunk','splunk_es','splunk_soar','itsi','stream','opentelemetry','prometheus','grafana','log_pipeline','edge_hub'] },
+  { name: 'ITSM & Collaboration', ids: ['servicenow','jira','pagerduty','salesforce','sap'] },
   { name: 'OT Vendor Systems', ids: ['siemens','rockwell','schneider','abb','honeywell','emerson','ge_vernova','yokogawa','aveva','fanuc','kuka','beckhoff','phoenix_contact','wago','copa_data','ignition','vtscada','tridium','jci_metasys','ibm_maximo','sap_pm'] },
   { name: 'OT Systems & Equipment', ids: ['scada_hmi','dcs','historian','mes','plc_rtu','safety_system','energy_meter','vibration_sensor','bacnet_devices'] },
   { name: 'OT / IoT Protocols', ids: ['modbus','opcua','mqtt','dnp3','iec104','iec61850','profinet','ethernetip','ethercat','s7comm','mtconnect','profibus','hart','knx','lorawan','zigbee','coap','aranet','asterisk'] },
   { name: 'Storage & Backup', ids: ['netapp','pure_storage','dell_emc','truenas','ceph','veeam','commvault'] },
-  { name: 'Physical Infrastructure', ids: ['hardware_bmc','apc','cctv','hashicorp'] }
+  { name: 'Industry & Vertical Systems', ids: ['pos','scada','fiveg','smartgrid','ehr','oilgas','pipeline','fleet','water','claims','contact_center','cx'] },
+  { name: 'Physical Infrastructure', ids: ['hardware_bmc','apc_dc','cctv','hashicorp'] }
 ];
 
 window.DSA_EQUIPMENT_MAP = {

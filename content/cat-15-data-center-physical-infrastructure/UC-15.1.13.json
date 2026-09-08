@@ -21,9 +21,6 @@
   "value": "Operators running UC-15.1.13 on `ats:events` feeds shorten triage for Switch Events tied to 'Transfer Switch Events', lowering operational risk and delayed incident response.",
   "implementation": "Normalize ATS SNMP/BMS or dry-contact relay signals into ats:events, keep management-interface clocks aligned to NTP, run the catalog SPL on index=power with tunable duration_ms thresholds, and correlate hits with upstream utility or generator maintenance windows before opening an incident.",
   "visualization": "Primary: Timeline colored by event across each ats_id for shift reviews. Secondary: Table sorted by latest transfer per ATS with sparkline-ready duration_ms. KPI: Single-value panel counting qualifying transitions over `-24h` with drill-down to raw events.",
-  "cimModels": [
-    "N/A"
-  ],
   "dataModelAcceleration": "Not applicable",
   "references": [
     {
@@ -49,7 +46,7 @@
     "syslog"
   ],
   "equipmentModels": [
-    "snmp_generic"
+    "snmp_trap"
   ],
   "detailedImplementation": "Prerequisites\n• Deploy collection that matches App: ATS SNMP/BMS traps/polls plus optional dry-contact relays—prefer Splunk Connect for SNMP (Splunkbase app ID 6266) or SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder that owns UDP/162 trap listeners declared in inputs.conf, forwarding into index=power with sourcetype=\"ats:events\".\n• Validate props/transforms extract ats_id, event, source_side, duration_ms, and trap identity fields before alerting; spot-check Interactive Search over `-24h@h` for field completeness.\n• RBAC: grant facility engineers a scoped role such as power_facility_ops read/search on index=power only; dedicate a scheduler account with schedule_search for the saved detection.\n• Document ATS-specific enumerated event tokens your normalization emits so Splunk admins map trap OID payloads consistently.\n\nStep 1 — Configure data collection\nMap SNMP trap bindings or relay closures into structured rows with `_time` anchored to device-reported timestamps; if relays arrive via syslog, tune LINE_BREAKER/TIME_PREFIX so `_time` reflects switch action, not forwarder receipt lag.\n\nStep 2 — Create the search and alert\nPaste the UC SPL into Search, verify rows for known transfers and drills, then save as an alert with cron_schedule `*/5 * * * *` paired to dispatch.earliest_time `-5m` so oscillations surface quickly without overlapping windows.\n\nStep 3 — Validate\nCross-check Splunk rows against the ATS local status indication or an SNMP poll/walk from the same management VLAN for the same ats_id during the `_time` window; reconcile discrepancies before promoting to production schedules.\n\nStep 4 — Operationalize\nPublish the query on an operational dashboard (timeline plus sortable table), route alert actions through your paging policy, record tuning thresholds for duration_ms and allowed event vocabulary in the facility runbook, and rehearse DR drills with suppression macros keyed on maintenance CSV lookups.",
   "grandmaExplanation": "We watch the physical data center for power, cooling, environment, and physical access.",

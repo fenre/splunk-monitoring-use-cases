@@ -176,64 +176,198 @@ def _atomic_write(path, content, encoding="utf-8"):
 # Each entry: id (slug), label (user-facing), tas (substrings; if any appears in UC's App/TA field, UC is relevant).
 # Matching is case-insensitive substring: pattern.lower() in app_ta_field.lower()
 EQUIPMENT = [
-    # ── Operating Systems ──────────────────────────────────────────────────
-    {"id": "linux", "label": "Linux / Unix servers", "tas": ["Splunk_TA_nix"]},
-    {"id": "windows", "label": "Windows servers & workstations", "tas": ["Splunk_TA_windows"]},
-    {"id": "macos", "label": "macOS", "tas": ["macOS", "Splunk UF for macOS"]},
-    # ── Virtualization ─────────────────────────────────────────────────────
+    {
+        "id": "linux",
+        "label": "Linux / Unix servers",
+        "tas": [
+            "Splunk_TA_nix"
+        ],
+        "kind": "equipment",
+        "vendor": "Open Source / Community"
+    },
+    {
+        "id": "windows",
+        "label": "Windows servers & workstations",
+        "tas": [
+            "Splunk_TA_windows"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
+    },
+    {
+        "id": "macos",
+        "label": "macOS",
+        "tas": [
+            "macOS",
+            "Splunk UF for macOS"
+        ],
+        "kind": "equipment",
+        "vendor": "Apple"
+    },
     {
         "id": "vmware",
         "label": "VMware",
-        "tas": ["Splunk_TA_vmware", "TA-vmware", "VMware", "vSphere", "ESXi", "vCenter"],
+        "tas": [
+            "Splunk_TA_vmware",
+            "TA-vmware",
+            "VMware",
+            "vSphere",
+            "ESXi",
+            "vCenter"
+        ],
         "models": [
-            {"id": "vsphere", "label": "vSphere", "tas": ["vSphere", "vsphere"]},
-            {"id": "esxi", "label": "ESXi", "tas": ["ESXi", "esxi"]},
-            {"id": "vcenter", "label": "vCenter", "tas": ["vCenter", "vcenter"]},
+            {
+                "id": "vsphere",
+                "label": "vSphere",
+                "tas": [
+                    "vSphere",
+                    "vsphere"
+                ]
+            },
+            {
+                "id": "esxi",
+                "label": "ESXi",
+                "tas": [
+                    "ESXi",
+                    "esxi"
+                ]
+            },
+            {
+                "id": "vcenter",
+                "label": "vCenter",
+                "tas": [
+                    "vCenter",
+                    "vcenter"
+                ]
+            },
             {
                 "id": "ta_vmware",
                 "label": "Splunk TA for VMware",
-                "tas": ["Splunk_TA_vmware", "TA-vmware"],
-            },
+                "tas": [
+                    "Splunk_TA_vmware",
+                    "TA-vmware"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "VMware"
     },
     {
         "id": "hyperv",
         "label": "Microsoft Hyper-V",
-        "tas": ["Hyper-V", "hyperv", "HyperV", "Perfmon:HyperV"],
+        "tas": [
+            "Hyper-V",
+            "hyperv",
+            "HyperV",
+            "Perfmon:HyperV"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
-    {"id": "proxmox", "label": "Proxmox VE", "tas": ["Proxmox", "proxmox"]},
+    {
+        "id": "proxmox",
+        "label": "Proxmox VE",
+        "tas": [
+            "Proxmox",
+            "proxmox"
+        ],
+        "kind": "equipment",
+        "vendor": "Proxmox"
+    },
     {
         "id": "ovirt",
         "label": "oVirt / Red Hat Virtualization",
-        "tas": ["oVirt", "ovirt", "RHV", "rhv"],
+        "tas": [
+            "oVirt",
+            "ovirt",
+            "RHV",
+            "rhv"
+        ],
+        "kind": "equipment",
+        "vendor": "Red Hat"
     },
-    {"id": "openstack", "label": "OpenStack", "tas": ["OpenStack", "openstack"]},
-    # ── HCI & Converged ────────────────────────────────────────────────────
+    {
+        "id": "openstack",
+        "label": "OpenStack",
+        "tas": [
+            "OpenStack",
+            "openstack"
+        ],
+        "kind": "equipment",
+        "vendor": "OpenInfra Foundation"
+    },
     {
         "id": "nutanix",
         "label": "Nutanix",
-        "tas": ["Nutanix", "nutanix", "TA-nutanix", "Prism"],
-        "models": [
-            {"id": "prism_central", "label": "Prism Central", "tas": ["Prism Central"]},
-            {"id": "prism_element", "label": "Prism Element", "tas": ["Prism Element"]},
+        "tas": [
+            "Nutanix",
+            "nutanix",
+            "TA-nutanix",
+            "Prism"
         ],
+        "models": [
+            {
+                "id": "prism_central",
+                "label": "Prism Central",
+                "tas": [
+                    "Prism Central"
+                ]
+            },
+            {
+                "id": "prism_element",
+                "label": "Prism Element",
+                "tas": [
+                    "Prism Element"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "Nutanix"
     },
-    {"id": "vxrail", "label": "Dell VxRail", "tas": ["VxRail", "vxrail"]},
-    # ── Cloud Providers ────────────────────────────────────────────────────
+    {
+        "id": "vxrail",
+        "label": "Dell VxRail",
+        "tas": [
+            "VxRail",
+            "vxrail"
+        ],
+        "kind": "equipment",
+        "vendor": "Dell / VMware"
+    },
     {
         "id": "aws",
         "label": "Amazon Web Services (AWS)",
-        "tas": ["Splunk_TA_aws", "AWS", "CloudTrail", "CloudWatch"],
+        "tas": [
+            "Splunk_TA_aws",
+            "AWS",
+            "CloudTrail",
+            "CloudWatch"
+        ],
+        "kind": "equipment",
+        "vendor": "Amazon"
     },
     {
         "id": "azure",
         "label": "Microsoft Azure",
-        "tas": ["Splunk_TA_microsoft-cloudservices", "Azure", "Azure Monitor", "Azure Activity"],
+        "tas": [
+            "Splunk_TA_microsoft-cloudservices",
+            "Azure",
+            "Azure Monitor",
+            "Azure Activity"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
     {
         "id": "gcp",
         "label": "Google Cloud Platform (GCP)",
-        "tas": ["Splunk_TA_google-cloudplatform", "GCP", "Google Cloud"],
+        "tas": [
+            "Splunk_TA_google-cloudplatform",
+            "GCP",
+            "Google Cloud"
+        ],
+        "kind": "equipment",
+        "vendor": "Google"
     },
     {
         "id": "oci",
@@ -243,20 +377,28 @@ EQUIPMENT = [
             "Oracle Cloud Infrastructure",
             "OCI",
             "oci:audit",
-            "oci:log",
+            "oci:log"
         ],
         "models": [
             {
                 "id": "cloud_guard",
                 "label": "OCI Cloud Guard",
-                "tas": ["Cloud Guard", "oci:cloudguard"],
+                "tas": [
+                    "Cloud Guard",
+                    "oci:cloudguard"
+                ]
             },
             {
                 "id": "functions",
                 "label": "OCI Functions",
-                "tas": ["OCI Functions", "oci:functions"],
-            },
+                "tas": [
+                    "OCI Functions",
+                    "oci:functions"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Oracle"
     },
     {
         "id": "alibaba",
@@ -266,10 +408,11 @@ EQUIPMENT = [
             "Alibaba Cloud",
             "ActionTrail",
             "alibaba:actiontrail",
-            "alibaba:sls",
+            "alibaba:sls"
         ],
+        "kind": "equipment",
+        "vendor": "Alibaba"
     },
-    # ── Containers & Orchestration ─────────────────────────────────────────
     {
         "id": "kubernetes",
         "label": "Kubernetes",
@@ -278,21 +421,60 @@ EQUIPMENT = [
             "Splunk Connect for Kubernetes",
             "SCK",
             "kube-state-metrics",
-            "kubelet",
+            "kubelet"
         ],
         "models": [
             {
                 "id": "k8s",
                 "label": "Kubernetes clusters",
-                "tas": ["Kubernetes", "kube-state-metrics", "kubelet"],
+                "tas": [
+                    "Kubernetes",
+                    "kube-state-metrics",
+                    "kubelet"
+                ]
             },
-            {"id": "openshift", "label": "OpenShift", "tas": ["OpenShift", "openshift"]},
-            {"id": "helm", "label": "Helm", "tas": ["Helm", "helm"]},
+            {
+                "id": "openshift",
+                "label": "OpenShift",
+                "tas": [
+                    "OpenShift",
+                    "openshift"
+                ]
+            },
+            {
+                "id": "helm",
+                "label": "Helm",
+                "tas": [
+                    "Helm",
+                    "helm"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "CNCF"
     },
-    {"id": "docker", "label": "Docker", "tas": ["Docker", "docker", "Splunk Connect for Docker"]},
-    {"id": "argocd", "label": "ArgoCD", "tas": ["ArgoCD", "argocd", "Argo CD"]},
-    # ── Network Infrastructure ─────────────────────────────────────────────
+    {
+        "id": "docker",
+        "label": "Docker",
+        "tas": [
+            "Docker",
+            "docker",
+            "Splunk Connect for Docker"
+        ],
+        "kind": "equipment",
+        "vendor": "Docker"
+    },
+    {
+        "id": "argocd",
+        "label": "ArgoCD",
+        "tas": [
+            "ArgoCD",
+            "argocd",
+            "Argo CD"
+        ],
+        "kind": "equipment",
+        "vendor": "CNCF"
+    },
     {
         "id": "cisco",
         "label": "Cisco",
@@ -322,7 +504,7 @@ EQUIPMENT = [
             "Cisco DC Networking",
             "cisco:mds",
             "cisco:nexus",
-            "cisco:ndfc",
+            "cisco:ndfc"
         ],
         "models": [
             {
@@ -332,43 +514,79 @@ EQUIPMENT = [
                     "Cisco Firepower",
                     "cisco-firepower",
                     "cisco:firepower",
-                    "Cisco Secure Firewall",
-                ],
+                    "Cisco Secure Firewall"
+                ]
             },
             {
                 "id": "asa",
                 "label": "Cisco ASA",
-                "tas": ["Splunk_TA_cisco-asa", "Cisco ASA", "cisco-asa", "cisco:asa"],
+                "tas": [
+                    "Splunk_TA_cisco-asa",
+                    "Cisco ASA",
+                    "cisco-asa",
+                    "cisco:asa"
+                ]
             },
             {
                 "id": "ios",
                 "label": "Cisco IOS / Catalyst / ISR / ASR",
-                "tas": ["TA-cisco_ios", "Cisco IOS", "cisco-ios", "cisco:ios"],
+                "tas": [
+                    "TA-cisco_ios",
+                    "Cisco IOS",
+                    "cisco-ios",
+                    "cisco:ios"
+                ]
             },
             {
                 "id": "ise",
                 "label": "Cisco ISE",
-                "tas": ["Splunk_TA_cisco-ise", "Cisco ISE", "cisco-ise", "cisco:ise"],
+                "tas": [
+                    "Splunk_TA_cisco-ise",
+                    "Cisco ISE",
+                    "cisco-ise",
+                    "cisco:ise"
+                ]
             },
             {
                 "id": "meraki",
                 "label": "Cisco Meraki",
-                "tas": ["Cisco Meraki Add-on", "Cisco Meraki", "Meraki", "cisco_meraki", "meraki"],
+                "tas": [
+                    "Cisco Meraki Add-on",
+                    "Cisco Meraki",
+                    "Meraki",
+                    "cisco_meraki",
+                    "meraki"
+                ]
             },
             {
                 "id": "ucs",
                 "label": "Cisco UCS",
-                "tas": ["Splunk_TA_cisco-ucs", "Cisco UCS", "cisco:ucs", "UCS Manager"],
+                "tas": [
+                    "Splunk_TA_cisco-ucs",
+                    "Cisco UCS",
+                    "cisco:ucs",
+                    "UCS Manager"
+                ]
             },
             {
                 "id": "intersight",
                 "label": "Cisco Intersight",
-                "tas": ["Cisco Intersight Add-on", "cisco:intersight", "Intersight"],
+                "tas": [
+                    "Cisco Intersight Add-on",
+                    "cisco:intersight",
+                    "Intersight"
+                ]
             },
             {
                 "id": "aci",
                 "label": "Cisco ACI",
-                "tas": ["cisco:aci", "Cisco ACI", "ACI", "APIC", "TA_cisco-ACI"],
+                "tas": [
+                    "cisco:aci",
+                    "Cisco ACI",
+                    "ACI",
+                    "APIC",
+                    "TA_cisco-ACI"
+                ]
             },
             {
                 "id": "nexus",
@@ -379,13 +597,18 @@ EQUIPMENT = [
                     "cisco:ndfc",
                     "Cisco DC Networking",
                     "NDFC",
-                    "NX-OS",
-                ],
+                    "NX-OS"
+                ]
             },
             {
                 "id": "sdwan",
                 "label": "Cisco SD-WAN / vManage",
-                "tas": ["cisco:sdwan", "Cisco SD-WAN", "vManage", "Catalyst SD-WAN"],
+                "tas": [
+                    "cisco:sdwan",
+                    "Cisco SD-WAN",
+                    "vManage",
+                    "Catalyst SD-WAN"
+                ]
             },
             {
                 "id": "catalyst_center",
@@ -395,79 +618,177 @@ EQUIPMENT = [
                     "cisco:dnac",
                     "Catalyst Center",
                     "DNA Center",
-                    "DNAC",
-                ],
+                    "DNAC"
+                ]
             },
             {
                 "id": "wlc",
                 "label": "Cisco WLC / Catalyst 9800",
-                "tas": ["cisco:wlc", "Cisco WLC", "WLC"],
+                "tas": [
+                    "cisco:wlc",
+                    "Cisco WLC",
+                    "WLC"
+                ]
             },
             {
                 "id": "ucm",
                 "label": "Cisco UCM / Unified Communications",
-                "tas": ["cisco:ucm", "Cisco UCM", "UCM CDR", "CUCM"],
+                "tas": [
+                    "cisco:ucm",
+                    "Cisco UCM",
+                    "UCM CDR",
+                    "CUCM"
+                ]
             },
-            {"id": "webex", "label": "Cisco Webex", "tas": ["Webex", "webex", "ta_cisco_webex"]},
+            {
+                "id": "webex",
+                "label": "Cisco Webex",
+                "tas": [
+                    "Webex",
+                    "webex",
+                    "ta_cisco_webex"
+                ]
+            },
             {
                 "id": "spaces",
                 "label": "Cisco Spaces",
-                "tas": ["Cisco Spaces", "cisco:spaces", "cisco_spaces", "Spaces Add-On"],
+                "tas": [
+                    "Cisco Spaces",
+                    "cisco:spaces",
+                    "cisco_spaces",
+                    "Spaces Add-On"
+                ]
             },
             {
                 "id": "thousandeyes",
                 "label": "Cisco ThousandEyes",
-                "tas": ["ThousandEyes", "thousandeyes", "Cisco ThousandEyes App"],
+                "tas": [
+                    "ThousandEyes",
+                    "thousandeyes",
+                    "Cisco ThousandEyes App"
+                ]
             },
+            {
+                "id": "cyber_vision",
+                "label": "Cisco Cyber Vision",
+                "tas": [
+                    "Cisco Cyber Vision",
+                    "cisco-cybervision",
+                    "cisco-cyber-vision",
+                    "cisco_cyber_vision"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Cisco"
     },
     {
         "id": "paloalto",
         "label": "Palo Alto Networks",
-        "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],
+        "tas": [
+            "Splunk_TA_paloalto",
+            "Palo Alto",
+            "GlobalProtect",
+            "Prisma",
+            "palo_alto",
+            "palo-alto",
+            "paloaltonetworks",
+            "Palo Alto Networks"
+        ],
         "models": [
             {
                 "id": "pan_firewall",
                 "label": "Palo Alto Firewall / PAN-OS",
-                "tas": ["Splunk_TA_paloalto", "Palo Alto", "PAN-OS", "paloalto"],
+                "tas": [
+                    "Splunk_TA_paloalto",
+                    "Palo Alto",
+                    "PAN-OS",
+                    "paloalto"
+                ]
             },
             {
                 "id": "globalprotect",
                 "label": "GlobalProtect",
-                "tas": ["GlobalProtect", "globalprotect"],
+                "tas": [
+                    "GlobalProtect",
+                    "globalprotect"
+                ]
             },
-            {"id": "prisma", "label": "Prisma Access", "tas": ["Prisma", "prisma"]},
+            {
+                "id": "prisma",
+                "label": "Prisma Access",
+                "tas": [
+                    "Prisma",
+                    "prisma"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Palo Alto Networks"
     },
     {
         "id": "fortinet",
         "label": "Fortinet",
-        "tas": ["Fortinet", "FortiGate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+        "tas": [
+            "Fortinet",
+            "FortiGate",
+            "Splunk_TA_fortinet",
+            "TA-fortinet_fortigate"
+        ],
         "models": [
             {
                 "id": "fortigate",
                 "label": "FortiGate",
-                "tas": ["FortiGate", "fortigate", "Splunk_TA_fortinet", "TA-fortinet_fortigate"],
+                "tas": [
+                    "FortiGate",
+                    "fortigate",
+                    "Splunk_TA_fortinet",
+                    "TA-fortinet_fortigate"
+                ]
             },
             {
                 "id": "fortianalyzer",
                 "label": "FortiAnalyzer",
-                "tas": ["FortiAnalyzer", "fortianalyzer"],
-            },
+                "tas": [
+                    "FortiAnalyzer",
+                    "fortianalyzer"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Fortinet"
     },
     {
         "id": "f5",
         "label": "F5",
-        "tas": ["Splunk_TA_f5-bigip", "F5", "BIG-IP", "f5-bigip"],
+        "tas": [
+            "Splunk_TA_f5-bigip",
+            "F5",
+            "BIG-IP",
+            "f5-bigip"
+        ],
         "models": [
             {
                 "id": "bigip",
                 "label": "F5 BIG-IP",
-                "tas": ["Splunk_TA_f5-bigip", "BIG-IP", "f5-bigip", "bigip"],
+                "tas": [
+                    "Splunk_TA_f5-bigip",
+                    "BIG-IP",
+                    "f5-bigip",
+                    "bigip"
+                ]
             },
-            {"id": "asm", "label": "F5 ASM", "tas": ["ASM", "f5-bigip (ASM)"]},
+            {
+                "id": "asm",
+                "label": "F5 ASM",
+                "tas": [
+                    "ASM",
+                    "f5-bigip (ASM)"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "F5"
     },
     {
         "id": "citrix",
@@ -485,7 +806,7 @@ EQUIPMENT = [
             "citrix:netscaler",
             "Citrix Monitor Service",
             "citrix:pvs",
-            "citrix:cloudconnector",
+            "citrix:cloudconnector"
         ],
         "models": [
             {
@@ -497,8 +818,8 @@ EQUIPMENT = [
                     "NetScaler",
                     "netscaler",
                     "Citrix ADC",
-                    "NITRO API",
-                ],
+                    "NITRO API"
+                ]
             },
             {
                 "id": "cvad",
@@ -511,8 +832,8 @@ EQUIPMENT = [
                     "CVAD",
                     "XenDesktop",
                     "XenApp",
-                    "Citrix Monitor Service",
-                ],
+                    "Citrix Monitor Service"
+                ]
             },
             {
                 "id": "uberagent",
@@ -528,203 +849,691 @@ EQUIPMENT = [
                     "uberAgent:Browser",
                     "uberAgent:CitrixSite",
                     "uberAgent:CitrixADC",
-                    "uberAgent:ESA",
-                ],
-            },
+                    "uberAgent:ESA"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Citrix"
     },
     {
         "id": "checkpoint",
         "label": "Check Point",
-        "tas": ["Check Point", "checkpoint", "CheckPoint", "cp_log"],
+        "tas": [
+            "Check Point",
+            "checkpoint",
+            "CheckPoint",
+            "cp_log"
+        ],
+        "kind": "equipment",
+        "vendor": "Check Point"
     },
-    {"id": "nsx", "label": "VMware NSX", "tas": ["NSX", "nsx", "vmware_nsx_addon", "NSX-T"]},
+    {
+        "id": "nsx",
+        "label": "VMware NSX",
+        "tas": [
+            "NSX",
+            "nsx",
+            "vmware_nsx_addon",
+            "NSX-T"
+        ],
+        "kind": "equipment",
+        "vendor": "VMware"
+    },
     {
         "id": "infoblox",
         "label": "Infoblox",
-        "tas": ["Splunk_TA_infoblox", "Infoblox", "infoblox"],
-        "models": [
-            {"id": "dns", "label": "Infoblox DNS", "tas": ["Infoblox DNS"]},
-            {"id": "dhcp", "label": "Infoblox DHCP", "tas": ["Infoblox DHCP"]},
+        "tas": [
+            "Splunk_TA_infoblox",
+            "Infoblox",
+            "infoblox"
         ],
+        "models": [
+            {
+                "id": "dns",
+                "label": "Infoblox DNS",
+                "tas": [
+                    "Infoblox DNS"
+                ]
+            },
+            {
+                "id": "dhcp",
+                "label": "Infoblox DHCP",
+                "tas": [
+                    "Infoblox DHCP"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "Infoblox"
     },
     {
         "id": "netflow",
         "label": "NetFlow / sFlow",
-        "tas": ["NetFlow", "netflow", "sFlow", "sflow"],
-        "models": [
-            {"id": "netflow", "label": "NetFlow", "tas": ["NetFlow", "netflow"]},
-            {"id": "sflow", "label": "sFlow", "tas": ["sFlow", "sflow"]},
+        "tas": [
+            "NetFlow",
+            "netflow",
+            "sFlow",
+            "sflow"
         ],
+        "models": [
+            {
+                "id": "netflow",
+                "label": "NetFlow",
+                "tas": [
+                    "NetFlow",
+                    "netflow"
+                ]
+            },
+            {
+                "id": "sflow",
+                "label": "sFlow",
+                "tas": [
+                    "sFlow",
+                    "sflow"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "IETF / Multi-vendor"
     },
     {
         "id": "snmp",
         "label": "SNMP",
-        "tas": ["SNMP", "snmp"],
+        "tas": [
+            "SNMP",
+            "snmp"
+        ],
         "models": [
-            {"id": "generic", "label": "SNMP (generic)", "tas": ["SNMP", "snmp"]},
-            {"id": "pdu", "label": "PDU / power", "tas": ["PDU", "PDU-MIB", "pdu"]},
-            {"id": "ups", "label": "UPS", "tas": ["UPS", "UPS-MIB", "ups"]},
+            {
+                "id": "trap",
+                "label": "SNMP (generic)",
+                "tas": [
+                    "SNMP",
+                    "snmp"
+                ]
+            },
+            {
+                "id": "pdu",
+                "label": "PDU / power",
+                "tas": [
+                    "PDU",
+                    "PDU-MIB",
+                    "pdu"
+                ]
+            },
+            {
+                "id": "ups",
+                "label": "UPS",
+                "tas": [
+                    "UPS",
+                    "UPS-MIB",
+                    "ups"
+                ]
+            },
             {
                 "id": "apc",
                 "label": "APC / Schneider Electric",
-                "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"],
-            },
+                "tas": [
+                    "APC",
+                    "PowerNet-MIB",
+                    "InRow",
+                    "AirIR"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "IETF / Multi-vendor"
     },
-    {"id": "syslog", "label": "Syslog (generic)", "tas": ["Splunk_TA_syslog", "Syslog", "syslog"]},
-    # ── Web Servers & Reverse Proxies ──────────────────────────────────────
+    {
+        "id": "syslog",
+        "label": "Syslog (generic)",
+        "tas": [
+            "Splunk_TA_syslog",
+            "Syslog",
+            "syslog"
+        ],
+        "kind": "equipment",
+        "vendor": "IETF / Multi-vendor"
+    },
     {
         "id": "apache",
         "label": "Apache HTTP Server",
-        "tas": ["Splunk_TA_apache", "apache"],
+        "tas": [
+            "Splunk_TA_apache",
+            "apache"
+        ],
         "models": [
             {
                 "id": "httpd",
                 "label": "Apache httpd",
-                "tas": ["Splunk_TA_apache", "apache", "httpd"],
-            },
+                "tas": [
+                    "Splunk_TA_apache",
+                    "apache",
+                    "httpd"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
     },
     {
         "id": "nginx",
         "label": "NGINX",
-        "tas": ["TA-nginx", "nginx", "NGINX"],
-        "models": [
-            {"id": "open", "label": "NGINX Open Source", "tas": ["TA-nginx", "nginx", "NGINX"]},
-            {"id": "plus", "label": "NGINX Plus", "tas": ["NGINX Plus", "nginx plus"]},
+        "tas": [
+            "TA-nginx",
+            "nginx",
+            "NGINX"
         ],
+        "models": [
+            {
+                "id": "open",
+                "label": "NGINX Open Source",
+                "tas": [
+                    "TA-nginx",
+                    "nginx",
+                    "NGINX"
+                ]
+            },
+            {
+                "id": "plus",
+                "label": "NGINX Plus",
+                "tas": [
+                    "NGINX Plus",
+                    "nginx plus"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "F5"
     },
     {
         "id": "iis",
         "label": "Microsoft IIS",
-        "tas": ["IIS", "Microsoft IIS", "Splunk Add-on for Microsoft IIS"],
+        "tas": [
+            "IIS",
+            "Microsoft IIS",
+            "Splunk Add-on for Microsoft IIS"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
-    {"id": "haproxy", "label": "HAProxy", "tas": ["HAProxy", "haproxy"]},
-    {"id": "traefik", "label": "Traefik", "tas": ["Traefik", "traefik"]},
-    # ── Application Servers ────────────────────────────────────────────────
-    {"id": "tomcat", "label": "Apache Tomcat", "tas": ["Tomcat", "tomcat", "Catalina"]},
-    {"id": "jboss", "label": "WildFly / JBoss", "tas": ["WildFly", "JBoss", "wildfly", "jboss"]},
-    {"id": "phpfpm", "label": "PHP-FPM", "tas": ["PHP-FPM", "php-fpm", "phpfpm"]},
-    # ── Caching & Proxy ────────────────────────────────────────────────────
-    {"id": "varnish", "label": "Varnish Cache", "tas": ["Varnish", "varnish"]},
-    {"id": "squid", "label": "Squid Proxy", "tas": ["Squid", "squid"]},
-    {"id": "memcached", "label": "Memcached", "tas": ["Memcached", "memcached"]},
-    {"id": "envoy", "label": "Envoy Proxy", "tas": ["Envoy", "envoy"]},
-    # ── Databases ──────────────────────────────────────────────────────────
+    {
+        "id": "haproxy",
+        "label": "HAProxy",
+        "tas": [
+            "HAProxy",
+            "haproxy"
+        ],
+        "kind": "equipment",
+        "vendor": "HAProxy Technologies"
+    },
+    {
+        "id": "traefik",
+        "label": "Traefik",
+        "tas": [
+            "Traefik",
+            "traefik"
+        ],
+        "kind": "equipment",
+        "vendor": "Traefik Labs"
+    },
+    {
+        "id": "tomcat",
+        "label": "Apache Tomcat",
+        "tas": [
+            "Tomcat",
+            "tomcat",
+            "Catalina"
+        ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
+    },
+    {
+        "id": "jboss",
+        "label": "WildFly / JBoss",
+        "tas": [
+            "WildFly",
+            "JBoss",
+            "wildfly",
+            "jboss"
+        ],
+        "kind": "equipment",
+        "vendor": "Red Hat"
+    },
+    {
+        "id": "phpfpm",
+        "label": "PHP-FPM",
+        "tas": [
+            "PHP-FPM",
+            "php-fpm",
+            "phpfpm"
+        ],
+        "kind": "equipment",
+        "vendor": "PHP Group"
+    },
+    {
+        "id": "varnish",
+        "label": "Varnish Cache",
+        "tas": [
+            "Varnish",
+            "varnish"
+        ],
+        "kind": "equipment",
+        "vendor": "Varnish Software"
+    },
+    {
+        "id": "squid",
+        "label": "Squid Proxy",
+        "tas": [
+            "Squid",
+            "squid"
+        ],
+        "kind": "equipment",
+        "vendor": "Squid Project"
+    },
+    {
+        "id": "memcached",
+        "label": "Memcached",
+        "tas": [
+            "Memcached",
+            "memcached"
+        ],
+        "kind": "equipment",
+        "vendor": "Memcached"
+    },
+    {
+        "id": "envoy",
+        "label": "Envoy Proxy",
+        "tas": [
+            "Envoy",
+            "envoy"
+        ],
+        "kind": "equipment",
+        "vendor": "CNCF"
+    },
     {
         "id": "db_connect",
         "label": "Splunk DB Connect",
-        "tas": ["DB Connect", "splunk_app_db_connect"],
+        "tas": [
+            "DB Connect",
+            "splunk_app_db_connect"
+        ],
+        "kind": "splunk-platform",
+        "vendor": "Splunk"
     },
     {
         "id": "mssql",
         "label": "Microsoft SQL Server",
-        "tas": ["Splunk_TA_microsoft-sqlserver", "microsoft-sqlserver", "SQL Server"],
+        "tas": [
+            "Splunk_TA_microsoft-sqlserver",
+            "microsoft-sqlserver",
+            "SQL Server"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
     {
         "id": "oracle",
         "label": "Oracle Database",
-        "tas": ["Splunk_TA_oracle", "Oracle"],
+        "tas": [
+            "Splunk_TA_oracle",
+            "Oracle"
+        ],
         "models": [
             {
                 "id": "oracle_db",
                 "label": "Oracle Database",
-                "tas": ["Oracle", "oracle", "tablespace"],
-            },
+                "tas": [
+                    "Oracle",
+                    "oracle",
+                    "tablespace"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Oracle"
     },
     {
         "id": "postgresql",
         "label": "PostgreSQL",
-        "tas": ["PostgreSQL", "postgresql", "PgBouncer", "pgbouncer"],
-        "models": [
-            {"id": "pg", "label": "PostgreSQL", "tas": ["PostgreSQL", "postgresql"]},
-            {"id": "pgbouncer", "label": "PgBouncer", "tas": ["PgBouncer", "pgbouncer"]},
+        "tas": [
+            "PostgreSQL",
+            "postgresql",
+            "PgBouncer",
+            "pgbouncer"
         ],
+        "models": [
+            {
+                "id": "pg",
+                "label": "PostgreSQL",
+                "tas": [
+                    "PostgreSQL",
+                    "postgresql"
+                ]
+            },
+            {
+                "id": "pgbouncer",
+                "label": "PgBouncer",
+                "tas": [
+                    "PgBouncer",
+                    "pgbouncer"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "PostgreSQL Global Development Group"
     },
     {
         "id": "mysql",
         "label": "MySQL / MariaDB",
-        "tas": ["MySQL", "mysql", "MariaDB", "mariadb", "InnoDB"],
+        "tas": [
+            "MySQL",
+            "mysql",
+            "MariaDB",
+            "mariadb",
+            "InnoDB"
+        ],
+        "kind": "equipment",
+        "vendor": "Oracle"
     },
     {
         "id": "mongodb",
         "label": "MongoDB",
-        "tas": ["MongoDB", "mongodb", "mongosh"],
-        "models": [
-            {"id": "mongod", "label": "MongoDB Server", "tas": ["MongoDB", "mongodb", "mongosh"]},
-            {"id": "wiredtiger", "label": "WiredTiger", "tas": ["WiredTiger", "wiredtiger"]},
+        "tas": [
+            "MongoDB",
+            "mongodb",
+            "mongosh"
         ],
+        "models": [
+            {
+                "id": "mongod",
+                "label": "MongoDB Server",
+                "tas": [
+                    "MongoDB",
+                    "mongodb",
+                    "mongosh"
+                ]
+            },
+            {
+                "id": "wiredtiger",
+                "label": "WiredTiger",
+                "tas": [
+                    "WiredTiger",
+                    "wiredtiger"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "MongoDB"
     },
-    {"id": "redis", "label": "Redis", "tas": ["Redis", "redis"]},
+    {
+        "id": "redis",
+        "label": "Redis",
+        "tas": [
+            "Redis",
+            "redis"
+        ],
+        "kind": "equipment",
+        "vendor": "Redis"
+    },
     {
         "id": "elasticsearch",
         "label": "Elasticsearch / OpenSearch",
-        "tas": ["Elasticsearch", "elasticsearch", "ES REST API", "OpenSearch"],
+        "tas": [
+            "Elasticsearch",
+            "elasticsearch",
+            "ES REST API",
+            "OpenSearch"
+        ],
         "models": [
             {
                 "id": "es",
                 "label": "Elasticsearch",
-                "tas": ["Elasticsearch", "elasticsearch", "ES REST API"],
+                "tas": [
+                    "Elasticsearch",
+                    "elasticsearch",
+                    "ES REST API"
+                ]
             },
-            {"id": "opensearch", "label": "OpenSearch", "tas": ["OpenSearch", "opensearch"]},
+            {
+                "id": "opensearch",
+                "label": "OpenSearch",
+                "tas": [
+                    "OpenSearch",
+                    "opensearch"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Elastic"
     },
-    {"id": "clickhouse", "label": "ClickHouse", "tas": ["ClickHouse", "clickhouse"]},
-    {"id": "cassandra", "label": "Apache Cassandra", "tas": ["Cassandra", "cassandra", "nodetool"]},
-    {"id": "snowflake", "label": "Snowflake", "tas": ["Snowflake", "snowflake"]},
-    # ── Message Queues & Streaming ─────────────────────────────────────────
+    {
+        "id": "clickhouse",
+        "label": "ClickHouse",
+        "tas": [
+            "ClickHouse",
+            "clickhouse"
+        ],
+        "kind": "equipment",
+        "vendor": "ClickHouse"
+    },
+    {
+        "id": "cassandra",
+        "label": "Apache Cassandra",
+        "tas": [
+            "Cassandra",
+            "cassandra",
+            "nodetool"
+        ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
+    },
+    {
+        "id": "snowflake",
+        "label": "Snowflake",
+        "tas": [
+            "Snowflake",
+            "snowflake"
+        ],
+        "kind": "equipment",
+        "vendor": "Snowflake"
+    },
     {
         "id": "kafka",
         "label": "Apache Kafka",
-        "tas": ["TA-kafka", "Kafka", "kafka", "Splunk Connect for Kafka"],
+        "tas": [
+            "TA-kafka",
+            "Kafka",
+            "kafka",
+            "Splunk Connect for Kafka"
+        ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
     },
-    {"id": "rabbitmq", "label": "RabbitMQ", "tas": ["RabbitMQ", "rabbitmq"]},
-    {"id": "activemq", "label": "Apache ActiveMQ", "tas": ["ActiveMQ", "activemq"]},
-    {"id": "zookeeper", "label": "Apache ZooKeeper", "tas": ["ZooKeeper", "zookeeper"]},
-    # ── HashiCorp ──────────────────────────────────────────────────────────
+    {
+        "id": "rabbitmq",
+        "label": "RabbitMQ",
+        "tas": [
+            "RabbitMQ",
+            "rabbitmq"
+        ],
+        "kind": "equipment",
+        "vendor": "Broadcom"
+    },
+    {
+        "id": "activemq",
+        "label": "Apache ActiveMQ",
+        "tas": [
+            "ActiveMQ",
+            "activemq"
+        ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
+    },
+    {
+        "id": "zookeeper",
+        "label": "Apache ZooKeeper",
+        "tas": [
+            "ZooKeeper",
+            "zookeeper"
+        ],
+        "kind": "equipment",
+        "vendor": "Apache Software Foundation"
+    },
     {
         "id": "hashicorp",
         "label": "HashiCorp",
-        "tas": ["Vault", "Consul", "Nomad", "HashiCorp", "Terraform"],
-        "models": [
-            {"id": "vault", "label": "HashiCorp Vault", "tas": ["Vault"]},
-            {"id": "consul", "label": "HashiCorp Consul", "tas": ["Consul"]},
-            {"id": "nomad", "label": "HashiCorp Nomad", "tas": ["Nomad"]},
-            {"id": "terraform", "label": "Terraform", "tas": ["Terraform", "terraform"]},
+        "tas": [
+            "Vault",
+            "Consul",
+            "Nomad",
+            "HashiCorp",
+            "Terraform"
         ],
+        "models": [
+            {
+                "id": "vault",
+                "label": "HashiCorp Vault",
+                "tas": [
+                    "Vault"
+                ]
+            },
+            {
+                "id": "consul",
+                "label": "HashiCorp Consul",
+                "tas": [
+                    "Consul"
+                ]
+            },
+            {
+                "id": "nomad",
+                "label": "HashiCorp Nomad",
+                "tas": [
+                    "Nomad"
+                ]
+            },
+            {
+                "id": "terraform",
+                "label": "Terraform",
+                "tas": [
+                    "Terraform",
+                    "terraform"
+                ]
+            }
+        ],
+        "kind": "equipment",
+        "vendor": "HashiCorp"
     },
-    # ── Storage ────────────────────────────────────────────────────────────
-    {"id": "netapp", "label": "NetApp", "tas": ["TA-netapp_ontap", "NetApp", "netapp", "ONTAP"]},
+    {
+        "id": "netapp",
+        "label": "NetApp",
+        "tas": [
+            "TA-netapp_ontap",
+            "NetApp",
+            "netapp",
+            "ONTAP"
+        ],
+        "kind": "equipment",
+        "vendor": "NetApp"
+    },
     {
         "id": "pure_storage",
         "label": "Pure Storage",
-        "tas": ["Pure Storage", "FlashArray", "FlashBlade"],
+        "tas": [
+            "Pure Storage",
+            "FlashArray",
+            "FlashBlade"
+        ],
+        "kind": "equipment",
+        "vendor": "Pure Storage"
     },
     {
         "id": "dell_emc",
         "label": "Dell EMC Storage",
-        "tas": ["Dell EMC", "Isilon", "PowerStore", "Unity", "EqualLogic"],
+        "tas": [
+            "Dell EMC",
+            "Isilon",
+            "PowerStore",
+            "Unity",
+            "EqualLogic"
+        ],
+        "kind": "equipment",
+        "vendor": "Dell"
     },
     {
         "id": "truenas",
         "label": "TrueNAS / FreeNAS",
-        "tas": ["TrueNAS", "truenas", "FreeNAS", "freenas"],
+        "tas": [
+            "TrueNAS",
+            "truenas",
+            "FreeNAS",
+            "freenas"
+        ],
+        "kind": "equipment",
+        "vendor": "iXsystems"
     },
-    {"id": "ceph", "label": "Ceph", "tas": ["Ceph", "ceph"]},
-    # ── Backup & Data Protection ───────────────────────────────────────────
-    {"id": "veeam", "label": "Veeam", "tas": ["Veeam", "veeam"]},
-    {"id": "commvault", "label": "Commvault", "tas": ["Commvault", "commvault"]},
-    # ── Identity & Access ──────────────────────────────────────────────────
-    {"id": "okta", "label": "Okta", "tas": ["Splunk_TA_okta", "okta"]},
-    {"id": "cyberark", "label": "CyberArk", "tas": ["Splunk_TA_cyberark", "CyberArk", "cyberark"]},
-    {"id": "beyondtrust", "label": "BeyondTrust", "tas": ["BeyondTrust", "beyondtrust"]},
-    # ── Certificate Lifecycle / PKI ────────────────────────────────────────
-    # Patterns are intentionally narrow: only product/service identifiers and
-    # specific cert-lifecycle phrases. Generic terms like "openssl", "x509",
-    # "OCSP", "certutil", and any TA name are excluded because they appear
-    # in unrelated TLS-hardening, LOLBin, and generic Windows UCs.
+    {
+        "id": "ceph",
+        "label": "Ceph",
+        "tas": [
+            "Ceph",
+            "ceph"
+        ],
+        "kind": "equipment",
+        "vendor": "Red Hat"
+    },
+    {
+        "id": "veeam",
+        "label": "Veeam",
+        "tas": [
+            "Veeam",
+            "veeam"
+        ],
+        "kind": "equipment",
+        "vendor": "Veeam"
+    },
+    {
+        "id": "commvault",
+        "label": "Commvault",
+        "tas": [
+            "Commvault",
+            "commvault"
+        ],
+        "kind": "equipment",
+        "vendor": "Commvault"
+    },
+    {
+        "id": "okta",
+        "label": "Okta",
+        "tas": [
+            "Splunk_TA_okta",
+            "okta"
+        ],
+        "kind": "equipment",
+        "vendor": "Okta"
+    },
+    {
+        "id": "cyberark",
+        "label": "CyberArk",
+        "tas": [
+            "Splunk_TA_cyberark",
+            "CyberArk",
+            "cyberark"
+        ],
+        "kind": "equipment",
+        "vendor": "CyberArk"
+    },
+    {
+        "id": "beyondtrust",
+        "label": "BeyondTrust",
+        "tas": [
+            "BeyondTrust",
+            "beyondtrust"
+        ],
+        "kind": "equipment",
+        "vendor": "BeyondTrust"
+    },
     {
         "id": "cert_pki",
         "label": "Certificate Lifecycle / PKI",
@@ -761,7 +1570,7 @@ EQUIPMENT = [
             "Azure Key Vault Cert",
             "azure:keyvault:cert",
             "google:gcp:certificateauthorityservice",
-            "GCP Certificate Authority",
+            "GCP Certificate Authority"
         ],
         "models": [
             {
@@ -771,16 +1580,40 @@ EQUIPMENT = [
                     "AD CS",
                     "ADCS",
                     "Active Directory Certificate Services",
-                    "WinEventLog:CertificateServices",
-                ],
+                    "WinEventLog:CertificateServices"
+                ]
             },
-            {"id": "vault_pki", "label": "HashiCorp Vault PKI", "tas": ["Vault PKI", "vault pki"]},
-            {"id": "ejbca", "label": "EJBCA", "tas": ["EJBCA", "ejbca"]},
-            {"id": "venafi", "label": "Venafi TLS Protect", "tas": ["Venafi", "venafi"]},
+            {
+                "id": "vault_pki",
+                "label": "HashiCorp Vault PKI",
+                "tas": [
+                    "Vault PKI",
+                    "vault pki"
+                ]
+            },
+            {
+                "id": "ejbca",
+                "label": "EJBCA",
+                "tas": [
+                    "EJBCA",
+                    "ejbca"
+                ]
+            },
+            {
+                "id": "venafi",
+                "label": "Venafi TLS Protect",
+                "tas": [
+                    "Venafi",
+                    "venafi"
+                ]
+            },
             {
                 "id": "sectigo",
                 "label": "Sectigo Certificate Manager",
-                "tas": ["Sectigo", "sectigo"],
+                "tas": [
+                    "Sectigo",
+                    "sectigo"
+                ]
             },
             {
                 "id": "letsencrypt",
@@ -792,28 +1625,45 @@ EQUIPMENT = [
                     "ACME challenge",
                     "ACME client",
                     "ACME issuance",
-                    "ACME renewal",
-                ],
+                    "ACME renewal"
+                ]
             },
             {
                 "id": "ct_logs",
                 "label": "Certificate Transparency logs",
-                "tas": ["Certificate Transparency", "ct:log"],
+                "tas": [
+                    "Certificate Transparency",
+                    "ct:log"
+                ]
             },
-            {"id": "aws_acm", "label": "AWS Certificate Manager", "tas": ["aws:acm", "AWS ACM"]},
+            {
+                "id": "aws_acm",
+                "label": "AWS Certificate Manager",
+                "tas": [
+                    "aws:acm",
+                    "AWS ACM"
+                ]
+            },
             {
                 "id": "azure_keyvault_cert",
                 "label": "Azure Key Vault Certificates",
-                "tas": ["Azure Key Vault Cert", "azure:keyvault:cert"],
+                "tas": [
+                    "Azure Key Vault Cert",
+                    "azure:keyvault:cert"
+                ]
             },
             {
                 "id": "gcp_cas",
                 "label": "GCP Certificate Authority Service",
-                "tas": ["google:gcp:certificateauthorityservice", "GCP Certificate Authority"],
-            },
+                "tas": [
+                    "google:gcp:certificateauthorityservice",
+                    "GCP Certificate Authority"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Multi-vendor"
     },
-    # ── Microsoft Ecosystem ────────────────────────────────────────────────
     {
         "id": "m365",
         "label": "Microsoft 365 / Entra ID",
@@ -823,100 +1673,401 @@ EQUIPMENT = [
             "Office 365",
             "Entra",
             "M365",
-            "microsoft-cloudservices",
+            "microsoft-cloudservices"
         ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
     {
         "id": "exchange",
         "label": "Microsoft Exchange",
-        "tas": ["Splunk_TA_microsoft-exchange", "microsoft-exchange", "Exchange"],
+        "tas": [
+            "Splunk_TA_microsoft-exchange",
+            "microsoft-exchange",
+            "Exchange"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
     {
         "id": "sharepoint",
         "label": "Microsoft SharePoint",
-        "tas": ["SharePoint", "sharepoint", "SPOSite"],
+        "tas": [
+            "SharePoint",
+            "sharepoint",
+            "SPOSite"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
-    # ── Security Platforms ─────────────────────────────────────────────────
     {
         "id": "security_essentials",
         "label": "Splunk Security Essentials (ESCU)",
-        "tas": ["Security Essentials", "ESCU"],
+        "tas": [
+            "Security Essentials",
+            "ESCU"
+        ],
+        "kind": "splunk-platform",
+        "vendor": "Splunk"
     },
     {
         "id": "crowdstrike",
         "label": "CrowdStrike Falcon",
-        "tas": ["CrowdStrike", "crowdstrike", "Falcon"],
+        "tas": [
+            "CrowdStrike",
+            "crowdstrike",
+            "Falcon"
+        ],
+        "kind": "equipment",
+        "vendor": "CrowdStrike"
     },
     {
         "id": "defender",
         "label": "Microsoft Defender",
-        "tas": ["Microsoft Defender", "Defender for"],
+        "tas": [
+            "Microsoft Defender",
+            "Defender for"
+        ],
+        "kind": "equipment",
+        "vendor": "Microsoft"
     },
-    {"id": "tenable", "label": "Tenable / Nessus", "tas": ["Tenable", "tenable", "Nessus"]},
-    {"id": "qualys", "label": "Qualys", "tas": ["Qualys", "qualys"]},
+    {
+        "id": "tenable",
+        "label": "Tenable / Nessus",
+        "tas": [
+            "Tenable",
+            "tenable",
+            "Nessus"
+        ],
+        "kind": "equipment",
+        "vendor": "Tenable"
+    },
+    {
+        "id": "qualys",
+        "label": "Qualys",
+        "tas": [
+            "Qualys",
+            "qualys"
+        ],
+        "kind": "equipment",
+        "vendor": "Qualys"
+    },
     {
         "id": "proofpoint",
         "label": "Proofpoint",
-        "tas": ["Proofpoint", "proofpoint", "TA-proofpoint"],
+        "tas": [
+            "Proofpoint",
+            "proofpoint",
+            "TA-proofpoint"
+        ],
+        "kind": "equipment",
+        "vendor": "Proofpoint"
     },
     {
         "id": "suricata",
         "label": "Suricata / Snort (IDS/IPS)",
-        "tas": ["Suricata", "suricata", "TA-suricata", "Snort", "snort"],
+        "tas": [
+            "Suricata",
+            "suricata",
+            "TA-suricata",
+            "Snort",
+            "snort"
+        ],
+        "kind": "equipment",
+        "vendor": "OISF"
     },
-    {"id": "zscaler", "label": "Zscaler", "tas": ["Zscaler", "zscaler"]},
-    {"id": "netskope", "label": "Netskope", "tas": ["Netskope", "netskope"]},
-    {"id": "cloudflare", "label": "Cloudflare", "tas": ["Cloudflare", "cloudflare"]},
-    {"id": "guardicore", "label": "Akamai Guardicore", "tas": ["Guardicore", "guardicore"]},
+    {
+        "id": "zscaler",
+        "label": "Zscaler",
+        "tas": [
+            "Zscaler",
+            "zscaler"
+        ],
+        "kind": "equipment",
+        "vendor": "Zscaler"
+    },
+    {
+        "id": "netskope",
+        "label": "Netskope",
+        "tas": [
+            "Netskope",
+            "netskope"
+        ],
+        "kind": "equipment",
+        "vendor": "Netskope"
+    },
+    {
+        "id": "cloudflare",
+        "label": "Cloudflare",
+        "tas": [
+            "Cloudflare",
+            "cloudflare"
+        ],
+        "kind": "equipment",
+        "vendor": "Cloudflare"
+    },
+    {
+        "id": "guardicore",
+        "label": "Akamai Guardicore",
+        "tas": [
+            "Guardicore",
+            "guardicore"
+        ],
+        "kind": "equipment",
+        "vendor": "Akamai"
+    },
     {
         "id": "broadcom_symantec",
         "label": "Broadcom / Symantec SSE",
-        "tas": ["Symantec", "symantec", "Broadcom", "bluecoat", "Blue Coat"],
+        "tas": [
+            "Symantec",
+            "symantec",
+            "Broadcom",
+            "bluecoat",
+            "Blue Coat"
+        ],
+        "kind": "equipment",
+        "vendor": "Broadcom"
     },
-    {"id": "forcepoint", "label": "Forcepoint ONE", "tas": ["Forcepoint", "forcepoint"]},
-    {"id": "sonicwall", "label": "SonicWall", "tas": ["SonicWall", "sonicwall", "dell:sonicwall"]},
-    # ── DevOps & CI/CD ─────────────────────────────────────────────────────
-    {"id": "jenkins", "label": "Jenkins", "tas": ["Jenkins", "jenkins"]},
-    {"id": "github", "label": "GitHub", "tas": ["GitHub", "github"]},
-    {"id": "gitlab", "label": "GitLab", "tas": ["GitLab", "gitlab"]},
-    {"id": "ansible", "label": "Ansible", "tas": ["Ansible", "ansible"]},
-    {"id": "controlm", "label": "Control-M", "tas": ["Control-M", "control-m"]},
-    # ── Monitoring & Observability ─────────────────────────────────────────
-    {"id": "itsi", "label": "Splunk ITSI", "tas": ["ITSI", "Splunk ITSI"]},
-    {"id": "stream", "label": "Splunk Stream", "tas": ["Splunk Stream", "Splunk App for Stream"]},
+    {
+        "id": "forcepoint",
+        "label": "Forcepoint ONE",
+        "tas": [
+            "Forcepoint",
+            "forcepoint"
+        ],
+        "kind": "equipment",
+        "vendor": "Forcepoint"
+    },
+    {
+        "id": "sonicwall",
+        "label": "SonicWall",
+        "tas": [
+            "SonicWall",
+            "sonicwall",
+            "dell:sonicwall"
+        ],
+        "kind": "equipment",
+        "vendor": "SonicWall"
+    },
+    {
+        "id": "jenkins",
+        "label": "Jenkins",
+        "tas": [
+            "Jenkins",
+            "jenkins"
+        ],
+        "kind": "equipment",
+        "vendor": "Jenkins Project"
+    },
+    {
+        "id": "github",
+        "label": "GitHub",
+        "tas": [
+            "GitHub",
+            "github"
+        ],
+        "kind": "equipment",
+        "vendor": "GitHub"
+    },
+    {
+        "id": "gitlab",
+        "label": "GitLab",
+        "tas": [
+            "GitLab",
+            "gitlab"
+        ],
+        "kind": "equipment",
+        "vendor": "GitLab"
+    },
+    {
+        "id": "ansible",
+        "label": "Ansible",
+        "tas": [
+            "Ansible",
+            "ansible"
+        ],
+        "kind": "equipment",
+        "vendor": "Red Hat"
+    },
+    {
+        "id": "controlm",
+        "label": "Control-M",
+        "tas": [
+            "Control-M",
+            "control-m"
+        ],
+        "kind": "equipment",
+        "vendor": "BMC"
+    },
+    {
+        "id": "itsi",
+        "label": "Splunk ITSI",
+        "tas": [
+            "ITSI",
+            "Splunk ITSI",
+            "splunk itsi",
+            "splunk-itsi"
+        ],
+        "kind": "splunk-platform",
+        "vendor": "Splunk"
+    },
+    {
+        "id": "stream",
+        "label": "Splunk Stream",
+        "tas": [
+            "Splunk Stream",
+            "Splunk App for Stream",
+            "splunk stream",
+            "splunk-stream"
+        ],
+        "kind": "splunk-platform",
+        "vendor": "Splunk"
+    },
     {
         "id": "opentelemetry",
         "label": "OpenTelemetry",
-        "tas": ["OpenTelemetry", "OTel Collector", "Splunk_TA_otel", "otelcol"],
+        "tas": [
+            "OpenTelemetry",
+            "OTel Collector",
+            "Splunk_TA_otel",
+            "otelcol"
+        ],
+        "kind": "equipment",
+        "vendor": "CNCF"
     },
-    {"id": "prometheus", "label": "Prometheus", "tas": ["Prometheus", "prometheus"]},
-    {"id": "grafana", "label": "Grafana", "tas": ["Grafana", "grafana"]},
+    {
+        "id": "prometheus",
+        "label": "Prometheus",
+        "tas": [
+            "Prometheus",
+            "prometheus"
+        ],
+        "kind": "equipment",
+        "vendor": "CNCF"
+    },
+    {
+        "id": "grafana",
+        "label": "Grafana",
+        "tas": [
+            "Grafana",
+            "grafana"
+        ],
+        "kind": "equipment",
+        "vendor": "Grafana Labs"
+    },
     {
         "id": "log_pipeline",
         "label": "Log Pipeline (Fluentd / Fluent Bit)",
-        "tas": ["Fluentd", "fluentd", "Fluent Bit", "fluent bit"],
+        "tas": [
+            "Fluentd",
+            "fluentd",
+            "Fluent Bit",
+            "fluent bit"
+        ],
+        "kind": "equipment",
+        "vendor": "CNCF"
     },
-    # ── ITSM & Incident Management ─────────────────────────────────────────
-    {"id": "servicenow", "label": "ServiceNow", "tas": ["Splunk_TA_snow", "snow", "ServiceNow"]},
-    {"id": "jira", "label": "Atlassian Jira", "tas": ["Jira", "jira"]},
+    {
+        "id": "servicenow",
+        "label": "ServiceNow",
+        "tas": [
+            "Splunk_TA_snow",
+            "snow",
+            "ServiceNow"
+        ],
+        "kind": "equipment",
+        "vendor": "ServiceNow"
+    },
+    {
+        "id": "jira",
+        "label": "Atlassian Jira",
+        "tas": [
+            "Jira",
+            "jira"
+        ],
+        "kind": "equipment",
+        "vendor": "Atlassian"
+    },
     {
         "id": "pagerduty",
         "label": "PagerDuty / Opsgenie",
-        "tas": ["PagerDuty", "pagerduty", "Opsgenie", "opsgenie"],
+        "tas": [
+            "PagerDuty",
+            "pagerduty",
+            "Opsgenie",
+            "opsgenie"
+        ],
+        "kind": "equipment",
+        "vendor": "PagerDuty"
     },
-    # ── IoT & Operational Technology ───────────────────────────────────────
-    {"id": "edge_hub", "label": "Splunk Edge Hub", "tas": ["Splunk Edge Hub", "Edge Hub"]},
-    {"id": "modbus", "label": "Modbus (TCP/RTU)", "tas": ["Modbus", "modbus"]},
-    {"id": "opcua", "label": "OPC-UA", "tas": ["OPC-UA", "opc-ua", "OPC UA", "opcua"]},
-    {"id": "mqtt", "label": "MQTT", "tas": ["MQTT", "mqtt", "Mosquitto", "HiveMQ"]},
-    {"id": "aranet", "label": "Aranet Sensors", "tas": ["Aranet", "aranet"]},
-    # ── Telephony & UC ─────────────────────────────────────────────────────
+    {
+        "id": "edge_hub",
+        "label": "Splunk Edge Hub",
+        "tas": [
+            "Splunk Edge Hub",
+            "Edge Hub"
+        ],
+        "kind": "splunk-platform",
+        "vendor": "Splunk"
+    },
+    {
+        "id": "modbus",
+        "label": "Modbus (TCP/RTU)",
+        "tas": [
+            "Modbus",
+            "modbus"
+        ],
+        "kind": "equipment",
+        "vendor": "Multi-vendor OT"
+    },
+    {
+        "id": "opcua",
+        "label": "OPC-UA",
+        "tas": [
+            "OPC-UA",
+            "opc-ua",
+            "OPC UA",
+            "opcua"
+        ],
+        "kind": "equipment",
+        "vendor": "OPC Foundation"
+    },
+    {
+        "id": "mqtt",
+        "label": "MQTT",
+        "tas": [
+            "MQTT",
+            "mqtt",
+            "Mosquitto",
+            "HiveMQ"
+        ],
+        "kind": "equipment",
+        "vendor": "OASIS"
+    },
+    {
+        "id": "aranet",
+        "label": "Aranet Sensors",
+        "tas": [
+            "Aranet",
+            "aranet"
+        ],
+        "kind": "equipment",
+        "vendor": "Aranet"
+    },
     {
         "id": "asterisk",
         "label": "Asterisk / FreePBX",
-        "tas": ["Asterisk", "asterisk", "FreePBX", "freepbx", "AMI"],
+        "tas": [
+            "Asterisk",
+            "asterisk",
+            "FreePBX",
+            "freepbx",
+            "AMI"
+        ],
+        "kind": "equipment",
+        "vendor": "Digium / Sangoma"
     },
-    # ── Hardware / BMC ─────────────────────────────────────────────────────
     {
         "id": "hardware_bmc",
         "label": "Hardware / BMC",
@@ -932,29 +2083,421 @@ EQUIPMENT = [
             "ssacli",
             "dmidecode",
             "perccli",
-            "hpssacli",
+            "hpssacli"
         ],
         "models": [
-            {"id": "idrac", "label": "Dell iDRAC", "tas": ["iDRAC", "idrac"]},
-            {"id": "ilo", "label": "HPE iLO", "tas": ["iLO", "ilo"]},
-            {"id": "ipmi", "label": "IPMI (generic)", "tas": ["ipmitool", "IPMI", "ipmi"]},
-            {"id": "smartctl", "label": "Disks (SMART / smartctl)", "tas": ["smartctl"]},
-            {"id": "storcli", "label": "LSI MegaRAID (storcli)", "tas": ["storcli"]},
-            {"id": "megacli", "label": "LSI MegaRAID (megacli)", "tas": ["megacli", "MegaCli"]},
-            {"id": "perccli", "label": "Dell PERC (perccli)", "tas": ["perccli"]},
-            {"id": "ssacli", "label": "HPE Smart Array (ssacli)", "tas": ["ssacli", "hpssacli"]},
-            {"id": "edac", "label": "Memory / EDAC (edac-util)", "tas": ["edac-util", "edac"]},
-            {"id": "dmidecode", "label": "System info (dmidecode)", "tas": ["dmidecode"]},
+            {
+                "id": "idrac",
+                "label": "Dell iDRAC",
+                "tas": [
+                    "iDRAC",
+                    "idrac"
+                ]
+            },
+            {
+                "id": "ilo",
+                "label": "HPE iLO",
+                "tas": [
+                    "iLO",
+                    "ilo"
+                ]
+            },
+            {
+                "id": "ipmi",
+                "label": "IPMI (generic)",
+                "tas": [
+                    "ipmitool",
+                    "IPMI",
+                    "ipmi"
+                ]
+            },
+            {
+                "id": "smartctl",
+                "label": "Disks (SMART / smartctl)",
+                "tas": [
+                    "smartctl"
+                ]
+            },
+            {
+                "id": "storcli",
+                "label": "LSI MegaRAID (storcli)",
+                "tas": [
+                    "storcli"
+                ]
+            },
+            {
+                "id": "megacli",
+                "label": "LSI MegaRAID (megacli)",
+                "tas": [
+                    "megacli",
+                    "MegaCli"
+                ]
+            },
+            {
+                "id": "perccli",
+                "label": "Dell PERC (perccli)",
+                "tas": [
+                    "perccli"
+                ]
+            },
+            {
+                "id": "ssacli",
+                "label": "HPE Smart Array (ssacli)",
+                "tas": [
+                    "ssacli",
+                    "hpssacli"
+                ]
+            },
+            {
+                "id": "edac",
+                "label": "Memory / EDAC (edac-util)",
+                "tas": [
+                    "edac-util",
+                    "edac"
+                ]
+            },
+            {
+                "id": "dmidecode",
+                "label": "System info (dmidecode)",
+                "tas": [
+                    "dmidecode"
+                ]
+            }
         ],
+        "kind": "equipment",
+        "vendor": "Multi-vendor"
     },
-    # ── Data Center Physical ───────────────────────────────────────────────
     {
         "id": "apc_dc",
         "label": "APC / Schneider Electric",
-        "tas": ["APC", "PowerNet-MIB", "InRow", "AirIR"],
+        "tas": [
+            "APC",
+            "PowerNet-MIB",
+            "InRow",
+            "AirIR"
+        ],
+        "kind": "equipment",
+        "vendor": "Schneider Electric"
     },
-    {"id": "cctv", "label": "CCTV / IP Cameras", "tas": ["NVR", "ONVIF", "Hikvision", "CCTV"]},
+    {
+        "id": "cctv",
+        "label": "CCTV / IP Cameras",
+        "tas": [
+            "NVR",
+            "ONVIF",
+            "Hikvision",
+            "CCTV"
+        ],
+        "kind": "equipment",
+        "vendor": "Multi-vendor"
+    },
+    {
+        "id": "splunk",
+        "label": "Splunk Platform",
+        "kind": "splunk-platform",
+        "vendor": "Splunk",
+        "tas": []
+    },
+    {
+        "id": "splunk_es",
+        "label": "Splunk Enterprise Security",
+        "kind": "splunk-platform",
+        "vendor": "Splunk",
+        "tas": [
+            "Splunk Enterprise Security",
+            "Splunk ES",
+            "splunk-es",
+            "splunk_es"
+        ]
+    },
+    {
+        "id": "splunk_soar",
+        "label": "Splunk SOAR",
+        "kind": "splunk-platform",
+        "vendor": "Splunk",
+        "tas": [
+            "Splunk SOAR",
+            "Splunk Phantom",
+            "splunk-soar",
+            "splunk_soar"
+        ]
+    },
+    {
+        "id": "juniper",
+        "label": "Juniper Networks",
+        "kind": "equipment",
+        "vendor": "Juniper Networks",
+        "tas": [
+            "Splunk_TA_juniper",
+            "Juniper",
+            "Junos",
+            "Juniper SRX",
+            "Juniper MX"
+        ]
+    },
+    {
+        "id": "arista",
+        "label": "Arista Networks",
+        "kind": "equipment",
+        "vendor": "Arista Networks",
+        "tas": [
+            "Arista",
+            "Arista EOS",
+            "CloudVision",
+            "Splunk_TA_arista"
+        ]
+    },
+    {
+        "id": "zeek",
+        "label": "Zeek (Bro IDS)",
+        "kind": "equipment",
+        "vendor": "Zeek Project",
+        "tas": [
+            "Zeek",
+            "Splunk_TA_bro",
+            "Bro IDS",
+            "bro:conn"
+        ]
+    },
+    {
+        "id": "pos",
+        "label": "Point of Sale (POS)",
+        "kind": "equipment",
+        "vendor": "Multi-vendor Retail",
+        "tas": [
+            "point of sale",
+            "point-of-sale",
+            "POS terminal",
+            "POS system"
+        ]
+    },
+    {
+        "id": "scada",
+        "label": "SCADA Systems",
+        "kind": "equipment",
+        "vendor": "Multi-vendor OT",
+        "tas": [
+            "SCADA system",
+            "SCADA platform",
+            "SCADA server"
+        ]
+    },
+    {
+        "id": "fiveg",
+        "label": "5G Mobile Networks",
+        "kind": "equipment",
+        "vendor": "Telecommunications",
+        "tas": [
+            "5G core",
+            "5G network",
+            "5G RAN",
+            "5G SA",
+            "NR RAN"
+        ]
+    },
+    {
+        "id": "smartgrid",
+        "label": "Smart Grid",
+        "kind": "equipment",
+        "vendor": "Utilities",
+        "tas": [
+            "smart grid",
+            "smartgrid",
+            "AMI meter",
+            "smart meter"
+        ]
+    },
+    {
+        "id": "ehr",
+        "label": "Electronic Health Records (EHR)",
+        "kind": "equipment",
+        "vendor": "Healthcare IT",
+        "tas": [
+            "electronic health record",
+            "EHR system",
+            "Epic EHR",
+            "Cerner EHR"
+        ]
+    },
+    {
+        "id": "oilgas",
+        "label": "Oil & Gas Operations",
+        "kind": "equipment",
+        "vendor": "Energy",
+        "tas": [
+            "oil and gas",
+            "oil & gas",
+            "upstream oil",
+            "downstream oil"
+        ]
+    },
+    {
+        "id": "pipeline",
+        "label": "Pipeline Operations",
+        "kind": "equipment",
+        "vendor": "Energy",
+        "tas": [
+            "pipeline operations",
+            "pipeline SCADA",
+            "pipeline monitoring"
+        ]
+    },
+    {
+        "id": "fleet",
+        "label": "Fleet Management",
+        "kind": "equipment",
+        "vendor": "Transportation",
+        "tas": [
+            "fleet management",
+            "fleet telematics",
+            "vehicle tracking"
+        ]
+    },
+    {
+        "id": "water",
+        "label": "Water Utilities",
+        "kind": "equipment",
+        "vendor": "Utilities",
+        "tas": [
+            "water utility",
+            "water treatment plant",
+            "SCADA water"
+        ]
+    },
+    {
+        "id": "claims",
+        "label": "Insurance Claims Systems",
+        "kind": "equipment",
+        "vendor": "Insurance",
+        "tas": [
+            "insurance claims",
+            "claims processing",
+            "claims system"
+        ]
+    },
+    {
+        "id": "contact_center",
+        "label": "Contact Center Platforms",
+        "kind": "equipment",
+        "vendor": "Communications",
+        "tas": [
+            "contact center platform",
+            "call center platform"
+        ]
+    },
+    {
+        "id": "cx",
+        "label": "Customer Experience Platforms",
+        "kind": "equipment",
+        "vendor": "Communications",
+        "tas": [
+            "customer experience platform",
+            "CX platform"
+        ]
+    },
+    {
+        "id": "microsoft",
+        "label": "Microsoft Platform",
+        "kind": "equipment",
+        "vendor": "Microsoft",
+        "tas": [
+            "Microsoft platform",
+            "Microsoft infrastructure",
+            "Microsoft server"
+        ]
+    },
+    {
+        "id": "claroty",
+        "label": "Claroty",
+        "kind": "equipment",
+        "vendor": "Claroty",
+        "tas": [
+            "Claroty",
+            "Claroty XDome",
+            "claroty"
+        ]
+    },
+    {
+        "id": "dragos",
+        "label": "Dragos",
+        "kind": "equipment",
+        "vendor": "Dragos",
+        "tas": [
+            "Dragos Platform",
+            "Dragos",
+            "dragos"
+        ]
+    },
+    {
+        "id": "nozomi",
+        "label": "Nozomi Networks",
+        "kind": "equipment",
+        "vendor": "Nozomi Networks",
+        "tas": [
+            "Nozomi Networks",
+            "Nozomi Guardian",
+            "nozomi"
+        ]
+    },
+    {
+        "id": "openshift",
+        "label": "Red Hat OpenShift",
+        "kind": "equipment",
+        "vendor": "Red Hat",
+        "tas": [
+            "OpenShift",
+            "openshift",
+            "OCP cluster"
+        ]
+    },
+    {
+        "id": "aruba",
+        "label": "HPE Aruba",
+        "kind": "equipment",
+        "vendor": "HPE",
+        "tas": [
+            "Aruba",
+            "HPE Aruba",
+            "ArubaOS"
+        ]
+    },
+    {
+        "id": "sap",
+        "label": "SAP",
+        "kind": "equipment",
+        "vendor": "SAP",
+        "tas": [
+            "SAP ERP",
+            "SAP HANA",
+            "SAP NetWeaver"
+        ]
+    },
+    {
+        "id": "salesforce",
+        "label": "Salesforce",
+        "kind": "equipment",
+        "vendor": "Salesforce",
+        "tas": [
+            "Salesforce",
+            "Sales Cloud",
+            "Service Cloud"
+        ]
+    },
+    {
+        "id": "campus",
+        "label": "Campus Networking",
+        "kind": "equipment",
+        "vendor": "Multi-vendor",
+        "tas": [
+            "campus network",
+            "campus switching",
+            "campus LAN"
+        ]
+    }
 ]
+
+
+
 
 # Splunk Apps with pre-built dashboards (companion apps for TAs).
 # Matched by substring against the UC's App/TA field, same as equipment matching.
