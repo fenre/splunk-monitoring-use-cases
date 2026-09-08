@@ -21,7 +21,7 @@ We use the [MADR 3.0](https://adr.github.io/madr/) template (simplified).
 | [ADR-0002](0002-static-single-page-app.md) | Static single-page app with no back-end | Accepted |
 | [ADR-0003](0003-single-catalog-json-plus-per-category-api.md) | Emit both a single `catalog.json` and per-category `api/cat-N.json` | Accepted |
 | [ADR-0004](0004-python-stdlib-only.md) | Python stdlib only for build and audits | Accepted |
-| [ADR-0005](0005-uc-id-x-y-z-scheme.md) | Three-part numeric UC ID with gap-free ordering | Accepted |
+| [ADR-0005](0005-uc-id-x-y-z-scheme.md) | Three-part numeric UC ID with gap-free ordering | Superseded by [ADR-0016](0016-permanent-uc-identifiers.md) |
 | [ADR-0006](0006-single-file-design-doc.md) | Single-file DESIGN.md, split by section only if a section exceeds ~1,500 words | Accepted |
 | [ADR-0007](0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
 | [ADR-0008](0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
@@ -32,6 +32,7 @@ We use the [MADR 3.0](https://adr.github.io/madr/) template (simplified).
 | [ADR-0013](0013-frontend-rebuild-scaffold.md) | Use Vite + TypeScript + Vitest for the `apps/web/` frontend rebuild scaffold (closes P5; unblocks F16, F17) | Accepted |
 | [ADR-0014](0014-per-uc-thresholds-field.md) | Add a structured per-UC `thresholds` field (P12 first cut; unblocks the content-quality lift-loop rubric) | Proposed |
 | [ADR-0015](0015-cost-field-group.md) | Add optional per-UC `cost` field group for Splunk licensing-impact ranking (Lane F schema head) | Accepted |
+| [ADR-0016](0016-permanent-uc-identifiers.md) | Permanent UC identifiers with append-only ledger (supersedes ADR-0005 gap-free rule) | Accepted |
 
 ## When to write an ADR
 

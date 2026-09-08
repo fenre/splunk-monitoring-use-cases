@@ -36,6 +36,8 @@ import os
 from pathlib import Path
 from typing import Any, Iterable
 
+from splunk_uc.id_ledger import identity_guarantee_metadata
+
 from .parse_content import Catalog
 from .models import CatalogUC, RegulationFramework
 
@@ -444,6 +446,7 @@ def _write_path_manifest(catalog: Catalog, api_dir: Path, *, reproducible: bool)
         "$schema": "/schemas/v2/manifest.schema.json",
         "version": "2.0.0",
         "generatedAt": _ts(reproducible),
+        **identity_guarantee_metadata(),
         "counts": {
             "categories": len(catalog.categories),
             "regulations": len(catalog.regulations),

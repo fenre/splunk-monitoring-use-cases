@@ -71,7 +71,10 @@ URL). All paths below are relative to that origin.
 ```
 
 `X.Y.Z` is the existing `category.subcategory.usecase` numeric ID (e.g.
-`UC-22.1.1`). IDs are forever; renumbering is forbidden.
+`UC-22.1.1`). From catalogue version **8.25.0** onward, a UC ID is **permanent**:
+it always refers to the same use case, is never reused for different content, and
+gaps in numbering are expected when a use case is removed or relocated. See
+[ADR-0016](adr/0016-permanent-uc-identifiers.md) and `data/id-ledger.json`.
 
 #### Categories
 

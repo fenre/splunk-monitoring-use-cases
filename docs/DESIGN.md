@@ -99,10 +99,10 @@ The catalog is a three-level tree: **Category → Subcategory → Use Case**. Ev
 
 - **Category ID `X`** — integer `1..N`. Authoring lives under `content/cat-XX-slug/` with `_category.json` and UC files `UC-X.Y.Z.json`.
 - **Subcategory ID `X.Y`** — dotted pair. Within a category, `Y` starts at `1` and increments.
-- **Use Case ID `X.Y.Z`** — dotted triple. Within a subcategory, `Z` starts at `1` and increments without gaps.
+- **Use Case ID `X.Y.Z`** — dotted triple. Within a subcategory, `Z` increments but **gaps are expected** when a use case is removed or relocated.
 - **Full UC-ID** is `UC-X.Y.Z` (with the `UC-` prefix) whenever the ID is rendered for humans; the `UC-` prefix is dropped in JSON keys.
 
-Uniqueness is enforced repo-wide by [`python3 -m splunk_uc audit-uc-ids`](../scripts/audit_uc_ids.py). The gap-free rule is a deliberate design choice: gaps imply removed content that a catalog consumer may still have a reference to, which would silently break their integration. When a UC is removed, all UCs below it in its subcategory are renumbered in the same PR.
+Uniqueness and permanent identity are enforced repo-wide by [`python3 -m splunk_uc audit-uc-ids`](../../src/splunk_uc/audits/uc_ids.py) against [`data/id-ledger.json`](../data/id-ledger.json). **An identifier, once published, permanently refers to one use case; it is never reused for different content.** Gaps left by removal or relocation are correct. See [ADR-0016](adr/0016-permanent-uc-identifiers.md).
 
 ### 4.3 Field taxonomy
 
@@ -152,7 +152,7 @@ content/
     └── UC-X.Y.Z.json                # canonical structured UC (required)
 ```
 
-Optional long-form markdown companions may exist alongside specific UCs where curators split prose from JSON. UC IDs in filenames and `_category.json` must stay in sync; [`python3 -m splunk_uc audit-uc-ids`](../scripts/audit_uc_ids.py) enforces uniqueness and ordering rules across all `content/cat-*/UC-*.json` files.
+Optional long-form markdown companions may exist alongside specific UCs where curators split prose from JSON. UC IDs in filenames and `_category.json` must stay in sync; [`python3 -m splunk_uc audit-uc-ids`](../../src/splunk_uc/audits/uc_ids.py) enforces uniqueness and permanent-identity ledger rules across all `content/cat-*/UC-*.json` files.
 
 ### 5.2 Authoring shape
 
@@ -235,7 +235,8 @@ If there is no sensible CIM data model, use `- **CIM Models:** N/A` and omit the
 ### 5.5 Rules that are not obvious
 
 - UC IDs must be **unique repo-wide**, not just per file.
-- Within a subcategory, UC `Z` values are **strictly increasing with no gaps**. [`audit_uc_ids.py`](../scripts/audit_uc_ids.py) fails the CI if you add `...3, ...5` without a `...4`.
+- UC IDs must appear in [`data/id-ledger.json`](../data/id-ledger.json) with a matching content fingerprint. Run `python -m splunk_uc generate-id-ledger` after adding, removing, or editing title/SPL on an active identifier.
+- **Gaps in `Z` within a subcategory are expected** when a use case is removed or relocated; do not backfill or renumber to close them. [`audit-uc-ids`](../src/splunk_uc/audits/uc_ids.py) enforces permanent identity, not gap-free ordering.
 - The SPL fenced block must immediately follow the `- **SPL:**` line. Intervening prose breaks the parser.
 - Multi-model CIM lists are comma-separated: `- **CIM Models:** Authentication, Change`.
 - MITRE IDs that do not match `T\d{4}(\.\d{3})?` are dropped silently. This is a deliberate defence against typos; fix the typo, don't work around the regex.
@@ -397,7 +398,9 @@ All audits are pure Python (stdlib) and live under [`scripts/`](../scripts/). Ea
 
 | Script | Checks |
 |---|---|
-| [`audit_uc_ids.py`](../scripts/audit_uc_ids.py) | Repo-wide UC ID uniqueness; `X` vs filename; per-subcategory `Z` ordering with no gaps |
+| [`audit-uc-ids`](../../src/splunk_uc/audits/uc_ids.py) | Repo-wide UC ID uniqueness; `X` vs filename; permanent-identity ledger invariants |
+| [`generate-id-ledger`](../../src/splunk_uc/generators/id_ledger.py) | Regenerate `data/id-ledger.json` from the live catalogue |
+| [`audit-uc-id-migration-blast`](../../src/splunk_uc/audits/uc_id_migration_blast.py) | Block bulk identifier remaps without a committed migration manifest |
 | [`audit_uc_structure.py`](../scripts/audit_uc_structure.py) | Required fields present; enum values valid; SPL fenced block present |
 | [`audit_catalog_schema.py`](../scripts/audit_catalog_schema.py) | `catalog.json` shape: categories, subcategories, required keys, enum values (including per-UC `wv` / `pre` shape and the top-level `implementationRoadmap` object) |
 | `python -m splunk_uc audit-prerequisites` ([`src/splunk_uc/audits/prerequisites.py`](../src/splunk_uc/audits/prerequisites.py), v6.1+) | UC implementation-ordering graph: rejects unknown prereq ids, self-references, duplicates, and cycles (iterative DFS); warns on wave monotonicity; emits a deterministic graph audit report at `reports/prerequisites-audit.json` that CI diffs under `--check`. See [implementation-ordering.md](implementation-ordering.md). |
@@ -417,7 +420,7 @@ The PR workflow [`.github/workflows/validate.yml`](../.github/workflows/validate
 
 Representative steps (order may evolve—read the workflow for truth):
 
-1. UC ID audit (`audit_uc_ids.py`)
+1. UC ID audit (`audit-uc-ids` + `data/id-ledger.json`)
 2. UC structure audit (`audit_uc_structure.py --full`)
 3. Non-technical view sync (`audit_non_technical_sync.py`)
 4. CHANGELOG and cross-references (`audit_changelog_uc_refs.py`)
@@ -699,7 +702,7 @@ When you fork this project:
 3. Update `window.SITE_CUSTOM.siteRepoUrl` (or equivalent in `custom-text.js` / bundled site config).
 4. Replace category metadata in `content/cat-*/_category.json` + [`content/INDEX.md`](../content/INDEX.md) as needed.
 5. Replace vendor/equipment metadata loaded by the parser (see `_load_equipment` in [`tools/build/parse_content.py`](../tools/build/parse_content.py)).
-6. Maintain your catalog under `content/cat-*/UC-*.json`; keep the ID scheme gap-free within subcategories (this repository ships **16,644** UCs).
+6. Maintain your catalog under `content/cat-*/UC-*.json`; keep identifiers permanent per [ADR-0016](adr/0016-permanent-uc-identifiers.md) (this repository ships **16,644** active UCs).
 7. Keep `VERSION`, `CHANGELOG.md`, and release notes HTML in sync.
 
 ---
@@ -714,7 +717,7 @@ Architecture Decision Records live under [`docs/adr/`](adr/). Each ADR follows t
 | [ADR-0002](adr/0002-static-single-page-app.md) | Static single-page app with no back-end | Accepted |
 | [ADR-0003](adr/0003-single-catalog-json-plus-per-category-api.md) | Emit both a single `catalog.json` and per-category `api/cat-N.json` | Accepted |
 | [ADR-0004](adr/0004-python-stdlib-only.md) | Python stdlib only for build and audits | Accepted |
-| [ADR-0005](adr/0005-uc-id-x-y-z-scheme.md) | Three-part numeric UC ID with gap-free ordering | Accepted |
+| [ADR-0016](adr/0016-permanent-uc-identifiers.md) | Permanent UC identifiers with append-only ledger | Accepted |
 | [ADR-0006](adr/0006-single-file-design-doc.md) | Single-file DESIGN.md, split by section only if any section exceeds ~1,500 words | Accepted |
 | [ADR-0007](adr/0007-json-as-source-of-truth.md) | JSON sidecars as source of truth for UC content | Accepted (supersedes ADR-0001) |
 | [ADR-0008](adr/0008-canonical-constants.md) | Every constant has exactly one home (Python or JSON), JS twins are generated | Accepted |
