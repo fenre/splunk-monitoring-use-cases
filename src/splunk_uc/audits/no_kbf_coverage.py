@@ -62,7 +62,7 @@ def _is_non_empty(value: Any) -> bool:
 
 def _kbf_regulation() -> dict[str, Any] | None:
     for reg in _load_json(REGULATIONS_PATH).get("frameworks", []):
-        if reg.get("id") == "no-kbf-nve":
+        if isinstance(reg, dict) and reg.get("id") == "no-kbf-nve":
             return reg
     return None
 
@@ -314,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     if reg is None:
         errors.append("regulations.json missing no-kbf-nve entry")
 
-    if not errors:
+    if not errors and reg is not None:
         matrix = _load_json(MATRIX_PATH)
         source_map = _load_json(SOURCE_MAP_PATH)
         errors.extend(_validate_matrix(matrix, source_map))

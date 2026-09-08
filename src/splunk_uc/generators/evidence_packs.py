@@ -532,7 +532,8 @@ def _fmt_pct(value: float | None) -> str:
 def _load_nis2_dual_crosswalk() -> dict[str, Any] | None:
     if not NO_KBF_DUAL_MAPPING_PATH.exists():
         return None
-    return _load_json(NO_KBF_DUAL_MAPPING_PATH)
+    data = _load_json(NO_KBF_DUAL_MAPPING_PATH)
+    return data if isinstance(data, dict) else None
 
 
 def _render_nis2_dual_crosswalk_lines(reg_id: str) -> list[str]:
