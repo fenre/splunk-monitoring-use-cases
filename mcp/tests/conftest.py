@@ -277,15 +277,27 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                     {
                         "id": "azure",
                         "label": "Microsoft Azure",
+                        "kind": "equipment",
+                        "vendor": "Microsoft",
                         "useCaseCount": 1,
                         "complianceUseCaseCount": 1,
                         "regulationIds": ["gdpr"],
                         "models": [{"id": "azure_vm", "label": "Azure VM"}],
                         "endpoint": "/api/v1/equipment/azure.json",
+                        "apps": [
+                            {
+                                "id": "3110",
+                                "displayName": "Splunk Add-on for Microsoft Cloud Services",
+                                "role": "primary",
+                                "premium": False,
+                            }
+                        ],
                     },
                     {
                         "id": "linux",
                         "label": "Linux",
+                        "kind": "equipment",
+                        "vendor": "Open Source / Community",
                         "useCaseCount": 2,
                         "complianceUseCaseCount": 1,
                         "regulationIds": ["gdpr"],
@@ -305,6 +317,8 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                 "generatedAt": "2026-04-16T00:00:00Z",
                 "id": "azure",
                 "label": "Microsoft Azure",
+                "kind": "equipment",
+                "vendor": "Microsoft",
                 "useCaseCount": 1,
                 "complianceUseCaseCount": 1,
                 "models": [
@@ -326,6 +340,15 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                 ],
                 "indexEndpoint": "/api/v1/equipment/index.json",
                 "regulationIds": ["gdpr"],
+                "apps": [
+                    {
+                        "id": "3110",
+                        "displayName": "Splunk Add-on for Microsoft Cloud Services",
+                        "role": "primary",
+                        "premium": False,
+                    }
+                ],
+                "dsaSourceIds": ["dsa_it_cloud_iaas", "dsa_it_cloud_paas"],
                 "regulations": [
                     {
                         "regulationId": "gdpr",
@@ -355,6 +378,8 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                 "generatedAt": "2026-04-16T00:00:00Z",
                 "id": "linux",
                 "label": "Linux",
+                "kind": "equipment",
+                "vendor": "Open Source / Community",
                 "useCaseCount": 2,
                 "complianceUseCaseCount": 1,
                 "models": [],
@@ -390,6 +415,32 @@ def synthetic_catalog_root(tmp_path: Path) -> Path:
                         ],
                     }
                 ],
+            }
+        )
+    )
+
+    (v1 / "equipment" / "app-index.json").write_text(
+        json.dumps(
+            {
+                "apiVersion": "v1",
+                "catalogueVersion": "0.0.0-test",
+                "generatedAt": "2026-04-16T00:00:00Z",
+                "description": "Test equipment app index",
+                "equipmentCount": 1,
+                "equipment": {
+                    "azure": {
+                        "apps": [
+                            {
+                                "id": "3110",
+                                "displayName": "Splunk Add-on for Microsoft Cloud Services",
+                                "role": "primary",
+                                "premium": False,
+                            }
+                        ],
+                        "appCount": 1,
+                        "dsaSourceIds": ["dsa_it_cloud_iaas", "dsa_it_cloud_paas"],
+                    }
+                },
             }
         )
     )

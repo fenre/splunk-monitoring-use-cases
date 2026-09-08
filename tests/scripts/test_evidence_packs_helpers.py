@@ -538,13 +538,16 @@ def test_inputs_sha256_is_concat_in_fixed_order(monkeypatch, tmp_path: Path):
     reg = tmp_path / "a"
     extras = tmp_path / "b"
     schema = tmp_path / "c"
+    dual = tmp_path / "d"
     reg.write_text("R", encoding="utf-8")
     extras.write_text("E", encoding="utf-8")
     schema.write_text("S", encoding="utf-8")
+    dual.write_text("D", encoding="utf-8")
     monkeypatch.setattr(ep, "REGULATIONS_PATH", reg)
     monkeypatch.setattr(ep, "EXTRAS_PATH", extras)
     monkeypatch.setattr(ep, "EXTRAS_SCHEMA_PATH", schema)
-    expected = hashlib.sha256(b"RES").hexdigest()
+    monkeypatch.setattr(ep, "NO_KBF_DUAL_MAPPING_PATH", dual)
+    expected = hashlib.sha256(b"RESD").hexdigest()
     assert ep._inputs_sha256() == expected
 
 

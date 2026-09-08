@@ -6,7 +6,7 @@
        audit-monitoring-type audit-roadmap export-roadmap audit-license-inventory \
        audit-codeowners-coverage \
        write-license-inventory audit-metrics-snapshot snapshot-metrics \
-       audit-regulation-alignment audit-nis2-no-gap audit-oscal \
+       audit-regulation-alignment audit-nis2-no-gap audit-no-kbf-coverage audit-oscal \
        audit-regulatory-change-watch \
 	audit-compliance-gaps audit-compliance-mappings audit-evidence-signatures \
 	audit-vendor-changelog \
@@ -205,6 +205,9 @@ audit-regulation-alignment: ## Lint compliance[].regulation against data/regulat
 
 audit-nis2-no-gap: ## Validate the NIS2 no-gap obligation matrix and per-UC traceability
 	$(SPLUNK_UC) audit-nis2-no-gap
+
+audit-no-kbf-coverage: ## Validate the NO KBF coverage matrix and per-UC traceability
+	$(SPLUNK_UC) audit-no-kbf-coverage
 
 audit-oscal: ## NIST OSCAL component-definition schema + canonical-byte gate
 	$(SPLUNK_UC) audit-oscal-roundtrip --check

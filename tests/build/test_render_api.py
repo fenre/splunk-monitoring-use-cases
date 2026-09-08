@@ -534,6 +534,7 @@ class TestRenderApi:
         "catGroups",
         "catMeta",
         "equipment",
+        "equipmentAppIndexUrl",
         "filterFacets",
         "recentlyAdded",
         "categories",
@@ -555,6 +556,7 @@ class TestRenderApi:
         assert data["generatedAt"] == "1970-01-01T00:00:00Z"
         assert data["catGroups"] == {"g": [3]}
         assert data["equipment"] == [{"k": "v"}]
+        assert data["equipmentAppIndexUrl"] == "api/v1/equipment/app-index.json"
         assert data["filterFacets"] == {"foo": ["bar"]}
         assert data["recentlyAdded"] == ["3.2.10"]
 

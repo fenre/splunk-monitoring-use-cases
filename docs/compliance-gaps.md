@@ -1,6 +1,6 @@
 # Compliance clause-level gap analysis
 
-_Generated: 2026-07-24T16:09:16Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
+_Generated: 2026-08-31T10:14:24Z_ by `python -m splunk_uc audit-compliance-gaps`. Do not hand-edit.
 
 This report inverts the compliance coverage audit: for every regulation-version listed in `data/regulations.json` it walks every `commonClauses[]` entry and records whether at least one non-draft UC sidecar tags that clause. Gaps are ranked by the clause's `priorityWeight` so authoring effort can focus on the highest-impact worklist items.
 
@@ -9,7 +9,7 @@ This report inverts the compliance coverage audit: for every regulation-version 
 | Tier | Clauses | Covered | Coverage % | Priority weight | Priority covered | Priority % |
 |------|--------:|--------:|-----------:|----------------:|------------------:|-----------:|
 | tier-1 | 450 | 450 | 100.00 | 418.6000 | 418.6000 | 100.00 |
-| tier-2 | 204 | 204 | 100.00 | 194.7000 | 194.7000 | 100.00 |
+| tier-2 | 221 | 221 | 100.00 | 210.5000 | 210.5000 | 100.00 |
 | tier-3 | 2 | 2 | 100.00 | 1.7000 | 1.7000 | 100.00 |
 
 ## Tier 1 frameworks
@@ -453,21 +453,21 @@ _EU NIS2 Directive_
 | `Art.20(2)` | Art.20(2) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(1)` | Art.21(1) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 3 | contributing | 22.2.21, 22.2.22, 22.2.32 |
-| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 6 | partial | 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6 |
-| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 13 | partial | 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67, 17.1.80 |
-| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 13 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
-| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 15 | full | 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51, 17.1.55, 17.1.66, 17.1.68 |
+| `Art.21(2)(a)` | Risk analysis and information-system security policies | 1.00 | ✔ 9 | partial | 14.2.11, 22.2.18, 22.2.26, 22.2.36, 22.2.37, 22.2.56, 22.2.6, 22.26.21 |
+| `Art.21(2)(b)` | Incident handling | 1.00 | ✔ 14 | partial | 14.9.14, 17.1.30, 17.1.33, 17.1.42, 17.1.52, 17.1.56, 17.1.57, 17.1.67 |
+| `Art.21(2)(c)` | Business continuity and crisis management | 1.00 | ✔ 17 | partial | 17.1.29, 17.1.40, 17.1.47, 17.1.48, 17.1.61, 17.1.73, 17.1.77, 22.2.17 |
+| `Art.21(2)(d)` | Supply-chain security | 1.00 | ✔ 21 | full | 14.2.4, 14.2.9, 14.6.6, 17.1.36, 17.1.37, 17.1.45, 17.1.50, 17.1.51 |
 | `Art.21(2)(e)` | Security in acquisition, development and maintenance | 1.00 | ✔ 9 | partial | 17.1.41, 17.1.49, 17.1.53, 22.2.15, 22.2.27, 22.2.3, 22.2.38, 22.2.51 |
 | `Art.21(2)(f)` | Policies and procedures effectiveness | 1.00 | ✔ 5 | partial | 22.2.39, 22.2.43, 22.2.51, 22.2.57, 22.2.9 |
-| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 8 | full | 17.1.28, 17.1.34, 17.1.59, 17.1.70, 22.2.10, 22.2.28, 22.46.1, 22.46.2 |
+| `Art.21(2)(g)` | Cyber-hygiene and training | 1.00 | ✔ 9 | full | 17.1.28, 17.1.34, 17.1.59, 17.1.70, 22.2.10, 22.2.28, 22.26.23, 22.46.1 |
 | `Art.21(2)(h)` | Cryptography and encryption | 1.00 | ✔ 4 | full | 17.1.31, 22.2.11, 22.2.29, 22.41.2 |
 | `Art.21(2)(i)` | Human resources and access control | 1.00 | ✔ 5 | partial | 22.2.13, 22.2.14, 22.2.30, 22.2.5, 22.2.52 |
-| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 6 | partial | 17.1.38, 17.1.44, 17.1.46, 22.2.12, 22.2.46, 22.2.52 |
+| `Art.21(2)(j)` | MFA and secure communications | 1.00 | ✔ 7 | partial | 17.1.38, 17.1.44, 17.1.46, 22.2.12, 22.2.46, 22.2.52, 22.26.27 |
 | `Art.21(3)` | Art.21(3) | 1.00 | ✔ 1 | partial | 22.2.50 |
 | `Art.21(4)` | Art.21(4) | 1.00 | ✔ 1 | partial | 22.2.48 |
 | `Art.21(5)` | Art.21(5) | 1.00 | ✔ 1 | partial | 22.2.56 |
 | `Art.22` | Art.22 | 0.60 | ✔ 1 | partial | 22.2.50 |
-| `Art.23` | Reporting obligations | 1.00 | ✔ 8 | full | 22.2.1, 22.2.33, 22.2.45, 22.2.49, 22.3.44, 22.39.1, 22.39.2, 22.9.4 |
+| `Art.23` | Reporting obligations | 1.00 | ✔ 10 | full | 22.2.1, 22.2.33, 22.2.45, 22.2.49, 22.26.22, 22.26.9, 22.3.44, 22.39.1 |
 | `Art.23(1)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 1 | partial | 22.2.49 |
 | `Art.23(2)` | Legacy NIS2 mapping already present in the catalogue | 1.00 | ✔ 2 | partial | 22.2.49, 22.2.7 |
 | `Art.23(3)(a)` | Art.23(3)(a) | 1.00 | ✔ 1 | partial | 22.2.49 |
@@ -1480,14 +1480,31 @@ _Norwegian Kraftberedskapsforskriften (NVE Power-sector emergency preparedness r
 
 #### NO KBF@2012 as amended
 
-- Common clauses: **1**
-- Covered: **1** (100.00%)
-- Priority-weighted coverage: **100.00%** (1.0000 / 1.0000)
+- Common clauses: **18**
+- Covered: **18** (100.00%)
+- Priority-weighted coverage: **100.00%** (16.8000 / 16.8000)
 - Authoritative source: https://lovdata.no/dokument/SF/forskrift/2012-12-07-1157
 
 | Clause | Topic | Priority | UCs | Top assurance | Sample UCs |
 |--------|-------|---------:|----:|---------------|------------|
-| `§6-1` | Informasjonssikkerhet | 1.00 | ✔ 5 | partial | 22.26.10, 22.26.6, 22.26.7, 22.26.8, 22.26.9 |
+| `§2-3` | Risikovurdering | 1.00 | ✔ 1 | partial | 22.26.21 |
+| `§2-5` | Varsling | 1.00 | ✔ 1 | partial | 22.26.22 |
+| `§2-6` | Rapportering til NVE | 1.00 | ✔ 1 | partial | 22.26.9 |
+| `§2-7` | Kriseøvelser | 0.70 | ✔ 1 | partial | 22.26.8 |
+| `§2-10` | Internkontrollsystem | 0.70 | ✔ 1 | contributing | 22.26.23 |
+| `§4-1` | Reparasjonsberedskap | 1.00 | ✔ 1 | partial | 22.26.24 |
+| `§4-3` | Gjenoppretting av funksjon | 1.00 | ✔ 1 | partial | 22.26.10 |
+| `§6-1` | Identifisering av kraftsensitiv informasjon og rettmessige brukere | 1.00 | ✔ 1 | partial | 22.26.25 |
+| `§6-3` | Beskyttelse, avskjerming og tilgangskontroll | 1.00 | ✔ 1 | contributing | 22.26.7 |
+| `§6-5` | Anskaffelser og sikkerhetsavtaler | 0.70 | ✔ 1 | partial | 22.26.26 |
+| `§6-7` | Personkontroll | 0.70 | ✔ 1 | partial | 22.26.27 |
+| `§6-8` | Sikkerhetskopier | 1.00 | ✔ 1 | partial | 22.26.28 |
+| `§6-9` | Digitale informasjonssystemer | 1.00 | ✔ 1 | contributing | 14.2.11 |
+| `§7-1` | Generell plikt til å beskytte driftskontrollsystemet | 1.00 | ✔ 1 | partial | 14.2.11 |
+| `§7-4` | Kontroll med brukertilgang | 1.00 | ✔ 3 | partial | 14.9.14, 22.26.6, 22.26.7 |
+| `§7-5` | Kontroll ved endringer i driftskontrollsystemet | 1.00 | ✔ 2 | partial | 14.2.9, 14.6.6 |
+| `§7-7` | Feil, sårbarheter og sikkerhetsbrudd | 1.00 | ✔ 1 | contributing | 14.9.14 |
+| `§7-10` | Ekstern tilkobling til driftskontrollsystem | 1.00 | ✔ 1 | partial | 14.2.4 |
 
 ### NO Personopplysningsloven — `no-personopplysningsloven`
 

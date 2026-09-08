@@ -30,6 +30,7 @@
 | **AWIA** | Tier 1 | US | `2018-amended-SDWA-1433` | 100.0% | 100.0% | [`awia.md`](awia.md) |
 | **CIRCIA** | Tier 1 | US | `2022-act-with-2024-nprm` | 100.0% | 100.0% | [`circia.md`](circia.md) |
 | **CLC/TS 50701** | Tier 2 | EU, EEA, UK, CH, international | `2021-with-iec63452-alignment` | 100.0% | 100.0% | [`clc-ts-50701.md`](clc-ts-50701.md) |
+| **NO KBF** | Tier 2 | NO | `2012 as amended` | 100.0% | 100.0% | [`no-kbf-nve.md`](no-kbf-nve.md) |
 
 ## Structure of an evidence pack
 

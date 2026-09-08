@@ -163,6 +163,7 @@ def _compute_tags(
 
     equipment_ids: set[str] = eq_app | eq_narr
     model_compounds: set[str] = models_app | models_narr
+    model_compounds = {m for m in model_compounds if not m.endswith("_generic")}
 
     return sorted(equipment_ids), sorted(model_compounds)
 

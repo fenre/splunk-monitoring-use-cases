@@ -59,6 +59,8 @@ PROSE_FIELDS = (
 )
 SPL_FIELDS = ("spl", "cimSpl")
 
+CIM_MODEL_PLACEHOLDER_VALUES = frozenset({"n/a", "na"})
+
 PLACEHOLDER_FP_VALUES = {
     "|",
     "—",
@@ -203,6 +205,34 @@ def _check_text(uc_id: str, file: str, field: str, text: str, allow_spl: bool) -
     return findings
 
 
+def _check_cim_models_na(
+    uc_id: str, file: str, payload: dict[str, object]
+) -> list[Finding]:
+    raw = payload.get("cimModels")
+    if not isinstance(raw, list):
+        return []
+    findings: list[Finding] = []
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        stripped = item.strip()
+        if stripped.upper() == "N/A" or stripped.casefold() in CIM_MODEL_PLACEHOLDER_VALUES:
+            findings.append(
+                Finding(
+                    file=file,
+                    uc_id=uc_id,
+                    severity="HIGH",
+                    category="cim-models-na",
+                    message=(
+                        "`cimModels` contains placeholder literal "
+                        f"({stripped!r}). Omit the field when no CIM model applies."
+                    ),
+                    snippet=stripped[:160],
+                )
+            )
+    return findings
+
+
 def _check_known_fp(
     uc_id: str, file: str, payload: dict[str, object]
 ) -> list[Finding]:
@@ -325,6 +355,7 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(v, str) and v:
                 all_findings.extend(_check_text(uc_id, path.name, field, v, allow_spl=True))
         all_findings.extend(_check_known_fp(uc_id, path.name, payload))
+        all_findings.extend(_check_cim_models_na(uc_id, path.name, payload))
 
     baseline_path = Path(args.baseline)
     baseline: set[tuple[str, str, str]] = (

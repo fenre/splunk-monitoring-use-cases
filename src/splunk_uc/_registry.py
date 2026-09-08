@@ -335,6 +335,14 @@ register(
 )
 register(
     Verb(
+        name="audit-no-kbf-coverage",
+        module="audits.no_kbf_coverage",
+        help="Validate the NO KBF coverage matrix and per-UC traceability.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-oscal-roundtrip",
         module="audits.oscal_roundtrip",
         help="Validate OSCAL component-definitions against NIST schema + canonical byte equality.",
@@ -627,6 +635,22 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-equipment-models",
+        module="audits.equipment_models",
+        help="Validate equipment[] slugs and equipmentModels[] against SSOT registry.",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-equipment-app-map",
+        module="audits.equipment_app_map",
+        help="Validate data/equipment-app-map.json (Splunkbase apps, DSA ids, UC corroboration).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -686,6 +710,14 @@ register(
         name="generate-equipment-tags",
         module="generators.equipment_tags",
         help="Backfill `equipment[]`/`equipmentModels[]` UC sidecar fields from EQUIPMENT registry.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-equipment-app-map",
+        module="generators.equipment_app_map",
+        help="Generate data/equipment-app-map.json (Splunkbase apps + DSA ids per equipment slug).",
         category="generators",
     )
 )

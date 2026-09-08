@@ -42,7 +42,7 @@ Essential entities (EE) and important entities (IE) as defined in Annex I and An
 - **Clauses tracked**: 52
 - **Clauses covered by at least one UC**: 52 / 52 (100.0%)
 - **Priority-weighted coverage**: 100.0%
-- **Contributing UCs**: 86
+- **Contributing UCs**: 89
 
 Coverage methodology is documented in [`docs/coverage-methodology.md`](../coverage-methodology.md). Priority weights come from `data/regulations.json` commonClauses entries (see [`data/regulations.json`](../../data/regulations.json) priorityWeightRubric).
 
@@ -60,21 +60,21 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 | [`Art.20(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.20(2)) | Art.20(2) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(1)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(1)) | Art.21(1) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `contributing` | [UC-22.2.21](#uc-22-2-21), [UC-22.2.22](#uc-22-2-22), [UC-22.2.32](#uc-22-2-32) |
-| [`Art.21(2)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(a)) | Risk analysis and information-system security policies | 1.0 | `partial` | [UC-22.2.18](#uc-22-2-18), [UC-22.2.26](#uc-22-2-26), [UC-22.2.36](#uc-22-2-36), [UC-22.2.37](#uc-22-2-37), [UC-22.2.56](#uc-22-2-56), [UC-22.2.6](#uc-22-2-6) |
-| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `partial` | [UC-17.1.30](#uc-17-1-30), [UC-17.1.33](#uc-17-1-33), [UC-17.1.42](#uc-17-1-42), [UC-17.1.52](#uc-17-1-52), [UC-17.1.56](#uc-17-1-56), [UC-17.1.57](#uc-17-1-57) (+2 more) |
+| [`Art.21(2)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(a)) | Risk analysis and information-system security policies | 1.0 | `partial` | [UC-14.2.11](#uc-14-2-11), [UC-22.2.18](#uc-22-2-18), [UC-22.2.26](#uc-22-2-26), [UC-22.2.36](#uc-22-2-36), [UC-22.2.37](#uc-22-2-37), [UC-22.2.56](#uc-22-2-56) (+2 more) |
+| [`Art.21(2)(b)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(b)) | Incident handling | 1.0 | `partial` | [UC-14.9.14](#uc-14-9-14), [UC-17.1.30](#uc-17-1-30), [UC-17.1.33](#uc-17-1-33), [UC-17.1.42](#uc-17-1-42), [UC-17.1.52](#uc-17-1-52), [UC-17.1.56](#uc-17-1-56) (+2 more) |
 | [`Art.21(2)(c)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(c)) | Business continuity and crisis management | 1.0 | `partial` | [UC-17.1.29](#uc-17-1-29), [UC-17.1.40](#uc-17-1-40), [UC-17.1.47](#uc-17-1-47), [UC-17.1.48](#uc-17-1-48), [UC-17.1.61](#uc-17-1-61), [UC-17.1.73](#uc-17-1-73) (+2 more) |
-| [`Art.21(2)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(d)) | Supply-chain security | 1.0 | `full` | [UC-17.1.36](#uc-17-1-36), [UC-17.1.37](#uc-17-1-37), [UC-17.1.45](#uc-17-1-45), [UC-17.1.50](#uc-17-1-50), [UC-17.1.51](#uc-17-1-51), [UC-17.1.55](#uc-17-1-55) (+2 more) |
+| [`Art.21(2)(d)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(d)) | Supply-chain security | 1.0 | `full` | [UC-14.2.4](#uc-14-2-4), [UC-14.2.9](#uc-14-2-9), [UC-14.6.6](#uc-14-6-6), [UC-17.1.36](#uc-17-1-36), [UC-17.1.37](#uc-17-1-37), [UC-17.1.45](#uc-17-1-45) (+2 more) |
 | [`Art.21(2)(e)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(e)) | Security in acquisition, development and maintenance | 1.0 | `partial` | [UC-17.1.41](#uc-17-1-41), [UC-17.1.49](#uc-17-1-49), [UC-17.1.53](#uc-17-1-53), [UC-22.2.15](#uc-22-2-15), [UC-22.2.27](#uc-22-2-27), [UC-22.2.3](#uc-22-2-3) (+2 more) |
 | [`Art.21(2)(f)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(f)) | Policies and procedures effectiveness | 1.0 | `partial` | [UC-22.2.39](#uc-22-2-39), [UC-22.2.43](#uc-22-2-43), [UC-22.2.51](#uc-22-2-51), [UC-22.2.57](#uc-22-2-57), [UC-22.2.9](#uc-22-2-9) |
 | [`Art.21(2)(g)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(g)) | Cyber-hygiene and training | 1.0 | `full` | [UC-17.1.28](#uc-17-1-28), [UC-17.1.34](#uc-17-1-34), [UC-17.1.59](#uc-17-1-59), [UC-17.1.70](#uc-17-1-70), [UC-22.2.10](#uc-22-2-10), [UC-22.2.28](#uc-22-2-28) (+2 more) |
 | [`Art.21(2)(h)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(h)) | Cryptography and encryption | 1.0 | `full` | [UC-17.1.31](#uc-17-1-31), [UC-22.2.11](#uc-22-2-11), [UC-22.2.29](#uc-22-2-29), [UC-22.41.2](#uc-22-41-2) |
 | [`Art.21(2)(i)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(i)) | Human resources and access control | 1.0 | `partial` | [UC-22.2.13](#uc-22-2-13), [UC-22.2.14](#uc-22-2-14), [UC-22.2.30](#uc-22-2-30), [UC-22.2.5](#uc-22-2-5), [UC-22.2.52](#uc-22-2-52) |
-| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `partial` | [UC-17.1.38](#uc-17-1-38), [UC-17.1.44](#uc-17-1-44), [UC-17.1.46](#uc-17-1-46), [UC-22.2.12](#uc-22-2-12), [UC-22.2.46](#uc-22-2-46), [UC-22.2.52](#uc-22-2-52) |
+| [`Art.21(2)(j)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(2)(j)) | MFA and secure communications | 1.0 | `partial` | [UC-17.1.38](#uc-17-1-38), [UC-17.1.44](#uc-17-1-44), [UC-17.1.46](#uc-17-1-46), [UC-22.2.12](#uc-22-2-12), [UC-22.2.46](#uc-22-2-46), [UC-22.2.52](#uc-22-2-52) (+1 more) |
 | [`Art.21(3)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(3)) | Art.21(3) | 1.0 | `partial` | [UC-22.2.50](#uc-22-2-50) |
 | [`Art.21(4)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(4)) | Art.21(4) | 1.0 | `partial` | [UC-22.2.48](#uc-22-2-48) |
 | [`Art.21(5)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.21(5)) | Art.21(5) | 1.0 | `partial` | [UC-22.2.56](#uc-22-2-56) |
 | [`Art.22`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.22) | Art.22 | 0.6 | `partial` | [UC-22.2.50](#uc-22-2-50) |
-| [`Art.23`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23) | Reporting obligations | 1.0 | `full` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.33](#uc-22-2-33), [UC-22.2.45](#uc-22-2-45), [UC-22.2.49](#uc-22-2-49), [UC-22.3.44](#uc-22-3-44), [UC-22.39.1](#uc-22-39-1) (+2 more) |
+| [`Art.23`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23) | Reporting obligations | 1.0 | `full` | [UC-22.2.1](#uc-22-2-1), [UC-22.2.33](#uc-22-2-33), [UC-22.2.45](#uc-22-2-45), [UC-22.2.49](#uc-22-2-49), [UC-22.26.22](#uc-22-26-22), [UC-22.26.9](#uc-22-26-9) (+2 more) |
 | [`Art.23(1)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(1)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
 | [`Art.23(2)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(2)) | Legacy NIS2 mapping already present in the catalogue | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49), [UC-22.2.7](#uc-22-2-7) |
 | [`Art.23(3)(a)`](https://eur-lex.europa.eu/eli/dir/2022/2555/oj#Art.23(3)(a)) | Art.23(3)(a) | 1.0 | `partial` | [UC-22.2.49](#uc-22-2-49) |
@@ -107,6 +107,36 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
 
 ### 4.1 Contributing UC detail
 
+<a id='uc-14-2-11'></a>
+- **UC-14.2.11** — NERC CIP<sup class="ref">[<a href="#ref-10">10</a>]</sup> Compliance Checks
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-14-iot-operational-technology-ot/UC-14.2.11.json`](../../content/cat-14-iot-operational-technology-ot/UC-14.2.11.json)
+<a id='uc-14-2-4'></a>
+- **UC-14.2.4** — Network Segmentation Monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-14-iot-operational-technology-ot/UC-14.2.4.json`](../../content/cat-14-iot-operational-technology-ot/UC-14.2.4.json)
+<a id='uc-14-2-9'></a>
+- **UC-14.2.9** — PLC Firmware Change Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-14-iot-operational-technology-ot/UC-14.2.9.json`](../../content/cat-14-iot-operational-technology-ot/UC-14.2.9.json)
+<a id='uc-14-6-6'></a>
+- **UC-14.6.6** — Modbus Register Value Change Tracking
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-14-iot-operational-technology-ot/UC-14.6.6.json`](../../content/cat-14-iot-operational-technology-ot/UC-14.6.6.json)
+<a id='uc-14-9-14'></a>
+- **UC-14.9.14** — OT Device Authentication Failure Detection
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-14-iot-operational-technology-ot/UC-14.9.14.json`](../../content/cat-14-iot-operational-technology-ot/UC-14.9.14.json)
 <a id='uc-17-1-28'></a>
 - **UC-17.1.28** — Cisco ISE<sup class="ref">[<a href="#ref-2">2</a>]</sup> Deployment Replication Health and PSN Sync Lag
   - Control family: `—`
@@ -239,12 +269,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.53.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.53.json)
-<a id='uc-17-1-55'></a>
-- **UC-17.1.55** — Cisco ISE Profiler Probe Quality and Endpoint-Classification Coverage
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.55.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.55.json)
 <a id='uc-17-1-56'></a>
 - **UC-17.1.56** — ISE RADIUS Change-of-Authorization (CoA) Failure Detection
   - Control family: `—`
@@ -269,24 +293,12 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.61.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.61.json)
-<a id='uc-17-1-66'></a>
-- **UC-17.1.66** — Cisco AI Endpoint Analytics — IoT/OT Classification Confidence and New-Profile Discovery
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.66.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.66.json)
 <a id='uc-17-1-67'></a>
 - **UC-17.1.67** — Cisco AI Endpoint Behavioural (AEB) Profile-Drift and Behaviour-Anomaly Detection
   - Control family: `—`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.67.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.67.json)
-<a id='uc-17-1-68'></a>
-- **UC-17.1.68** — ISE IoT/OT Device Onboarding — Profile Match and SGT Assignment Validation
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.68.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.68.json)
 <a id='uc-17-1-70'></a>
 - **UC-17.1.70** — OCSP Responder and CRL Repository Reachability and Latency Monitoring
   - Control family: `—`
@@ -305,12 +317,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `—`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.77.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.77.json)
-<a id='uc-17-1-80'></a>
-- **UC-17.1.80** — ISE ANC Closed-Loop Effectiveness — Quarantine-to-Compromise-Stop Time
-  - Control family: `—`
-  - Owner: `—`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-17-network-security-zero-trust/UC-17.1.80.json`](../../content/cat-17-network-security-zero-trust/UC-17.1.80.json)
 <a id='uc-22-2-1'></a>
 - **UC-22.2.1** — NIS2 Art.23(4)(a) — 24-Hour Early-Warning Notification Readiness
   - Control family: `ir-drill-evidence`
@@ -581,6 +587,36 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `HR`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.2.9.json`](../../content/cat-22-regulatory-compliance/UC-22.2.9.json)
+<a id='uc-22-26-21'></a>
+- **UC-22.26.21** — KBF emergency risk register freshness monitoring
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.26.21.json`](../../content/cat-22-regulatory-compliance/UC-22.26.21.json)
+<a id='uc-22-26-22'></a>
+- **UC-22.26.22** — KBF grid incident notification chain latency
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.26.22.json`](../../content/cat-22-regulatory-compliance/UC-22.26.22.json)
+<a id='uc-22-26-23'></a>
+- **UC-22.26.23** — KBF internkontroll control-test evidence archive
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.26.23.json`](../../content/cat-22-regulatory-compliance/UC-22.26.23.json)
+<a id='uc-22-26-27'></a>
+- **UC-22.26.27** — KBF personkontroll privileged access correlation
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.26.27.json`](../../content/cat-22-regulatory-compliance/UC-22.26.27.json)
+<a id='uc-22-26-9'></a>
+- **UC-22.26.9** — NVE reporting compliance
+  - Control family: `—`
+  - Owner: `—`
+  - Evidence fields declared in sidecar: 1
+  - Source: [`content/cat-22-regulatory-compliance/UC-22.26.9.json`](../../content/cat-22-regulatory-compliance/UC-22.26.9.json)
 <a id='uc-22-3-44'></a>
 - **UC-22.3.44** — DORA<sup class="ref">[<a href="#ref-4">4</a>]</sup> Art.17 — ICT incident classification timeliness: major-incident clock evidence
   - Control family: `ir-drill-evidence`
@@ -588,17 +624,11 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.3.44.json`](../../content/cat-22-regulatory-compliance/UC-22.3.44.json)
 <a id='uc-22-39-1'></a>
-- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA<sup class="ref">[<a href="#ref-13">13</a>]</sup>)
+- **UC-22.39.1** — Multi-regulator breach-notification SLA tracker (24h NIS2 / 72h GDPR / 72h HIPAA<sup class="ref">[<a href="#ref-14">14</a>]</sup>)
   - Control family: `ir-drill-evidence`
   - Owner: `CISO`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.39.1.json`](../../content/cat-22-regulatory-compliance/UC-22.39.1.json)
-<a id='uc-22-39-2'></a>
-- **UC-22.39.2** — Regulator-portal submission evidence — one-way API acknowledgement audit
-  - Control family: `ir-drill-evidence`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.39.2.json`](../../content/cat-22-regulatory-compliance/UC-22.39.2.json)
 <a id='uc-22-41-2'></a>
 - **UC-22.41.2** — Certificate / TLS posture — weak cipher and expired-cert detection
   - Control family: `crypto-drift`
@@ -611,18 +641,6 @@ Clauses are listed in the order defined by `data/regulations.json commonClauses`
   - Owner: `HR`
   - Evidence fields declared in sidecar: 1
   - Source: [`content/cat-22-regulatory-compliance/UC-22.46.1.json`](../../content/cat-22-regulatory-compliance/UC-22.46.1.json)
-<a id='uc-22-46-2'></a>
-- **UC-22.46.2** — Phishing simulation efficacy — click-rate trend and repeat-clicker detection
-  - Control family: `training-effectiveness`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.46.2.json`](../../content/cat-22-regulatory-compliance/UC-22.46.2.json)
-<a id='uc-22-9-4'></a>
-- **UC-22.9.4** — Regulatory Incident Response Time Trending
-  - Control family: `regulation-specific`
-  - Owner: `CISO`
-  - Evidence fields declared in sidecar: 1
-  - Source: [`content/cat-22-regulatory-compliance/UC-22.9.4.json`](../../content/cat-22-regulatory-compliance/UC-22.9.4.json)
 
 ## 5. Evidence collection
 
@@ -750,7 +768,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 8.25.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
+inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```
 
 To re-generate:
@@ -799,24 +817,26 @@ python3 scripts/generate_evidence_packs.py --check
 
 <a id="ref-9"></a>**[9]** National Institute of Standards and Technology. (2024). *Cybersecurity Framework (CSF) 2.0* (2.0). U.S. Department of Commerce. NIST CSWP 29. https://www.nist.gov/cyberframework
 
-<a id="ref-10"></a>**[10]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+<a id="ref-10"></a>**[10]** North American Electric Reliability Corporation. (2024). *NERC Critical Infrastructure Protection (CIP) Reliability Standards*. NERC. https://www.nerc.com/pa/Stand/Pages/CIPStandards.aspx
 
-<a id="ref-11"></a>**[11]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-11"></a>**[11]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
 
-<a id="ref-12"></a>**[12]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+<a id="ref-12"></a>**[12]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
-<a id="ref-13"></a>**[13]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+<a id="ref-13"></a>**[13]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-14"></a>**[14]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
 
 <details>
 <summary>Additional online sources cited in the document body (4)</summary>
 
-<a id="ref-14"></a>**[14]** enisa.europa.eu. *enisa.europa.eu: Networks And Information Systems Nis Directive*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive
+<a id="ref-15"></a>**[15]** enisa.europa.eu. *enisa.europa.eu: Networks And Information Systems Nis Directive*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/topics/networks-and-information-systems-nis-directive
 
-<a id="ref-15"></a>**[15]** eur-lex.europa.eu. *EUR-Lex: Oj*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj
+<a id="ref-16"></a>**[16]** eur-lex.europa.eu. *EUR-Lex: Oj*. Retrieved May 11, 2026, from https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj
 
-<a id="ref-16"></a>**[16]** enisa.europa.eu. *enisa.europa.eu: Nis2 Technical Implementation Guidance*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance
+<a id="ref-17"></a>**[17]** enisa.europa.eu. *enisa.europa.eu: Nis2 Technical Implementation Guidance*. Retrieved May 11, 2026, from https://www.enisa.europa.eu/publications/nis2-technical-implementation-guidance
 
-<a id="ref-17"></a>**[17]** ncsc.gov.ie. *ncsc.gov.ie: Nis2 Risk Management Measures Guidance.Pdf*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf
+<a id="ref-18"></a>**[18]** ncsc.gov.ie. *ncsc.gov.ie: Nis2 Risk Management Measures Guidance.Pdf*. Retrieved May 11, 2026, from https://www.ncsc.gov.ie/pdfs/NIS2_Risk_Management_Measures_Guidance.pdf
 
 </details>
 

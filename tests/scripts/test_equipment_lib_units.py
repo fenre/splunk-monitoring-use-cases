@@ -53,6 +53,7 @@ def _reset_equipment_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reset the module-level cache before every test so each test
     sees a fresh ``load_equipment()`` invocation."""
     monkeypatch.setattr(equipment_lib, "_CACHE", None)
+    monkeypatch.setattr(equipment_lib, "_ID_INDEX", None)
 
 
 class TestLoadEquipmentGuards:
@@ -108,6 +109,53 @@ class TestMatchEquipmentEmptyTextGuard:
         eq_ids, models = equipment_lib.match_equipment("", patterns)
         assert eq_ids == set()
         assert models == set()
+
+
+class TestResolveEquipmentSlug:
+    def test_alias_maps_palo_alto_variants(self) -> None:
+        assert equipment_lib.resolve_equipment_slug("palo_alto") == "paloalto"
+        assert equipment_lib.resolve_equipment_slug("palo-alto") == "paloalto"
+        assert equipment_lib.resolve_equipment_slug("paloaltonetworks") == "paloalto"
+
+    def test_alias_maps_splunk_products(self) -> None:
+        assert equipment_lib.resolve_equipment_slug("splunk-es") == "splunk_es"
+        assert equipment_lib.resolve_equipment_slug("splunk-soar") == "splunk_soar"
+
+    def test_alias_maps_fiveg(self) -> None:
+        assert equipment_lib.resolve_equipment_slug("5g") == "fiveg"
+
+    def test_canonical_slug_is_identity(self) -> None:
+        assert equipment_lib.resolve_equipment_slug("paloalto") == "paloalto"
+
+
+class TestEquipmentMetadata:
+    def test_get_equipment_kind_defaults_for_unknown(self) -> None:
+        assert equipment_lib.get_equipment_kind("not-a-real-slug") == "equipment"
+
+    def test_get_equipment_kind_reads_registry(self) -> None:
+        assert equipment_lib.get_equipment_kind("splunk_es") == "splunk-platform"
+
+    def test_get_equipment_vendor_reads_registry(self) -> None:
+        assert equipment_lib.get_equipment_vendor("paloalto") == "Palo Alto Networks"
+
+    def test_get_equipment_vendor_unknown_is_empty(self) -> None:
+        assert equipment_lib.get_equipment_vendor("not-a-real-slug") == ""
+
+    def test_clear_cache_rebuilds_index(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        equipment_lib.clear_cache()
+        monkeypatch.setattr(
+            equipment_lib,
+            "_SSOT_EQUIPMENT",
+            [
+                {
+                    "id": "paloalto",
+                    "tas": ["Palo Alto"],
+                    "vendor": "Palo Alto Networks (patched)",
+                    "kind": "equipment",
+                }
+            ],
+        )
+        assert equipment_lib.get_equipment_vendor("paloalto") == "Palo Alto Networks (patched)"
 
 
 class TestCompilePatternsNoneFallthrough:

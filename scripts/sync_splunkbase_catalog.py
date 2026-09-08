@@ -289,6 +289,45 @@ def _fetch_page(offset: int, page_size: int) -> Tuple[Optional[Dict[str, Any]], 
     # for runtime budget reasons.
 
 
+def _fetch_release_metadata(app_id: int) -> Tuple[Optional[str], List[str]]:
+    """Fetch latestVersion and splunkVersionsSupported from the /release/ endpoint."""
+    url = f"https://{ALLOWED_HOST}/api/v1/app/{app_id}/release/"
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SECONDS, context=_ssl_context()) as resp:
+            raw = resp.read(MAX_RESPONSE_BYTES)
+        payload = json.loads(raw.decode("utf-8"))
+    except (urllib.error.URLError, json.JSONDecodeError, OSError, TimeoutError):
+        return None, []
+    results = payload.get("results") if isinstance(payload, dict) else None
+    if not isinstance(results, list) or not results:
+        return None, []
+    latest = results[0] if isinstance(results[0], dict) else {}
+    version = latest.get("name") or latest.get("version")
+    versions_raw = latest.get("splunk_version_compatibility") or latest.get("splunkVersionsSupported")
+    supported: List[str] = []
+    if isinstance(versions_raw, list):
+        supported = [str(v) for v in versions_raw if isinstance(v, (str, int, float))]
+    return (str(version).strip() if version else None), supported
+
+
+def _enrich_entry_from_release(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Fill missing release metadata from the per-app /release/ endpoint."""
+    if entry.get("latestVersion") and entry.get("splunkVersionsSupported"):
+        return entry
+    try:
+        app_id = int(entry["id"])
+    except (KeyError, TypeError, ValueError):
+        return entry
+    version, supported = _fetch_release_metadata(app_id)
+    out = dict(entry)
+    if version and not out.get("latestVersion"):
+        out["latestVersion"] = version
+    if supported and not out.get("splunkVersionsSupported"):
+        out["splunkVersionsSupported"] = supported
+    return out
+
+
 def _normalise_entry(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Translate a Splunkbase API result into the catalog shape.
 
@@ -522,6 +561,14 @@ def cmd_sync(*, dry_run: bool = False) -> int:
             file=sys.stderr,
         )
         return 0
+
+    for key, entry in list(fetched.items()):
+        if entry.get("latestVersion") and entry.get("splunkVersionsSupported"):
+            continue
+        enriched = _enrich_entry_from_release(entry)
+        if enriched != entry:
+            fetched[key] = enriched
+        time.sleep(SLEEP_BETWEEN_REQUESTS)
 
     new_apps: Dict[str, Dict[str, Any]] = {}
     changed = 0

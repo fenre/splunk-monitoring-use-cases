@@ -946,10 +946,10 @@ _AREAS: list[dict[str, Any]] = [
     },
     {
         "name": "Norwegian regulations",
-        "description": "Sikkerhetsloven national security, Kraftberedskapsforskriften power preparedness, Petroleumsforskriften oil and gas HSE, and Personopplysningsloven data protection specific to Norway.",
-        "whatItIs": "Norway's national regulatory stack for security-classified information (Sikkerhetsloven), grid operator preparedness (NVE's Kraftberedskapsforskriften), offshore petroleum HSE (PSA's Petroleumsforskriften), and supplementary data protection (Personopplysningsloven on top of GDPR).",
-        "whoItAffects": "Norwegian public administration, operators of classified systems, power system operators regulated by NVE, offshore oil and gas operators regulated by PSA / Havtil, and any controller processing Norwegian personal data.",
-        "splunkValue": "We evidence classified-information system controls, track NVE preparedness metrics, capture HSE-critical OT telemetry from offshore platforms, and localise GDPR evidence so Datatilsynet inspections see Norwegian-specific coverage.",
+        "description": "Sikkerhetsloven national security, Kraftberedskapsforskriften (18 monitorable NO KBF clauses with NIS2 dual-mapping for grid operators), Petroleumsforskriften oil and gas HSE, and Personopplysningsloven data protection specific to Norway.",
+        "whatItIs": "Norway's national regulatory stack for security-classified information (Sikkerhetsloven), grid-operator preparedness under NVE's Kraftberedskapsforskriften (kap. 2 beredskap, kap. 4 reparasjonsberedskap, kap. 6 kraftsensitiv informasjon, kap. 7 driftskontrollsystem), offshore petroleum HSE (PSA's Petroleumsforskriften), and supplementary data protection (Personopplysningsloven on top of GDPR).",
+        "whoItAffects": "Norwegian public administration, operators of classified systems, kraftberedskap entities (KBO-enheter) regulated by NVE, offshore oil and gas operators regulated by PSA / Havtil, and any controller processing Norwegian personal data.",
+        "splunkValue": "We evidence classified-information system controls, track all 18 NO KBF paragraphs with honest partial/contributing assurance (risikovurdering, varsling, kraftsensitiv tilgang, DCS brukertilgang, reparasjonsberedskap), cross-map OT telemetry for driftskontrollsystem controls, dual-tag NIS2 Art.21 evidence for energy-sector entities, capture HSE-critical OT telemetry from offshore platforms, and localise GDPR evidence so Datatilsynet inspections see Norwegian-specific coverage.",
         "ucs": [
             (
                 "22.26.1",
@@ -957,11 +957,11 @@ _AREAS: list[dict[str, Any]] = [
             ),
             (
                 "22.26.6",
-                "We track power system availability and SCADA access — NVE requires preparedness evidence for grid operators.",
+                "We detect unusual SCADA operator sessions on grid systems — NVE Kraftberedskapsforskriften requires brukertilgang evidence.",
             ),
             (
-                "22.26.11",
-                "We monitor offshore platform control systems — PSA requires safety-critical system integrity monitoring.",
+                "22.26.25",
+                "We watch who accesses kraftsensitiv grid information — only authorised users should reach classified power-sector systems.",
             ),
         ],
     },

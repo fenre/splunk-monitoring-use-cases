@@ -98,9 +98,12 @@ function fillDetailPane(e) {
   }
 
   if (uc.a && uc.a.length) {
+    var cimModels = uc.a.filter(function(m) { return m && String(m).trim().toUpperCase() !== 'N/A'; });
+    if (cimModels.length) {
     html += '<div class="dp-section"><div class="dp-section-title">CIM models</div><div class="dp-section-body">';
-    uc.a.forEach(function(m) { html += '<a href="' + esc(cimDocUrl(m)) + '" target="_blank" rel="noopener">' + esc(m) + '</a> '; });
+    cimModels.forEach(function(m) { html += '<a href="' + esc(cimDocUrl(m)) + '" target="_blank" rel="noopener">' + esc(m) + '</a> '; });
     html += '</div></div>';
+    }
   }
 
   html += '<div class="dp-section"><div class="dp-section-title">App / TA</div><div class="dp-section-body">';
@@ -151,7 +154,25 @@ function fillDetailPane(e) {
   }
   if (uc.em && uc.em.length) {
     html += '<div class="dp-section"><div class="dp-section-title">Equipment models</div><div class="dp-section-body">';
-    uc.em.forEach(function(mid) { html += esc(mid) + '<br>'; });
+    uc.em.forEach(function(mid) {
+      var label = mid;
+      var sep = mid.indexOf('_');
+      if (sep > 0) {
+        var baseId = mid.slice(0, sep);
+        var modelId = mid.slice(sep + 1);
+        var eq = _eqById[baseId];
+        if (eq) {
+          var model = null;
+          if (eq.models) {
+            for (var i = 0; i < eq.models.length; i++) {
+              if (eq.models[i].id === modelId) { model = eq.models[i]; break; }
+            }
+          }
+          label = model ? (eq.label + ' — ' + model.label) : (eq.label + ' — ' + modelId);
+        }
+      }
+      html += esc(label) + '<br>';
+    });
     html += '</div></div>';
   }
   if (uc.premium) html += '<div class="dp-section"><div class="dp-section-title">Premium Apps</div><div class="dp-section-body">' + esc(uc.premium) + '</div></div>';

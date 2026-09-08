@@ -588,7 +588,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 ```
 catalogue_version: 8.25.0
 generator_script:  scripts/generate_evidence_packs.py
-inputs_sha256:     05f941e7cba30a6ed15be3f33541ee7425e92ce578db21f18d57d3d67e5fb1db
+inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```
 
 To re-generate:

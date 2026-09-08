@@ -650,6 +650,7 @@ class TestRenderEndToEnd:
 
         # Equipment subtree (the catalog UC tags ``paloalto``).
         assert (out / "equipment" / "index.json").exists()
+        assert (out / "equipment" / "app-index.json").exists()
 
     def test_manifest_payload_is_valid_json_with_counts(
         self,

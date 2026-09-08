@@ -442,6 +442,25 @@ def test_check_known_fp_lowercase_comparison_handles_mixed_case() -> None:
         assert findings[0].category == "known-fp-placeholder", v
 
 
+def test_check_cim_models_na_literal_flags_high() -> None:
+    findings = ph._check_cim_models_na(
+        "UC-1.1.1",
+        "UC-1.1.1.json",
+        {"id": "1.1.1", "cimModels": ["Authentication", "N/A"]},
+    )
+    assert len(findings) == 1
+    assert findings[0].category == "cim-models-na"
+    assert findings[0].severity == "HIGH"
+
+
+def test_check_cim_models_na_real_models_silent() -> None:
+    assert ph._check_cim_models_na(
+        "UC-1.1.1",
+        "UC-1.1.1.json",
+        {"id": "1.1.1", "cimModels": ["Authentication"]},
+    ) == []
+
+
 # ----------------------------------------------------------- _load_baseline --
 
 

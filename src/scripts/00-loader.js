@@ -12,6 +12,8 @@
  *                             are populated and __bootstrapCatalogState()
  *                             has run. initApp() must `await` this.
  *   window.__catalogIndex   — the parsed catalog-index.json.
+ *   window.EQUIPMENT_APP_INDEX_URL — path to /api/v1/equipment/app-index.json
+ *                             (when present on the catalog-index payload).
  *   window.__ensureFullUC(uc_id) — returns Promise<void> that resolves when
  *                             the UC's heavy fields are merged into DATA.
  *                             Cheap if already loaded.
@@ -91,6 +93,9 @@
       }
     }
     if (idx.regulations) window.REGULATIONS = idx.regulations;
+    if (idx.equipmentAppIndexUrl) {
+      window.EQUIPMENT_APP_INDEX_URL = idx.equipmentAppIndexUrl;
+    }
 
     var cats = (idx.categories || []).map(function(c) {
       return { i: c.i, n: c.n, s: (c.subs || []).map(function(s) {

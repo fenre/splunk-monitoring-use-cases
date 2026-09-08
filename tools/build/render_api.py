@@ -265,7 +265,7 @@ def _write_catalog_index(catalog: Catalog, api_dir: Path, *, reproducible: bool)
 
     payload: dict[str, Any] = {
         "$schema": "/schemas/v2/catalog-index.schema.json",
-        "version": "2.0.0",
+        "version": "2.1.0",
         "generatedAt": _ts(reproducible),
         "counts": {
             "categories": len(categories_index),
@@ -276,6 +276,7 @@ def _write_catalog_index(catalog: Catalog, api_dir: Path, *, reproducible: bool)
         "catGroups": _normalise_cat_groups(catalog.cat_groups),
         "catMeta": _normalise_cat_meta(catalog.cat_meta),
         "equipment": catalog.equipment or [],
+        "equipmentAppIndexUrl": "api/v1/equipment/app-index.json",
         "filterFacets": catalog.facets or {},
         "recentlyAdded": _sorted_unique(catalog.recently_added),
         "categories": categories_index,
