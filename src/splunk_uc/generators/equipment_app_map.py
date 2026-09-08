@@ -289,6 +289,19 @@ def _canonical_json(document: dict[str, Any]) -> str:
     return json.dumps(document, ensure_ascii=False, indent=2) + "\n"
 
 
+def _structural_payload(document: dict[str, Any]) -> dict[str, Any]:
+    """Return map content for drift checks (``generatedAt`` is stamp-only)."""
+    return {k: v for k, v in document.items() if k != "generatedAt"}
+
+
+def _maps_match(committed_text: str, generated: dict[str, Any]) -> bool:
+    try:
+        committed = json.loads(committed_text)
+    except json.JSONDecodeError:
+        return False
+    return _structural_payload(committed) == _structural_payload(generated)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Generate data/equipment-app-map.json (equipment picker Phase 5).",
@@ -312,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[generate-equipment-app-map] missing {MAP_PATH}", file=sys.stderr)
             return 1
         committed = MAP_PATH.read_text(encoding="utf-8")
-        if committed != rendered:
+        if not _maps_match(committed, generated):
             print(
                 "[generate-equipment-app-map] drift: "
                 f"run `python3 -m splunk_uc generate-equipment-app-map`",
