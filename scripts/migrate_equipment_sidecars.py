@@ -131,7 +131,7 @@ def migrate_sidecar(
             if cleaned:
                 out["cimModels"] = cleaned
             else:
-                out.pop("cimModels", None)
+                out["cimModels"] = []
 
     if "equipment" in out:
         new_eq = _normalize_equipment(out.get("equipment") or [], valid_eq, resolve)
