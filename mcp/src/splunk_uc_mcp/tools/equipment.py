@@ -17,6 +17,20 @@ from splunk_uc_mcp.catalog import Catalog
 
 EQUIPMENT_ID_PATTERN = r"^[a-z0-9][a-z0-9_]*$"
 
+_EQUIPMENT_APP_REF_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "required": ["id", "displayName", "role", "premium"],
+    "properties": {
+        "id": {"type": "string"},
+        "displayName": {"type": "string"},
+        "role": {
+            "type": "string",
+            "enum": ["primary", "data-source", "optional", "premium"],
+        },
+        "premium": {"type": "boolean"},
+    },
+}
+
 
 LIST_EQUIPMENT_SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -57,6 +71,8 @@ LIST_EQUIPMENT_OUTPUT_SCHEMA: dict[str, Any] = {
                 "properties": {
                     "id": {"type": "string"},
                     "label": {"type": "string"},
+                    "kind": {"type": "string"},
+                    "vendor": {"type": "string"},
                     "useCaseCount": {"type": "integer", "minimum": 0},
                     "complianceUseCaseCount": {
                         "type": "integer",
@@ -77,6 +93,14 @@ LIST_EQUIPMENT_OUTPUT_SCHEMA: dict[str, Any] = {
                         },
                     },
                     "endpoint": {"type": "string"},
+                    "apps": {
+                        "type": "array",
+                        "description": (
+                            "Curated Splunkbase technical add-ons recommended "
+                            "for this equipment slug (when present)."
+                        ),
+                        "items": _EQUIPMENT_APP_REF_SCHEMA,
+                    },
                 },
             },
         },
@@ -107,6 +131,8 @@ GET_EQUIPMENT_OUTPUT_SCHEMA: dict[str, Any] = {
     "properties": {
         "id": {"type": "string"},
         "label": {"type": "string"},
+        "kind": {"type": "string"},
+        "vendor": {"type": "string"},
         "useCaseCount": {"type": "integer"},
         "complianceUseCaseCount": {"type": "integer"},
         "models": {
@@ -141,6 +167,22 @@ GET_EQUIPMENT_OUTPUT_SCHEMA: dict[str, Any] = {
             },
         },
         "regulationIds": {"type": "array", "items": {"type": "string"}},
+        "apps": {
+            "type": "array",
+            "description": (
+                "Curated Splunkbase technical add-ons recommended for this "
+                "equipment slug (from data/equipment-app-map.json)."
+            ),
+            "items": _EQUIPMENT_APP_REF_SCHEMA,
+        },
+        "dsaSourceIds": {
+            "type": "array",
+            "description": (
+                "Optional DSA ingest source ids for sizing guidance "
+                "(when present in the curated app map)."
+            ),
+            "items": {"type": "string"},
+        },
         "regulations": {
             "type": "array",
             "items": {
@@ -238,5 +280,11 @@ def get_equipment(
 def _strip_meta(doc: dict[str, Any]) -> dict[str, Any]:
     """Remove generator bookkeeping so agents see only curated fields."""
 
-    drop = {"apiVersion", "generatedAt", "catalogueVersion", "indexEndpoint"}
+    drop = {
+        "apiVersion",
+        "generatedAt",
+        "catalogueVersion",
+        "indexEndpoint",
+        "appIndexEndpoint",
+    }
     return {k: v for k, v in doc.items() if k not in drop and not k.startswith("$")}

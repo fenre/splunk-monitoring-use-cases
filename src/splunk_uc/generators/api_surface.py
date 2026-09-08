@@ -69,7 +69,14 @@ Outputs (written to ``api/v1/``):
 * ``equipment/<id>.json``               - per-equipment detail: full UC list
                                           grouped by category and regulation,
                                           model breakdown, and a compliance
-                                          summary.
+                                          summary. Curated Splunkbase app
+                                          recommendations (``apps[]``) are
+                                          injected from
+                                          ``data/equipment-app-map.json`` when
+                                          present for the slug.
+* ``equipment/app-index.json``          - aggregate slug -> recommended Splunkbase
+                                          apps summary, sourced from
+                                          ``data/equipment-app-map.json``.
 
 Design invariants:
 
@@ -144,6 +151,7 @@ D3FEND_DIR = REPO_ROOT / "data" / "crosswalks" / "d3fend"
 OLIR_DIR = REPO_ROOT / "data" / "crosswalks" / "olir"
 SPLUNKBASE_CATALOG_PATH = REPO_ROOT / "data" / "splunkbase-catalog.json"
 SPLUNKBASE_OVERRIDES_PATH = REPO_ROOT / "data" / "splunkbase-catalog-overrides.json"
+EQUIPMENT_APP_MAP_PATH = REPO_ROOT / "data" / "equipment-app-map.json"
 COVERAGE_REPORT = REPO_ROOT / "reports" / "compliance-coverage.json"
 UC_GLOB = "content/cat-*/UC-*.json"
 # Per ADR-0009, dist/catalog.json is the SSOT-authoritative copy. The
@@ -1538,10 +1546,44 @@ def _recommender_splunkbase_index() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _load_equipment_app_map() -> dict[str, dict[str, Any]]:
+    """Return curated slug -> app-map entry from ``data/equipment-app-map.json``.
+
+    Only registry slugs with curated entries are returned. Each value may
+    carry ``apps`` (Splunkbase app refs) and/or ``dsaSourceIds``.
+    """
+    if not EQUIPMENT_APP_MAP_PATH.is_file():
+        return {}
+    try:
+        raw = json.loads(EQUIPMENT_APP_MAP_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    entries = raw.get("entries")
+    if not isinstance(entries, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for slug, entry in entries.items():
+        if not isinstance(slug, str) or not isinstance(entry, dict):
+            continue
+        curated: dict[str, Any] = {}
+        apps = entry.get("apps")
+        if isinstance(apps, list) and apps:
+            curated["apps"] = [dict(a) for a in apps if isinstance(a, dict)]
+        dsa_ids = entry.get("dsaSourceIds")
+        if isinstance(dsa_ids, list) and dsa_ids:
+            curated["dsaSourceIds"] = sorted(
+                {str(i) for i in dsa_ids if isinstance(i, str) and i}
+            )
+        if curated:
+            out[slug] = curated
+    return out
+
+
 def _equipment_metadata() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     """Return ``(by_id, models_by_compound)`` from the EQUIPMENT registry.
 
-    * ``by_id[eq_id]`` has ``{id, label, models: [{id, label}, ...]}``.
+    * ``by_id[eq_id]`` has ``{id, label, kind, vendor,
+      models: [{id, label}, ...]}``.
     * ``models_by_compound["{eq_id}_{model_id}"]`` has ``{id, label,
       equipmentId, equipmentLabel}``.
 
@@ -1552,6 +1594,8 @@ def _equipment_metadata() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str
     for entry in load_equipment():
         eq_id = entry["id"]
         eq_label = entry.get("label", eq_id)
+        eq_kind = entry.get("kind") or "equipment"
+        eq_vendor = entry.get("vendor") or ""
         models_out: list[dict[str, Any]] = []
         for model in entry.get("models", []) or []:
             model_id = model.get("id")
@@ -1568,7 +1612,13 @@ def _equipment_metadata() -> tuple[dict[str, dict[str, Any]], dict[str, dict[str
                 "equipmentLabel": eq_label,
             }
         models_out.sort(key=lambda m: m["id"])
-        by_id[eq_id] = {"id": eq_id, "label": eq_label, "models": models_out}
+        by_id[eq_id] = {
+            "id": eq_id,
+            "label": eq_label,
+            "kind": eq_kind,
+            "vendor": eq_vendor,
+            "models": models_out,
+        }
     return by_id, models_by_compound
 
 
@@ -1576,7 +1626,7 @@ def _equipment_payloads(
     catalog_ucs: Sequence[Mapping[str, Any]],
     compliance_ucs: Sequence[Mapping[str, Any]],
     alias_to_id: Mapping[str, str],
-) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]], dict[str, Any]]:
     """Build the equipment index + per-equipment detail payloads.
 
     Two-tier output so consumers can start with the index to enumerate
@@ -1596,6 +1646,7 @@ def _equipment_payloads(
     ids.
     """
     by_id, models_by_compound = _equipment_metadata()
+    app_map = _load_equipment_app_map()
 
     compliance_by_id: dict[str, Mapping[str, Any]] = {
         str(uc.get("id")): uc for uc in compliance_ucs if uc.get("id")
@@ -1664,7 +1715,11 @@ def _equipment_payloads(
     details: dict[str, dict[str, Any]] = {}
     all_referenced_ids = sorted(set(equipment_ucs.keys()) | set(by_id.keys()))
     for eq_id in all_referenced_ids:
-        meta = by_id.get(eq_id, {"id": eq_id, "label": eq_id, "models": []})
+        meta = by_id.get(
+            eq_id,
+            {"id": eq_id, "label": eq_id, "kind": "equipment", "vendor": "", "models": []},
+        )
+        curated = app_map.get(eq_id, {})
         uc_ids = sorted(
             set(equipment_ucs.get(eq_id, [])),
             key=lambda x: _uc_sort_key({"id": x}),
@@ -1692,17 +1747,20 @@ def _equipment_payloads(
             )
         model_summary.sort(key=lambda m: m["id"])
 
-        index_entries.append(
-            {
-                "id": eq_id,
-                "label": meta.get("label", eq_id),
-                "models": [{"id": m["id"], "label": m["label"]} for m in meta.get("models", [])],
-                "useCaseCount": len(uc_ids),
-                "complianceUseCaseCount": len(compliance_uc_ids),
-                "regulationIds": sorted(regulation_ids),
-                "endpoint": f"/api/{API_VERSION}/equipment/{eq_id}.json",
-            }
-        )
+        index_entry: dict[str, Any] = {
+            "id": eq_id,
+            "label": meta.get("label", eq_id),
+            "kind": meta.get("kind", "equipment"),
+            "vendor": meta.get("vendor", ""),
+            "models": [{"id": m["id"], "label": m["label"]} for m in meta.get("models", [])],
+            "useCaseCount": len(uc_ids),
+            "complianceUseCaseCount": len(compliance_uc_ids),
+            "regulationIds": sorted(regulation_ids),
+            "endpoint": f"/api/{API_VERSION}/equipment/{eq_id}.json",
+        }
+        if curated.get("apps"):
+            index_entry["apps"] = curated["apps"]
+        index_entries.append(index_entry)
 
         by_category: dict[int, list[str]] = defaultdict(list)
         for u in uc_ids:
@@ -1750,12 +1808,14 @@ def _equipment_payloads(
                 }
             )
 
-        details[eq_id] = {
+        detail: dict[str, Any] = {
             "apiVersion": API_VERSION,
             "catalogueVersion": version,
             "generatedAt": generated,
             "id": eq_id,
             "label": meta.get("label", eq_id),
+            "kind": meta.get("kind", "equipment"),
+            "vendor": meta.get("vendor", ""),
             "models": model_summary,
             "useCaseCount": len(uc_ids),
             "useCaseIds": uc_ids,
@@ -1765,6 +1825,11 @@ def _equipment_payloads(
             "regulations": regulation_list,
             "indexEndpoint": f"/api/{API_VERSION}/equipment/index.json",
         }
+        if curated.get("apps"):
+            detail["apps"] = curated["apps"]
+        if curated.get("dsaSourceIds"):
+            detail["dsaSourceIds"] = curated["dsaSourceIds"]
+        details[eq_id] = detail
 
     index_entries.sort(key=lambda e: e["id"])
 
@@ -1787,8 +1852,37 @@ def _equipment_payloads(
         "useCasesWithEquipmentTotal": total_referenced,
         "equipment": index_entries,
         "modelCount": len(models_by_compound),
+        "appIndexEndpoint": f"/api/{API_VERSION}/equipment/app-index.json",
     }
-    return index_payload, details
+
+    app_index_entries: dict[str, dict[str, Any]] = {}
+    for slug in sorted(app_map.keys()):
+        if slug not in by_id:
+            continue
+        entry = app_map[slug]
+        summary: dict[str, Any] = {}
+        if entry.get("apps"):
+            summary["apps"] = entry["apps"]
+            summary["appCount"] = len(entry["apps"])
+        if entry.get("dsaSourceIds"):
+            summary["dsaSourceIds"] = entry["dsaSourceIds"]
+        if summary:
+            app_index_entries[slug] = summary
+
+    app_index_payload = {
+        "apiVersion": API_VERSION,
+        "catalogueVersion": version,
+        "generatedAt": generated,
+        "description": (
+            "Curated equipment slug → recommended Splunkbase technical add-ons "
+            "and optional DSA ingest source ids. Sourced from "
+            "data/equipment-app-map.json; only registry slugs with curated "
+            "entries appear here."
+        ),
+        "equipmentCount": len(app_index_entries),
+        "equipment": app_index_entries,
+    }
+    return index_payload, details, app_index_payload
 
 
 # ---------------------------------------------------------------------------
@@ -1847,6 +1941,7 @@ def _manifest(
             "equipment": {
                 "index": f"/api/{API_VERSION}/equipment/index.json",
                 "detail": f"/api/{API_VERSION}/equipment/{{equipmentId}}.json",
+                "appIndex": f"/api/{API_VERSION}/equipment/app-index.json",
             },
         },
         "deprecations": [],
@@ -2102,8 +2197,20 @@ paths:
         One entry per equipment slug from the EQUIPMENT registry in
         build.py. Backed by `equipment[]` / `equipmentModels[]` fields
         on UC sidecars (generated by scripts/generate_equipment_tags.py)
-        joined with the full catalogue. Drill into
-        /equipment/{equipmentId}.json for the per-regulation breakdown.
+        joined with the full catalogue. Each entry carries registry
+        `kind` and `vendor` metadata plus optional curated Splunkbase
+        `apps[]` when present in data/equipment-app-map.json. Drill
+        into /equipment/{equipmentId}.json for the per-regulation
+        breakdown.
+  /equipment/app-index.json:
+    get:
+      summary: Equipment slug → recommended Splunkbase apps summary
+      description: |
+        Aggregate index of curated Splunkbase technical add-ons per
+        equipment slug, sourced from data/equipment-app-map.json.
+        Only registry slugs with curated entries appear. Cross-reference
+        /equipment/{equipmentId}.json for the full UC + regulation
+        breakdown for a single slug.
   /equipment/{equipmentId}.json:
     get:
       summary: Full per-equipment detail (UC list by category + regulation mappings)
@@ -2196,6 +2303,7 @@ curl https://fenre.github.io/splunk-monitoring-use-cases/api/v1/equipment/paloal
 │       └── <uc_id>.json            Canonical UC sidecar (incl. equipment[])
 ├── equipment/
 │   ├── index.json                  Equipment → UCs + touched regulation ids
+│   ├── app-index.json              Curated slug → Splunkbase apps summary
 │   └── <equipment_id>.json         Per-equipment UC + regulation breakdown
 ├── oscal/
 │   ├── index.json
@@ -2378,8 +2486,11 @@ def _render(out_root: pathlib.Path) -> None:
     # Equipment facade (equipment slug -> UCs + regulations). Uses the
     # full catalogue from catalog.json so every category contributes, not
     # just cat-22 sidecars.
-    equipment_index, equipment_details = _equipment_payloads(catalog_ucs, ucs, alias_to_id)
+    equipment_index, equipment_details, equipment_app_index = _equipment_payloads(
+        catalog_ucs, ucs, alias_to_id
+    )
     _write_json(out_root / "equipment" / "index.json", equipment_index)
+    _write_json(out_root / "equipment" / "app-index.json", equipment_app_index)
     for eq_id, body in equipment_details.items():
         _write_json(out_root / "equipment" / f"{eq_id}.json", body)
 

@@ -38,6 +38,11 @@ class TestListEquipmentLive:
         ids = {e["id"] for e in r["equipment"]}
         for slug in ("linux", "windows", "aws", "azure"):
             assert slug in ids, f"expected {slug} in equipment list"
+        azure = next(e for e in r["equipment"] if e["id"] == "azure")
+        assert azure.get("kind")
+        assert isinstance(azure.get("vendor"), str)
+        if "apps" in azure:
+            assert azure["apps"][0]["id"]
 
     def test_min_uc_filter(self, live_catalog: Catalog) -> None:
         threshold = 50
@@ -132,6 +137,8 @@ class TestGetEquipmentLive:
         r = get_equipment(catalog=live_catalog, equipment_id="azure")
         assert r["id"] == "azure"
         assert r["label"]
+        assert r.get("kind")
+        assert isinstance(r.get("vendor"), str)
         assert r["useCaseCount"] >= 1
         assert isinstance(r.get("regulationIds"), list)
         assert isinstance(r.get("useCasesByCategory"), list)
@@ -180,6 +187,10 @@ class TestGetEquipmentSynthetic:
         r = get_equipment(catalog=synthetic_catalog, equipment_id="azure")
         assert r["id"] == "azure"
         assert r["useCaseCount"] == 1
+        assert r["kind"] == "equipment"
+        assert r["vendor"] == "Microsoft"
+        assert r["apps"][0]["id"] == "3110"
+        assert r["dsaSourceIds"] == ["dsa_it_cloud_iaas", "dsa_it_cloud_paas"]
         assert r["regulationIds"] == ["gdpr"]
         assert len(r["regulations"]) == 1
         assert r["regulations"][0]["regulationId"] == "gdpr"

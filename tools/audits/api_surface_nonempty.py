@@ -76,6 +76,7 @@ _CHECKS: tuple[tuple[str, str, str], ...] = (
     ("api/v1/recommender/cim-index.json", "cimModelCount", "recommender cim-index"),
     ("api/v1/recommender/app-index.json", "appCount", "recommender app-index"),
     ("api/v1/equipment/index.json", "useCasesWithEquipmentTotal", "equipment index"),
+    ("api/v1/equipment/app-index.json", "equipmentCount", "equipment app-index"),
 )
 
 CATALOG_INDEX_REL = "api/catalog-index.json"

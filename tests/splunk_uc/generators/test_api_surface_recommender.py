@@ -639,17 +639,21 @@ class TestEquipmentMetadata:
             {
                 "id": "paloalto",
                 "label": "Palo Alto Networks",
+                "kind": "equipment",
+                "vendor": "Palo Alto Networks",
                 "models": [
                     {"id": "pa-220", "label": "PA-220"},
                     {"id": "pa-440", "label": "PA-440"},
                     {"label": "id-missing"},  # skipped (no id)
                 ],
             },
-            {"id": "ciscofw", "label": "Cisco Firewall"},
+            {"id": "ciscofw", "label": "Cisco Firewall", "kind": "equipment", "vendor": "Cisco"},
         ]
         monkeypatch.setattr(M, "load_equipment", lambda: fake_equipment)
         by_id, compound = M._equipment_metadata()
         assert by_id["paloalto"]["label"] == "Palo Alto Networks"
+        assert by_id["paloalto"]["kind"] == "equipment"
+        assert by_id["paloalto"]["vendor"] == "Palo Alto Networks"
         assert [m["id"] for m in by_id["paloalto"]["models"]] == ["pa-220", "pa-440"]
         assert by_id["ciscofw"]["models"] == []
         assert compound["paloalto_pa-220"]["equipmentLabel"] == "Palo Alto Networks"
@@ -673,9 +677,28 @@ class TestEquipmentPayloads:
                 {
                     "id": "paloalto",
                     "label": "Palo Alto Networks",
+                    "kind": "equipment",
+                    "vendor": "Palo Alto Networks",
                     "models": [{"id": "pa-220", "label": "PA-220"}],
                 },
             ],
+        )
+        monkeypatch.setattr(
+            M,
+            "_load_equipment_app_map",
+            lambda: {
+                "paloalto": {
+                    "apps": [
+                        {
+                            "id": "7523",
+                            "displayName": "Splunk Add-on for Palo Alto Networks",
+                            "role": "primary",
+                            "premium": False,
+                        }
+                    ],
+                    "dsaSourceIds": ["sec_ngfw_paloalto"],
+                }
+            },
         )
         # ``catalog_ucs`` uses compact schema (i, n, e, em).
         catalog = [
@@ -716,14 +739,22 @@ class TestEquipmentPayloads:
             }
         ]
         alias_to_id = {"pci dss": "pci-dss"}
-        idx, details = M._equipment_payloads(catalog, compliance, alias_to_id)
+        idx, details, app_index = M._equipment_payloads(catalog, compliance, alias_to_id)
         assert idx["equipmentCount"] == 1
+        assert idx["appIndexEndpoint"] == "/api/v1/equipment/app-index.json"
         paloalto = next(e for e in idx["equipment"] if e["id"] == "paloalto")
         assert paloalto["useCaseCount"] == 2
         assert paloalto["complianceUseCaseCount"] == 1
+        assert paloalto["kind"] == "equipment"
+        assert paloalto["vendor"] == "Palo Alto Networks"
+        assert paloalto["apps"][0]["id"] == "7523"
         assert "pci-dss" in paloalto["regulationIds"]
         detail = details["paloalto"]
         assert detail["regulationIds"] == ["pci-dss"]
+        assert detail["apps"][0]["role"] == "primary"
+        assert detail["dsaSourceIds"] == ["sec_ngfw_paloalto"]
+        assert "paloalto" in app_index["equipment"]
+        assert app_index["equipment"]["paloalto"]["appCount"] == 1
         # useCasesByCategory groups by leading category id.
         cats = {entry["category"]: entry["useCaseIds"] for entry in detail["useCasesByCategory"]}
         assert cats == {5: ["5.1.1"], 22: ["22.1.1"]}
@@ -752,7 +783,7 @@ class TestEquipmentPayloads:
                 }
             ],
         )
-        idx, details = M._equipment_payloads([], [], {})
+        idx, details, _app_index = M._equipment_payloads([], [], {})
         assert idx["equipmentCount"] == 1
         assert "ghostfw" in details
 
@@ -771,7 +802,7 @@ class TestEquipmentPayloads:
         catalog = [
             {"i": "weird-id", "e": ["paloalto"]},
         ]
-        _idx, details = M._equipment_payloads(catalog, [], {})
+        _idx, details, _app_index = M._equipment_payloads(catalog, [], {})
         cats = [e["category"] for e in details["paloalto"]["useCasesByCategory"]]
         assert 0 in cats
 
@@ -796,7 +827,7 @@ class TestEquipmentPayloads:
                 "em": ["paloalto_pa-220", "", 99, ["list"], None],
             },
         ]
-        _idx, details = M._equipment_payloads(catalog, [], {})
+        _idx, details, _app_index = M._equipment_payloads(catalog, [], {})
         # paloalto string still indexed; the malformed entries are
         # filtered out (no KeyError, no crash).
         assert "paloalto" in details
@@ -832,7 +863,7 @@ class TestEquipmentPayloads:
                 ],
             }
         ]
-        idx, _details = M._equipment_payloads(catalog, compliance, {})
+        idx, _details, _app_index = M._equipment_payloads(catalog, compliance, {})
         paloalto = next(e for e in idx["equipment"] if e["id"] == "paloalto")
         # No regulation tag survives the whitespace-only entry.
         assert paloalto["regulationIds"] == []

@@ -107,6 +107,13 @@ def _make_populated_dist(
         },
     )
     _write_json(
+        root / "api" / "v1" / "equipment" / "app-index.json",
+        {
+            "equipmentCount": 24,
+            "equipment": {"paloalto": {"appCount": 1, "apps": [{"id": "7523"}]}},
+        },
+    )
+    _write_json(
         root / "api" / "index.json",
         [
             {"number": 1, "name": "Server & Compute", "subcategory_count": 4, "uc_count": 275},
