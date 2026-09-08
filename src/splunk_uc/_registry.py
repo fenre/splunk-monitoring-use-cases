@@ -643,6 +643,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-equipment-app-map",
+        module="audits.equipment_app_map",
+        help="Validate data/equipment-app-map.json (Splunkbase apps, DSA ids, UC corroboration).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
