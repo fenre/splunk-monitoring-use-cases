@@ -21,6 +21,7 @@
   "value": "For 'MySQL and MariaDB Temp Table Disk Spill Rate', UC-7.1.42 converts `tmp_disk_tables`, `tmp_tables` on `mysql:status` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Poll global status on a fixed interval and emit both counters on the same event for ratio math. Tag instance (host:port). Alert on absolute spikes or when disk temp tables exceed a small fraction of all internal temp tables. Correlate with slow query log and explain plans.",
   "visualization": "Line chart (Created_tmp_disk_tables rate), Area chart (spill ratio), Table (top instances).",
+  "cimModels": [],
   "references": [
     {
       "title": "MySQL Server Status Variables",
@@ -58,6 +59,5 @@
   "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk DB Connect (Splunkbase 2686), MySQL Enterprise Audit / status collectors). Enable the modular input or HEC token that writes sourcetype=mysql:status into database. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Created_tmp_disk_tables, Created_tmp_tables, disk_spill_ratio, instance`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We surface slow and blocking queries so we can fix the worst offenders first and keep applications and batch jobs within the response times we promise.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "cimModels": []
+  "wave": "crawl"
 }

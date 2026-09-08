@@ -22,6 +22,7 @@
   "value": "UC-12.7.8 accelerates insight into Unreachable Trending ('Ansible AWX Inventory Sync Failure and Host Unreachable Trending') by tracking `inventory_sync_failures`, `unreachable_runs`, `inventories_touched` on `ansible:awx` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Replace `baseline_unreach` with a subsearch or `eventstats` median over 7d. Ensure `inventory_name` and `organization` exist on AWX events. For `ansible:result`, aggregate unreachable per hour per org.",
   "visualization": "Dual-metric timechart, table (inventory × last error), map or breakdown by cloud account if available.",
+  "cimModels": [],
   "dataModelAcceleration": "Not applicable.",
   "references": [
     {
@@ -60,6 +61,5 @@
   "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (AWX external logging integration, Splunk HTTP Event Collector — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=ansible:awx, ansible:result into iac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, inv_fail, inventory_sync_failures, organization`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch infrastructure-as-code runs and policy so changes to systems stay visible and governed.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "cimModels": []
+  "wave": "crawl"
 }

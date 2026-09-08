@@ -22,6 +22,7 @@
   "value": "UC-8.5.34 gives Operations teams earlier visibility into Storm Detection through `activemq:web` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Ensure Tomcat/Jetty access logs include `uri_path` or `request_uri`. Baseline per environment; tune multiplier and floor. For log-only sites, mirror with `activemq:log` searches on `Advisory`.",
   "visualization": "Line chart (advisory HTTP hits), table (client_ip, count), anomaly overlay vs median.",
+  "cimModels": [],
   "dataModelAcceleration": "Not applicable: this use case is not built on a CIM data model. Rely on the search in Step 2 against your raw logs or metrics.",
   "references": [
     {
@@ -60,6 +61,5 @@
   "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Universal Forwarder on Jetty request log; optional custom logging of advisory consumers — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=activemq:web into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, advisory_http_hits, client_ip, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We use this to protect shared brokers from self-inflicted advisory storms that look like organic traffic growth until thread dumps show advisory fan-out.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "cimModels": []
+  "wave": "crawl"
 }

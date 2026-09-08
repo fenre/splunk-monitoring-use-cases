@@ -22,6 +22,7 @@
   "value": "UC-7.1.74 accelerates insight into Event Frequency ('Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency') by tracking `event_types`, `med_events` on `snowflake:warehouse_events` feeds, reducing operational risk and delayed incident response before spreadsheet checks hide regressions.",
   "implementation": "Enable the warehouse events input in the add-on’s `inputs.conf` (respect ACCOUNT_USAGE latency). Normalize `EVENT_NAME` casing. Build a 30-day median baseline per warehouse. Exclude dev sandboxes via lookup. Alert on thrash (high count) and on zero events for 24h on warehouses expected to idle.",
   "visualization": "Line chart (events by warehouse), Histogram (hour-of-day thrash).",
+  "cimModels": [],
   "references": [
     {
       "title": "Snowflake WAREHOUSE_EVENTS_HISTORY",
@@ -60,6 +61,5 @@
   "detailedImplementation": "\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Snowflake (Splunkbase 5390) with `WAREHOUSE_EVENTS_HISTORY` input, or DB Connect scheduled query). Enable the modular input or HEC token that writes sourcetype=snowflake:warehouse_events into datawarehouse. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`WAREHOUSE_NAME, _time, events`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch Snowflake Warehouse Auto-Suspend and Auto-Resume Event Frequency so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "cimModels": []
+  "wave": "crawl"
 }
