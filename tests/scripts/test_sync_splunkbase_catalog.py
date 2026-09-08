@@ -1035,8 +1035,8 @@ class TestCmdSync:
         assert body["lastUpdated"]
         out = capsys.readouterr().out
         assert "wrote" in out
-        # One per-page sleep before the second fetch
-        assert slept == [M.SLEEP_BETWEEN_REQUESTS]
+        # One per-page sleep before the second fetch, plus release enrichment sleep
+        assert slept == [M.SLEEP_BETWEEN_REQUESTS, M.SLEEP_BETWEEN_REQUESTS]
 
     def test_full_sync_skips_unparseable_upstream_entries(
         self,

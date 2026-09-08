@@ -82,7 +82,12 @@ def test_validate_matrix_rejects_duplicate_clause() -> None:
 def test_validate_uc_traceability_flags_target_mismatch(
     fake_repo: Path,
 ) -> None:
-    matrix = {"coverageRows": [_good_row(1, clause="§2-3", targetUcIds=["22.26.21"])]}
+    matrix = {
+        "coverageRows": [
+            _good_row(1, clause="§2-3", targetUcIds=["22.26.21"]),
+            _good_row(2, clause="§2-5", targetUcIds=[]),
+        ]
+    }
     cat = fake_repo / "content" / "cat-22-regulatory-compliance"
     cat.mkdir(parents=True)
     (cat / "UC-22.26.21.json").write_text(
