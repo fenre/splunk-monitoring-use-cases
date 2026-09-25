@@ -676,3 +676,57 @@ def test_sidecar_field_order_matches_schema_anchors() -> None:
     eq_idx = et._SIDECAR_FIELD_ORDER.index("equipment")
     eqm_idx = et._SIDECAR_FIELD_ORDER.index("equipmentModels")
     assert eq_idx < eqm_idx
+
+
+class TestPilotPrecisionRecall:
+    def test_ise_title_is_tagged_cisco_ise(self) -> None:
+        sidecar = {
+            "id": "17.1.28",
+            "title": "Cisco ISE Deployment Replication Health and PSN Sync Lag",
+            "app": "Splunk Add-on for Cisco Identity Services",
+            "spl": "index=cisco sourcetype=cisco:ise",
+            "dataSources": "cisco:ise syslog",
+            "implementation": "Forward ISE logging categories.",
+            "description": "Replication lag across PAN and PSN nodes.",
+        }
+        eq, models = et._refine_pilot_tags(sidecar, set(), set())
+        assert "cisco_ise" in eq
+
+    def test_ipv6_title_is_not_tagged_cisco_ise(self) -> None:
+        sidecar = {
+            "id": "5.20.73",
+            "title": "IPv6 Router Advertisement Spoofing Attack Detection",
+            "app": "TA-cisco_ios",
+            "spl": "index=net sourcetype=cisco:ios",
+            "dataSources": "cisco ios syslog",
+            "implementation": "Collect RA syslog.",
+            "description": "Spoofed IPv6 RA.",
+        }
+        eq, _ = et._refine_pilot_tags(sidecar, {"cisco_ise"}, {"cisco_ise"})
+        assert "cisco_ise" not in eq
+
+    def test_vmware_title_does_not_keep_paloalto(self) -> None:
+        sidecar = {
+            "id": "2.1.3",
+            "title": "Datastore Capacity Trending",
+            "app": "Splunk_TA_vmware",
+            "spl": "index=vmware",
+            "dataSources": "vCenter",
+            "implementation": "Use VMware TA.",
+            "description": "Datastore fill.",
+        }
+        eq, models = et._refine_pilot_tags(sidecar, {"paloalto", "vmware"}, {"paloalto_pan_firewall"})
+        assert "paloalto" not in eq
+        assert not any(m.startswith("paloalto_") for m in models)
+
+    def test_pilot_replace_drops_stale_paloalto(self) -> None:
+        sidecar = {
+            "id": "2.1.3",
+            "equipment": ["paloalto", "syslog"],
+            "equipmentModels": ["paloalto_pan_firewall"],
+        }
+        out = et._apply_tags(sidecar, ["vmware"], ["vmware_vcenter"])
+        assert "paloalto" not in out["equipment"]
+        assert "syslog" in out["equipment"]
+        assert "vmware" in out["equipment"]
+

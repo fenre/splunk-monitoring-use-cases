@@ -12,6 +12,27 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added
+
+- **Recommendation profiles** for six pilot products (`cisco_ise`, `vmware`,
+  `paloalto`, `aws`, `kubernetes`, `linux`). Cited core packs drive graph,
+  Splunk recommender, and VISTA ranking. Schema
+  `schemas/recommendation-profile.schema.json`. Compact payload
+  `graph-recommend.json` and additive `api/v1/recommender/profiles.json`.
+- Kubernetes **OOMKilled / eviction** use case `UC-3.2.47` and Palo Alto
+  **HA failover / HA1 queue** use case `UC-10.11.131` so vendor anchors
+  are not silently omitted.
+
+### Changed
+
+- Equipment tagging is **precise for the six pilots**: ISE titles get
+  `cisco_ise`; Palo Alto hitchhikers on VMware/Fortinet titles are dropped;
+  Linux is OS telemetry only. `cisco_ise` is a first-class EQUIPMENT slug.
+- Graph ranking classifies **value × readiness** (Start now / High value
+  unblock first / Foundation / Later). Quality tier is confidence, not value.
+- `splunk-uc-recommender` uses profile value with inventory as readiness;
+  blocked high-value UCs stay visible.
+
 ## [8.7.2] - 2026-06-05
 
 ### Changed

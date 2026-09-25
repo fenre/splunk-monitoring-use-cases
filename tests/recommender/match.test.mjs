@@ -879,3 +879,41 @@ test('Build 15: matchUseCases output includes equipment + equipmentModels for UI
   assert.deepEqual(hit.equipmentModels, ['Meraki MR'],
     'equipmentModels must be propagated');
 });
+
+test('profile high-value UCs without inventory stay visible as blocked', () => {
+  const { matchUseCases } = loadRecommender();
+  const indexes = {
+    sourcetypes: { 'other:st': ['UC-DATA'] },
+    cim: {},
+    apps: {},
+    thin: {
+      '17.1.13': { id: '17.1.13', title: 'ISE auth', criticality: 'high' },
+      'UC-DATA': { id: 'UC-DATA', title: 'Has data', criticality: 'high' },
+    },
+    profiles: {
+      cisco_ise: {
+        label: 'Cisco ISE',
+        core: [
+          {
+            i: '17.1.13',
+            r: 1,
+            why: 'Auth failures',
+            now: 'Now',
+            m: 'fails',
+            d: ['cisco:ise'],
+            src: ['cisco-ise'],
+            c: 'start_now',
+          },
+        ],
+      },
+    },
+  };
+  const res = matchUseCases(
+    [{ type: 'sourcetype', name: 'other:st' }],
+    indexes,
+  );
+  const blocked = res.find((r) => r.id === '17.1.13');
+  assert.ok(blocked, 'cited profile UC must remain visible without matching data');
+  assert.equal(blocked.presentationClass, 'high_value_blocked');
+  assert.equal(blocked._score, 0);
+});

@@ -1,0 +1,90 @@
+{
+  "$schema": "../../schemas/recommendation-profile.schema.json",
+  "schemaVersion": "1.0.0",
+  "slug": "kubernetes",
+  "label": "Kubernetes",
+  "variants": ["kube-state-metrics", "EKS/GKE/AKS", "Fluent Bit pipeline"],
+  "corePack": [
+    {
+      "ucId": "3.2.10",
+      "rank": 1,
+      "why": "CrashLoopBackOff is the kubelet saying a container never stays up.",
+      "whyNow": "Workloads in backoff look Running on coarse dashboards.",
+      "metric": "Pods in CrashLoopBackOff and time in backoff",
+      "dataNeeded": ["kube-state-metrics", "kube:events"],
+      "sourceIds": ["kubernetes-docs", "kubernetes-pod-lifecycle"],
+      "classHint": "start_now"
+    },
+    {
+      "ucId": "3.2.19",
+      "rank": 2,
+      "why": "API server latency is control-plane user experience for every kubectl and controller.",
+      "whyNow": "Slow apiserver precedes failed deploys and NotReady flaps.",
+      "metric": "Apiserver request latency by verb and resource",
+      "dataNeeded": ["apiserver metrics"],
+      "sourceIds": ["kubernetes-docs", "google-sre-alerting-slos"],
+      "classHint": "start_now"
+    },
+    {
+      "ucId": "3.2.3",
+      "rank": 3,
+      "why": "Node NotReady starts the eviction clock for every pod on that worker.",
+      "whyNow": "You need blast radius before default tolerationSeconds elapse.",
+      "metric": "Nodes Ready=false and pods at risk",
+      "dataNeeded": ["kube_node_status_condition", "kube:events"],
+      "sourceIds": ["kubernetes-docs"],
+      "classHint": "start_now"
+    },
+    {
+      "ucId": "3.2.47",
+      "rank": 4,
+      "why": "OOMKilled and eviction are memory-limit and node-pressure failures, not generic restarts.",
+      "whyNow": "Limit misses and MemoryPressure need different owners.",
+      "metric": "OOMKilled / Evicted pod count",
+      "dataNeeded": ["last_terminated_reason", "kube:events"],
+      "sourceIds": ["kubernetes-pod-lifecycle"],
+      "classHint": "start_now"
+    },
+    {
+      "ucId": "13.7.1",
+      "rank": 5,
+      "why": "If the log pipeline is dropping, every cluster alert is flying blind.",
+      "whyNow": "Buffer overflow is a silent observability outage.",
+      "metric": "Fluent Bit / Fluentd buffer overflow and retry exhaustion",
+      "dataNeeded": ["fluent-bit metrics", "hec errors"],
+      "sourceIds": ["splunk-lantern", "kubernetes-docs"],
+      "classHint": "foundation"
+    },
+    {
+      "ucId": "3.2.13",
+      "rank": 6,
+      "why": "Expired kubelet or apiserver certs take the cluster offline on a calendar.",
+      "whyNow": "Certificate expiry is scheduled and preventable.",
+      "metric": "Kubernetes certificate expiry tracking",
+      "dataNeeded": ["certificate metrics / kubelet CSR"],
+      "sourceIds": ["kubernetes-docs", "nist-csf-2"],
+      "classHint": "foundation"
+    },
+    {
+      "ucId": "3.2.7",
+      "rank": 7,
+      "why": "Control-plane health (apiserver, etcd, scheduler, controller-manager) is the cluster itself.",
+      "whyNow": "Worker symptoms are downstream of control-plane loss.",
+      "metric": "Control plane component health",
+      "dataNeeded": ["control-plane metrics"],
+      "sourceIds": ["kubernetes-docs"],
+      "classHint": "later"
+    }
+  ],
+  "role": ["platform", "sre"],
+  "outcomes": ["availability", "reliability", "observability"],
+  "valueHypothesis": "Kubernetes monitoring should start with crashloop, apiserver latency, node NotReady, OOMKilled, the log pipeline, and certificates—the failure modes Kubernetes itself documents—not Docker-only OOM or incidental audit mentions.",
+  "requiredData": ["kube-state-metrics", "kube:events", "Splunk OpenTelemetry Collector for Kubernetes"],
+  "deps": ["3.2.10", "3.2.3", "13.7.1"],
+  "suites": ["itsi", "o11y"],
+  "maturity": "crawl",
+  "sourceIds": ["kubernetes-docs", "kubernetes-pod-lifecycle", "splunk-lantern", "google-sre-alerting-slos"],
+  "reviewDate": "2026-09-19",
+  "confidence": "gold",
+  "rationale": "Kubernetes debug and SRE practice start with workload restarts, node Ready, apiserver SLOs, OOM/eviction, pipeline health, and certificates. UC-3.2.47 exists so OOMKilled is not omitted."
+}

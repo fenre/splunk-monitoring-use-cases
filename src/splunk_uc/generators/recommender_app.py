@@ -1833,6 +1833,7 @@ def _js_recommender(api_base: str) -> str:
       ['apps',        apiBase + '/recommender/app-index.json'],
       ['thin',        apiBase + '/recommender/uc-thin.json'],
       ['splunkbase',  apiBase + '/recommender/splunkbase-index.json'],
+      ['profiles',    apiBase + '/recommender/profiles.json'],
     ];
     return Promise.allSettled(endpoints.map(function (e) {{
       return fetchJson(e[1]).catch(function (err) {{
@@ -1846,6 +1847,7 @@ def _js_recommender(api_base: str) -> str:
         apps: {{}},
         thin: {{}},
         splunkbase: {{}},
+        profiles: {{}},
       }};
       var s = results[0]; if (s.status === 'fulfilled') out.sourcetypes = s.value.sourcetypes || {{}};
       var c = results[1]; if (c.status === 'fulfilled') out.cim = c.value.cimModels || {{}};
@@ -1857,6 +1859,7 @@ def _js_recommender(api_base: str) -> str:
         }}, {{}});
       }}
       var b = results[4]; if (b.status === 'fulfilled') out.splunkbase = b.value.apps || {{}};
+      var p = results[5]; if (p.status === 'fulfilled') out.profiles = p.value.profiles || {{}};
       return out;
     }});
   }}
@@ -2759,7 +2762,71 @@ def _js_recommender(api_base: str) -> str:
     for (var ov = 0; ov < overflow.length && diversified.length < TOP_N; ov++) {{
       diversified.push(overflow[ov]);
     }}
-    return diversified;
+    return applyRecommendationProfiles(diversified, indexes);
+  }}
+
+  var CLASS_ORDER = {{ start_now: 0, high_value_blocked: 1, foundation: 2, later: 3 }};
+  var CLASS_LABEL = {{
+    start_now: 'Start now',
+    high_value_blocked: 'High value, unblock first',
+    foundation: 'Foundation',
+    later: 'Later',
+  }};
+
+  function applyRecommendationProfiles(rows, indexes) {{
+    var profiles = (indexes && indexes.profiles) || {{}};
+    var slugs = Object.keys(profiles);
+    if (!slugs.length) return rows;
+    var byId = {{}};
+    rows.forEach(function (r) {{ byId[r.id] = r; }});
+    slugs.forEach(function (slug) {{
+      var profile = profiles[slug];
+      (profile.core || []).forEach(function (core) {{
+        var row = byId[core.i];
+        var ready = Boolean(row && (row._score || 0) > 0);
+        var cls = core.c || 'start_now';
+        if (!ready && cls !== 'later' && cls !== 'foundation') cls = 'high_value_blocked';
+        if (!row) {{
+          var thin = (indexes.thin || {{}})[core.i] || {{}};
+          row = {{
+            id: core.i,
+            title: thin.title || ('UC-' + core.i),
+            value: thin.value || core.why,
+            criticality: thin.criticality || 'high',
+            difficulty: thin.difficulty,
+            monitoringType: thin.monitoringType,
+            splunkPillar: thin.splunkPillar,
+            app: thin.app || [],
+            cimModels: thin.cimModels || [],
+            equipment: thin.equipment || [slug],
+            equipmentModels: thin.equipmentModels || [],
+            _score: 0,
+            reasons: ['cited recommendation profile'],
+            topReason: 'cited recommendation profile',
+            topWeight: 0,
+          }};
+          rows.push(row);
+          byId[core.i] = row;
+        }}
+        row.presentationClass = cls;
+        row.profileRank = core.r;
+        row.profileWhy = core.why;
+        row.profileWhyNow = core.now;
+        row.profileMetric = core.m;
+        row.profileSources = core.src;
+        row.profileSlug = slug;
+      }});
+    }});
+    rows.sort(function (a, b) {{
+      var ca = CLASS_ORDER[a.presentationClass] != null ? CLASS_ORDER[a.presentationClass] : 9;
+      var cb = CLASS_ORDER[b.presentationClass] != null ? CLASS_ORDER[b.presentationClass] : 9;
+      if (ca !== cb) return ca - cb;
+      var ra = a.profileRank || 99;
+      var rb = b.profileRank || 99;
+      if (ra !== rb) return ra - rb;
+      return (b._score || 0) - (a._score || 0);
+    }});
+    return rows;
   }}
 
   function renderStatusBadge(parent, ucId) {{
@@ -2835,8 +2902,17 @@ def _js_recommender(api_base: str) -> str:
     safeAppend(header, 'span', row.criticality || '', {{ 'class': 'uc-crit' }});
     safeAppend(header, 'span', row.splunkPillar || '', {{ 'class': 'uc-pillar' }});
     renderStatusBadge(header, row.id);
+    if (row.presentationClass) {{
+      safeAppend(header, 'span', CLASS_LABEL[row.presentationClass] || row.presentationClass, {{
+        'class': 'uc-class uc-class-' + row.presentationClass,
+      }});
+    }}
     safeAppend(card, 'h4', row.title || ('UC ' + row.id));
-    if (row.value) safeAppend(card, 'p', row.value, {{ 'class': 'uc-value' }});
+    if (row.profileWhy) safeAppend(card, 'p', row.profileWhy, {{ 'class': 'uc-value' }});
+    else if (row.value) safeAppend(card, 'p', row.value, {{ 'class': 'uc-value' }});
+    if (row.presentationClass === 'high_value_blocked') {{
+      safeAppend(card, 'p', 'High value, but this environment does not yet have the required data. Keep it visible and unblock ingestion.', {{ 'class': 'uc-blocked' }});
+    }}
     // Build 15 — equipment chips. Render a small row of pill-shaped
     // chips for the UC's equipment slugs (and the first equipment
     // model, if any) so users can scan equipment compatibility at a
@@ -3974,6 +4050,7 @@ def _js_recommender(api_base: str) -> str:
   // Expose helpers for unit tests.
   window.__uc_recommender__ = {{
     matchUseCases: matchUseCases,
+    applyRecommendationProfiles: applyRecommendationProfiles,
     score: score,
     validOrigin: validOrigin,
     safeLinkHref: safeLinkHref,

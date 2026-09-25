@@ -699,6 +699,14 @@ register(
 )
 register(
     Verb(
+        name="generate-recommendation-profiles",
+        module="generators.recommendation_profiles",
+        help="Validate recommendation profiles and emit graph-recommend.json plus api/v1/recommender/profiles.json.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="generate-api-surface",
         module="generators.api_surface",
         help="Regenerate api/v1/* static JSON surface (manifest, compliance, mitre, recommender).",

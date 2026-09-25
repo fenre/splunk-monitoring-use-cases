@@ -387,6 +387,18 @@ EQUIPMENT = [
         ],
     },
     {
+        "id": "cisco_ise",
+        "label": "Cisco ISE",
+        "tas": [
+            "Splunk_TA_cisco-ise",
+            "Cisco ISE",
+            "Cisco Identity Services Engine",
+            "Identity Services Engine",
+            "cisco-ise",
+            "cisco:ise",
+        ],
+    },
+    {
         "id": "paloalto",
         "label": "Palo Alto Networks",
         "tas": ["Splunk_TA_paloalto", "Palo Alto", "GlobalProtect", "Prisma"],

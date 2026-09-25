@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from collections.abc import Iterable
@@ -58,6 +59,49 @@ if str(_LEGACY_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_LEGACY_SCRIPTS_DIR))
 
 from equipment_lib import compile_patterns, load_equipment, match_equipment  # noqa: E402
+
+# Pilot products whose tags are generator-authoritative (replace, do not merge).
+# Hitchhikers and missed ISE titles cannot be fixed if we only ever union.
+_PILOT_EQUIPMENT = frozenset(
+    {"cisco_ise", "paloalto", "linux", "vmware", "aws", "kubernetes"}
+)
+_PILOT_MODEL_EXACT = frozenset({"cisco_ise"})
+_PILOT_MODEL_PREFIXES = (
+    "paloalto_",
+    "vmware_",
+    "aws_",
+    "kubernetes_",
+)
+
+_ISE_POSITIVE = re.compile(
+    r"cisco\s+ise|identity services engine|cisco:ise|splunk_ta_cisco-ise|"
+    r"pxgrid|ise\s+psn|ise\s+radius|ise\s+node",
+    re.I,
+)
+_PAN_POSITIVE = re.compile(
+    r"palo alto|pan-os|panos|globalprotect|prisma access|splunk_ta_paloalto|"
+    r"pan:threat|pan:system|pan:config|pan:traffic",
+    re.I,
+)
+_PAN_HITCHHIKER = re.compile(r"\b(vmware|fortinet|fortigate|nutanix|citrix)\b", re.I)
+_LINUX_OS = re.compile(
+    r"\b(cpu|memory|mem |disk|inode|auth|sshd|sudo|systemd|kernel|"
+    r"filesystem|load average|oom|failed login|brute-force|service crash|"
+    r"unit failure)\b",
+    re.I,
+)
+_VMWARE_POSITIVE = re.compile(r"vmware|vsphere|esxi|vcenter|vsan|splunk_ta_vmware", re.I)
+_AWS_POSITIVE = re.compile(
+    r"\baws\b|amazon web services|cloudtrail|cloudwatch|guardduty|"
+    r"splunk_ta_aws|iam policy|config rule",
+    re.I,
+)
+_K8S_POSITIVE = re.compile(
+    r"kubernetes|\bk8s\b|kubelet|kube-state|openshift|"
+    r"splunk connect for kubernetes|crashloop|oomkilled",
+    re.I,
+)
+
 
 # Canonical sidecar field order.  Mirrors
 # ``scripts/generate_phase3_1_backfill.py`` (queued for migration into
@@ -163,8 +207,87 @@ def _compute_tags(
 
     equipment_ids: set[str] = eq_app | eq_narr
     model_compounds: set[str] = models_app | models_narr
+    equipment_ids, model_compounds = _refine_pilot_tags(
+        sidecar, equipment_ids, model_compounds
+    )
 
     return sorted(equipment_ids), sorted(model_compounds)
+
+
+def _haystack(sidecar: dict[str, Any]) -> str:
+    return " ".join(
+        str(sidecar.get(f) or "")
+        for f in ("title", "app", "dataSources", "spl", "implementation", "description")
+    )
+
+
+def _refine_pilot_tags(
+    sidecar: dict[str, Any],
+    equipment_ids: set[str],
+    model_compounds: set[str],
+) -> tuple[set[str], set[str]]:
+    """Precision/recall pass for the six recommendation-profile products."""
+    title = str(sidecar.get("title") or "")
+    app = str(sidecar.get("app") or "")
+    hay = _haystack(sidecar)
+    eq = set(equipment_ids)
+    md = set(model_compounds)
+
+    if _ISE_POSITIVE.search(title) or _ISE_POSITIVE.search(app):
+        eq.add("cisco_ise")
+        md.add("cisco_ise")
+    if re.search(r"ipv6", title, re.I) and not _ISE_POSITIVE.search(title):
+        eq.discard("cisco_ise")
+        md.discard("cisco_ise")
+
+    if _PAN_POSITIVE.search(title) or _PAN_POSITIVE.search(app):
+        eq.add("paloalto")
+        md.add("paloalto_pan_firewall")
+    if _PAN_HITCHHIKER.search(title) and not _PAN_POSITIVE.search(title + " " + app):
+        eq.discard("paloalto")
+        md = {m for m in md if not m.startswith("paloalto_")}
+
+    linux_title = bool(re.search(r"\b(linux|unix|nix)\b", title, re.I))
+    linux_ta = "splunk_ta_nix" in app.lower() or "unix and linux" in app.lower()
+    if (linux_title and _LINUX_OS.search(title)) or (linux_ta and _LINUX_OS.search(title)):
+        eq.add("linux")
+    if "linux" in eq and not linux_title and not linux_ta:
+        eq.discard("linux")
+    if re.search(r"cisco ise|palo alto|nutanix|vxrail", title, re.I) and not linux_title:
+        eq.discard("linux")
+
+    if _VMWARE_POSITIVE.search(title) or _VMWARE_POSITIVE.search(app):
+        eq.add("vmware")
+    if re.search(r"nutanix|fortinet|cisco ise", title, re.I) and not _VMWARE_POSITIVE.search(
+        title + " " + app
+    ):
+        eq.discard("vmware")
+        md = {m for m in md if not m.startswith("vmware_")}
+
+    if _AWS_POSITIVE.search(title) or _AWS_POSITIVE.search(app):
+        eq.add("aws")
+    if "aws" in eq and not _AWS_POSITIVE.search(title + " " + app) and not _AWS_POSITIVE.search(
+        hay[:800]
+    ):
+        # Incidental narrative mention only.
+        if not _AWS_POSITIVE.search(title) and not _AWS_POSITIVE.search(app):
+            eq.discard("aws")
+            md = {m for m in md if not m.startswith("aws_")}
+
+    if _K8S_POSITIVE.search(title) or _K8S_POSITIVE.search(app):
+        eq.add("kubernetes")
+        md.add("kubernetes_k8s")
+    if "kubernetes" in eq and not _K8S_POSITIVE.search(title + " " + app):
+        eq.discard("kubernetes")
+        md = {m for m in md if not m.startswith("kubernetes_")}
+
+    return eq, md
+
+
+def _is_pilot_model(model_id: str) -> bool:
+    if model_id in _PILOT_MODEL_EXACT:
+        return True
+    return any(model_id.startswith(p) for p in _PILOT_MODEL_PREFIXES)
 
 
 def _reorder_sidecar(sidecar: dict[str, Any]) -> dict[str, Any]:
@@ -191,9 +314,9 @@ def _apply_tags(
     """Return a new sidecar dict with ``equipment``/``equipmentModels`` set.
 
     Conventions:
-        - Computed tags are **merged** with any existing values so that
-          manually-set tags (from Gold uplift agents or hand-edits) are
-          never lost.
+        - Pilot equipment slugs are **replaced** from the computed set so
+          hitchhikers (Palo Alto on VMware titles, ISE on IPv6) can be
+          removed. All other tags still merge with existing values.
         - Empty arrays are ELIDED (key is removed). Keeps diffs small.
         - If the merged arrays equal the existing ones, no change.
         - Keys re-ordered to the canonical field order to keep sidecar
@@ -203,8 +326,10 @@ def _apply_tags(
     existing_eq = set(sidecar.get("equipment") or [])
     existing_models = set(sidecar.get("equipmentModels") or [])
 
-    merged_eq = sorted(existing_eq | set(equipment))
-    merged_models = sorted(existing_models | set(equipment_models))
+    kept_eq = {e for e in existing_eq if e not in _PILOT_EQUIPMENT}
+    kept_models = {m for m in existing_models if not _is_pilot_model(m)}
+    merged_eq = sorted(kept_eq | set(equipment))
+    merged_models = sorted(kept_models | set(equipment_models))
 
     if merged_eq:
         out["equipment"] = merged_eq

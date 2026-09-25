@@ -19,6 +19,7 @@
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-evidence-signatures generate-api-surface \
+       generate-recommendation-profiles \
        generate-rag-chunks audit-rag-chunks \
 	generate-alert-actions audit-alert-actions \
 	generate-dashboards audit-dashboards \
@@ -356,8 +357,12 @@ generate-evidence-packs: ## Build per-regulation evidence packs
 generate-evidence-signatures: ## Generate dist/evidence manifests (unsigned; workflow signs)
 	$(SPLUNK_UC) generate-evidence-signatures --all
 
+generate-recommendation-profiles: ## Validate profiles and emit graph-recommend.json
+	$(SPLUNK_UC) generate-recommendation-profiles
+
 generate-api-surface: ## Regenerate api/v1/* static JSON surface
 	$(SPLUNK_UC) generate-api-surface
+
 
 generate-phase2-mini-categories: ## Phase 2.2 generator (cat-22.35-22.49 mini-category UCs)
 	$(SPLUNK_UC) generate-phase2-mini-categories
@@ -433,11 +438,13 @@ sync-generated: _require-py311 ## Run every cascade-style generator (write-mode)
 	@$(SPLUNK_UC) generate-evidence-packs
 	@echo "==> [11/14] derived report: mapping ledger"
 	@$(SPLUNK_UC) generate-mapping-ledger
-	@echo "==> [12/14] derived artefact: splunk-uc-recommender app"
+	@echo "==> [12/15] derived artefact: splunk-uc-recommender app"
 	@$(SPLUNK_UC) generate-recommender-app
-	@echo "==> [13/14] doc footer: backlinks index"
+	@echo "==> [13/15] recommendation profiles"
+	@$(SPLUNK_UC) generate-recommendation-profiles
+	@echo "==> [14/15] doc footer: backlinks index"
 	@$(PYTHON) scripts/generate_backlinks.py
-	@echo "==> [14/14] doc footer: APA references + inline citations"
+	@echo "==> [15/15] doc footer: APA references + inline citations"
 	@$(PYTHON) scripts/generate_doc_references.py
 	@echo "==> sync-generated: done"
 
@@ -456,7 +463,8 @@ sync-generated-check: _require-py311 ## CI drift gate — run every cascade gene
 	  "audit-sandbox-validation --check" \
 	  "generate-evidence-packs --check" \
 	  "generate-mapping-ledger --check" \
-	  "generate-recommender-app --check"; do \
+	  "generate-recommender-app --check" \
+	  "generate-recommendation-profiles --check"; do \
 	  echo "==> $$step"; \
 	  $(SPLUNK_UC) $$step || { failed=1; echo "    DRIFT in: $$step"; }; \
 	done; \

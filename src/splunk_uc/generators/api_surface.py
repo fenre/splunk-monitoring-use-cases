@@ -1843,6 +1843,7 @@ def _manifest(
                 "appIndex": f"/api/{API_VERSION}/recommender/app-index.json",
                 "ucThin": f"/api/{API_VERSION}/recommender/uc-thin.json",
                 "splunkbaseIndex": (f"/api/{API_VERSION}/recommender/splunkbase-index.json"),
+                "profiles": f"/api/{API_VERSION}/recommender/profiles.json",
             },
             "equipment": {
                 "index": f"/api/{API_VERSION}/equipment/index.json",
@@ -2374,6 +2375,9 @@ def _render(out_root: pathlib.Path) -> None:
         out_root / "recommender" / "splunkbase-index.json",
         _recommender_splunkbase_index(),
     )
+    from splunk_uc.generators.recommendation_profiles import compact_payload, load_profiles
+
+    _write_json(out_root / "recommender" / "profiles.json", compact_payload(load_profiles()))
 
     # Equipment facade (equipment slug -> UCs + regulations). Uses the
     # full catalogue from catalog.json so every category contributes, not

@@ -80,7 +80,7 @@ SPL, KV state, and enabled saved-search names before removal.
 │   │ appserver/static/js/recommender.js (AMD module)              │   │
 │   │  1. inputlookup uc_recommender_inventory (via SearchManager) │   │
 │   │  2. fetch the four remote indexes (credentials: 'omit')      │   │
-│   │  3. score: exact sourcetype×3 + CIM accel×2 + fuzzy×1        │   │
+│   │  3. value from recommendation profiles; readiness from inventory │   │
 │   │  4. render top 60 cards → Copy SPL / Open in Search          │   │
 │   └──────────────────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────────────────┘
@@ -146,6 +146,12 @@ cannot run inside a Studio dashboard):
 | **Settings** | [`default/data/ui/views/settings.xml`](../splunk-apps/splunk-uc-recommender/default/data/ui/views/settings.xml) | Override the upstream API base URL (validated against the allow-list); reset; view recent scan runs. |
 
 Each card on **Recommend** exposes two actions:
+
+Cards are classified from **recommendation profiles** (value) and live
+inventory (readiness): **Start now**, **High value, unblock first**,
+**Foundation**, and **Later**. High-value profile UCs with no matching
+sourcetype, CIM, or app stay visible as blocked rather than dropping
+off the list.
 
 1. **Details** — slides in a drawer, fetches the full compliance
    sidecar from `/api/v1/compliance/ucs/<id>.json`, and renders the
