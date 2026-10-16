@@ -75,5 +75,87 @@
   "detailedImplementation": "Prerequisites\n• Aggregated access denial events from all Zero Trust enforcement points. Microsoft Entra CA: `sourcetype=azure:aad:signin` where `properties.conditionalAccessStatus=failure`. Zscaler ZPA: `sourcetype=zscaler:zpa:user_activity` where `Action=Block`. Prisma Access: `sourcetype=pan:globalprotect` where action=deny. Key common fields: `user`, `application`, `deny_reason`, `timestamp`.\n• Zero Trust denials are the primary signal that the system is working — or that it is too strict. A Zero Trust architecture should deny access by default and only allow after all conditions are met. Trending denials helps separate the signal (attacks blocked) from the noise (legitimate users frustrated).\n\nStep 1 — Configure data collection\nVerify denial data from multiple sources:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| stats count by sourcetype\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Unified denial trending:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| eval deny_source=case(\n    sourcetype=\"azure:aad:signin\", \"Entra CA\",\n    sourcetype=\"zscaler:zpa:user_activity\", \"ZPA\",\n    sourcetype=\"pan:globalprotect\", \"Prisma\",\n    1==1, sourcetype\n  )\n| timechart span=1h count by deny_source\n```\n\nUnderstanding this SPL: Trends access denials across all Zero Trust enforcement points in a single view. Spikes indicate: a new policy deployed (causes mass denials until users comply), an attack (credential stuffing, brute force), or an infrastructure issue (SSO down, certificate expired). Correlating deny source with timing helps pinpoint the cause.\n\nDeny reason analysis:\n```spl\n(index=azure sourcetype=\"azure:aad:signin\" properties.conditionalAccessStatus=failure)\nOR (index=ztna Action=Block)\n| eval reason=coalesce(properties.status.failureReason, PolicyName, \"unknown\")\n| stats count dc(user) as affected_users by reason\n| sort - count\n```\n\nStep 3 — Validate\n(a) Trigger a known denial (e.g., access from untrusted device).\n(b) Verify the denial appears in the unified trend.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Denial trend (multi-source timechart). Row 2 — Top denial reasons. Row 3 — Most-denied users.\nAlert: When denials exceed 3x the 7-day average in any 1-hour window.\n\nRunbook:\n1. **Spike after policy change** — Expected. Monitor for 24h. If sustained, review policy.\n2. **Spike without policy change** — Possible attack or infrastructure issue.\n3. **Single user with many denials** — Check user's device compliance and credentials.\n\nStep 5 — Troubleshooting\n• **Only one source showing denials** — Other platforms may not be forwarding denial events. Check each platform's log configuration.\n• **Deny reason 'unknown'** — The platform may not provide structured denial reasons. Parse from raw event.",
   "grandmaExplanation": "In our Zero Trust system, blocking unauthorized access is the whole point. We trend all the blocks across every security checkpoint so we can tell the difference between the system working correctly and the system accidentally locking out the wrong people.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "azure-aad-signin",
+    "pan-globalprotect",
+    "zt-access"
+  ],
+  "vendorProducts": [
+    "checkpoint",
+    "fortinet",
+    "netskope",
+    "paloalto",
+    "zscaler"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "azure-aad-signin",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=azure:aad:signin",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "pan-globalprotect",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=pan:globalprotect",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "zt-access",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='zt:access",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "checkpoint",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Check Point",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "fortinet",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "fortinet",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "netskope",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Netskope",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "paloalto",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "paloalto",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "zscaler",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "zscaler",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

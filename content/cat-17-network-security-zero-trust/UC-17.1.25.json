@@ -65,5 +65,51 @@
   "detailedImplementation": "Prerequisites\n• SonicWall syslog to Splunk. Data in `index=firewall` with `sourcetype=sonicwall`. Key fields: `msg_id` (264=Connection Dropped, 36=Connection Opened then Dropped, 173=Fragmented Packet Dropped), `src`, `srcPort`, `dst`, `dstPort`, `proto`, `fw_action` (drop/deny/block).\n• Reconnaissance signatures: a single source IP sending connections to many destination IPs (host scan), many destination ports (port scan), or both (compound scan). The volume and pattern distinguish legitimate traffic (CDN, DNS) from malicious scanning.\n• Create a `trusted_scanners.csv` lookup: `src_ip,scanner_name,owner,authorized` to whitelist known vulnerability scanners and monitoring tools.\n\nStep 1 — Configure data collection\nVerify deny events:\n```spl\nindex=firewall sourcetype=sonicwall fw_action IN (\"drop\",\"deny\",\"block\") earliest=-1h\n| stats count\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Reconnaissance detection:\n```spl\nindex=firewall sourcetype=sonicwall fw_action IN (\"drop\",\"deny\",\"block\") earliest=-1h\n| stats count dc(dst) as unique_targets dc(dstPort) as unique_ports by src\n| lookup trusted_scanners.csv src_ip as src OUTPUT authorized\n| where isnull(authorized)\n| eval scan_type=case(\n    unique_targets > 20 AND unique_ports > 20, \"Compound Scan\",\n    unique_targets > 20, \"Host Scan\",\n    unique_ports > 20, \"Port Scan\",\n    count > 500, \"High-Volume Deny\",\n    1==1, \"Low\"\n  )\n| where scan_type!=\"Low\"\n| sort - count\n| iplocation src\n| table src, Country, count, unique_targets, unique_ports, scan_type\n```\n\nUnderstanding this SPL: Classifies high-volume deny sources into scan types. A host scan (many targets, few ports) targets a specific service across the network — often looking for exposed SSH, RDP, or SMB. A port scan (one target, many ports) enumerates services on a single host — precursor to targeted exploitation. A compound scan is the most aggressive. After excluding authorized scanners, all flagged IPs warrant investigation.\n\nPort scan targeting analysis:\n```spl\nindex=firewall sourcetype=sonicwall fw_action IN (\"drop\",\"deny\",\"block\") earliest=-1h\n| stats count by src, dstPort\n| eventstats sum(count) as total_from_src by src\n| where total_from_src > 200\n| sort src, - count\n| head 50\n```\n\nStep 3 — Validate\n(a) Run `nmap -sS [target]` from an external test host. Verify the deny events and scan classification.\n(b) Verify trusted scanners are excluded.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Active scanners (last hour). Row 2 — Scan type breakdown. Row 3 — Top denied ports.\nAlert: Immediate on Compound Scan. Informational on Host/Port Scan.\n\nRunbook:\n1. **External host scan** — Block source IP at the border. Report to abuse contact.\n2. **Internal host scan** — Potential compromised host. Isolate and investigate.\n3. **High-volume deny from known IP** — May be a misconfigured application. Check with app owner.\n\nStep 5 — Troubleshooting\n• **Too many false positives** — Raise thresholds. CDN/DNS IPs hit many destinations legitimately.\n• **No deny events** — SonicWall may have an implicit allow rule. Check firewall rules.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Dell SonicWall Add-on for Splunk (Splunkbase 6203)). Enable the modular input or HEC token that writes sourcetype=dell:sonicwall, dell:sonicwall:firewall into netfw. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`dest_ip, dest_port, src_ip`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When someone tries to knock on a lot of doors that are locked, it usually means they are looking for one that is open. We count how many locked doors each visitor tries, and if the number is unusually high, we flag them as suspicious and investigate.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "dell-sonicwall",
+    "dell-sonicwall-firewall"
+  ],
+  "vendorProducts": [
+    "sonicwall",
+    "syslog"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "dell-sonicwall",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='dell:sonicwall",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "dell-sonicwall-firewall",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=dell:sonicwall:firewall",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "sonicwall",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "SonicWall",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "syslog",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "syslog",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

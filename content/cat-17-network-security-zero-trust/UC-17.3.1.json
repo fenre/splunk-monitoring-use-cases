@@ -75,5 +75,96 @@
   "detailedImplementation": "Prerequisites\n• Microsoft Entra ID (Azure AD) sign-in logs in `index=azure` with `sourcetype=azure:aad:signin`. Splunk Add-on for Microsoft Cloud Services or Azure Event Hub input. Key fields: `properties.conditionalAccessStatus` (success/failure/notApplied), `properties.conditionalAccessPolicies{}` (array of policy objects with id, displayName, enforcedGrantControls, result), `properties.userPrincipalName`, `properties.appDisplayName`, `properties.deviceDetail.operatingSystem`, `properties.location.city`, `properties.riskLevelAggregated`.\n• Conditional Access (CA) policies enforce Zero Trust controls: require MFA, compliant device, specific location, approved app, etc. A 'failure' means the user did not meet the conditions and was blocked. 'notApplied' means no policy matched — a gap.\n• Create a `ca_policy_inventory.csv` lookup: `policy_id,policy_name,intended_scope,expected_grant_controls` mapping policies to their intended design.\n\nStep 1 — Configure data collection\nConfigure Azure Event Hub export from Entra ID Diagnostic Settings > SignInLogs > send to Event Hub. Then Splunk ingests via the Azure Event Hub modular input.\n\nVerify:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-1h\n| stats count by properties.conditionalAccessStatus\n```\nExpected: success, failure, notApplied. If only 'success': CA policies may be in report-only mode.\n\nStep 2 — Create the search and alert\n\nPrimary search — CA enforcement overview:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-24h\n| spath output=ca_policies path=properties.conditionalAccessPolicies{}\n| mvexpand ca_policies\n| spath input=ca_policies output=policy_name path=displayName\n| spath input=ca_policies output=policy_result path=result\n| spath input=ca_policies output=grant_controls path=enforcedGrantControls{}\n| stats count dc(properties.userPrincipalName) as users by policy_name, policy_result\n| sort policy_name, policy_result\n```\n\nUnderstanding this SPL: Shows every CA policy, how many sign-ins it evaluated, and whether it succeeded (user met conditions), failed (user blocked), or was not applied. A policy with zero 'failure' results may be too lenient. A policy with very high 'failure' may be misconfigured or too strict, causing user friction.\n\nUsers bypassing all CA policies:\n```spl\nindex=azure sourcetype=\"azure:aad:signin\" earliest=-24h properties.conditionalAccessStatus=notApplied\n| stats count by properties.userPrincipalName, properties.appDisplayName, properties.deviceDetail.operatingSystem\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Entra ID portal: Sign-in Logs > Conditional Access tab. Compare policy results with Splunk.\n(b) Sign in from an untrusted device and verify the CA failure event appears.\n\nStep 4 — Operationalize\nDashboard: Row 1 — CA enforcement rate (% with at least one policy applied). Row 2 — Policy hit/miss per policy. Row 3 — Users with no CA policies applied.\nAlert: Daily report of users with 'notApplied' CA status.\n\nRunbook:\n1. **Users with 'notApplied'** — These users are not protected by any CA policy. Check policy scope (includes/excludes).\n2. **High failure rate on one policy** — May be too strict. Review the conditions (location, device compliance).\n3. **Report-only policies with high block counts** — Ready to enforce. Move from report-only to on.\n\nStep 5 — Troubleshooting\n• **`conditionalAccessStatus` always 'success'** — All CA policies may be in report-only mode.\n• **No CA policy data** — Azure Diagnostic Settings may not include 'SignInLogs'. Enable in Entra ID > Diagnostic Settings.",
   "grandmaExplanation": "Every time someone logs in, our security system checks a list of conditions — like requiring a secure device or being in the right location. We track which logins pass these checks, which fail, and which slip through without being checked at all.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "azure-aad-signin",
+    "zscaler-zpa"
+  ],
+  "vendorProducts": [
+    "azure",
+    "checkpoint",
+    "fortinet",
+    "m365",
+    "netskope",
+    "paloalto",
+    "zscaler"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "azure-aad-signin",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=azure:aad:signin",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "zscaler-zpa",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='zscaler:zpa",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "azure",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Splunk_TA_microsoft-cloudservices",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "checkpoint",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Check Point",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "fortinet",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "fortinet",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "m365",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Entra",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "netskope",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Netskope",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "paloalto",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "paloalto",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "zscaler",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "zscaler",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

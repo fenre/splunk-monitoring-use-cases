@@ -67,5 +67,42 @@
   "detailedImplementation": "Prerequisites\n• Secure Web Gateway (SWG) logs from Zscaler ZIA, Netskope, or cloud proxy. Data in `index=zscaler` or `index=proxy` with `sourcetype=zscaler:zia:web`. Also: endpoint DNS logs or firewall logs to detect direct-to-internet connections. Key fields: `action`, `url`, `user`, `department`, `tunnelType` (ZscalerClientConnector/PAC/GRE), `proxyAction`.\n• SWG bypass = any traffic that reaches the internet without going through the SWG. Methods: disabling the ZTNA/SWG client, using a personal hotspot, connecting via a non-inspected path, or using DNS-over-HTTPS to bypass DNS filtering.\n\nStep 1 — Configure data collection\nVerify SWG coverage:\n```spl\nindex=zscaler sourcetype=\"zscaler:zia:web\" earliest=-24h\n| stats dc(user) as users_through_swg\n```\nCompare with total active users from AD/IdP.\n\nStep 2 — Create the search and alert\n\nPrimary search — Bypass detection via missing SWG traffic:\n```spl\n| inputlookup active_users.csv\n| lookup swg_seen_users.csv user OUTPUT last_seen\n| eval hours_since_seen=round((now() - strptime(last_seen, \"%Y-%m-%dT%H:%M:%S\")) / 3600, 0)\n| where hours_since_seen > 24 OR isnull(last_seen)\n| table user, department, hours_since_seen\n| sort - hours_since_seen\n```\n\nUnderstanding this SPL: Compares the list of active users (from AD) with users seen in SWG logs. Users not seen through the SWG in 24+ hours either have a disabled SWG client, are bypassing the proxy, or are not working. Cross-referencing with VPN/ZTNA login times helps distinguish.\n\nDirect-to-internet detection (from firewall):\n```spl\nindex=firewall earliest=-24h\n| where dest_port IN (80, 443) AND NOT match(dest_ip, \"^(10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.)\")\n| lookup swg_proxy_ips.csv dest_ip OUTPUT is_swg_ip\n| where isnull(is_swg_ip)\n| stats count dc(dest_ip) as unique_destinations by src_ip\n| where count > 10\n| sort - count\n```\n\nStep 3 — Validate\n(a) Disconnect the SWG client on a test device. Verify the user disappears from SWG logs.\n(b) Make a direct-to-internet connection. Verify the firewall detects it.\n\nStep 4 — Operationalize\nDashboard: Row 1 — SWG coverage % of active users. Row 2 — Users missing from SWG. Row 3 — Direct-to-internet detections.\nAlert: When SWG coverage drops below 95%. Immediate on direct-to-internet for managed devices.\n\nRunbook:\n1. **User missing from SWG** — Check if SWG client is installed and running. Push via MDM.\n2. **Direct-to-internet** — Block at firewall. Require all HTTP/S through SWG.\n3. **Coverage declining** — May indicate users disabling the client. Enforce via MDM policy.\n\nStep 5 — Troubleshooting\n• **Cannot detect bypasses** — Firewall must log outbound HTTP/S connections. If cloud-only, use DNS monitoring.\n• **`active_users.csv` stale** — Schedule a daily export from AD/IdP.",
   "grandmaExplanation": "All our internet traffic is supposed to go through a security filter in the cloud. We watch for employees who find ways around this filter — like turning off their security software or using a personal hotspot — because unfiltered internet access is how malware and data theft happen.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "zscaler-web"
+  ],
+  "vendorProducts": [
+    "netskope",
+    "zscaler"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "zscaler-web",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='zscaler:web",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "netskope",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Netskope",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "zscaler",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "zscaler",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

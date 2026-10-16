@@ -65,5 +65,42 @@
   "detailedImplementation": "Prerequisites\n• Forcepoint Email Security SIEM events in `index=email` with `sourcetype=forcepoint:email:kv`. Key fields (SIEM key-value format): `suser` (sender), `duser` (recipient), `cs_policy` (policy name), `exceptionReason` (DLP match, virus detected, spam), `act` (blocked/quarantined/encrypted/allowed), `cs_subject` (email subject — may be hashed), `fname` (attachment filename), `fsize` (attachment size).\n• Forcepoint Email Security exports SIEM events in key-value pairs via syslog. DLP violations include the triggering policy, data pattern matches, and enforcement action.\n\nStep 1 — Configure data collection\nIn Forcepoint Security Manager: Settings > Reporting > SIEM > Enable syslog export to Splunk. Select key-value format.\n\nVerify:\n```spl\nindex=email sourcetype=\"forcepoint:email:kv\" earliest=-7d\n| stats count by act, exceptionReason\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — Email DLP and policy blocks:\n```spl\nindex=email sourcetype=\"forcepoint:email:kv\" earliest=-7d\n| where match(act, \"(?i)block|quarantine\")\n| eval reason=coalesce(exceptionReason, cs_policy)\n| stats count dc(duser) as recipients by suser, reason, act\n| sort - count\n```\n\nUnderstanding this SPL: Groups blocked/quarantined emails by sender and reason. DLP blocks mean the email contained sensitive data (credit cards, SSNs, HIPAA). Virus blocks mean the attachment was malicious. Spam blocks are informational. A single sender triggering many DLP blocks is an insider risk indicator.\n\nOutbound DLP violations (data exfiltration):\n```spl\nindex=email sourcetype=\"forcepoint:email:kv\" earliest=-7d\n| where match(exceptionReason, \"(?i)dlp|confidential|pci|pii\")\n| eval external=if(match(duser, \"@yourdomain.com\"), \"Internal\", \"EXTERNAL\")\n| stats count by suser, external, exceptionReason\n| where external=\"EXTERNAL\"\n| sort - count\n```\n\nStep 3 — Validate\n(a) Send a test email with dummy PCI data to an external address. Verify DLP block.\n(b) In Forcepoint Security Manager: Reporting > Email Activity.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block reasons. Row 2 — Outbound DLP (external). Row 3 — Top senders.\nAlert: Immediate when outbound email DLP blocks sensitive data to external recipients.\n\nRunbook:\n1. **Outbound DLP** — Investigate sender. Intentional exfiltration vs accidental.\n2. **Virus in attachment** — Check sender endpoint.\n3. **Multiple recipients blocked** — Mass email campaign or misconfiguration.\n\nStep 5 — Troubleshooting\n• **No email events** — SIEM export may not be enabled in Forcepoint Security Manager.\n• **`exceptionReason` generic** — Policy names may not be descriptive. Review naming in FSM.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Connect for Syslog classification for Forcepoint Email, or custom props for `forcepoint:email:kv` — Splunk Add-on for Unix and Linux (Splunkbase 833)). Enable the modular input or HEC token that writes sourcetype=forcepoint:email:kv into email. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`duser, pol, reason, suser`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When someone tries to email sensitive information like credit card numbers outside the company, Forcepoint blocks it. We watch these blocks to find whether it was an accident or whether someone is deliberately trying to send data out.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "forcepoint-email-kv"
+  ],
+  "vendorProducts": [
+    "forcepoint",
+    "syslog"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "forcepoint-email-kv",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='forcepoint:email:kv",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "forcepoint",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Forcepoint",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "syslog",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Syslog",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }
