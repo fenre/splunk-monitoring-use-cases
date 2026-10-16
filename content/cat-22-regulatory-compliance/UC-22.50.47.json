@@ -112,5 +112,60 @@
   "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud; Splunk Enterprise Security recommended for the OT SOC.\n• **Passive OT telemetry**: Network_Traffic must be populated from passive sources only (SPAN/TAP/diode-fed sensors such as Cisco Cyber Vision, Zeek, OT-switch NetFlow). Per the OT safety rules, NEVER use active probing against Level 0/1/2 or SIS assets.\n• **OT asset categorisation**: an asset lookup must set `src_category`/`dest_category='ot'` for in-scope BES cyber assets so the monitoring is scoped to the OT trust zone.\n• **Summary index**: provision `security_monitoring`.\n• **Regulatory mapping**: evidences NERC `CIP-007-6 R4` and FERC `Order 887` (INSM). Every result carries `monitor_status` and `detected_at`.\n\n## Step 1 — Establish the OT monitoring scope (passively)\n\nConfirm the OT segments are instrumented by passive sensors and that the asset lookup categorises BES cyber assets as 'ot'. A segment with no passive sensor is an INSM blind spot and must be recorded as a gap — do not close it with active scanning.\n\n## Step 2 — Implement the search\n\n`tstats` over the accelerated Network_Traffic model summarises east-west flows per OT source per hour; `eventstats` baselines each asset; a z-score plus a distinct-destination fan-out gate flag anomalies indicative of lateral movement. Schedule it:\n\n```ini\n[UC-22.50.47: Internal Network Security Monitoring for the Electric OT Environment]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = security_monitoring\naction.summary_index.marker = uc=22.50.47,controls=CIP-007-6-R4;FERC-Order887\n```\n\n## Step 3 — Calibrate per zone\n\nOT traffic is more deterministic than IT; profile the z-score and fan-out distribution per zone over a baseline and set the fan-out threshold above legitimate polling-master behaviour. Document the calibration for the auditor.\n\n## Step 4 — Operationalize\n\nBuild 'OT internal network monitoring': single-value anomaly count, an east-west anomaly table (fan-out highlighted), and a per-zone anomaly trend. Route anomalies to the OT SOC and the OT-engineering review queue (human-in-the-loop; no automated action on OT assets). Schedule the evidence export to security_monitoring.\n\n## Step 5 — Troubleshooting and caveats\n\n• **Historians dominate:** baseline/allowlist known many-peer roles.\n\n• **No OT flows:** confirm sensors feed Network_Traffic and the OT asset categorisation is applied; an empty OT view means INSM is blind, which is itself a finding.\n\n• **Safety discipline:** all collection is passive and all response is human-in-the-loop per the OT safety boundary; this control reads telemetry and never writes to control assets.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise / Splunk Cloud Platform where the Network_Traffic model is populated from OT sensors; Splunk Enterprise Security recommended for notable/risk routing in the OT SOC. (Splunkbase) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`All_Traffic.src, _time, distinct_dests, monitor_status`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "Inside the power-grid control network we quietly watch how the equipment normally talks to each other, so if one machine suddenly starts reaching out to lots of others — a classic sign someone has sneaked in — we notice and raise it for the engineers, without ever touching the equipment itself.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "compliance_and_risk"
+  ],
+  "vendorProducts": [
+    "cisco",
+    "netflow",
+    "splunk_es",
+    "zeek"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "compliance_and_risk",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "audit finding",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "cisco",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Cisco",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "netflow",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "NetFlow",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "splunk_es",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Splunk Enterprise Security",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "zeek",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Zeek",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

@@ -94,5 +94,64 @@
   "detailedImplementation": "## Prerequisites\n\n• **Splunk**: Enterprise ≥9.2 or Splunk Cloud; Splunk Enterprise Security recommended.\n• **CIM Authentication populated and accelerated** from all identity sources (IdP, OS, VPN, application). Confirm with `| tstats count from datamodel=Authentication by Authentication.action`.\n• **Summary index**: provision `security_monitoring` for the anomaly evidence stream.\n• **Regulatory mapping**: evidences SOC 2 `CC7.2`. Every result carries `anomaly_type` and `detected_at`.\n\n## Step 1 — Confirm the monitored surface\n\nCC7.2 monitoring is only credible over instrumented systems. Confirm every authentication source is mapped to the Authentication model; a source absent from the model is a monitoring blind spot and must be recorded as a gap.\n\n## Step 2 — Implement the search\n\n`tstats` over the accelerated model summarises attempts and failures per principal per hour; `eventstats` baselines each principal; a z-score plus a failure-ratio gate flag anomalies. Schedule every 15 minutes:\n\n```ini\n[UC-22.8.41: System Monitoring for Authentication Anomalies (SOC 2 CC7.2)]\ncron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\ndispatch.latest_time = now\nactions = summary_index\naction.summary_index._name = security_monitoring\naction.summary_index.marker = uc=22.8.41,controls=CC7.2\n```\n\n## Step 3 — Calibrate\n\nProfile the z-score and failure-ratio distribution over 30 days and set thresholds between p90 and p99; document the calibration date for the auditor.\n\n## Step 4 — Operationalize\n\nBuild 'CC7.2 — system monitoring (auth)': single-value anomaly count, anomaly table, and an anomaly-by-type trend. Schedule the evidence export to security_monitoring on the monitoring cadence.\n\n## Step 5 — Troubleshooting and caveats\n\n• **No events:** the Authentication model is not populated/accelerated — fix onboarding; an empty model means CC7.2 monitoring is blind.\n\n• **Everything scores high:** recalibrate on a representative window.\n\n• **Scope discipline:** reconcile auth sources against the identity inventory so monitoring coverage is complete.\n\n**Ecosystem integration:** Forward compliance detections to Splunk SOAR for automated incident triage and escalation playbooks. Enrich events with asset context from ServiceNow CMDB. Cross-reference with CrowdStrike Falcon or Microsoft Defender for Endpoint for host forensics and threat detection context. Integrate Okta or Azure AD identity context to determine if the acting user had appropriate authorisation. Feed validated findings into the GRC platform (e.g., RSA Archer, ServiceNow GRC, or AuditBoard) for regulatory compliance tracking and audit evidence management.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise / Splunk Cloud Platform where the Authentication data model is populated; Splunk Enterprise Security recommended for notable/risk routing. (Splunkbase) — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`Authentication.user, _time, anomaly_type, failure_ratio`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep a constant watch on how people sign in and learn what's normal for each account, so if someone suddenly has a flood of failed logins or far more attempts than usual, we spot it within minutes and look into it.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "compliance_and_risk"
+  ],
+  "sourcetypes": [
+    "wineventlog-security"
+  ],
+  "vendorProducts": [
+    "m365",
+    "okta",
+    "splunk_es"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "compliance_and_risk",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "audit finding",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "wineventlog-security",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "WinEventLog:Security",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "m365",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Entra",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "okta",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Okta",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "splunk_es",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Splunk Enterprise Security",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }
