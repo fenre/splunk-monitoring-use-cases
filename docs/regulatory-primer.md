@@ -126,7 +126,7 @@ This document uses ISO 3166-1 alpha-2 codes for jurisdictions (`US`, `EU`,
 
 A **family** is a control question that virtually every tier-1 framework
 asks in some form. The catalogue authors each family as a dedicated
-subcategory of cat-22 (subcategories 22.35 – 22.49; each ships 5 UCs = 75 UCs
+subcategory of cat-22 (subcategories 22.35 – 22.49; 80 UCs
 total). Families are the fastest path to multi-regulation evidence: every UC
 in this section is tagged against 3 – 6 tier-1 regulations and against
 the derivative privacy regulations too.
@@ -688,7 +688,7 @@ acquirers, issuers, and service providers.
 | 11.3.x | Vulnerability scanning and pen-testing | 1.0 | full — §22.11 + 22.43 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.11 ships
-220 dedicated PCI DSS UCs, including cardholder-data-environment
+110 dedicated PCI DSS UCs, including cardholder-data-environment
 boundary detection, CHD-in-logs prevention, PAN-in-email detection,
 key-custody attestation, and PCI DSS 4.0 customised-approach-alternative
 evidence packaging.
@@ -747,7 +747,7 @@ plans, healthcare clearinghouses) and their *business associates*.
 | Breach Notification §164.400-414 | Breach notification | 1.0 | full — §22.10 + 22.39 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.10 ships
-58 dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
+59 dedicated HIPAA UCs covering ePHI access logging, audit-trail gap
 detection, encryption of ePHI at rest and in transit, minimum-necessary
 rule enforcement, workforce-termination access revocation, and
 breach-risk-assessment artefact generation.
@@ -798,7 +798,7 @@ objective taxonomy:
 | CC9.2 | Vendor management | 1.0 | full — §22.12 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.12 ships
-86 dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
+43 dedicated SOX ITGC UCs plus the cross-cutting SoD family (22.48).
 The catalogue is designed to produce both point-in-time evidence (snapshot
 at year-end) and period-of-operation evidence (continuous-control-monitoring
 dashboards) which aligns with the SOX Type 2-equivalent testing model.
@@ -847,7 +847,7 @@ that require SOC 2 reports for downstream customers.
 | CC9.x | Risk mitigation | 1.0 | full — §22.8 + 22.44 |
 | A1.x | Availability | 0.7 | partial — §22.8 + 22.45 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 80 UCs
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.8 ships 41 UCs
 dedicated to SOC 2 controls with particular focus on continuous control
 monitoring, which is the hallmark of a mature Type 2 programme.
 
@@ -893,7 +893,7 @@ procurement.
 | Clause 9 | Performance evaluation | 1.0 | full — §22.6 + 22.47 |
 
 **What the catalogue delivers:** 100 % tier-1 `commonClauses` coverage.
-§22.6 ships 116 UCs dedicated to ISO 27001 Annex A controls.
+§22.6 ships 58 UCs dedicated to ISO 27001 Annex A controls.
 
 **Cisco ISE evidence.** For Annex A.5 organisational controls and A.8
 technological controls related to identity and network access, Cisco
@@ -938,7 +938,7 @@ framework.
 | RESPOND | Incident response | 1.0 | full — §22.7 + 22.39 |
 | RECOVER | Recovery | 1.0 | full — §22.7 + 22.45 |
 
-**What the catalogue delivers:** 100 % tier-1 coverage. §22.7 ships 50 UCs;
+**What the catalogue delivers:** 100 % tier-1 coverage. §22.7 ships 51 UCs;
 every CSF function has dedicated UCs plus cross-cutting coverage.
 
 **Where to look:** §22.7 · `api/v1/compliance/regulations/nist-csf.json`.
@@ -973,7 +973,7 @@ non-federal organisations worldwide.
 | AT | Awareness and training | 0.7 | full — §22.14 + 22.46 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.14 ships
-81 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
+82 UCs dedicated to 800-53 Rev.5 controls with `controlFamily` tags
 that align with the OSCAL component-definition facade at
 `api/v1/oscal/component-definitions/*`.
 
@@ -1109,7 +1109,7 @@ designated as "critical".
 | Art.28-30 | ICT third-party risk management | 1.0 | full — §22.3 + 22.44 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.3 ships
-94 dedicated DORA UCs with particular focus on Art.19 incident-reporting
+47 dedicated DORA UCs with particular focus on Art.19 incident-reporting
 (the single most-audited DORA clause in 2025).
 
 **Cisco ISE evidence.** For Art.6 ICT risk management Cisco ISE supplies
@@ -1171,7 +1171,7 @@ of its evidence base with NIST 800-53 coverage.
 | AT | Awareness and Training | 0.7 | full — §22.20 + 22.46 |
 
 **What the catalogue delivers:** 100 % tier-1 coverage. §22.20 ships
-21 dedicated CMMC UCs.
+22 dedicated CMMC UCs.
 
 **Cisco ISE evidence.** Because CMMC AC, AU, IA, IR, and SC families
 are derivative of NIST 800-171 / 800-53, every Cisco ISE UC that
@@ -2958,24 +2958,24 @@ is the machine-readable view.
 |-------------|------------|--------------|------|-----|--------------|
 | 22.1 | GDPR | EU/EEA | T1 | 50 | `regulations/gdpr.json` |
 | 22.2 | NIS2 | EU | T1 | 59 | `regulations/nis2.json` |
-| 22.3 | DORA | EU | T1 | 94 | `regulations/dora.json` |
+| 22.3 | DORA | EU | T1 | 47 | `regulations/dora.json` |
 | 22.4 | CCPA / CPRA | US-CA | T2 | inherit | `regulations/ccpa.json` |
 | 22.5 | MiFID II | EU | T2 | see §22.5 | `regulations/mifid-ii.json` |
-| 22.6 | ISO 27001 | GLOBAL | T1 | 116 | `regulations/iso-27001.json` |
-| 22.7 | NIST CSF | US/GLOBAL | T1 | 50 | `regulations/nist-csf.json` |
-| 22.8 | SOC 2 | US/GLOBAL | T1 | 80 | `regulations/soc-2.json` |
+| 22.6 | ISO 27001 | GLOBAL | T1 | 58 | `regulations/iso-27001.json` |
+| 22.7 | NIST CSF | US/GLOBAL | T1 | 51 | `regulations/nist-csf.json` |
+| 22.8 | SOC 2 | US/GLOBAL | T1 | 41 | `regulations/soc-2.json` |
 | 22.9 | Compliance trending | cross-framework | n/a | dashboards | `compliance/coverage.json` |
-| 22.10 | HIPAA Security | US | T1 | 58 | `regulations/hipaa-security.json` |
-| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 220 | `regulations/pci-dss.json` |
-| 22.12 | SOX / ITGC | US | T1 | 86 | `regulations/sox-itgc.json` |
+| 22.10 | HIPAA Security | US | T1 | 59 | `regulations/hipaa-security.json` |
+| 22.11 | PCI DSS v4.0 | GLOBAL | T1 | 110 | `regulations/pci-dss.json` |
+| 22.12 | SOX / ITGC | US | T1 | 43 | `regulations/sox-itgc.json` |
 | 22.13 | NERC CIP<sup class="ref">[<a href="#ref-26">26</a>]</sup> | US/CA | T2 | see §22.13 | `regulations/nerc-cip.json` |
-| 22.14 | NIST 800-53 Rev.5 | US | T1 | 81 | `regulations/nist-800-53.json` |
+| 22.14 | NIST 800-53 Rev.5 | US | T1 | 82 | `regulations/nist-800-53.json` |
 | 22.15 | IEC 62443 | GLOBAL | T2 | see §22.15 | `regulations/iec-62443.json` |
 | 22.16 | TSA Pipeline Security | US | T2 | see §22.16 | `regulations/tsa-sd.json` |
 | 22.17 | FDA 21 CFR Part 11 | US | T2 | see §22.17 | `regulations/fda-part-11.json` |
 | 22.18 | API 1164 SCADA Security | US | T2 | see §22.18 | `regulations/api-rp-1164.json` |
 | 22.19 | FISMA / FedRAMP | US | T2 | see §22.19 | `regulations/fedramp.json` + `regulations/fisma.json` |
-| 22.20 | CMMC 2.0 | US | T1 | 21 | `regulations/cmmc.json` |
+| 22.20 | CMMC 2.0 | US | T1 | 22 | `regulations/cmmc.json` |
 | 22.21 | EU AI Act<sup class="ref">[<a href="#ref-14">14</a>]</sup> | EU | T2 | see §22.21 | `regulations/eu-ai-act.json` |
 | 22.22 | PSD2<sup class="ref">[<a href="#ref-7">7</a>]</sup> / Payment Services | EU | T2 | see §22.22 | `regulations/psd2.json` |
 | 22.23 | EU Cyber Resilience Act<sup class="ref">[<a href="#ref-15">15</a>]</sup> (CRA) | EU | T2 | see §22.23 | `regulations/eu-cra.json` |

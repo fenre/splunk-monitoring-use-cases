@@ -39,6 +39,9 @@ the release notes block in `index.html` by hand.
   catalog-index gzip ceiling is 3 MiB. Fabric sourcetype, product,
   add-on, and CIM ids, plus alias text, pushed both files past the
   previous ceilings (172 MB and 2.5 MiB gz).
+- **Regulatory primer:** cat-22 use-case counts in
+  `docs/regulatory-primer.md` now match `_category.json` after the
+  duplicate-subcategory collapse.
 
 ## [8.25.0] - 2026-07-24
 
