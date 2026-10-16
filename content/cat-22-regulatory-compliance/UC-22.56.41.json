@@ -89,6 +89,15 @@
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise ≥9.2 or Splunk Cloud.\n- KV Store collection `tsa_surface_aco_lookup`.\n- Workday HRIS feed via HEC.\n- ES notable framework.\n\n## Step 1 — Define the roster collection\n\n```ini\n[tsa_surface_aco_lookup]\nenforceTypes = true\nfield.aco_name = string\nfield.aco_role = string\nfield.aco_phone = string\nfield.aco_email = string\nfield.cc_us_citizen = bool\nfield.cc_ssi_eligibility = string\nfield.cc_ssi_expiry = number\nfield.cc_assignment_effective_from = number\nfield.deputy_aco_name = string\nfield.alternate_phone = string\nfield.alternate_email = string\nfield.alternate_us_citizen = bool\nfield.alternate_ssi_eligibility = string\nfield.alternate_ssi_expiry = number\nfield.last_tsa_notification = number\nfield.designation_doc_url = string\n```\n\n## Step 2 — Wire the Workday feed\n\nA daily Python job pulls Workday Worker data for the ACO designation and HECs employment-status / citizenship + SSI-clearance to Splunk. The KV Store row is updated only when the source-of-truth changes.\n\n## Step 3 — Schedule and route\n\n```ini\n[UC-22.56.41: TSA-SD Pipeline ACO designation Roster Health]\ncron_schedule = 13 */4 * * *\ndispatch.earliest_time = -4h@h\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.56.41,reg=TSA-Surface,clause=TSA-SCAS-aco-designation\nalert.severity = 4\n```\n\n## Step 4 — Operationalize\n\n**Dashboard `TSA-SD CC Roster Health`**: roster status, SSI expiry timeline, 24×7 reachability heat-map, TSA notification trail, Alternate-active days.\n\n**Runbook for `eligibility_status=failed`** (owner: CCO, severity P1):\n1. Within 1 business hour: identify a qualified replacement.\n2. Within 4 business hours: file the replacement designation with TSA.\n3. Within 24 hours: HR-process the new designate and update the roster.\n\n## Step 5 — Troubleshooting\n\n- **SSI renewal lag**: TSA SSI re-investigations can take 6–12 weeks; plan ahead.\n- **Citizenship-status changes**: rare but must be tracked (e.g. a CC takes dual citizenship).\n- **Designation memorandum lag**: TSA wants the signed memo on file; ensure the SharePoint evidence-vault link is current.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "enrichment": {
+    "proposedValues": [
+      {
+        "field": "industries",
+        "value": "Surface (multi-modal)",
+        "note": "The industry field does not match a registry industry."
+      }
+    ]
+  },
   "grandmaExplanation": "Surface operators must name an Authorized Compliance Official for TSA and keep that designation current — with proof TSA was notified when it changes.",
   "prerequisiteUseCases": [
     "UC-22.56.1"
@@ -102,14 +111,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "enrichment": {
-    "proposedValues": [
-      {
-        "field": "industries",
-        "value": "Surface (multi-modal)",
-        "note": "The industry field does not match a registry industry."
-      }
-    ]
-  }
+  "wave": "walk"
 }

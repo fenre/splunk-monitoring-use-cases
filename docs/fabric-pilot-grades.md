@@ -275,11 +275,11 @@ Every field missed its bar, so the six lists were removed from the sidecars.
 | 21.5.37 Pipeline SCADA RTU firmware version drift | `pipeline` | Pipeline | wrong | the evidence is not the industry field |
 | 21.10.29 Annuity surrender spike detection | `insurance-and-claims-processing` | Insurance and Claims Processing | correct | the industry field matches this registry name |
 | 21.10.29 Annuity surrender spike detection | `insurance` | insurance | wrong | the evidence is not the industry field |
-| 21.3.68 HIPAA workforce termination access revocation | `healthcare-and-life-sciences` | Healthcare and Life Sciences | correct | the industry field matches this registry name |
+| 21.3.68 HIPAA<sup class="ref">[<a href="#ref-8">8</a>]</sup> workforce termination access revocation | `healthcare-and-life-sciences` | Healthcare and Life Sciences | correct | the industry field matches this registry name |
 | 21.3.68 HIPAA workforce termination access revocation | `healthcare` | healthcare | wrong | the evidence is not the industry field |
 | 21.5.44 Downhole gauge communication loss | `oil-gas-and-mining` | Oil, Gas, and Mining | correct | the industry field matches this registry name |
 | 21.5.44 Downhole gauge communication loss | `pipeline` | pipeline | wrong | the evidence is not the industry field |
-| 21.12.10 Higher-ed FERPA student record access audit | `public-sector-and-government` | Public Sector and Government | correct | the industry field matches this registry name |
+| 21.12.10 Higher-ed FERPA<sup class="ref">[<a href="#ref-6">6</a>]</sup> student record access audit | `public-sector-and-government` | Public Sector and Government | correct | the industry field matches this registry name |
 | 22.55.7 CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios | `transportation` | Transportation | correct | the industry field matches this registry name |
 | 22.55.12 CLC/TS 50701 Rail Cybersecurity Incident Detection — rail-OT specific detection content covering signal, RBC, CBTC, GSM-R, FRMCS, rolling stock | `transportation` | Transportation | correct | the industry field matches this registry name |
 | 23.9.3 Waste Diversion and Recycling Rate Tracking | `cross-industry` | Cross-industry | debatable | Cross-industry is a bucket, not an industry |
@@ -717,7 +717,7 @@ Every field missed its bar, so the six lists were removed from the sidecars.
 | 22.26.27 KBF personkontroll privileged access correlation | `compliance_and_risk` | audit finding | correct | the sentence is about this use case and the phrase is specific |
 | 22.12.12 Production change volume during financial close windows | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
 | 22.55.7 CLC/TS 50701 Target Security Levels (SL-T) Coverage — every zone has an SL-T justified against threat scenarios | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
-| 22.8.33 SOC 2 CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
+| 22.8.33 SOC 2<sup class="ref">[<a href="#ref-1">1</a>]</sup> CC7.1 — System-operations monitoring: uptime attestation and alert-noise governance | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
 | 22.13.9 Security Awareness Training Completion for BES Personnel | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
 | 22.55.12 CLC/TS 50701 Rail Cybersecurity Incident Detection — rail-OT specific detection content covering signal, RBC, CBTC, GSM-R, FRMCS, rolling stock | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
 | 22.10.55 Cloud Service Provider — ePHI Hosting Admin Actions in AWS or Azure Audit | `compliance_and_risk` | audit finding | debatable | compliance use case, but the sentence is the pasted audit-findings closer |
@@ -910,7 +910,7 @@ Every field missed its bar, so the six lists were removed from the sidecars.
 | 3.5.7 Envoy Proxy Error Rates | `kubernetes` | Kubernetes | correct | the title or the app field names this product |
 | 3.5.7 Envoy Proxy Error Rates | `opentelemetry` | OpenTelemetry | correct | the title or the app field names this product |
 | 3.5.7 Envoy Proxy Error Rates | `prometheus` | Prometheus | correct | the title or the app field names this product |
-| 3.3.24 OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks | `itsi` | Splunk ITSI | correct | the title or the app field names this product |
+| 3.3.24 OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks | `itsi` | Splunk ITSI<sup class="ref">[<a href="#ref-5">5</a>]</sup> | correct | the title or the app field names this product |
 | 3.3.24 OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks | `kubernetes` | Kubernetes | correct | the title or the app field names this product |
 | 3.3.24 OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks | `openshift` | OpenShift | correct | the title or the app field names this product |
 | 3.3.24 OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks | `opentelemetry` | OpenTelemetry | correct | the title or the app field names this product |
@@ -938,3 +938,31 @@ Every field missed its bar, so the six lists were removed from the sidecars.
 | 4.2.234 Azure Network ddosProtectionPlans Create or Update | `m365` | microsoft-cloudservices | correct | the title or the app field names this product |
 | 4.1.21 ALB/NLB Access Logs and 5xx Errors | `aws` | aws | correct | the title or the app field names this product |
 
+
+---
+
+<!-- BEGIN-AUTOGENERATED-SOURCES -->
+
+## References
+
+*Auto-generated by `scripts/generate_doc_references.py` from `data/source-references.json` and `data/source-mappings.json`. Edit those files (or the document body) to change citations; this footer is rewritten on every run.*
+
+### Supporting sources
+
+<a id="ref-1"></a>**[1]** American Institute of Certified Public Accountants. (2017). *Trust Services Criteria (2017) for Security, Availability, Processing Integrity, Confidentiality, and Privacy*. AICPA & CIMA. SOC 2 / TSP Section 100. https://www.aicpa-cima.com/topic/audit-assurance/soc-suite-of-services
+
+<a id="ref-2"></a>**[2]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
+
+<a id="ref-3"></a>**[3]** OpenTelemetry Authors. (2026). *OpenTelemetry Semantic Conventions*. Cloud Native Computing Foundation. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/semconv/
+
+<a id="ref-4"></a>**[4]** OpenTelemetry Authors. (2026). *OpenTelemetry Specification*. Cloud Native Computing Foundation. Retrieved May 11, 2026, from https://opentelemetry.io/docs/specs/otel/
+
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+
+<a id="ref-6"></a>**[6]** U.S. Department of Education. (1974). *Family Educational Rights and Privacy Act (FERPA)*. U.S. Government. 20 USC § 1232g. https://www2.ed.gov/policy/gen/guid/fpco/ferpa/index.html
+
+<a id="ref-7"></a>**[7]** U.S. Department of Health & Human Services. (2002). *HIPAA Privacy Rule (45 CFR Parts 160 and 164, Subparts A and E)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/privacy/index.html
+
+<a id="ref-8"></a>**[8]** U.S. Department of Health & Human Services. (2013). *HIPAA Security Rule (45 CFR Parts 160 and 164, Subparts A and C)*. Office for Civil Rights, HHS. 45 CFR 160, 164. https://www.hhs.gov/hipaa/for-professionals/security/index.html
+
+<!-- END-AUTOGENERATED-SOURCES -->

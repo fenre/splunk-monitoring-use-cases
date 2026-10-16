@@ -90,6 +90,15 @@
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- VASP registered with FIU-IND under the 7 March 2023 PMLA amendment (Reporting Entity status).\n- Aadhaar e-KYC integration via UIDAI / KUA, with Aadhaar number hashed (not stored).\n- Transaction database with 5-year legal-hold capability.\n\n## Step 1 - KYC KV Store\n\n```ini\n[certin_kyc_retention_lookup]\nenforceTypes = true\nfield.customer_id = string\nfield.kyc_method = string\nfield.kyc_validation_at = time\nfield.validated_aadhaar_hash = string\nfield.validated_pan_hash = string\nfield.validated_passport_hash = string\nfield.validated_address = string\nfield.registration_ip = string\nfield.device_id = string\nfield.deregistered_at = time\nfield.corporate_customer_kyc_ref = string\nfield.pmla_grandfather_evidence_ref = string\nfield.closed_loop_attestation_ref = string\n```\n\n## Step 2 - Transaction retention attestation\n\n```ini\n[vasp_transaction_retention_attestation_lookup]\nenforceTypes = true\nfield.database_id = string\nfield.retention_days_attested = number\nfield.legal_hold_active = bool\nfield.last_attested_at = time\n```\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.62.9: VASP KYC + Retention]\ncron_schedule = 30 5 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.62.9,reg=CERT-In,clause=CERT-In-Dir-7\nalert.severity = 5\n```\n\n## Step 4 - Indian-jurisdiction-specific notes\n\n- **FIU-IND POC**: VASPs must designate a Principal Officer to FIU-IND who is the CTR/STR filing officer — co-routing required.\n- **GoAML reporting**: STRs are filed via FIU-IND's GoAML portal — Splunk SOAR can pre-stage the filing data but human Principal-Officer sign-off remains mandatory.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "enrichment": {
+    "proposedValues": [
+      {
+        "field": "industries",
+        "value": "Financial / VASP (India)",
+        "note": "The industry field does not match a registry industry."
+      }
+    ]
+  },
   "grandmaExplanation": "Indian crypto exchanges must check the identity of every customer and keep their transaction records for 5 years. We check every day that every customer is properly identified and that we still have their transaction history for the full 5-year period.",
   "prerequisiteUseCases": [
     "UC-22.62.4"
@@ -110,14 +119,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "enrichment": {
-    "proposedValues": [
-      {
-        "field": "industries",
-        "value": "Financial / VASP (India)",
-        "note": "The industry field does not match a registry industry."
-      }
-    ]
-  }
+  "wave": "walk"
 }

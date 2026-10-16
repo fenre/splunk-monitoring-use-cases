@@ -88,6 +88,15 @@
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk ES + DNS TA.\n- Authoritative DNS feed.\n\n## Step 1 — Schedule\n\n```ini\n[UC-22.57.11: CSA DNR Health]\ncron_schedule = 41 13 * * *\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.57.11,reg=SG-Cyber-Act,clause=CSA-DNR-COP\nalert.severity = 3\n```\n\n## Step 2 — Runbook\n\n**`has_dnssec=false`**: investigate signing pipeline; resign within 24h.\n\n**SG-specific failure modes**:\n- **Registrar account compromise**: pair with UC-22.57.10 (ESCI scope) if registrar is ESCI-designated.\n- **TLD DS-record latency**: monitor parent SGNIC propagation.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Enterprise Security (Splunkbase 263), Splunk Add-on for DNS (Splunkbase 4222).). Enable the modular input or HEC token that writes sourcetype=dns:authoritative into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`has_dnssec, zone`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
+  "enrichment": {
+    "proposedValues": [
+      {
+        "field": "industries",
+        "value": "Telco / Internet Infrastructure",
+        "note": "The industry field does not match a registry industry."
+      }
+    ]
+  },
   "grandmaExplanation": "Singapore web addresses (.sg) must use a special 'tamper-proof' system called DNSSEC. We check every day to make sure it's working.",
   "prerequisiteUseCases": [
     "UC-22.57.3"
@@ -108,14 +117,5 @@
       "requiresSmeReview": true
     }
   ],
-  "wave": "walk",
-  "enrichment": {
-    "proposedValues": [
-      {
-        "field": "industries",
-        "value": "Telco / Internet Infrastructure",
-        "note": "The industry field does not match a registry industry."
-      }
-    ]
-  }
+  "wave": "walk"
 }

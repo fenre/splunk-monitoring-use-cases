@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_251 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -379,6 +379,10 @@ _No inbound links yet._
 - [`docs/site-user-guide.md`](site-user-guide.md)
 - [`docs/url-scheme.md`](url-scheme.md)
 
+## `docs/enrichment-contract.md`
+
+_No inbound links yet._
+
 ## `docs/enterprise-deployment.md`
 
 - [`README.md`](../README.md)
@@ -525,6 +529,14 @@ _No inbound links yet._
 
 - [`CHANGELOG.md`](../CHANGELOG.md)
 - [`docs/health-check-2026-progress.md`](health-check-2026-progress.md)
+
+## `docs/fabric-model.md`
+
+_No inbound links yet._
+
+## `docs/fabric-pilot-grades.md`
+
+_No inbound links yet._
 
 ## `docs/false-positive-process.md`
 

@@ -89,6 +89,15 @@
     "Splunk Enterprise Security"
   ],
   "detailedImplementation": "## Prerequisites\n\n- Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region).\n- UC-22.61.1 deployed with `cn_mlps_register_lookup` populated.\n- PRC-resident KMS-backed signing key for hash-chain verification (often a Huawei OBS / Alibaba KMS instance with a key registered to the legal entity).\n\n## Step 1 - Retention KV Store\n\n```ini\n[csl_log_retention_lookup]\nenforceTypes = true\nfield.system_id = string\nfield.mlps_grade = string\nfield.log_index = string\nfield.expected_retention_days = number\nfield.integrity_scheme = string\nfield.hash_chain_endpoint = string\nfield.archive_handoff_documented = bool\nfield.cold_archive_evidence_ref = string\nfield.index_created_at = time\n```\n\n## Step 2 - Hash-chain verification job\n\nA daily scheduled report uses `dbinspect` to enumerate bucket IDs + earliest/latest event times for every log_index in the lookup; the report writes a signed manifest to `hec:integrity:hash:freshness` with `hash_chain_status` set to `valid` only if every bucket's hash signature verifies against the PRC-resident KMS key.\n\n## Step 3 - Schedule\n\n```ini\n[UC-22.61.13: CSL Art. 21 Log Retention]\ncron_schedule = 0 3 * * *\ndispatch.earliest_time = -1d@d\ndispatch.latest_time = now\nactions = summary_index, notable\naction.summary_index._name = audit_evidence\naction.summary_index.marker = uc=22.61.13,reg=CN-CSL,clause=CSL-Art-21-3-3-3\nalert.severity = 4\n```\n\n## Step 4 - PRC-specific notes\n\n- **Cross-border audit-data export**: even routine MLPS-3+ log review by an offshore SOC may trigger CSL Art. 37 + PIPL Art. 38 cross-border-transfer considerations if the logs contain PI — coordinate with UC-22.61.4 (egress detector) and UC-22.61.7 (cross-border transfer register).\n- **Public-Security Bureau evidence-request mode**: in active criminal investigations, MPS may request raw logs under Art. 28; the chain-of-custody report from this UC is the artefact most commonly tendered.\n\n## Step 5 — Troubleshooting\n\n**Product-specific failure modes**:\n\n- **ServiceNow SIR custom-field drift** — if `csa_awareness_time` or `tsa_awareness_time` is NULL, verify the Security Incident Response workflow still writes the field on state transition to `In Progress`; compare against the vendor UI on the open ticket.\n- **KV Store sync lag** — if the lookup row updates but the saved search still surfaces stale status, confirm the `outputlookup` command completed (`| rest /services/data/transforms/lookup-table-files` shows matching row count).\n- **HEC token / modular-input silence** — run `index=_internal sourcetype=splunkd component=AggregatorMiningProcessor` for the source; no events for >2× the expected poll interval indicates an API or forwarder failure.\n- **Summary-index routing gaps** — validate `action.summary_index._name = audit_evidence` and RBAC role `compliance-analyst` retains write on the destination index.",
+  "enrichment": {
+    "proposedValues": [
+      {
+        "field": "industries",
+        "value": "CII (China)",
+        "note": "The industry field does not match a registry industry."
+      }
+    ]
+  },
   "grandmaExplanation": "Chinese law says important security records must be kept for at least 6 months and protected from being changed or deleted. We check every day that all our security logs are kept long enough and have not been tampered with.",
   "prerequisiteUseCases": [
     "UC-22.61.1"
@@ -109,14 +118,5 @@
       "requiresSmeReview": false
     }
   ],
-  "wave": "crawl",
-  "enrichment": {
-    "proposedValues": [
-      {
-        "field": "industries",
-        "value": "CII (China)",
-        "note": "The industry field does not match a registry industry."
-      }
-    ]
-  }
+  "wave": "crawl"
 }

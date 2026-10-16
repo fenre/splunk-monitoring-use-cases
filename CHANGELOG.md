@@ -42,6 +42,10 @@ the release notes block in `index.html` by hand.
 - **Regulatory primer:** cat-22 use-case counts in
   `docs/regulatory-primer.md` now match `_category.json` after the
   duplicate-subcategory collapse.
+- **Generated docs:** refreshed `docs/backlinks.md` and the reference
+  footers on the new fabric documents. Equipment-tag key order was
+  rewritten on 38 sidecars; titles, descriptions, values, and SPL
+  were not changed.
 
 ## [8.25.0] - 2026-07-24
 
