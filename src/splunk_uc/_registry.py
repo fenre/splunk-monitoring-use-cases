@@ -167,6 +167,14 @@ register(
 )
 register(
     Verb(
+        name="audit-category-counts",
+        module="audits.category_counts",
+        help="Fail when _category.json counts or subcategory ids drift from UC files.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-dashboard-spl",
         module="audits.dashboard_spl",
         help="Audit Simple XML dashboard SPL queries for token expansion + REST validity.",
