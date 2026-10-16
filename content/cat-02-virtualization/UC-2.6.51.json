@@ -59,5 +59,78 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, IIS with W3C logging, Splunk or MS IIS add-on for parsing.\n• Ensure the following data sources are available: `iis` access logs, relevant Windows event logs, correct time on all StoreFront nodes behind the load balancer.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSet `sourcetype` to `iis` for consistency. If you use XML `HTTPERR`, add a separate `sourcetype` and a union search. Add `props` to parse `timetaken` in milliseconds. If `csUsername` is empty by design, do not use it for triage. Verify log rollover does not create gaps in forwarder file tails.\n\nStep 2 — Create the search and alert\nThe primary SPL in this file is tuned for p95 time-taken and error mix. A companion search on events:\n\n```spl\nindex=windows sourcetype=\"WinEventLog:Application\" source=\"*IIS*\" OR source=\"*W3SVC*\"\n| stats count by EventCode, host\n| where count>0\n```\n\n**Citrix StoreFront Server IIS Health** — Correlates HTTP errors to application pool and worker events using `host` and time proximity with `transaction` in a follow-on panel.\n\nStep 3 — Validate\nRequest synthetic GETs to `/Citrix/StoreWeb/` from a canary, confirm rows and latency. Induce a controlled app pool recycle in a lab and see event + HTTP correlation.\n\nStep 4 — Operationalize\nPage the Citrix and Windows teams together when 503s exceed baseline; include load balancer and authentication provider runbooks. Keep six months of access logs in warm storage for post-incident forensics on enumeration storms.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Windows; enable IIS and HTTP logging on StoreFront servers; consider Splunk add-on for Microsoft IIS for field extraction — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=iis, W3C into windows. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, err_pct, is_err, p95_ms`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep an eye on the web server that hands people their app and desktop lists, so you see broken logon pages and slow sign-ins before a whole site thinks Citrix is down.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "iis",
+    "iis-access",
+    "wineventlog-application",
+    "wineventlog-security",
+    "wineventlog-system"
+  ],
+  "vendorProducts": [
+    "citrix",
+    "iis"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "iis",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='iis",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "iis-access",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "`iis:access`",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-application",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"WinEventLog:Application",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-security",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"WinEventLog:Security",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-system",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"WinEventLog:System",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "iis",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "IIS",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

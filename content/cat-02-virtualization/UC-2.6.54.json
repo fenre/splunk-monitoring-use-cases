@@ -61,5 +61,42 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Windows add-on; reachability from forwarders to license servers; UDP/TCP 135 and RPC ranges documented.\n• Ensure the following data sources are available: Application and RDS-specific event logs; optional dedicated license server in `index=windows` with its own `host` value.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nBuild a `lookup` of expected license server FQDNs per site. Ingest the license server farm first — it is the source of truth for issuance errors. Ingest all multi-session session hosts. Merge Citrix and Microsoft terms of use in a runbook; Splunk is evidence, not a license calculator.\n\nStep 2 — Create the search and alert\nHarden `EventCode` lists per your Windows build. A parallel search for unreachability:\n\n```spl\nindex=windows \"Remote Desktop License Servers\" OR \"The Remote Desktop license server is not available\"\n| table _time, host, EventCode, Message\n```\n\n**RDS Licensing Validation for Multi-Session Hosts** — Require two matching events in 15 minutes before a page, to reduce one-off flaps. Join `host` to a lookup that classifies the machine as `multi_session=true` to avoid false positives on single-session VDI where RDS CAL rules differ.\n\nStep 3 — Validate\nStop the license service in a lab (not production) briefly and assert Splunk shows the follow-on events. Reconcile Event IDs to Microsoft’s table for your build.\n\nStep 4 — Operationalize\nAttach dashboards to the Windows license operations team, not only Citrix, because CAL issues are shared. Revisit when migrating license servers to new hardware or DNS aliases.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Microsoft Windows on session hosts and on Remote Desktop License Servers; optional scripted WMI or `Get-CimInstance` poll for `Win32_TerminalServiceSetting` and grace period on hosts — Splunk Add-on for Microsoft Windows (Splunkbase 742)). Enable the modular input or HEC token that writes sourcetype=WinEventLog:Application, WinEventLog:RemoteDesktopServices into windows. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, daily_events, kind, server`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We make sure the shared Windows “terminal server” style licensing stays healthy on machines that run many people at once, so you are not suddenly blocked by grace periods or a dead license server list.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-broker-events",
+    "wineventlog-application"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-broker-events",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:broker:events",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-application",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='WinEventLog:Application",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

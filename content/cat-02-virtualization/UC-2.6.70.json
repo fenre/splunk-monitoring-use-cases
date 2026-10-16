@@ -59,5 +59,42 @@
   "detailedImplementation": "Prerequisites\n• Storage Zone Controller and connector logs (or API export) available to Splunk with field extraction for `zone_state`, `sync_backlog` or equivalent, and `hosting_mode`.\n• Reference architecture doc listing zone IDs, on-prem vs cloud, and which connectors serve each site.\n\nStep 1 — Configure data collection\nSend controller and connector output to a dedicated index. Normalize time to UTC. Map vendor-specific status strings to `zone_state` and `connector_health` for consistent `eval` rules.\n\nStep 2 — Create the search and alert\nRun the base SPL, tune `max_backlog` and health string patterns to your build. Create alerts: any zone not online for 10 minutes, backlog over threshold for two consecutive 5m buckets, or any connector not healthy for 15 minutes.\n\nStep 3 — Validate\nCompare panel counts to the admin console. Inject or replay a test event where backlog spikes in a non-production zone.\n\nStep 4 — Operationalize\nAdd the panels to a ShareFile operations dashboard, route alerts to the collaboration and storage teams, and document escalation when cloud-hosted vs on-prem path differs.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for ShareFile. Ingest audit trail via ShareFile REST API (https://api.sharefile.com) to HEC with a custom scripted input or Splunk Add-on Builder. Suggested custom sourcetype: `citrix:sharefile:audit`. Optionally correlate with Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated risk indicators.). Enable the modular input or HEC token that writes sourcetype=citrix:sharefile:storagezone, citrix:sharefile:connector into sharefile. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, max_backlog, zone_id, zone_ok`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep an eye on the boxes that host your shared files and the helpers that move them between the cloud and your own office — so you catch file-sync stalls and down zones before they stop real work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-sharefile-connector",
+    "citrix-sharefile-storagezone"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-sharefile-connector",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:sharefile:connector",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-sharefile-storagezone",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:sharefile:storagezone",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

@@ -63,5 +63,42 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), Splunk Add-on for Microsoft Windows, optional uberAgent UXM (Splunkbase 1448).\n• Ensure the following data sources are available: `sourcetype=\"citrix:vda:events\"`, `sourcetype=\"WinEventLog:Application\"`, optional `index=uberagent` peripheral data.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable detailed VDA logging for HDX device redirection per Citrix doc for your LTSR/CR build. If logs are very verbose, route to a dedicated index with shorter retention. Map `user` and `ClientName` fields consistently.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; limit `index=uberagent` to your deployment):\n\n```spl\n(index=xd sourcetype=\"citrix:vda:events\" OR (index=windows (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\")) OR (index=uberagent sourcetype=\"uberAgent:Peripheral*\"))\n| search match(_raw, \"(?i)USB|TWAIN|WIA|redirect|peripheral|smart.?card|scard|clipboard|mapped drive|clpb|device.*(fail|deny|block|stop|stall)\")\n| eval channel=if(match(_raw, \"(?i)twain|wia|scan\"), \"imaging\", if(match(_raw, \"(?i)clipboard|clip\"), \"clipboard\", if(match(_raw, \"(?i)drive|mapped\"), \"drives\", \"usb_usb\")))\n| where match(_raw, \"(?i)fail|error|block|deny|policy|restric|not supported|time.?out|stall\")\n| stats count, values(Message) as sample, earliest(_time) as first_t, latest(_time) as last_t, dc(user) as users by host, channel, user\n| sort - count\n```\n\nStep 3 — Validate\nUnplug/attach a test USB in lab; confirm a failure path logs if you block via policy. Verify sampling does not include benign detach messages.\n\nStep 4 — Operationalize\nShare weekly Top 10 error strings with endpoint engineering. For regulated sites, add privacy guardrails to mask serial numbers in Message.",
   "grandmaExplanation": "We look for the hidden notes when a camera, USB stick, or copy-paste path is turned off or breaks inside a remote session — so you catch blocked gadgets before they hurt real work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-vda-events",
+    "wineventlog-application"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-vda-events",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:vda:events",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-application",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"WinEventLog:Application",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

@@ -61,5 +61,33 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Citrix Monitor Service OData API collector, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `index=xd` `sourcetype=\"citrix:monitor:odata\"` for `MachineCatalog`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nPoll the Monitor service with appropriate auth; verify `ODataEntity` or equivalent identifies Machine Catalog records. Add aliases for time and pending-count fields. Optionally enrich with a CSV of image owners and patch cycles.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust field names to match your feed):\n\n```spl\nindex=xd sourcetype=\"citrix:monitor:odata\" (ODataEntity=MachineCatalog OR entity_type=MachineCatalog OR Name=*)\n| eval master_age_days=if(isnotnull(LastImageUpdateTime) OR isnotnull(LastMasterImageTime), round((now()-coalesce(LastImageUpdateTime, LastMasterImageTime, _time)) / 86400, 1), null())\n| eval rollout_pending=coalesce(PendingImageRollout, PendingUpdateCount, 0)\n| where master_age_days > 90 OR rollout_pending > 0 OR match(coalesce(ProvisioningStatus, State, ErrorState), \"(?i)fail|error\")\n| table _time, Name, ProvisioningType, master_age_days, rollout_pending, ProvisioningStatus, State, ErrorState, MasterImageVhd, host\n| sort - master_age_days\n```\n\nStep 3 — Validate\nCompare results to Citrix Studio for a few catalogs. Confirm the 90-day threshold against your image lifecycle policy. Test alert with a non-production catalog.\n\nStep 4 — Operationalize\nSend weekly report to desktop engineering; page on `Fail` states or age breaches over policy. Link dashboard rows to your image build pipeline and vulnerability scanning.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Monitor Service OData API, Template for Citrix XenDesktop 7 (TA-XD7-Broker) — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:monitor:odata into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`master_age_days, rollout_pending`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We check whether the golden desktop images for your virtual machines are up to date and not stuck while updating — so you catch broken or outdated pools before they hurt real work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-monitor-odata"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-monitor-odata",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:monitor:odata",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

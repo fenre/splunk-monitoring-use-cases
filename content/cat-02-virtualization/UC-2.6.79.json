@@ -63,5 +63,51 @@
   "detailedImplementation": "Prerequisites: ZTNA logging subscribed to your sink with HEC or cloud connector into index=ztna; category taxonomy aligned with security. Step 1: Configure data collection — Confirm field names in a pilot; props.conf [citrix:ztna:session] and [citrix:ztna:connector] with FIELDALIAS for rtt_ms, app_category, and result. Step 2: Create the search and alert — Create separate saved searches: policy blocks, connector health, and RTT SLO; start with median rtt>250ms (tune from baseline) and add per-region thresholds. Step 3: Validate — After approved allow/deny tests in non-production, run `index=ztna (sourcetype=\"citrix:ztna:session\" OR sourcetype=\"citrix:ztna:connector\") earliest=-20m | stats count by result, app, app_category` to confirm tags. Step 4: Operationalize — Publish the dashboard to security and EUC; refresh when new app groups publish; if blocks or high RTT remain steady, escalate to the Citrix Secure Private Access and connector owner teams.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280) imports Secure Private Access risk indicators from Citrix Analytics for Security.). Enable the modular input or HEC token that writes sourcetype=citrix:ztna:session, citrix:ztna:access, citrix:ztna:connector into ztna. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, app, blks, medrtt`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We look at the modern “front door to apps” the same way you would a guarded lobby — who got in, what they opened, and whether the round trip was snappy or stuck — so policy holds up without people feeling the new walls.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-ztna-access",
+    "citrix-ztna-connector",
+    "citrix-ztna-session"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-ztna-access",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:ztna:access",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-ztna-connector",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:ztna:connector",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-ztna-session",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:ztna:session",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

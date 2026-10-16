@@ -62,5 +62,51 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows on all session hosts; uberAgent; optional VDA log feed.\n• Ensure the following data sources are available: `WinEventLog:System` with 1001, 41, 6008, and 1074 where applicable; `index=uberagent` boot and stability; optional `index=xd` `citrix:vda:events`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nStandardize time zones. Map `host` to asset inventory. Truncate or mask kernel dumps paths in `Message` if sensitive. If `append` is heavy, materialize a summary index on a 15-minute schedule instead of real-time for wide fleets.\n\nStep 2 — Create the search and alert\nSimplify the primary SPL in production — the example is illustrative. A typical pattern is:\n\n```spl\nindex=windows sourcetype=\"WinEventLog:System\" EventCode=1001\n| eval stop_code=if(match(_raw, \"(0x[A-Fa-f0-9]{8})\"), mvindex( match(_raw, \"(0x[A-Fa-f0-9]{8})\" ),1), null())\n| stats count by host, stop_code\n| where count>0\n```\n\n**VDA BSOD and Machine Stability Tracking** — Union with `index=uberagent` unexpected reboots on `host` in a `join` or `append` and deduplicate the same second.\n\nStep 3 — Validate\nInduce a controlled bugcheck in a non-production pool if policy allows, or use historical data from a known patch regression. Check that 41 and 1001 do not double count the same event.\n\nStep 4 — Operationalize\nSend weekly top-stop-code review to the desktop engineering team, attach to image lifecycle gates, and block promotion when stability KPIs regress.",
   "grandmaExplanation": "We count sudden blue screens and surprise restarts on your shared desktop machines, so you see a bad patch or driver before a whole building keeps dropping connection during work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-vda-events",
+    "uberagent-machine-boot",
+    "wineventlog-system"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-vda-events",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:vda:events",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "uberagent-machine-boot",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"uberAgent:Machine:Boot",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-system",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='WinEventLog:System",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

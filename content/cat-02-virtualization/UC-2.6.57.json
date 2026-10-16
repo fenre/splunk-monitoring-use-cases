@@ -58,5 +58,42 @@
   "detailedImplementation": "Prerequisites\n• Cloud Connector version supported for HealthData-style health exports; service account with rights to read local health endpoints if applicable.\n• `index=xd` receiving `citrix:cloudconnector:healthdata` with stable host, connector_id, and resource_location keys.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nImplement the scripted input or lightweight agent that calls the health endpoint and posts one line per snapshot. Verify clocks on collectors match domain time for meaningful NTP fields.\n\nStep 2 — Create the search and alert\nTriage with the primary SPL, then add suppressions for maintenance windows. Pair alerts with the simpler connectivity search from 2.6.16 to avoid duplicate pages for the same outage.\n\nStep 3 — Validate\nInduce a controlled outbound block in a lab and confirm failed dependency fields populate. Skew a VM clock in test and assert time_sync flips not OK.\n\nStep 4 — Operationalize\nDocument escalation from connector host OS health to this deep health, and add capacity playbooks when CPU stays above threshold across polling windows.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280) for aggregated analytics data. For raw Cloud service data, use the Citrix Cloud System Log Add-on (open-source, see citrix/cc-system-log-addon-for-splunk repository) or poll the Monitor Service OData API (https://api.cloud.com/monitorodata) with a custom scripted input.). Enable the modular input or HEC token that writes sourcetype=citrix:cloudconnector:healthdata into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`connector_id, cpu, dep_ok, host`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We go beyond a simple on-or-off check for the link to the cloud and look at time sync, heavy processor load, and failed dependency checks, so you fix the hidden strain before people lose access or machines stop registering.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-cloudconnector",
+    "citrix-cloudconnector-healthdata"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-cloudconnector",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:cloudconnector",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-cloudconnector-healthdata",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:cloudconnector:healthdata",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

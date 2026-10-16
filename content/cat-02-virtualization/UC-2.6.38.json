@@ -62,5 +62,64 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Splunk Add-on for Microsoft Windows, Template for Citrix XenDesktop 7 (TA-XD7-Broker).\n• Ensure the following data sources are available: `sourcetype=\"WinEventLog:Application\"` and `sourcetype=\"citrix:vda:events\"` from VDAs/UPS, optional `sourcetype=\"WinEventLog:System\"`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable required Windows event channels. Confirm Citrix print components log to Application. If EventCode=808 (example) is noisy, list suppressions in a macro. Tag `printer_name` and `user` with vendor extractions or `fieldalias` from XML.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust EventCode list to match your print-related Windows events):\n\n```spl\nindex=windows OR index=xd (sourcetype=\"WinEventLog:Application\" OR sourcetype=\"citrix:vda:events\") (match(_raw, \"(?i)Citrix.*Print|Universal Print|spooler|CtxPrint|render|driver|UPS\") OR match(_raw, \"(?i)printer.*(map|fail|error|offline)\")) OR EventCode=808\n| eval fail=if(match(_raw, \"(?i)fail|error|not found|denied|offline|stuck|abort\") OR match(Message, \"(?i)fail|error\"), 1, 0)\n| eval role=if(match(_raw, \"(?i)Universal Print Server|Citrix.*Print\"),\"UPS_VDA\", \"print_stack\")\n| where fail=1\n| stats count, values(Message) as sample_msg, values(host) as hosts, earliest(_time) as first_seen, latest(_time) as last_seen by role, user, client_name, printer_name, EventCode\n```\n\nStep 3 — Validate\nReproduce a failed print in test and check events land in the search. Tighten regex to cut benign warnings.\n\nStep 4 — Operationalize\nRoute to the print services team with driver and queue metadata. Add monthly dashboard for most failing drivers to drive packaging updates.",
   "grandmaExplanation": "We read the on-screen printer errors and system messages from your virtual session hosts — so you catch broken printers and stuck jobs before they hurt real work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "infrastructure_operations"
+  ],
+  "sourcetypes": [
+    "citrix-vda-events",
+    "wineventlog-application",
+    "wineventlog-system"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "infrastructure_operations",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "Server Health",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "citrix-vda-events",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:vda:events",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-application",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='WinEventLog:Application",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "wineventlog-system",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"WinEventLog:System",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

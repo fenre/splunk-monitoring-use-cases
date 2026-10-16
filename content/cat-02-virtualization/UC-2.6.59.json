@@ -64,5 +64,64 @@
   "detailedImplementation": "Prerequisites\n• Entitlements for Citrix Security Analytics; export job healthy in Citrix Cloud; 6280 app configured; dedicated index for sensitive signals with restricted roles.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nMap vendor fields, mask where required, and test volume. Align clock across Citrix and identity systems for correlation.\n\nStep 2 — Create the search and alert\nStart with a daily digest, then add real-time only for the highest decile. Wire response actions per your playbooks; avoid duplicate alerts for the same person from parallel products without correlation rules.\n\nStep 3 — Validate\nReconcile sample events in Splunk with the Citrix console for the same user and time window; document any delay between cloud scoring and index arrival.\n\nStep 4 — Operationalize\nTrain shifts on disambiguation between false job travel and true credential theft, and run quarterly false-positive reviews.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Analytics Add-on for Splunk (Splunkbase 6280) — imports risk insights and associated events from Citrix Analytics for Security. Supports both Performance and Security analytics data.). Enable the modular input or HEC token that writes sourcetype=citrix:analytics:security into citrix. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`risk, rtype, user_principal`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We take the service’s own warnings about odd sign-ins, risky behavior, and possible data grab attempts and make them easy for your security team to act on, so a stolen login or an insider case does not stay invisible behind normal noise.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessOutcomes": [
+    "lower_security_risk"
+  ],
+  "sourcetypes": [
+    "citrix-analytics-security",
+    "citrix-gateway-syslog"
+  ],
+  "vendorProducts": [
+    "citrix",
+    "syslog"
+  ],
+  "enrichment": {
+    "businessOutcomes": [
+      {
+        "id": "lower_security_risk",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "Security Risk",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "citrix-analytics-security",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:analytics:security",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-gateway-syslog",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:gateway:syslog",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "syslog",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "syslog",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

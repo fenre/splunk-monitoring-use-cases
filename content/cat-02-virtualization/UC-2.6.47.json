@@ -61,5 +61,42 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional Citrix Monitor OData for richer session details.\n• Ensure the following data sources are available: broker events with client metadata; or OData `Sessions` with client version and device details.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nVerify field names with `| fieldsummary` in a 24-hour window. If only opaque build numbers arrive, add a `lookup` to friendly names. Deduplicate multiple events per logon to avoid double counting with `| dedup` on session and day where appropriate for reporting, but not for per-connection analytics.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report; adjust `event_type` list):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (event_type=\"SessionConnection\" OR event_type=\"ConnectionLogon\")\n| eval cv=coalesce(client_version, ClientVersion, \"unknown\")\n| eval platform=coalesce(client_platform, client_os, \"unknown\")\n| where cv!=\"unknown\"\n| stats count as sessions, dc(user) as users by cv, platform\n| eventstats sum(sessions) as total_sessions\n| eval pct=round(100 * sessions / total_sessions, 2)\n| sort - sessions\n| table cv, platform, users, sessions, pct\n```\n\n**Workspace App Client Version Distribution** — Add `| inputlookup approved_workspace_clients` and `| where isnull(approved)` to flag rows that breach policy, if you maintain such a list.\n\nStep 3 — Validate\nCheck totals against a Citrix Director session export for a test day. Differences often come from unauthenticated or prelogon events — exclude those with a filter on event type if needed.\n\nStep 4 — Operationalize\nPublish the report to a portal, attach it to change windows for client upgrades, and re-run after any VPN or gateway change that alters the client path.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Template for Citrix XenDesktop 7 (`TA-XD7-Broker`) and optional Citrix Monitor OData poller for session details — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:events into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`cv, platform`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We list which app versions and device types are actually connecting, so you see who is behind on upgrades before support tickets and old bugs come back in waves.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "citrix-broker-events",
+    "citrix-monitor-odata"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "citrix-broker-events",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:broker:events",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-monitor-odata",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:monitor:odata",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }
