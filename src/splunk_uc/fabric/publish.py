@@ -217,7 +217,15 @@ def facet_payload(fabric: Fabric, *, dropdown_limit: int = 40) -> dict[str, Any]
         for (left, left_id, right, right_id), count in pairs.items()
         if count >= 5
     ]
-    intersections.sort(key=lambda row: (-row["count"], row["left"], row["leftId"], row["right"], row["rightId"]))
+    intersections.sort(
+        key=lambda row: (
+            -int(str(row["count"])),
+            str(row["left"]),
+            str(row["leftId"]),
+            str(row["right"]),
+            str(row["rightId"]),
+        )
+    )
     dropdown = {
         dim: values[dim][:dropdown_limit]
         for dim in _FACET_DIMS

@@ -191,7 +191,10 @@ _BOILERPLATE = ("delayed incident response", "reducing operational risk", "sprea
 
 
 def _load(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return payload
 
 
 def _positive_text(uc: dict[str, Any]) -> str:
@@ -220,10 +223,8 @@ def _boilerplate(text: str, phrase: str) -> bool:
 def _token_hit(text: str, token: str) -> bool:
     if len(token) < 3:
         return False
-    return _TOKEN.pattern.format(token=re.escape(token)) and re.search(
-        _TOKEN.pattern.format(token=re.escape(token)),
-        text,
-    ) is not None
+    pattern = _TOKEN.pattern.format(token=re.escape(token))
+    return re.search(pattern, text) is not None
 
 
 def category_dirs(content: Path) -> list[Path]:

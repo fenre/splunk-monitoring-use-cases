@@ -70,7 +70,7 @@ def count_files(cat_dir: Path) -> tuple[Counter[str], list[str]]:
     return counts, issues
 
 
-def _quick_start_label(prefix: str, quick_start: list[dict[str, Any]]) -> str | None:
+def _quick_start_label(prefix: str, quick_start: list[Any]) -> str | None:
     labels: list[str] = []
     for item in quick_start:
         if not isinstance(item, dict):
@@ -104,7 +104,8 @@ def reconcile(meta: dict[str, Any], counts: Counter[str]) -> tuple[dict[str, Any
         by_id[prefix] = dict(entry)
         order.append(prefix)
 
-    quick_start = meta.get("quickStart") if isinstance(meta.get("quickStart"), list) else []
+    raw_quick_start = meta.get("quickStart")
+    quick_start: list[Any] = raw_quick_start if isinstance(raw_quick_start, list) else []
     placeholders: list[str] = []
     kept: list[dict[str, Any]] = []
     seen: set[str] = set()

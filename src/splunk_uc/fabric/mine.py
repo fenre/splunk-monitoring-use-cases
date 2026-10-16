@@ -422,7 +422,14 @@ def _ambiguous(counter: Counter[tuple[str, str, str]]) -> dict[str, Any]:
         for (kind, value, reason), count in counter.items()
         if value and count > 0
     ]
-    values.sort(key=lambda item: (item["kind"], -item["usageCount"], item["value"], item["reason"]))
+    values.sort(
+        key=lambda item: (
+            str(item["kind"]),
+            -int(str(item["usageCount"])),
+            str(item["value"]),
+            str(item["reason"]),
+        )
+    )
     return {
         "$schema": "../schemas/fabric/ambiguous.schema.json",
         "description": (
@@ -446,8 +453,8 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
             ta_to_products[str(ta).casefold()].add(str(item["id"]))
 
     catalog_by_name: dict[str, set[str]] = defaultdict(set)
-    for app_id, app in catalog.items():
-        for key in (app.get("name"), app.get("displayName")):
+    for app_id, catalog_row in catalog.items():
+        for key in (catalog_row.get("name"), catalog_row.get("displayName")):
             if key:
                 catalog_by_name[str(key).casefold()].add(app_id)
 
@@ -464,9 +471,9 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
     industry_spellings: dict[str, Counter[str]] = defaultdict(Counter)
     dataset_ucs: Counter[str] = Counter()
     field_ucs: dict[tuple[str, str], set[str]] = defaultdict(set)
-    outcome_ucs = {item["id"]: set() for item in OUTCOMES}
-    area_ucs = {item["id"]: set() for item in AREAS}
-    persona_ucs = {item["id"]: set() for item in PERSONAS}
+    outcome_ucs: dict[str, set[str]] = {item["id"]: set() for item in OUTCOMES}
+    area_ucs: dict[str, set[str]] = {item["id"]: set() for item in AREAS}
+    persona_ucs: dict[str, set[str]] = {item["id"]: set() for item in PERSONAS}
 
     for _path, uc in _iter_sidecars(root):
         uc_id = str(uc.get("id", "")).strip()
@@ -516,11 +523,11 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
                 ambiguous[("vendorProduct", model, "equipment-model-without-vendor")] += 1
 
         sb_ids: list[str] = []
-        for entry in uc.get("splunkbaseApps") or []:
-            if isinstance(entry, dict) and entry.get("id"):
-                sb_ids.append(str(int(entry["id"])))
-                if entry.get("name"):
-                    addon_names[str(int(entry["id"]))][str(entry["name"])] += 1
+        for sb_app in uc.get("splunkbaseApps") or []:
+            if isinstance(sb_app, dict) and sb_app.get("id"):
+                sb_ids.append(str(int(sb_app["id"])))
+                if sb_app.get("name"):
+                    addon_names[str(int(sb_app["id"]))][str(sb_app["name"])] += 1
         for found in splunkbase_ids(app, data_sources):
             sb_ids.append(str(found))
         sb_unique = list(dict.fromkeys(sb_ids))
@@ -533,10 +540,10 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
         for token in ta_tokens(app, data_sources):
             key = token.casefold()
             products = ta_to_products.get(key, set())
-            addons = catalog_by_name.get(key, set())
-            if len(products) + len(addons) == 0:
+            matched_addons = catalog_by_name.get(key, set())
+            if len(products) + len(matched_addons) == 0:
                 ambiguous[("addon", token, "ta-token-without-registry-entry")] += 1
-            elif len(products) > 1 or len(addons) > 1:
+            elif len(products) > 1 or len(matched_addons) > 1:
                 ambiguous[("addon", token, "ta-token-matches-several-entries")] += 1
 
         cim_ids: list[str] = []
@@ -592,7 +599,7 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
                 if any(_phrase_hit(narrative, phrase) for phrase in item["phrases"]):
                     bucket[item["id"]].add(uc_id)
 
-    sourcetype_entries = []
+    sourcetype_entries: list[dict[str, Any]] = []
     for key, spellings in spelling.items():
         canonical = spellings.most_common(1)[0][0]
         aliases = sorted({name for name in spellings if name != canonical}, key=_text_key)
@@ -628,7 +635,7 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
         elif len(cims) > 1:
             ambiguous[("sourcetype", canonical, "cim-conflict")] += 1
         sourcetype_entries.append(entry)
-    sourcetype_entries.sort(key=lambda item: (-item["usageCount"], item["id"]))
+    sourcetype_entries.sort(key=lambda item: (-int(item["usageCount"]), str(item["id"])))
 
     vendor_entries = []
     for item in equipment:
@@ -681,7 +688,7 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
                 "usageCount": len(ucs),
             }
         )
-    addon_entries.sort(key=lambda item: (-item["usageCount"], item["id"]))
+    addon_entries.sort(key=lambda item: (-int(str(item["usageCount"])), str(item["id"])))
 
     dataset_entries_map: dict[str, dict[str, Any]] = {}
     for model_name in sorted(set(CIM_MODELS.values())):
@@ -727,7 +734,7 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
             }
         )
 
-    industry_entries = []
+    industry_entries: list[dict[str, Any]] = []
     for key, spellings in industry_spellings.items():
         total = sum(spellings.values())
         if total < 2:
@@ -744,7 +751,7 @@ def build_payloads(content: Path | None = None) -> dict[str, dict[str, Any]]:
                 "usageCount": total,
             }
         )
-    industry_entries.sort(key=lambda item: (-item["usageCount"], item["id"]))
+    industry_entries.sort(key=lambda item: (-int(item["usageCount"]), str(item["id"])))
 
     def seller(
         items: list[dict[str, Any]],

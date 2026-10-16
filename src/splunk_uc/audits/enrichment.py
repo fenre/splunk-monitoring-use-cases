@@ -41,7 +41,10 @@ _QUOTED = re.compile(r"""[`'"]([A-Za-z0-9_.:*-]+)[`'"]""")
 
 
 def _load(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return payload
 
 
 class RegistryIndex:
@@ -216,8 +219,9 @@ def _issues_for(path: Path, uc: dict[str, Any], registries: RegistryIndex) -> li
             if source not in ("authored", "inferred"):
                 issues.append(f"{label}: {field} {entity_id}: source must be authored or inferred")
             else:
+                raw_confidence = item.get("confidence")
                 try:
-                    confidence = float(item.get("confidence"))
+                    confidence = float(raw_confidence) if isinstance(raw_confidence, (int, float, str)) else -1.0
                 except (TypeError, ValueError):
                     confidence = -1.0
                 if source == "authored" and confidence != 1.0:

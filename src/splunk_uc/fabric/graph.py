@@ -214,7 +214,7 @@ def presentation_graph(fabric: Fabric, *, content: Path = CONTENT) -> dict[str, 
     seen_pairs: set[tuple[int, int]] = set()
     for src_cat, targets in sorted(cat_cross.items()):
         for tgt_cat in sorted(targets):
-            pair = tuple(sorted((src_cat, tgt_cat)))
+            pair = (src_cat, tgt_cat) if src_cat < tgt_cat else (tgt_cat, src_cat)
             if pair in seen_pairs:
                 continue
             seen_pairs.add(pair)

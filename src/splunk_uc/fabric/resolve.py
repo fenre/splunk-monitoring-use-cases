@@ -54,7 +54,10 @@ class Fabric:
 
 
 def _load(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"{path} is not a JSON object")
+    return payload
 
 
 def _fold(value: str) -> str:
@@ -113,9 +116,9 @@ class _Registries:
         self.industry_by_norm: dict[str, dict[str, Any]] = {}
         for row in industries:
             for text in [row["name"], *(row.get("aliases") or [])]:
-                key = _norm_industry(text)
-                if key:
-                    self.industry_by_norm.setdefault(key, row)
+                industry_key = _norm_industry(str(text))
+                if industry_key:
+                    self.industry_by_norm.setdefault(industry_key, row)
         self.industries = industries
         self.outcomes = outcomes
         self.areas = areas
@@ -323,8 +326,8 @@ def _resolve_uc(builder: _Builder, uc: dict[str, Any]) -> None:
 
     industry_raw = str(uc.get("industry") or "").strip()
     if industry_raw:
-        key = _norm_industry(industry_raw)
-        row = builder.reg.industry_by_norm.get(key) if key else None
+        industry_key = _norm_industry(industry_raw)
+        row = builder.reg.industry_by_norm.get(industry_key) if industry_key else None
         if row is not None:
             builder.add_edge(uc_id, "inIndustry", row["id"], "authored")
         else:
@@ -427,10 +430,12 @@ def _apply_enrichment(
     """Turn registry-id lists into edges. Audit-enrichment is the gate."""
     if not any(uc.get(name) for name, _predicate, _entity_type in _ENRICHMENT_LINKS):
         return
-    enrichment = uc.get("enrichment") if isinstance(uc.get("enrichment"), dict) else {}
+    raw_enrichment = uc.get("enrichment")
+    enrichment: dict[str, Any] = raw_enrichment if isinstance(raw_enrichment, dict) else {}
     for field_name, predicate, entity_type in _ENRICHMENT_LINKS:
         known = _known_ids(builder.reg, entity_type)
-        assignments = enrichment.get(field_name) if isinstance(enrichment.get(field_name), list) else []
+        raw_assignments = enrichment.get(field_name)
+        assignments = raw_assignments if isinstance(raw_assignments, list) else []
         by_id: dict[str, dict[str, Any]] = {}
         for item in assignments:
             if isinstance(item, dict) and item.get("id"):
