@@ -649,13 +649,91 @@ def build_report(content: Path | None = None, registries: Path | None = None) ->
     }
 
 
+def find_category(content: Path, slug: str) -> Path:
+    """Resolve ``cat-18`` or a full ``cat-18-...`` directory name."""
+    dirs = category_dirs(content)
+    exact = [path for path in dirs if path.name == slug]
+    if exact:
+        return exact[0]
+    prefixed = [path for path in dirs if path.name.startswith(slug + "-")]
+    if len(prefixed) == 1:
+        return prefixed[0]
+    names = ", ".join(path.name for path in prefixed) or "none"
+    raise SystemExit(f"category {slug!r} matched {names}")
+
+
+def category_report(cat: Path, catalog: _Catalog) -> dict[str, Any]:
+    """Coverage, confidence, proposed values, and 15 random use cases."""
+    paths = sorted(cat.glob("UC-*.json"))
+    summary = summarize(paths, catalog, "strict-1")
+    rng = random.Random(f"{SEED}:{cat.name}")
+    sample_paths = rng.sample(paths, min(15, len(paths)))
+    sample = []
+    for path in sorted(sample_paths):
+        uc = _load(path)
+        payload = assign_uc(uc, catalog, "strict-1")
+        enrichment = payload.get("enrichment") or {}
+        rows = []
+        for field in FIELDS:
+            for row in enrichment.get(field) or []:
+                rows.append({"field": field, "id": row["id"], "evidence": row["evidence"], "confidence": row["confidence"]})
+        sample.append(
+            {
+                "uc": str(uc.get("id") or path.stem),
+                "title": str(uc.get("title") or ""),
+                "assignments": rows,
+                "noHonestOutcome": "businessOutcomes" not in payload,
+                "noHonestArea": "businessAreas" not in payload,
+            }
+        )
+    return {
+        "category": cat.name,
+        "useCases": len(paths),
+        "coverage": summary["coverage"],
+        "confidence": summary["confidence"],
+        "precision": summary["precision"],
+        "proposedValues": summary["proposedValues"],
+        "noHonestOutcome": summary["noHonestOutcome"],
+        "noHonestArea": summary["noHonestArea"],
+        "sample": sample,
+    }
+
+
+def write_category(cat: Path, catalog: _Catalog) -> int:
+    paths = sorted(cat.glob("UC-*.json"))
+    return write_assignments(paths, catalog, "strict-1")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--report", type=Path, default=None, help="Write the pilot grade report JSON.")
-    parser.add_argument("--write", action="store_true", help="Insert strict-1 enrichment into the pilot sidecars.")
+    parser.add_argument("--report", type=Path, default=None, help="Write the pilot or category report JSON.")
+    parser.add_argument("--write", action="store_true", help="Insert strict-1 enrichment into the selected sidecars.")
+    parser.add_argument("--category", default=None, help="Category slug, for example cat-18.")
     parser.add_argument("--content", type=Path, default=None)
     parser.add_argument("--registries", type=Path, default=None)
     args = parser.parse_args(argv)
+    if args.category:
+        content = args.content or CONTENT
+        cat = find_category(content, args.category)
+        catalog = _Catalog(args.registries or REGISTRIES)
+        written = write_category(cat, catalog) if args.write else 0
+        report = category_report(cat, catalog)
+        report["written"] = written
+        if args.report:
+            args.report.parent.mkdir(parents=True, exist_ok=True)
+            args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(
+            f"{cat.name}: useCases={report['useCases']} wrote={written} "
+            f"noOutcome={len(report['noHonestOutcome'])} noArea={len(report['noHonestArea'])} "
+            f"proposed={len(report['proposedValues'])}"
+        )
+        if args.write:
+            issues = audit_tree(content, args.registries)
+            if issues:
+                for issue in issues[:20]:
+                    print(issue)
+                return 1
+        return 0
     report = build_report(args.content, args.registries)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

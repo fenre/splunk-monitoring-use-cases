@@ -19,6 +19,11 @@ the release notes block in `index.html` by hand.
   resolves those facts into entities and relationships, serves them at
   `/api/v1/fabric/`, and adds MCP tools `get_entity`, `get_neighbors`, and
   `find_related_use_cases`. Category file counts now match the use-case files.
+- Enrichment backfill. A seeded pilot of 300 use cases was graded with a
+  loose ruleset and again after the contract was tightened. The strict
+  ruleset then filled every category. Sidecars that already carried
+  enrichment were left alone. A use case with no honest outcome or area
+  stays empty and is flagged in the category report.
 - Optional enrichment fields on the use-case schema (1.9.0):
   `businessOutcomes`, `businessAreas`, `personas`, `industries`,
   `sourcetypes`, and `vendorProducts`, with an `enrichment` provenance
