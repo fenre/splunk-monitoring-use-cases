@@ -165,6 +165,11 @@ those lists into `servesOutcome`, `inArea`, `forPersona`, `inIndustry`,
 `uses`, and `runsOn` edges. `audit-enrichment` refuses a list that the
 contract does not allow, so a later category backfill needs no new wiring.
 
+The 2026-10-16 backfill of those six lists was removed after an independent
+grade of 30 use cases per field missed every precision bar. `proposedValues`
+notes were kept. Deterministic edges from sidecar facts are unchanged.
+The grade table is [`docs/fabric-pilot-grades.md`](fabric-pilot-grades.md).
+
 ## Schemas
 
 Each registry file points at its JSON Schema under

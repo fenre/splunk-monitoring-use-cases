@@ -62,51 +62,5 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-nginx`.\n• Ensure the following data sources are available: `access_combined` with `upstream_status`, `nginx:error` upstream messages.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nEnable `upstream_status` and `upstream_addr` in log_format. Alert on upstream error rate >2% for 5m. Correlate with backend pool health.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=web sourcetype=\"nginx:access\" OR sourcetype=\"access_combined\"\n| eval up_err=if(upstream_status>=500 OR status=502 OR status=504,1,0)\n| stats sum(up_err) as upstream_errors, count as total by host, upstream_addr\n| eval err_rate=round(upstream_errors/total*100,2)\n| where err_rate > 2\n```\n\nUnderstanding this SPL\n\n**NGINX Upstream Response Errors** — Counts upstream HTTP 5xx and connect/timeout errors from NGINX access/error logs. Isolates reverse-proxy vs origin issues faster than aggregate 5xx alone.\n\nDocumented **Data sources**: `access_combined` with `upstream_status`, `nginx:error` upstream messages. **App/TA** (typical add-on context): `TA-nginx`. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: web; **sourcetype**: nginx:access, access_combined. That sourcetype matches what this use case lists under Data sources.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=web, sourcetype=\"nginx:access\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• `eval` defines or adjusts **up_err** — often to normalize units, derive a ratio, or prepare for thresholds.\n• `stats` rolls up events into metrics; results are split **by host, upstream_addr** so each row reflects one combination of those dimensions.\n• `eval` defines or adjusts **err_rate** — often to normalize units, derive a ratio, or prepare for thresholds.\n• Filters the current rows with `where err_rate > 2` — typically the threshold or rule expression for this monitoring goal.\n\n\nStep 3 — Validate\nCompare with web server access logs on disk (Apache, NGINX, or W3C) for the same time range, or tail the same sourcetype in Search, to confirm status codes, URIs, and counts.\n\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Consider visualizations: Line chart (upstream error rate), Table (upstream_addr, errors), Bar chart (5xx by upstream).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`TA-nginx` — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=nginx:access, access_combined into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`err_rate, host, up_err, upstream_addr`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch for signs that counts upstream HTTP 5xx and connect/timeout errors from NGINX access/error logs.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "sourcetypes": [
-    "access-combined",
-    "nginx-access",
-    "nginx-error"
-  ],
-  "vendorProducts": [
-    "nginx"
-  ],
-  "enrichment": {
-    "sourcetypes": [
-      {
-        "id": "access-combined",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype=\"access_combined",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      },
-      {
-        "id": "nginx-access",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='nginx:access",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      },
-      {
-        "id": "nginx-error",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "`nginx:error`",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "nginx",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "NGINX",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "crawl"
 }

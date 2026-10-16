@@ -62,42 +62,5 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API.\n• Ensure the following data sources are available: `sourcetype=\"citrix:monitor:odata\"` (Machines) with maintenance fields, or broker events with equivalent flags.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nSchedule frequent OData pulls for machine inventory. Map boolean maintenance fields. Load `maintenance_authorized.csv` with change IDs and time boxes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; if using broker-only events, replace the data source in the first line):\n\n```spl\nindex=xd (sourcetype=\"citrix:monitor:odata\" (ODataEntity=Machine* OR match(_raw, \"(?i)Maintenance|drain|suspend\")))\n| eval mmode=if(match(coalesce(InMaintenanceMode, maintenance_mode, raw_flags), \"(?i)true|1|yes|on\"), 1, 0)\n| eval dg=coalesce(delivery_group, DeliveryGroup, CatalogName)\n| where mmode=1\n| timechart span=1h sum(mmode) as machines_in_maint, dc(dg) as affected_groups, dc(MachineName) as affected_machines\n```\n\nStep 3 — Validate\nPlace a test machine in maintenance and ensure counts increment. Reconcile totals with the console. Verify change lookup join.\n\nStep 4 — Operationalize\nAdd a readout to the daily NOC huddle. Integrate with capacity dashboards so a drain does not look like a mysterious outage.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Template for Citrix XenDesktop 7 (TA-XD7-Broker), Citrix Monitor Service OData API — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:monitor:odata into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`mmode`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We count how many virtual desktops are marked “do not use” for upgrades or fixes, and whether that is planned — so you catch surprise loss of open seats before it hurts real work.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "sourcetypes": [
-    "citrix-broker-events",
-    "citrix-monitor-odata"
-  ],
-  "vendorProducts": [
-    "citrix"
-  ],
-  "enrichment": {
-    "sourcetypes": [
-      {
-        "id": "citrix-broker-events",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype=\"citrix:broker:events",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      },
-      {
-        "id": "citrix-monitor-odata",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='citrix:monitor:odata",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "citrix",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "Citrix",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "crawl"
 }

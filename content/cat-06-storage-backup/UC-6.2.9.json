@@ -59,33 +59,5 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `Splunk_TA_aws` (S3 access logs), CloudTrail data events.\n• Ensure the following data sources are available: S3 server access logs with `queryString` containing `X-Amz-`, `Signature`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nParse query string for presigned parameters. Baseline requests per requester/IP. Alert on spikes or geo anomalies. Correlate with IAM changes.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (then save as report or alert; adjust time range and threshold as needed):\n\n```spl\nindex=aws sourcetype=\"aws:s3:accesslogs\"\n| search query_string=\"*X-Amz-*\" OR query_string=\"*Signature*\"\n| stats count by bucket_name, requester, remote_ip\n| eventstats avg(count) as avg_c, stdev(count) as stdev_c by bucket_name\n| where count > avg_c + 3*stdev_c\n```\n\nUnderstanding this SPL\n\n**Pre-Signed URL Abuse Detection** — Unusual volume of pre-signed GET/PUT or access from unexpected IPs may indicate credential theft or insider abuse.\n\nDocumented **Data sources**: S3 server access logs with `queryString` containing `X-Amz-`, `Signature`. **App/TA** (typical add-on context): `Splunk_TA_aws` (S3 access logs), CloudTrail data events. The SPL below should target the same indexes and sourcetypes you configured for that feed—rename `index=` / `sourcetype=` if your deployment differs.\n\nThe first pipeline stage scopes events using **index**: aws; **sourcetype**: aws:s3:accesslogs. If that sourcetype is not mentioned in Data sources, double-check parsing or update the documentation to match the feed you actually ingest.\n\n**Pipeline walkthrough**\n\n• Scopes the data: index=aws, sourcetype=\"aws:s3:accesslogs\". Cross-check against **Data sources** above so indexes and sourcetypes match your ingestion.\n• Applies an explicit `search` filter to narrow the current result set.\n• `stats` rolls up events into metrics; results are split **by bucket_name, requester, remote_ip** so each row reflects one combination of those dimensions.\n• `eventstats` rolls up events into metrics; results are split **by bucket_name** so each row reflects one combination of those dimensions.\n• Filters the current rows with `where count > avg_c + 3*stdev_c` — typically the threshold or rule expression for this monitoring goal.\n\nStep 3 — Validate\nCompare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.\n\nStep 4 — Operationalize\nAdd the search to a dashboard or set up alert actions (email, webhook, PagerDuty, etc.) as required. Document the use case in your runbook and assign an owner. Include who owns the cloud account and the bucket lifecycle policy, because object alerts often need a finance or app owner, not only the storage team. Consider visualizations: Table (top presigned requesters), Line chart (presigned request rate), Map (remote_ip).\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_aws` (S3 access logs), CloudTrail data events — Splunk Add-on for Amazon Web Services (Splunkbase 1876)). Enable the modular input or HEC token that writes sourcetype=aws:s3:accesslogs into aws. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`bucket_name, remote_ip, requester`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We flag odd use of temporary download links so you can stop abuse or leaked URLs before someone pulls more data than intended.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "sourcetypes": [
-    "aws-s3-accesslogs"
-  ],
-  "vendorProducts": [
-    "aws"
-  ],
-  "enrichment": {
-    "sourcetypes": [
-      {
-        "id": "aws-s3-accesslogs",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='aws:s3:accesslogs",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "aws",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "aws",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "crawl"
 }

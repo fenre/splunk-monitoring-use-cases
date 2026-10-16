@@ -145,42 +145,5 @@
   "detailedImplementation": "Prerequisites\n• ISE *Adaptive Network Control* category at INFO.\n• `anc_authorized_admins.csv` lookup of admin users authorised to apply ANC actions manually.\n• Splunk role with `srchIndexesAllowed = nac`.\n\nStep 1 — Configure data collection\nValidate event flow:\n```spl\nindex=nac sourcetype=\"cisco:ise:syslog\" MessageCode IN (60150, 60153) earliest=-7d\n| stats count by trigger, admin_user\n```\n\nStep 2 — Create the search\nSearch in `spl` field. Schedule every 5 min.\n\nStep 3 — Validate\nProvoke as in controlTest. Confirm alert.\n\nStep 4 — Operationalize\nDashboard \"ISE — ANC Audit\":\n• Single value: actions last 24h, last 30d.\n• Stacked bar: actions by trigger.\n• Top-N: admins by action volume.\n• Trend: quarantine/unquarantine ratio.\n\nMonthly audit attestation: ANC admin team signs off on the report; archived 7 years.\n\nAlerting: high-urgency on excessive quarantine; medium on unauthorised admin (admin_user not in lookup).\n\nStep 5 — Troubleshooting\n• **`admin_user` blank** — Action triggered by automation/pxGrid not by a human admin; expected.\n• **Excessive volume from one SOAR account** — Coordinate with the SOAR team to investigate the playbook.\n• **No 60150 events** — *Adaptive Network Control* category not enabled or set to WARN.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk Add-on for Cisco Identity Services` ([Splunkbase 1915](https://splunkbase.splunk.com/app/1915)).). Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`action, admin, trigger`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "When ISE blocks or releases a device — like putting it in time-out — we record exactly who or what made the decision. If too many time-outs happen too quickly, we ring the bell so a human can verify it's not a runaway automation or a misuse of admin powers.",
   "prerequisiteUseCases": [],
-  "wave": "walk",
-  "sourcetypes": [
-    "cisco-ise-syslog"
-  ],
-  "vendorProducts": [
-    "cisco",
-    "syslog"
-  ],
-  "enrichment": {
-    "sourcetypes": [
-      {
-        "id": "cisco-ise-syslog",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='cisco:ise:syslog",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "cisco",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "Cisco",
-        "model": "vendor-token",
-        "version": "strict-1"
-      },
-      {
-        "id": "syslog",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "syslog",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "walk"
 }

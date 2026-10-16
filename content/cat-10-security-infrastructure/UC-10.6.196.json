@@ -66,55 +66,5 @@
   "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:broker:session` and `citrix:netscaler:aaalog` with `user`, `client_ip`, `_time` (same TZ). `user` as UPN. Geo: monthly MaxMind (or iplocation + DB refresh). Stanzas: `props` so `client_ip` is always extracted.\n\nStep 1 — Configure data collection\n`lookups/jumpbox_subnets.csv` (allow), `known_vpn_exit_country.csv` (tune expectations). In `props` normalize nested IP fields. Drop duplicate session heartbeats: `dedup user,_time,client_ip` if needed in a subsearch.\n\nStep 2 — Create the search and alert\n`streamstats` as starter: alert on any `km_s=1` to SecOps (critical). Add macro later for haversine distance. Combine with IdP travel alert in SOAR; winner = higher confidence. Service accounts: lookup exclude.\n\nStep 3 — Validate\nBacktest: known incident week, measure TP/FP. VPN flips: expect FP—tighten `(_time-prev_t)` or require both legs outside VPN allow list.\n\nStep 4 — Operationalize\nRunbook: step-up at IdP, kill Citrix session, reset creds for VIP. L3 for persistence. Document split-tunnel. Quarterly: tune time window 30–60m. Privacy: need-to-know for IP lists.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix broker and gateway logs, MaxMind or internal geo lookup in Splunk, optional Splunk User Behavior Analytics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:session, citrix:netscaler:aaalog into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`km_s, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We notice when the same sign-in shows up in two far-apart places faster than a person could travel — so you catch stolen or shared sign-ins before they quietly keep using your systems.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "businessAreas": [
-    "service_management"
-  ],
-  "sourcetypes": [
-    "citrix-broker-session",
-    "citrix-netscaler-aaalog"
-  ],
-  "vendorProducts": [
-    "citrix"
-  ],
-  "enrichment": {
-    "businessAreas": [
-      {
-        "id": "service_management",
-        "source": "inferred",
-        "confidence": 0.75,
-        "evidence": "SLA breach",
-        "model": "phrase-list",
-        "version": "strict-1"
-      }
-    ],
-    "sourcetypes": [
-      {
-        "id": "citrix-broker-session",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='citrix:broker:session",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      },
-      {
-        "id": "citrix-netscaler-aaalog",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype=\"citrix:netscaler:aaalog",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "citrix",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "Citrix",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "crawl"
 }

@@ -66,42 +66,5 @@
   "detailedImplementation": "Prerequisites\n• Install and configure the required add-on or app: `TA-XD7-Broker` and optional Citrix admin audit feeds; optional OData inventory script.\n• Ensure the following data sources are available: `citrix:broker:events` with admin and inventory semantics; or periodic OData snapshots in `citrix:monitor:odata`.\n• For app installation, inputs.conf, and Splunk directory layout, see the Implementation guide: docs/implementation-guide.md\n\nStep 1 — Configure data collection\nDecide on event-driven, snapshot-diff, or both. For OData, use a secured account and write each poll with `_time` set to poll completion. Store golden copies in a KV store or CSV in Splunk. Map admin identities consistently (UPN). Strip passwords or secrets if any appear in `Message`.\n\nStep 2 — Create the search and alert\nRun the following SPL in Search (tune `match` to your logging):\n\n```spl\nindex=xd sourcetype=\"citrix:broker:events\" (event_type=\"PublishedAppChange\" OR event_type=\"AppGroupChange\" OR event_type=\"AdminAction\")\n| eval app=coalesce(app_name, ApplicationName, \"Unknown\")\n| eval actor=coalesce(admin_user, Actor, user, \"unknown\")\n| table _time, app, actor, delivery_group, change_type, Message\n```\n\n**Published Application Inventory Drift** — Layer `| search NOT [ inputlookup change_approved_tickets | fields ticket_hash ]` if you can correlate ITSM. For baselines, replace the live search with a diff search comparing `| inputlookup` yesterday versus today on `app_id`.\n\nStep 3 — Validate\nExecute a test publish in a lab and assert an event. Compare counts to the Citrix management console. Address duplicate events if both OData and broker emit the same logical change.\n\nStep 4 — Operationalize\nSend weekly diffs to application owners, route unexpected entries to the security team, and attach evidence to recertification.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Template for Citrix XenDesktop 7 (`TA-XD7-Broker`); optional scripted OData application inventory; Splunk add-on for Windows security audit if you capture privileged Citrix admin accounts — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:events into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, actor, app, changes`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We keep a clear history of which apps are offered to whom and who changed that list, so surprise shortcuts and risky publishing do not sit unnoticed between formal reviews.",
   "prerequisiteUseCases": [],
-  "wave": "crawl",
-  "sourcetypes": [
-    "citrix-broker-events",
-    "citrix-monitor-odata"
-  ],
-  "vendorProducts": [
-    "citrix"
-  ],
-  "enrichment": {
-    "sourcetypes": [
-      {
-        "id": "citrix-broker-events",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype='citrix:broker:events",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      },
-      {
-        "id": "citrix-monitor-odata",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "sourcetype=\"citrix:monitor:odata",
-        "model": "explicit-sourcetype",
-        "version": "strict-1"
-      }
-    ],
-    "vendorProducts": [
-      {
-        "id": "citrix",
-        "source": "authored",
-        "confidence": 1.0,
-        "evidence": "Citrix",
-        "model": "vendor-token",
-        "version": "strict-1"
-      }
-    ]
-  }
+  "wave": "crawl"
 }
