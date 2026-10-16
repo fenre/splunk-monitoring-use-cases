@@ -85,6 +85,11 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `premium` | string | **Premium apps** (ES, ITSI, SOAR) when required (optional). |
 | `hw` | string | **Equipment models:** specific hardware models (optional). |
 | `e` | array | **Equipment IDs:** from `EQUIPMENT` (matched by TA string). |
+| `fs` | array | **Fabric sourcetype ids** resolved from explicit `sourcetype=` tokens (optional, build-emitted). |
+| `fv` | array | **Fabric vendor-product ids** from `equipment` and resolved `app` aliases (optional, build-emitted). |
+| `fa` | array | **Fabric add-on ids** (Splunkbase) linked to the use case (optional, build-emitted). |
+| `fc` | array | **Fabric CIM dataset ids** (optional, build-emitted). |
+| `fx` | string | **Fabric alias text** indexed by search so product aliases match (optional, build-emitted). |
 | `em` | array | **Equipment model IDs** (optional). |
 | `status` | string | **Quality status:** `verified` \| `community` \| `draft` (optional, v5.1+). |
 | `reviewed` | string | **Last reviewed:** ISO date `YYYY-MM-DD` (optional, v5.1+). |

@@ -12,6 +12,14 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added
+
+- Use-case fabric. Registries for sourcetypes, vendor products, add-ons, CIM,
+  industries, and seller concepts are mined from sidecar facts. The build
+  resolves those facts into entities and relationships, serves them at
+  `/api/v1/fabric/`, and adds MCP tools `get_entity`, `get_neighbors`, and
+  `find_related_use_cases`. Category file counts now match the use-case files.
+
 ## [8.25.0] - 2026-07-24
 
 ### New Use Cases

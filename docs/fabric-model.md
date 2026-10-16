@@ -19,7 +19,7 @@ not part of the fabric and are never rewritten to populate it.
 | `addon` | Splunkbase app id (`7523`) | `name`, `folderName`, `aliases`, `inSplunkbaseCatalog`, `usageCount` | [`registries/addons.json`](../registries/addons.json) |
 | `cimDataset` | Slug of the model or `model-dataset` | `model`, `dataset`, `usageCount` | [`registries/cim.json`](../registries/cim.json) `datasets` |
 | `cimField` | Slug of `dataset-field` | `name`, `dataset`, `usageCount` | [`registries/cim.json`](../registries/cim.json) `fields` |
-| `complianceControl` | `{regulation}@{version}#{clause}` | The clause already stored on the sidecar | `compliance[]` |
+| `complianceControl` | Slug of `{regulation}-{version}-{clause}` (`gdpr-2016-679-art-5`). The `obligationRef` is an alias. | The clause already stored on the sidecar | `compliance[]` |
 | `industry` | Slug of the canonical industry name | `name`, `aliases`, `usageCount` | [`registries/industries.json`](../registries/industries.json) |
 | `businessOutcome` | Snake-case id | `label`, `phrases`, `usageCount` | [`registries/business-outcomes.json`](../registries/business-outcomes.json) |
 | `businessArea` | Snake-case id | `label`, `phrases`, `usageCount` | [`registries/business-areas.json`](../registries/business-areas.json) |
@@ -125,6 +125,35 @@ use case, is ambiguous rather than a new industry.
 
 MAC addresses, IPv6 literals, wildcards, and tokens that are not sourcetype
 names are ambiguous. Nothing in this pass edits a use case.
+
+## Query surfaces
+
+`python -m splunk_uc build-fabric --check` resolves every sidecar against
+the registries. Explicit facts are `authored` at confidence 1. An `app`
+token or sourcetype spelling that matches a registry alias is a real edge.
+A value that does not match is listed in the build report.
+
+The build writes:
+
+- `entities.parquet` and `relationships.parquet` when pyarrow is installed
+  (`pip install -e '.[build]'`). Compression is off and rows are sorted so
+  two builds in one environment match.
+- `/api/v1/fabric/index.json` maps every alias to its canonical entity.
+  `/api/v1/fabric/{type}/{id}.json` is the entity plus neighbours grouped
+  by predicate. `pan:traffic` and `Splunk_TA_paloalto` resolve through the
+  index. A shared alias is listed, not guessed.
+- `fabric/facets.json` has a count for every sourcetype, product, add-on,
+  and CIM dataset, plus pairwise intersections for the common values. The
+  catalogue's advanced filters use the top values.
+- Search indexes `fx`, the alias text of the linked entities, so `Palo Alto`,
+  `paloalto`, and the search synonym `PAN` find the same product.
+- `graph-data.json` is the aggregated view `graph.html` already renders.
+  Pillars stay a presentation rollup. `fabric/graph-full.json` is the same
+  relationships with use cases as nodes.
+
+`data/fabric-resolution-baseline.json` records the share of sidecars whose
+`app` signals and explicit sourcetypes resolve. `--check` fails if either
+rate drops.
 
 ## Schemas
 

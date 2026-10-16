@@ -111,6 +111,7 @@ SEARCHABLE_FIELDS: tuple[str, ...] = (
     "mitre",  # MITRE T-IDs (list)
     "ind",    # industry
     "dtype",  # detection type
+    "fx",     # fabric alias and synonym text
 )
 
 _TOKEN_RE = re.compile(r"[a-z0-9_]+")

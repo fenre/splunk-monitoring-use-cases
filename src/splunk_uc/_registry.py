@@ -183,6 +183,14 @@ register(
 )
 register(
     Verb(
+        name="build-fabric",
+        module="fabric.build_cmd",
+        help="Resolve sidecar facts into the fabric API, parquet, and graph.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="audit-dashboard-spl",
         module="audits.dashboard_spl",
         help="Audit Simple XML dashboard SPL queries for token expansion + REST validity.",

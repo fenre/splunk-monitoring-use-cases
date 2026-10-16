@@ -52,10 +52,16 @@ from splunk_uc_mcp.resources.uri_scheme import ResourceUriError
 from splunk_uc_mcp.tools import (
     FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
     FIND_COMPLIANCE_GAP_SCHEMA,
+    FIND_RELATED_OUTPUT_SCHEMA,
+    FIND_RELATED_SCHEMA,
     GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
     GET_CLAUSE_COVERAGE_SCHEMA,
+    GET_ENTITY_OUTPUT_SCHEMA,
+    GET_ENTITY_SCHEMA,
     GET_EQUIPMENT_OUTPUT_SCHEMA,
     GET_EQUIPMENT_SCHEMA,
+    GET_NEIGHBORS_OUTPUT_SCHEMA,
+    GET_NEIGHBORS_SCHEMA,
     GET_REGULATION_OUTPUT_SCHEMA,
     GET_REGULATION_SCHEMA,
     GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
@@ -73,8 +79,11 @@ from splunk_uc_mcp.tools import (
     SEARCH_USE_CASES_OUTPUT_SCHEMA,
     SEARCH_USE_CASES_SCHEMA,
     find_compliance_gap,
+    find_related_use_cases,
     get_clause_coverage,
+    get_entity,
     get_equipment,
+    get_neighbors,
     get_regulation,
     get_use_case,
     get_use_case_markdown,
@@ -84,7 +93,6 @@ from splunk_uc_mcp.tools import (
     list_uncovered_clauses,
     search_use_cases,
 )
-
 
 LOG = logging.getLogger(__name__)
 
@@ -108,7 +116,10 @@ SERVER_INSTRUCTIONS = (
     "`get_clause_coverage` for a single clause's covering UCs / "
     "assurance posture, and `list_uncovered_clauses` for a priority-"
     "sorted worklist of uncovered clauses across one or more "
-    "regulations. The URI families `uc://`, `reg://`, `equipment://`, "
+    "regulations. `get_entity` and `get_neighbors` resolve a sourcetype, "
+    "product, add-on, or other fabric id (aliases included). "
+    "`find_related_use_cases` ranks use cases that share that data. "
+    "The URI families `uc://`, `reg://`, `equipment://`, "
     "and `ledger://` expose the same data as resources for agents that "
     "prefer a pull-based model."
 )
@@ -384,6 +395,36 @@ def _tool_definitions() -> list[Tool]:
             outputSchema=GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
         ),
         Tool(
+            name="get_entity",
+            description=(
+                "Resolve a fabric entity by canonical id or alias "
+                "(pan:traffic, Splunk_TA_paloalto, UC-5.1.1). Returns "
+                "the entity, its aliases, and neighbours grouped by "
+                "predicate. Shared aliases are listed, not guessed."
+            ),
+            inputSchema=GET_ENTITY_SCHEMA,
+            outputSchema=GET_ENTITY_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="get_neighbors",
+            description=(
+                "Return the neighbours of one fabric entity, optionally "
+                "limited to a single predicate and direction (in or out)."
+            ),
+            inputSchema=GET_NEIGHBORS_SCHEMA,
+            outputSchema=GET_NEIGHBORS_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="find_related_use_cases",
+            description=(
+                "Rank use cases that share sourcetypes or vendor products "
+                "with an entity. Shared sourcetypes weigh more than shared "
+                "products. The query use case is excluded."
+            ),
+            inputSchema=FIND_RELATED_SCHEMA,
+            outputSchema=FIND_RELATED_OUTPUT_SCHEMA,
+        ),
+        Tool(
             name="list_uncovered_clauses",
             description=(
                 "List clauses whose coverageState is 'uncovered' for "
@@ -428,6 +469,11 @@ def _tool_dispatch(
             catalog=catalog, **args
         ),
         "list_uncovered_clauses": lambda args: list_uncovered_clauses(
+            catalog=catalog, **args
+        ),
+        "get_entity": lambda args: get_entity(catalog=catalog, **args),
+        "get_neighbors": lambda args: get_neighbors(catalog=catalog, **args),
+        "find_related_use_cases": lambda args: find_related_use_cases(
             catalog=catalog, **args
         ),
     }
@@ -522,8 +568,8 @@ def _hash_args(args: dict[str, Any]) -> str:
 
 
 __all__ = [
-    "SERVER_NAME",
     "SERVER_INSTRUCTIONS",
+    "SERVER_NAME",
     "build_server",
     "run_stdio_server",
 ]
