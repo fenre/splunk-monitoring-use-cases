@@ -54,9 +54,40 @@ def test_field_names_and_scripts_are_not_sourcetypes() -> None:
     assert "iostat.sh" not in row["evidence"]
 
 
+def test_a_longer_sourcetype_does_not_confirm_its_prefix(tmp_path: Path) -> None:
+    registries = tmp_path / "registries"
+    _tiny_registries(registries)
+    extra = json.loads((registries / "sourcetypes.json").read_text(encoding="utf-8"))
+    extra["entries"].append({"id": "perfmon", "canonical": "perfmon", "aliases": []})
+    extra["entries"].append({"id": "perfmon-iis", "canonical": "Perfmon:IIS", "aliases": []})
+    (registries / "sourcetypes.json").write_text(json.dumps(extra), encoding="utf-8")
+    catalog = _Catalog(registries)
+    uc = {
+        "id": "8.2.42",
+        "title": "IIS queue length",
+        "description": "Queue length for an application pool.",
+        "value": "Operators see the queue before requests time out.",
+        "spl": "index=windows sourcetype=\"Perfmon:IIS\" OR sourcetype=\"perfmon\"",
+    }
+    payload = assign_uc(uc, catalog, "strict-1")
+    assert "perfmon" in payload["sourcetypes"]
+    assert "perfmon-iis" in payload["sourcetypes"]
+    perf = next(row for row in payload["enrichment"]["sourcetypes"] if row["id"] == "perfmon")
+    assert "perfmon" in perf["evidence"]
+    assert "Perfmon:IIS" not in perf["evidence"]
+
+
 def test_insert_keeps_the_original_bytes() -> None:
     source = REPO / "content" / "cat-05-network-infrastructure" / "UC-5.1.10.json"
     original = source.read_text(encoding="utf-8")
+    for key in ("businessOutcomes", "businessAreas", "personas", "industries", "sourcetypes", "vendorProducts", "enrichment"):
+        idx = original.find(f'\n  "{key}"')
+        if idx >= 0:
+            body = original[:idx].rstrip()
+            if body.endswith(","):
+                body = body[:-1].rstrip()
+            original = body + "\n}\n"
+            break
     payload = {
         "sourcetypes": ["cisco-ios"],
         "enrichment": {

@@ -348,20 +348,24 @@ def _sourcetypes(uc: dict[str, Any], catalog: _Catalog, version: str) -> list[di
             entity_id = catalog.index.sourcetype_by_spelling.get(spelling_cf)
             if entity_id is None or entity_id in seen:
                 continue
-            exact = next(
-                (spelling for spelling in catalog.index.sourcetype_spellings[entity_id] if spelling in narrative),
-                None,
-            )
-            if exact is None:
+            match = None
+            for spelling in sorted(catalog.index.sourcetype_spellings[entity_id]):
+                if spelling not in narrative:
+                    continue
+                match = re.search(
+                    rf"sourcetype\s*=\s*(?:\*\*)?\s*[`'\"']?{re.escape(spelling)}(?![A-Za-z0-9_.:*-])",
+                    narrative,
+                )
+                if match is None:
+                    match = re.search(rf"[`'\"']{re.escape(spelling)}[`'\"']", narrative)
+                if match is not None:
+                    break
+            if match is None:
                 continue
             seen.add(entity_id)
-            match = re.search(
-                rf"sourcetype\s*=\s*(?:\*\*)?\s*[`'\"']?{re.escape(exact)}",
-                narrative,
-                re.IGNORECASE,
+            found.append(
+                _assignment(entity_id, narrative[match.start() : match.end()], "authored", 1.0, "explicit-sourcetype", version)
             )
-            evidence = narrative[match.start() : match.end()] if match else exact
-            found.append(_assignment(entity_id, evidence, "authored", 1.0, "explicit-sourcetype", version))
         return found
     full = narrative.casefold()
     found = []
