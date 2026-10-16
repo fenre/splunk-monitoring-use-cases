@@ -142,6 +142,60 @@ def test_explicit_facts_link_and_unknowns_do_not(tmp_path: Path) -> None:
     assert invariant_errors(fabric, registries) == []
 
 
+def test_enrichment_lists_add_seller_edges(tmp_path: Path) -> None:
+    registries = tmp_path / "registries"
+    content = tmp_path / "content"
+    _registries(registries)
+    _write(
+        content / "cat-05-network" / "UC-5.1.2.json",
+        {
+            "id": "5.1.2",
+            "title": "VLAN changes",
+            "businessOutcomes": ["reduce_downtime"],
+            "businessAreas": ["network_operations"],
+            "personas": ["network_engineer"],
+            "enrichment": {
+                "businessOutcomes": [
+                    {
+                        "id": "reduce_downtime",
+                        "source": "inferred",
+                        "confidence": 0.8,
+                        "evidence": "VLAN changes",
+                        "model": "phrase-list",
+                        "version": "1",
+                    }
+                ],
+                "businessAreas": [
+                    {
+                        "id": "network_operations",
+                        "source": "authored",
+                        "confidence": 1,
+                        "evidence": "VLAN changes",
+                        "model": "phrase-list",
+                        "version": "1",
+                    }
+                ],
+                "personas": [
+                    {
+                        "id": "network_engineer",
+                        "source": "inferred",
+                        "confidence": 0.6,
+                        "evidence": "VLAN changes",
+                        "model": "phrase-list",
+                        "version": "1",
+                    }
+                ],
+            },
+        },
+    )
+    fabric = resolve(content=content, registries=registries)
+    edges = {(row[0], row[1], row[2], row[3], row[4]) for row in fabric.relationships}
+    assert ("5.1.2", "servesOutcome", "reduce_downtime", "inferred", 0.8) in edges
+    assert ("5.1.2", "inArea", "network_operations", "authored", 1.0) in edges
+    assert ("5.1.2", "forPersona", "network_engineer", "inferred", 0.6) in edges
+    assert invariant_errors(fabric, registries) == []
+
+
 def test_real_catalogue_counts_match_files_and_registries(tmp_path: Path) -> None:
     fabric = resolve()
     errors = invariant_errors(fabric)

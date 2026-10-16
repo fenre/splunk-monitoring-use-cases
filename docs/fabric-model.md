@@ -155,7 +155,17 @@ The build writes:
 `app` signals and explicit sourcetypes resolve. `--check` fails if either
 rate drops.
 
+## Enrichment
+
+Seller links and any sourcetype or product that is not already an explicit
+sidecar fact are optional lists of registry ids. The rules, including the
+accepted and rejected examples, are in
+[`docs/enrichment-contract.md`](enrichment-contract.md). The resolver turns
+those lists into `servesOutcome`, `inArea`, `forPersona`, `inIndustry`,
+`uses`, and `runsOn` edges. `audit-enrichment` refuses a list that the
+contract does not allow, so a later category backfill needs no new wiring.
+
 ## Schemas
 
 Each registry file points at its JSON Schema under
-[`schemas/fabric/`](../schemas/fabric/).
+[`schemas/fabric/`](../schemas/fabric/). The use-case schema is 1.9.0.

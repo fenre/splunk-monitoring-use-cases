@@ -19,6 +19,11 @@ the release notes block in `index.html` by hand.
   resolves those facts into entities and relationships, serves them at
   `/api/v1/fabric/`, and adds MCP tools `get_entity`, `get_neighbors`, and
   `find_related_use_cases`. Category file counts now match the use-case files.
+- Optional enrichment fields on the use-case schema (1.9.0):
+  `businessOutcomes`, `businessAreas`, `personas`, `industries`,
+  `sourcetypes`, and `vendorProducts`, with an `enrichment` provenance
+  object. `audit-enrichment` rejects an id or a quote that the sidecar
+  does not support. No use case is populated by the schema change.
 
 ## [8.25.0] - 2026-07-24
 

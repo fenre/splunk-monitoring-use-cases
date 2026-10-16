@@ -175,6 +175,14 @@ register(
 )
 register(
     Verb(
+        name="audit-enrichment",
+        module="audits.enrichment",
+        help="Fail unknown enrichment ids or evidence that is not in the use case.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="mine-fabric-registries",
         module="fabric.mine",
         help="Rebuild registries/*.json from sidecar facts; --check fails on drift.",

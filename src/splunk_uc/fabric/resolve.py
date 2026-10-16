@@ -120,6 +120,10 @@ class _Registries:
         self.outcomes = outcomes
         self.areas = areas
         self.personas = personas
+        self.industry_ids = {row["id"] for row in industries}
+        self.outcome_ids = {row["id"] for row in outcomes}
+        self.area_ids = {row["id"] for row in areas}
+        self.persona_ids = {row["id"] for row in personas}
         self.counts = {
             "sourcetype": len(sourcetypes),
             "vendorProduct": len(vendors),
@@ -185,11 +189,15 @@ class _Builder:
         predicate: str,
         target: str,
         provenance: str,
+        confidence: float = 1.0,
     ) -> None:
         key = (source, predicate, target)
         current = self.edges.get(key)
-        if current is None or (provenance == "authored" and current[0] != "authored"):
-            self.edges[key] = (provenance, 1.0)
+        if current is None:
+            self.edges[key] = (provenance, confidence)
+            return
+        if provenance == "authored" and current[0] != "authored":
+            self.edges[key] = ("authored", 1.0)
 
     def membership(self, uc_id: str) -> dict[str, set[str]]:
         return self.members.setdefault(
@@ -382,6 +390,69 @@ def _resolve_uc(builder: _Builder, uc: dict[str, Any]) -> None:
             aliases.append(obligation)
         builder.add_entity("complianceControl", control_id, label, aliases)
         builder.add_edge(uc_id, "covers", control_id, "authored")
+
+    _apply_enrichment(builder, uc, uc_id, member)
+
+
+_ENRICHMENT_LINKS = (
+    ("sourcetypes", "uses", "sourcetype"),
+    ("vendorProducts", "runsOn", "vendorProduct"),
+    ("industries", "inIndustry", "industry"),
+    ("businessOutcomes", "servesOutcome", "businessOutcome"),
+    ("businessAreas", "inArea", "businessArea"),
+    ("personas", "forPersona", "persona"),
+)
+
+
+def _known_ids(reg: _Registries, entity_type: str) -> set[str]:
+    if entity_type == "sourcetype":
+        return set(reg.sourcetype_by_id)
+    if entity_type == "vendorProduct":
+        return set(reg.vendor_by_id)
+    if entity_type == "industry":
+        return reg.industry_ids
+    if entity_type == "businessOutcome":
+        return reg.outcome_ids
+    if entity_type == "businessArea":
+        return reg.area_ids
+    return reg.persona_ids
+
+
+def _apply_enrichment(
+    builder: _Builder,
+    uc: dict[str, Any],
+    uc_id: str,
+    member: dict[str, set[str]],
+) -> None:
+    """Turn registry-id lists into edges. Audit-enrichment is the gate."""
+    if not any(uc.get(name) for name, _predicate, _entity_type in _ENRICHMENT_LINKS):
+        return
+    enrichment = uc.get("enrichment") if isinstance(uc.get("enrichment"), dict) else {}
+    for field_name, predicate, entity_type in _ENRICHMENT_LINKS:
+        known = _known_ids(builder.reg, entity_type)
+        assignments = enrichment.get(field_name) if isinstance(enrichment.get(field_name), list) else []
+        by_id: dict[str, dict[str, Any]] = {}
+        for item in assignments:
+            if isinstance(item, dict) and item.get("id"):
+                by_id[str(item["id"])] = item
+        for entity_id in as_str_list(uc.get(field_name)):
+            if entity_id not in known:
+                builder.note(field_name, entity_id)
+                continue
+            meta = by_id.get(entity_id, {})
+            source = str(meta.get("source") or "authored")
+            provenance = source if source in ("authored", "inferred") else "inferred"
+            try:
+                confidence = float(meta.get("confidence", 1.0))
+            except (TypeError, ValueError):
+                confidence = 1.0
+            if provenance == "authored":
+                confidence = 1.0
+            builder.add_edge(uc_id, predicate, entity_id, provenance, confidence)
+            if entity_type == "sourcetype":
+                member["sourcetype"].add(entity_id)
+            elif entity_type == "vendorProduct":
+                member["vendorProduct"].add(entity_id)
 
 
 def _registry_entities(builder: _Builder) -> None:
