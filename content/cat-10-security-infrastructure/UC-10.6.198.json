@@ -62,5 +62,55 @@
   "detailedImplementation": "Prerequisites\n• `index=xd`; `citrix:hdx:policy` and `citrix:session:recording:control` in Splunk; stable `user`+`session_id` for triage. Retain hot data long enough for audit (e.g. 90d).\n\nStep 1 — Configure data collection\n`props.conf`/`REPORT-` to extract `policy_name` if embedded in `_raw`. After image or VDA change, log one forced failure and one success; tune regexes to those strings. Tag delivery groups: lookup `sensitive_dg` for alert routing.\n\nStep 2 — Create the search and alert\nSev-2: `err>0` in 1h for DGs in `sensitive_dg`. Post-upgrade: 24h watch with `quantity=1` on first hit. Throttle: same `user+session_id` 15m. Add panel: timechart of `wm_fail` vs `cap_fail` split by `pol`.\n\nStep 3 — Validate\nReconcile event count to Director policy results or a VDA test session. False positives: compare to DaaS health subsystems vs real `wm_fail=1`.\n\nStep 4 — Operationalize\nMonthly compliance PDF: sample raw with policy ID. Escalation: L2 EUC (rollback); L3 TAC with VDA+Workspace build. RFO: attach Splunk time window for regulated apps. Pair with session-recording health use case.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:hdx:policy, citrix:session:recording:control into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, err, session_id, user`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We look for the moment the “name-stamped screen” and “no sneaky screen shots” rules fail to take hold — so you are not left telling auditors the protection was on when it quietly was not.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "service_management"
+  ],
+  "sourcetypes": [
+    "citrix-hdx-policy",
+    "citrix-session-recording-control"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "service_management",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "SLA breach",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "citrix-hdx-policy",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:hdx:policy",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-session-recording-control",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:session:recording:control",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

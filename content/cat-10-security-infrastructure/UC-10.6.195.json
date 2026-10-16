@@ -62,5 +62,55 @@
   "detailedImplementation": "Prerequisites: HDX clipboard and file transfer events with policy_result and direction; data_classification_by_user or group lookup. Step 1: Configure data collection — Use a restricted index; props [citrix:hdx:clipboard] and [citrix:hdx:filetransfer] with FIELDALIAS for user, session_id, bytes; do not log clipboard text, only size bands if policy demands. Step 2: Create the search and alert — Two tracks: security (blocks, large allows on sensitive users) and ops (global block spike after policy push); start hourly tot_bytes>50M or blocks>10, tune. Step 3: Validate — In a non-prod group run `index=xd (sourcetype=\"citrix:hdx:clipboard\" OR sourcetype=\"citrix:hdx:filetransfer\") earliest=-1h | stats sum(bytes) by user, direction, policy_result` after a controlled file copy. Step 4: Operationalize — Insider-risk review under privacy policy; if sustained high-volume exfil pattern, escalate to security operations and Citrix EUC policy owners.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (No official Splunk TA for HDX policy telemetry. Ingest via Windows Event Logs from VDAs (Session Recording event detection policies log clipboard and file transfer actions), or use Citrix Analytics for Security which surfaces DLP-related risk indicators. Splunk Add-on for Microsoft Windows for event log collection. — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:hdx:clipboard, citrix:hdx:filetransfer into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, allows, blocks, direction`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We watch copy-paste and file moves between the office desktop in the cloud and the local machine — so you see when someone tries to sneak data out or when the safety rules trip a lot at once.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "service_management"
+  ],
+  "sourcetypes": [
+    "citrix-hdx-clipboard",
+    "citrix-hdx-filetransfer"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "service_management",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "SLA breach",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "citrix-hdx-clipboard",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:hdx:clipboard",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-hdx-filetransfer",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:hdx:filetransfer",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

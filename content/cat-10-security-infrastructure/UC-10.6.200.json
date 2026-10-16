@@ -65,5 +65,55 @@
   "detailedImplementation": "Prerequisites\n• `index=xd` with `session`+`app_usage` including `app_name` and duration (or `session_end`-`start`). `lookups/shift_by_site` for off-hours, `lookups/allow_accounts` (batch/on-call) to drop noise.\n\nStep 1 — Configure data collection\nIf duration absent: `eval` from epoch fields, guard nulls. `SEDCMD-` to normalize `app_name` (strip publisher). Optional summary index: nightly per-user `dc(app)` and median `du` to seed baselines. Respect privacy: aggregate before HR steps.\n\nStep 2 — Create the search and alert\n`off` hours per region: start 22–5 local; add weekend flag. `eventstats` medians need enough volume per app—exclude rare apps in subsearch. Pilot one BU: tune `ev>5` and `appc>15` from baseline; raise if shift FP. Throttle: user+1d.\n\nStep 3 — Validate\nOne-week Director app usage top-line vs Splunk `dc(app_name)` for sample users. Manually recompute one app’s median `du` vs `eventstats` to verify.\n\nStep 4 — Operationalize\nHeatmap: hour x user. Escalation: L2 for off-hours+longsess on `sensitive_apps` lookup; L3+HR only per policy. Run after impossible-travel. Quarterly: FP review; union with UBA. Document lawful monitoring approval.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Citrix Monitor Service or broker-derived usage via OData collectors, custom forwarders, optional Splunk User Behavior Analytics — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token that writes sourcetype=citrix:broker:session, citrix:broker:app_usage into xd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`_time, app_name, appc, ev`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We learn what a normal work pattern looks like in your app farm, then flag the odd late nights, odd weekends, and strangely long stints in unusual tools — so you see odd use before a loss happens.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "businessAreas": [
+    "service_management"
+  ],
+  "sourcetypes": [
+    "citrix-broker-app-usage",
+    "citrix-broker-session"
+  ],
+  "vendorProducts": [
+    "citrix"
+  ],
+  "enrichment": {
+    "businessAreas": [
+      {
+        "id": "service_management",
+        "source": "inferred",
+        "confidence": 0.75,
+        "evidence": "SLA breach",
+        "model": "phrase-list",
+        "version": "strict-1"
+      }
+    ],
+    "sourcetypes": [
+      {
+        "id": "citrix-broker-app-usage",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"citrix:broker:app_usage",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "citrix-broker-session",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='citrix:broker:session",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "citrix",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Citrix",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }
