@@ -50,6 +50,7 @@ class RegistryIndex:
     def __init__(self, root: Path) -> None:
         self.ids: dict[str, set[str]] = {}
         self.sourcetype_spellings: dict[str, set[str]] = {}
+        self.sourcetype_by_spelling: dict[str, str] = {}
         self.industry_by_norm: dict[str, str] = {}
         mapping = {
             "businessOutcomes": "business-outcomes.json",
@@ -67,6 +68,8 @@ class RegistryIndex:
                     spellings = {str(row["canonical"])}
                     spellings.update(str(alias) for alias in row.get("aliases") or [])
                     self.sourcetype_spellings[str(row["id"])] = spellings
+                    for spelling in spellings:
+                        self.sourcetype_by_spelling.setdefault(spelling.casefold(), str(row["id"]))
             if field == "industries":
                 for row in entries:
                     for text in [row.get("name") or "", *(row.get("aliases") or [])]:
@@ -100,11 +103,30 @@ def _narrative(uc: dict[str, Any]) -> tuple[str, list[str]]:
     return "\n".join(parts), data_sources
 
 
+_FILENAME_SUFFIX = re.compile(r"\.(?:sh|csv|conf|log|py|md|xml|json|html|txt)$", re.IGNORECASE)
+
+
 def _explicit_sourcetypes(narrative: str, data_sources: list[str]) -> set[str]:
+    """Sourcetype spellings stated as ``sourcetype=`` or a quoted dataSources token.
+
+    A quoted token counts only when it contains a colon, or the word
+    sourcetype sits immediately in front of it. Field names (``Device``)
+    and script names (``iostat.sh``) are not sourcetypes.
+    """
     found = {match.group(1).casefold() for match in _SOURCETYPE_EQ.finditer(narrative)}
     for text in data_sources:
+        folded = text.casefold()
         for match in _QUOTED.finditer(text):
-            found.add(match.group(1).casefold())
+            token = match.group(1)
+            if _FILENAME_SUFFIX.search(token):
+                continue
+            if ":" in token:
+                found.add(token.casefold())
+                continue
+            start = match.start()
+            window = folded[max(0, start - 24) : start]
+            if "sourcetype" in window:
+                found.add(token.casefold())
     return found
 
 

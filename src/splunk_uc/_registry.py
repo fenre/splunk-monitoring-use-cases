@@ -199,6 +199,14 @@ register(
 )
 register(
     Verb(
+        name="enrich-pilot",
+        module="fabric.enrich",
+        help="Grade a seeded 300-use-case enrichment pilot; --write inserts strict-1.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="audit-dashboard-spl",
         module="audits.dashboard_spl",
         help="Audit Simple XML dashboard SPL queries for token expansion + REST validity.",

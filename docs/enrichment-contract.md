@@ -36,10 +36,13 @@ an industry id that is not the registry match for the `industry` field.
 
 ## What counts as a sourcetype
 
-A sourcetype id is allowed only when the sidecar has `sourcetype=<token>` or
-`dataSources` quotes the token, and the assignment's evidence contains that
-token. The token is the registry `canonical` value or one of its aliases.
-A prose description of a log is not a sourcetype.
+A sourcetype id is allowed only when the sidecar has `sourcetype=<token>`,
+or `dataSources` quotes a token that contains a colon or sits next to the
+word sourcetype, and the assignment's evidence contains that token. The
+token is the registry `canonical` value or one of its aliases. A field name
+such as `` `Device` ``, a script name such as `` `iostat.sh` ``, and a prose
+description of a log are not sourcetypes. A vendor is confirmed by its id,
+product name, or alias. The parent company name alone is not a product.
 
 ## What counts as a persona
 
