@@ -33,6 +33,13 @@ the release notes block in `index.html` by hand.
   object. `audit-enrichment` rejects an id or a quote that the sidecar
   does not support. No use case is populated by the schema change.
 
+### Changed
+
+- **Perf budgets:** `dist/catalog.json` ceiling is 190 MB and the
+  catalog-index gzip ceiling is 3 MiB. Fabric sourcetype, product,
+  add-on, and CIM ids, plus alias text, pushed both files past the
+  previous ceilings (172 MB and 2.5 MiB gz).
+
 ## [8.25.0] - 2026-07-24
 
 ### New Use Cases

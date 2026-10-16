@@ -29,7 +29,7 @@ What's modelled
 ---------------
 
 * :class:`UseCase` — the JSON sidecar shape under ``content/cat-NN-<slug>/UC-X.Y.Z.json``.
-  Mirrors ``schemas/uc.schema.json`` v1.7.0.
+  Mirrors ``schemas/uc.schema.json`` v1.9.0.
 * :class:`CatalogUC` — the abbreviated UC payload that lives inside
   ``catalog.json`` (and ``data.js`` / ``api/cat-N.json``). Field name
   abbreviations are documented in ``docs/catalog-schema.md``.
@@ -247,6 +247,44 @@ class TaLinkEntry(TypedDict, total=False):
     id: int
 
 
+class EnrichmentAssignment(TypedDict, total=False):
+    """One registry id quoted from the sidecar. Schema ``enrichmentAssignment``."""
+
+    id: str
+    source: Literal["authored", "inferred"]
+    confidence: float
+    evidence: str
+    model: str
+    version: str
+
+
+class ProposedValue(TypedDict, total=False):
+    """A wording that has no registry id yet. Schema ``proposedValue``."""
+
+    field: Literal[
+        "businessOutcomes",
+        "businessAreas",
+        "personas",
+        "industries",
+        "sourcetypes",
+        "vendorProducts",
+    ]
+    value: str
+    note: str
+
+
+class Enrichment(TypedDict, total=False):
+    """Provenance for the registry-id lists. Schema ``enrichment``."""
+
+    businessOutcomes: list[EnrichmentAssignment]
+    businessAreas: list[EnrichmentAssignment]
+    personas: list[EnrichmentAssignment]
+    industries: list[EnrichmentAssignment]
+    sourcetypes: list[EnrichmentAssignment]
+    vendorProducts: list[EnrichmentAssignment]
+    proposedValues: list[ProposedValue]
+
+
 class UseCase(TypedDict, total=False):
     """JSON sidecar shape for ``content/cat-NN-<slug>/UC-X.Y.Z.json``.
 
@@ -286,6 +324,17 @@ class UseCase(TypedDict, total=False):
     compliance: list[ComplianceMapping]
     controlTest: ControlTest
     cost: CostImpact
+
+    # Optional registry ids (schema 1.9.0). Lists stay empty unless a
+    # graded enrichment pass assigns them. ``enrichment`` may hold only
+    # ``proposedValues`` when the lists were not kept.
+    businessOutcomes: list[str]
+    businessAreas: list[str]
+    personas: list[str]
+    industries: list[str]
+    sourcetypes: list[str]
+    vendorProducts: list[str]
+    enrichment: Enrichment
 
     # Data sources / SPL.
     dataSources: str
@@ -426,6 +475,13 @@ class CatalogUC(TypedDict, total=False):
     _qt: str
     _qg: str
 
+    # Fabric ids copied on by the build. See docs/catalog-schema.md.
+    fs: list[str]
+    fv: list[str]
+    fa: list[str]
+    fc: list[str]
+    fx: str
+
 
 class CatalogSubcategory(TypedDict, total=False):
     """One entry in ``catalog.json#DATA[].s[]``.
@@ -478,14 +534,17 @@ class EquipmentEntry(TypedDict, total=False):
     """One entry in ``catalog.json#EQUIPMENT`` for the technology filter.
 
     Drives the "filter by technology" chip cloud in the static UI.
-    Field names match the wire format (``label``, ``tas``, ``models``).
-    ``models`` enumerates specific hardware variants the catalogue knows
-    about (e.g. ``["IR1101", "IR829"]`` under the ``cisco-ie`` family);
-    it's omitted when no model-level granularity exists.
+    Field names match the wire format (``label``, ``tas``, ``models``,
+    ``kind``, ``vendor``). ``models`` enumerates specific hardware
+    variants the catalogue knows about (e.g. ``["IR1101", "IR829"]``
+    under the ``cisco-ie`` family); it's omitted when no model-level
+    granularity exists.
     """
 
     id: str
     label: str
+    kind: str
+    vendor: str
     tas: list[str]
     models: list[str]
 
