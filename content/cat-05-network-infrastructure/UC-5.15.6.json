@@ -68,5 +68,51 @@
   "detailedImplementation": "Prerequisites\n• Licensed RPZ coverage on Grid members serving recursion.\n• RPZ syslog category enabled under Grid DNS Properties > Logging.\n• Splunk TA parsing producing `action`, `policy_name`, `qname`, `src_ip` fields—verify with `fieldsummary`.\n\nStep 1 — Configure data collection\nSend RPZ logs via TCP syslog to SC4S; confirm `infoblox:rpz` segregates from generic `infoblox:dns`. Capture PASSTHRU separately only if required for volume governance.\n\nStep 2 — Create the search and alert\nPrimary SPL summarizes enforcement paths. Add correlation subsearch against `infoblox:threatprotect` for matched IOC IDs when available. Alert when REDIRECT share rises above baseline fraction.\n\nStep 3 — Validate\nPick NIOS Reporting RPZ counters for an hour and reconcile counts by policy_name with Splunk `stats sum(count)` grouped identically.\n\nStep 4 — Operationalize\nHeatmaps per Grid member, drilldown to VirusTotal links for top qname values, ticket automation tagging redirect-heavy zones as higher visibility changes.\n\nStep 5 — Troubleshooting\n**Field drift:** If `action` missing, extract via `rex` on `_raw`.**Dual logging:** Ensure members behind load-balancers retain distinct `host`.**Privacy:** Mask `src_ip` for guest SSIDs before sharing dashboards externally.\n\nStep 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (Splunk Add-on for Infoblox (Splunk_TA_infoblox, Splunkbase 2934)). Enable the modular input or HEC token that writes sourcetype=infoblox:rpz into dns. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.\n\nStep 2 — Create the search and alert\n\nSchedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. Document tunable macros in the comment header. Understanding this SPL: filters in the first pipeline reduce license cost; stats/timechart aggregates define the alert grain; joins/lookups enrich owner or asset metadata for routing.\n\nStep 3 — Validate\n\nCompare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%). Spot-check two known entities for field presence (`host, policy_name, qname, rpz_outcome`). Run `timechart count span=1h` over 7 days to find ingestion gaps longer than two poll intervals.\n\nStep 4 — Operationalize\n\nAdd a dashboard row with single-value KPI tiles, a 24-hour timechart, and a drilldown table mirroring the SPL output columns. Route critical severity to the platform on-call channel; route warning to the service owner from the lookup.\n\nStep 5 — Troubleshooting\n\nNo events: verify forwarder connectivity, HEC token ACLs, and that the modular input appears in `index=_internal source=*splunkd*`. NULL fields: check props/transforms order and TA version. Fewer results than expected: confirm index allow-lists on the search head role and that `_time` uses the correct timezone. API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.\n",
   "grandmaExplanation": "We sort DNS policy stops into hard stops versus gentle detours so teams know whether bad websites were simply blocked or sent somewhere safer on purpose.",
   "prerequisiteUseCases": [],
-  "wave": "walk"
+  "wave": "walk",
+  "sourcetypes": [
+    "infoblox-rpz",
+    "infoblox-threatprotect"
+  ],
+  "vendorProducts": [
+    "infoblox",
+    "syslog"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "infoblox-rpz",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='infoblox:rpz",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "infoblox-threatprotect",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=infoblox:threatprotect",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "infoblox",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "Infoblox",
+        "model": "vendor-token",
+        "version": "strict-1"
+      },
+      {
+        "id": "syslog",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "syslog",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }

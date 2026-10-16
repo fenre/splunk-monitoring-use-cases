@@ -59,5 +59,60 @@
   "detailedImplementation": "Prerequisites\n• DNS cache statistics from resolvers. Sources: (a) SNMP polling of DNS resolver cache counters, (b) Infoblox NIOS reporting API for cache statistics, (c) BIND statistics channel (`rndc stats` output), (d) Windows DNS Server performance counters (via Splunk_TA_windows perfmon), (e) DNS wire data via Splunk Stream with response analysis.\n• Cache hit ratio = cache_hits / (cache_hits + cache_misses). A healthy recursive resolver should have > 80% cache hit ratio. Lower ratios indicate: (a) cache too small, (b) low TTL records dominating, (c) cache flushed recently, (d) many unique domain lookups (DGA malware or crawlers).\n• Cache hits are served in < 1ms. Cache misses require recursive resolution (10-200ms). A high miss rate directly impacts user-perceived DNS latency.\n\nStep 1 — Configure data collection\nVerify cache statistics availability (method depends on source):\n```spl\nindex=dns OR index=perfmon earliest=-1h\n| search \"cache\" OR \"hit\" OR \"miss\"\n| stats count by sourcetype\n```\n\nFor Windows DNS perfmon:\n```spl\nindex=perfmon sourcetype=\"Perfmon:DNS\" earliest=-1h\n| stats latest(cache_hits) as hits latest(cache_misses) as misses by host\n```\n\nStep 2 — Create the search and alert\n\n**Primary search — Cache hit ratio (Stream-based estimation):**\n```spl\nindex=dns sourcetype=\"stream:dns\" earliest=-1h\n| eval is_cache_hit=if(response_time < 2, 1, 0)\n| stats count as total sum(is_cache_hit) as cache_hits by dest\n| eval cache_misses=total - cache_hits\n| eval hit_ratio=round(100*cache_hits/total, 1)\n| eval status=case(hit_ratio < 60, \"CRITICAL\", hit_ratio < 75, \"WARNING\", 1==1, \"OK\")\n| sort hit_ratio\n```\n\nUnderstanding this SPL: Since direct cache statistics aren't always available, this uses response time as a proxy: queries answered in < 2ms are almost certainly cache hits (a recursive lookup takes 10+ ms). This approach works with Splunk Stream wire data without needing direct server-side metrics.\n\n**Cache effectiveness trending:**\n```spl\nindex=dns sourcetype=\"stream:dns\" earliest=-7d\n| eval is_cache_hit=if(response_time < 2, 1, 0)\n| bin _time span=1h\n| stats count as total sum(is_cache_hit) as hits by _time, dest\n| eval hit_ratio=round(100*hits/total, 1)\n| timechart span=1h avg(hit_ratio) as cache_hit_pct by dest\n```\n\n**Cache miss analysis — which domains cause the most misses:**\n```spl\nindex=dns sourcetype=\"stream:dns\" response_time > 5 earliest=-1h\n| stats count as cache_misses avg(response_time) as avg_resolve_ms by query\n| sort -cache_misses\n| head 20\n```\n\nUnderstanding this SPL: Identifies domains that are never cached (every lookup is a miss). These could be: very low TTL records (some CDNs use 60-second TTLs), DGA domains (always unique), or rarely accessed domains. If a frequently accessed domain has low TTL, consider implementing a minimum TTL override on the resolver.\n\nStep 3 — Validate\n(a) Compare with resolver statistics: Infoblox NIOS reporting, `rndc stats` for BIND, Windows DNS Server Manager statistics.\n(b) Test: query the same domain twice. The second query should be a cache hit (< 2ms response time).\n\nStep 4 — Operationalize\nDashboard (\"DNS — Cache Performance\"):\n• Row 1 — Single-value tiles: \"Cache hit ratio (%)\", \"Cache misses (1h)\", \"Worst resolver hit ratio\", \"Top miss domain\".\n• Row 2 — Timechart: cache hit ratio per resolver over 7 days.\n• Row 3 — Cache miss domains table: domain, miss count, avg resolve time.\n\nAlerting:\n• Critical (cache hit ratio < 60% for 30+ minutes): serious cache issue — investigate resolver health.\n• Warning (cache hit ratio < 75%): degraded performance — review cache configuration.\n\nRunbook:\n1. **Sudden cache hit ratio drop**: Check for cache flushes (planned or unplanned). After a flush, the cache needs time to warm up. Monitor for recovery within 1-2 hours.\n2. **Persistently low hit ratio**: Increase cache size if possible. Implement minimum TTL override for frequently queried domains with very low TTLs.\n\nStep 5 — Troubleshooting\n\n• **Response time proxy inaccurate** — The 2ms threshold for cache hits may need adjustment based on your resolver hardware. Faster resolvers may serve cache hits in < 0.5ms; slower ones may take up to 5ms. Calibrate by querying a known cached domain.\n\n• **No Stream data available** — Without wire data, fall back to SNMP polling of DNS cache statistics MIBs or Windows perfmon counters.",
   "grandmaExplanation": "We watch for unusual DNS patterns so we notice possible attacks, mistakes, or overloaded resolvers before people feel it as slow apps or failed reference lists.",
   "prerequisiteUseCases": [],
-  "wave": "crawl"
+  "wave": "crawl",
+  "sourcetypes": [
+    "infoblox-dns",
+    "named",
+    "perfmon-dns",
+    "stream-dns"
+  ],
+  "vendorProducts": [
+    "infoblox"
+  ],
+  "enrichment": {
+    "sourcetypes": [
+      {
+        "id": "infoblox-dns",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype='infoblox:dns",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "named",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=named",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "perfmon-dns",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"Perfmon:DNS",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      },
+      {
+        "id": "stream-dns",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "sourcetype=\"stream:dns",
+        "model": "explicit-sourcetype",
+        "version": "strict-1"
+      }
+    ],
+    "vendorProducts": [
+      {
+        "id": "infoblox",
+        "source": "authored",
+        "confidence": 1.0,
+        "evidence": "infoblox",
+        "model": "vendor-token",
+        "version": "strict-1"
+      }
+    ]
+  }
 }
