@@ -175,6 +175,14 @@ register(
 )
 register(
     Verb(
+        name="mine-fabric-registries",
+        module="fabric.mine",
+        help="Rebuild registries/*.json from sidecar facts; --check fails on drift.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="audit-dashboard-spl",
         module="audits.dashboard_spl",
         help="Audit Simple XML dashboard SPL queries for token expansion + REST validity.",
