@@ -89,7 +89,7 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `fv` | array | **Fabric vendor-product ids** from `equipment` and resolved `app` aliases (optional, build-emitted). |
 | `fa` | array | **Fabric add-on ids** (Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup>) linked to the use case (optional, build-emitted). |
 | `fc` | array | **Fabric CIM dataset ids** (optional, build-emitted). |
-| `fx` | string | **Fabric alias text** indexed by search so product aliases match (optional, build-emitted). |
+| `fx` | string | **Fabric alias text** on the use case (optional, build-emitted). Search shards do not index it. |
 | `em` | array | **Equipment model IDs** (optional). |
 | `status` | string | **Quality status:** `verified` \| `community` \| `draft` (optional, v5.1+). |
 | `reviewed` | string | **Last reviewed:** ISO date `YYYY-MM-DD` (optional, v5.1+). |

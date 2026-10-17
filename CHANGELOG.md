@@ -46,6 +46,13 @@ the release notes block in `index.html` by hand.
   footers on the new fabric documents. Equipment-tag key order was
   rewritten on 38 sidecars; titles, descriptions, values, and SPL
   were not changed.
+- **Search shards:** omitted fabric alias text (`fx`) from the inverted
+  index. The shard that crossed the 352 KiB gzip cap was carrying alias
+  tokens, not the fabric ids browse filters read from the catalog index,
+  so that cap was not raised. Posting keys are ordered by list length so
+  gzip size does not depend on hash seed.
+- **Compliance coverage:** regenerated `docs/compliance-coverage.md` and
+  `reports/compliance-coverage.json` at schema 1.9.0.
 
 ## [8.25.0] - 2026-07-24
 

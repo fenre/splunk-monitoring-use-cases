@@ -145,8 +145,9 @@ The build writes:
 - `fabric/facets.json` has a count for every sourcetype, product, add-on,
   and CIM dataset, plus pairwise intersections for the common values. The
   catalogue's advanced filters use the top values.
-- Search indexes `fx`, the alias text of the linked entities, so `Palo Alto`,
-  `paloalto`, and the search synonym `PAN` find the same product.
+- Search shards do not index `fx`. Browse filters read `fs`, `fv`, `fa`, and
+  `fc` from the catalog index. An alias matches a search when that spelling
+  already appears in the name, app, equipment, or narrative.
 - `graph-data.json` is the aggregated view `graph.html` already renders.
   Pillars stay a presentation rollup. `fabric/graph-full.json` is the same
   relationships with use cases as nodes.
