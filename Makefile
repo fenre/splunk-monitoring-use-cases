@@ -118,6 +118,8 @@ audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
+	$(SPLUNK_UC) audit-category-counts --check
+	$(SPLUNK_UC) audit-enrichment --check
 
 audit-cim: ## Audit CIM ↔ SPL alignment
 	$(SPLUNK_UC) audit-cim-spl-alignment

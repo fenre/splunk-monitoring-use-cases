@@ -38,6 +38,7 @@ CI runs the full build twice and asserts byte-identical output.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -69,6 +70,7 @@ from build import (
 DEFAULT_OUT = "dist"
 ALL_STAGES = (
     "parse",
+    "fabric",
     "assets",
     "pages",
     "api",
@@ -156,6 +158,39 @@ def _stage_api(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     _log("api/ emitted", t0)
 
 
+def _stage_fabric(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
+    """Resolve sidecar facts and attach alias tokens before search and pages."""
+    t0 = time.monotonic()
+    src = PROJECT_ROOT / "src"
+    if str(src) not in sys.path:
+        sys.path.insert(0, str(src))
+    from splunk_uc.fabric.graph import full_export, presentation_graph, write_graph_file
+    from splunk_uc.fabric.publish import attach_catalog, write_facets, write_parquet
+    from splunk_uc.fabric.resolve import resolve
+
+    fabric = resolve()
+    attach_catalog(catalog, fabric)
+    fabric_dir = opts.out_dir / "fabric"
+    wrote_parquet = write_parquet(fabric, fabric_dir)
+    write_facets(fabric, fabric_dir / "facets.json")
+    write_graph_file(full_export(fabric), fabric_dir / "graph-full.json")
+    resolution = {
+        "parquet": wrote_parquet,
+        "rates": fabric.rates,
+        "report": fabric.report,
+    }
+    (fabric_dir / "resolution.json").write_text(
+        json.dumps(resolution, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    catalog._fabric_graph = presentation_graph(fabric)  # type: ignore[attr-defined]
+    _log(
+        f"fabric: {fabric.rates['ucCount']} use cases, "
+        f"{len(fabric.relationships)} edges, parquet={wrote_parquet}",
+        t0,
+    )
+
+
 def _stage_search(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     t0 = time.monotonic()
     render_search.render(catalog, opts.out_dir, reproducible=opts.reproducible)
@@ -187,7 +222,9 @@ def _stage_meta(opts: BuildOptions, catalog: parse_content.Catalog) -> None:
     _log("meta (catalog.json, sitemap, llms.txt, feed.xml) emitted", t0)
 
 
-def _stage_public(opts: BuildOptions) -> None:
+def _stage_public(
+    opts: BuildOptions, catalog: parse_content.Catalog | None = None
+) -> None:
     """Copy static project assets into dist/.
 
     Copies two kinds of content:
@@ -215,6 +252,11 @@ def _stage_public(opts: BuildOptions) -> None:
             shutil.copy2(src, dst)
 
     _copy_project_assets(out)
+    graph = getattr(catalog, "_fabric_graph", None) if catalog is not None else None
+    if graph is not None:
+        from splunk_uc.fabric.graph import write_graph_file
+
+        write_graph_file(graph, out / "graph-data.json")
     _log("public/ + project assets copied", t0)
 
 
@@ -782,13 +824,14 @@ def _run_once(args: argparse.Namespace) -> int:
         catalog = parse_content.empty()
 
     _post_parse_stages: list[tuple[str, Any]] = [
+        ("fabric", lambda: _stage_fabric(opts, catalog)),
         ("assets", lambda: _stage_assets(opts, catalog)),
         ("pages", lambda: _stage_pages(opts, catalog)),
         ("api", lambda: _stage_api(opts, catalog)),
         ("search", lambda: _stage_search(opts, catalog)),
         ("exports", lambda: _stage_exports(opts, catalog)),
         ("meta", lambda: _stage_meta(opts, catalog)),
-        ("public", lambda: _stage_public(opts)),
+        ("public", lambda: _stage_public(opts, catalog)),
         ("html_rewrite", lambda: _stage_html_rewrite(opts, catalog)),
         ("integrity", lambda: _stage_integrity(opts)),
         ("build_info", lambda: _stage_build_info(opts, catalog)),

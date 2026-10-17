@@ -12,6 +12,48 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added
+
+- Use-case fabric. Registries for sourcetypes, vendor products, add-ons, CIM,
+  industries, and seller concepts are mined from sidecar facts. The build
+  resolves those facts into entities and relationships, serves them at
+  `/api/v1/fabric/`, and adds MCP tools `get_entity`, `get_neighbors`, and
+  `find_related_use_cases`. Category file counts now match the use-case files.
+- Enrichment backfill, then a revert. A seeded pilot of 300 use cases was
+  graded with a loose ruleset and again after the contract was tightened.
+  The strict ruleset filled every category. An independent re-grade of at
+  least 30 use cases per field, counting debatable as a miss, put every
+  field under its bar, so `businessOutcomes`, `businessAreas`, `personas`,
+  `industries`, `sourcetypes`, and `vendorProducts` were removed from the
+  sidecars. `proposedValues` notes remain. The per-value table is
+  `docs/fabric-pilot-grades.md`.
+- Optional enrichment fields on the use-case schema (1.9.0):
+  `businessOutcomes`, `businessAreas`, `personas`, `industries`,
+  `sourcetypes`, and `vendorProducts`, with an `enrichment` provenance
+  object. `audit-enrichment` rejects an id or a quote that the sidecar
+  does not support. No use case is populated by the schema change.
+
+### Changed
+
+- **Perf budgets:** `dist/catalog.json` ceiling is 190 MB and the
+  catalog-index gzip ceiling is 3 MiB. Fabric sourcetype, product,
+  add-on, and CIM ids, plus alias text, pushed both files past the
+  previous ceilings (172 MB and 2.5 MiB gz).
+- **Regulatory primer:** cat-22 use-case counts in
+  `docs/regulatory-primer.md` now match `_category.json` after the
+  duplicate-subcategory collapse.
+- **Generated docs:** refreshed `docs/backlinks.md` and the reference
+  footers on the new fabric documents. Equipment-tag key order was
+  rewritten on 38 sidecars; titles, descriptions, values, and SPL
+  were not changed.
+- **Search shards:** omitted fabric alias text (`fx`) from the inverted
+  index. The shard that crossed the 352 KiB gzip cap was carrying alias
+  tokens, not the fabric ids browse filters read from the catalog index,
+  so that cap was not raised. Posting keys are ordered by list length so
+  gzip size does not depend on hash seed.
+- **Compliance coverage:** regenerated `docs/compliance-coverage.md` and
+  `reports/compliance-coverage.json` at schema 1.9.0.
+
 ## [8.25.0] - 2026-07-24
 
 ### New Use Cases

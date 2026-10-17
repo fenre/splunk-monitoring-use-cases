@@ -4284,6 +4284,10 @@ var currentDtypeFilter = 'all';
 var currentPremiumFilter = 'all';
 var currentCimFilter = 'all';
 var currentSappFilter = 'all';
+var currentFabricSt = 'all';
+var currentFabricVendor = 'all';
+var currentFabricAddon = 'all';
+var currentFabricCim = 'all';
 var currentMitreFilter = '';
 var currentMitreTacticFilter = '';
 var currentDsGroup = '';
@@ -4510,6 +4514,18 @@ function getFilteredUCs() {
     result = result.filter(function(e) {
       return Array.isArray(e.uc.a) && e.uc.a.some(function(m) { return m.split('(')[0].trim() === currentCimFilter; });
     });
+  }
+  if (currentFabricSt !== 'all') {
+    result = result.filter(function(e) { return Array.isArray(e.uc.fs) && e.uc.fs.indexOf(currentFabricSt) !== -1; });
+  }
+  if (currentFabricVendor !== 'all') {
+    result = result.filter(function(e) { return Array.isArray(e.uc.fv) && e.uc.fv.indexOf(currentFabricVendor) !== -1; });
+  }
+  if (currentFabricAddon !== 'all') {
+    result = result.filter(function(e) { return Array.isArray(e.uc.fa) && e.uc.fa.indexOf(currentFabricAddon) !== -1; });
+  }
+  if (currentFabricCim !== 'all') {
+    result = result.filter(function(e) { return Array.isArray(e.uc.fc) && e.uc.fc.indexOf(currentFabricCim) !== -1; });
   }
   if (currentSappFilter !== 'all') {
     var sappId = parseInt(currentSappFilter, 10);
@@ -4896,6 +4912,10 @@ function setAdvFilter(key, val) {
   else if (key === 'cim') currentCimFilter = val;
   else if (key === 'sapp') currentSappFilter = val;
   else if (key === 'industry') currentIndustryFilter = val;
+  else if (key === 'fst') currentFabricSt = val;
+  else if (key === 'fvendor') currentFabricVendor = val;
+  else if (key === 'faddon') currentFabricAddon = val;
+  else if (key === 'fcim') currentFabricCim = val;
   else if (key === 'mitre') { currentMitreFilter = val; currentMitreTacticFilter = ''; }
   else if (key === 'mitre_tactic') { currentMitreTacticFilter = val; currentMitreFilter = ''; }
   reRender();
@@ -4980,6 +5000,17 @@ function selectMitreDdTactic(tactic) {
   reRender();
 }
 
+function fabricFacetSelect(label, key, dim, current) {
+  var html = '<div class="adv-group"><label class="adv-label">' + label + '</label><select class="c-select full" onchange="setAdvFilter(\'' + key + '\',this.value)">';
+  html += '<option value="all">All</option>';
+  var rows = (typeof FILTER_FACETS !== 'undefined' && FILTER_FACETS.fabric && FILTER_FACETS.fabric[dim]) || [];
+  rows.forEach(function(v) {
+    html += '<option value="' + esc(v.id) + '"' + (current === v.id ? ' selected' : '') + '>' + esc(v.label) + ' (' + v.count + ')</option>';
+  });
+  html += '</select></div>';
+  return html;
+}
+
 function advancedFilterPanel() {
   var html = '<div class="adv-filter-panel"><div class="adv-row">';
   html += '<div class="adv-group"><label class="adv-label">ES Detection</label><div class="adv-chips">';
@@ -5039,6 +5070,11 @@ function advancedFilterPanel() {
   if (!currentDsGroup && currentDatasourceFilter) {
     html += '<input type="text" class="c-input full mt" placeholder="Type data source…" aria-label="Filter by custom data source name" value="' + esc(currentDatasourceFilter) + '" oninput="debounceAdvSearch(\'datasource\',this.value)">';
   }
+  html += '</div>';
+  html += fabricFacetSelect('Sourcetype', 'fst', 'sourcetype', currentFabricSt);
+  html += fabricFacetSelect('Product', 'fvendor', 'vendorProduct', currentFabricVendor);
+  html += fabricFacetSelect('Add-on', 'faddon', 'addon', currentFabricAddon);
+  html += fabricFacetSelect('CIM dataset', 'fcim', 'cimDataset', currentFabricCim);
   html += '</div></div>';
   var mitreLabel = 'All tactics & techniques';
   var mitreHas = false;
@@ -5159,7 +5195,7 @@ function filterStrip() {
   }
   html += '<button type="button" class="c-chip trend' + (currentTrendFilter ? ' active' : '') + '" onclick="setTrendFilter()">📈 Trend</button>';
   html += '<span class="filter-count"><strong id="filter-count-num">0</strong> use cases</span></div>';
-  var anyAdv = currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all' || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentIndustryFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter;
+  var anyAdv = currentEscuFilter !== 'all' || currentDtypeFilter !== 'all' || currentPremiumFilter !== 'all' || currentCimFilter !== 'all' || currentSappFilter !== 'all' || currentIndustryFilter !== 'all' || currentMitreFilter || currentMitreTacticFilter || currentDsGroup || currentDatasourceFilter || currentFabricSt !== 'all' || currentFabricVendor !== 'all' || currentFabricAddon !== 'all' || currentFabricCim !== 'all';
   html += '<div class="adv-toggle-row"><button type="button" class="adv-toggle-btn' + (advFiltersOpen ? ' open' : '') + '" onclick="toggleAdvFilters()">Advanced Filters ' + (anyAdv ? '•' : '') + ' ' + (advFiltersOpen ? '▲' : '▼') + '</button></div>';
   if (advFiltersOpen) html += advancedFilterPanel();
   return html;
@@ -5192,6 +5228,10 @@ function activeFilterTags() {
   if (currentDtypeFilter !== 'all') tags.push({ label: 'Detection: ' + currentDtypeFilter, fn: "setAdvFilter('dtype','all')" });
   if (currentPremiumFilter !== 'all') tags.push({ label: 'Premium: ' + currentPremiumFilter, fn: "setAdvFilter('premium','all')" });
   if (currentCimFilter !== 'all') tags.push({ label: 'CIM: ' + currentCimFilter, fn: "setAdvFilter('cim','all')" });
+  if (currentFabricSt !== 'all') tags.push({ label: 'Sourcetype: ' + currentFabricSt, fn: "setAdvFilter('fst','all')" });
+  if (currentFabricVendor !== 'all') tags.push({ label: 'Product: ' + currentFabricVendor, fn: "setAdvFilter('fvendor','all')" });
+  if (currentFabricAddon !== 'all') tags.push({ label: 'Add-on: ' + currentFabricAddon, fn: "setAdvFilter('faddon','all')" });
+  if (currentFabricCim !== 'all') tags.push({ label: 'CIM dataset: ' + currentFabricCim, fn: "setAdvFilter('fcim','all')" });
   if (currentSappFilter !== 'all') {
     var sl = currentSappFilter;
     if (FILTER_FACETS.sapp) { var sf = FILTER_FACETS.sapp.find(function(s) { return String(s.id) === currentSappFilter; }); if (sf) sl = sf.name; }
@@ -5252,6 +5292,7 @@ function clearAllFilters() {
   currentFilter = 'all'; currentDiffFilter = 'all'; currentIndustryFilter = 'all'; currentMtypeFilter = 'all';
   currentPillarFilter = 'all'; currentRegulationFilter = 'all'; currentClauseFilter = 'all'; currentEscuFilter = 'all'; currentDtypeFilter = 'all';
   currentPremiumFilter = 'all'; currentCimFilter = 'all'; currentSappFilter = 'all'; currentMitreFilter = '';
+  currentFabricSt = 'all'; currentFabricVendor = 'all'; currentFabricAddon = 'all'; currentFabricCim = 'all';
   currentStatusFilter = 'all'; currentFreshFilter = 'all';
   currentMitreTacticFilter = ''; currentDsGroup = ''; currentDatasourceFilter = ''; currentTrendFilter = false;
   ovHeroGroupFilter = null; ovGroupFilter = 'all';
@@ -7389,6 +7430,7 @@ function goHome() {
   currentFilter = 'all'; currentDiffFilter = 'all'; currentIndustryFilter = 'all'; currentMtypeFilter = 'all';
   currentPillarFilter = 'all'; currentRegulationFilter = 'all'; currentEscuFilter = 'all'; currentDtypeFilter = 'all';
   currentPremiumFilter = 'all'; currentCimFilter = 'all'; currentSappFilter = 'all'; currentMitreFilter = '';
+  currentFabricSt = 'all'; currentFabricVendor = 'all'; currentFabricAddon = 'all'; currentFabricCim = 'all';
   currentStatusFilter = 'all'; currentFreshFilter = 'all';
   currentMitreTacticFilter = ''; currentDsGroup = ''; currentDatasourceFilter = ''; currentTrendFilter = false;
   selectedEquipmentId = '';

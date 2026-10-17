@@ -167,6 +167,46 @@ register(
 )
 register(
     Verb(
+        name="audit-category-counts",
+        module="audits.category_counts",
+        help="Fail when _category.json counts or subcategory ids drift from UC files.",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="audit-enrichment",
+        module="audits.enrichment",
+        help="Fail unknown enrichment ids or evidence that is not in the use case.",
+        category="audits",
+    )
+)
+register(
+    Verb(
+        name="mine-fabric-registries",
+        module="fabric.mine",
+        help="Rebuild registries/*.json from sidecar facts; --check fails on drift.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="build-fabric",
+        module="fabric.build_cmd",
+        help="Resolve sidecar facts into the fabric API, parquet, and graph.",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="enrich-pilot",
+        module="fabric.enrich",
+        help="Grade a seeded 300-use-case enrichment pilot; --write inserts strict-1.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="audit-dashboard-spl",
         module="audits.dashboard_spl",
         help="Audit Simple XML dashboard SPL queries for token expansion + REST validity.",

@@ -111,6 +111,10 @@ SEARCHABLE_FIELDS: tuple[str, ...] = (
     "mitre",  # MITRE T-IDs (list)
     "ind",    # industry
     "dtype",  # detection type
+    # ``fx`` (fabric alias text) is intentionally absent. Browse filters
+    # read ``fs`` / ``fv`` / ``fa`` / ``fc`` from the catalog index, not
+    # from these shards. Indexing the alias blob pushed shard 12 over
+    # its gzip cap without adding tokens the filters need.
 )
 
 _TOKEN_RE = re.compile(r"[a-z0-9_]+")
@@ -143,11 +147,14 @@ def render(catalog: Catalog, out_dir: Path, *, reproducible: bool = False) -> No
             "shard": shard_id,
             "postings": shards.get(shard_id, {}),
         }
+        # Postings are already ordered by list length. Alphabetical
+        # ``sort_keys`` gzipped the same shard past the hard cap, so
+        # shard bytes keep this order in both build modes.
         body = (
             json.dumps(
                 payload,
                 ensure_ascii=False,
-                sort_keys=reproducible,
+                sort_keys=False,
                 separators=(",", ":"),
             )
             + "\n"
@@ -246,6 +253,12 @@ def _shard_postings(
     for t, ids in postings.items():
         bucket = _shard_for(t)
         out[bucket][t] = ",".join(str(i) for i in ids)
+    # Key order changes gzip size by tens of kilobytes for the same
+    # postings (hash seed). Shortest lists first, then the token, keeps
+    # the emitted bytes deterministic and under the shard cap.
+    for bucket, postings_map in list(out.items()):
+        ordered = sorted(postings_map.items(), key=lambda kv: (len(kv[1]), kv[0]))
+        out[bucket] = dict(ordered)
     return out
 
 

@@ -66,6 +66,9 @@ _PROBE_ARGS: dict[str, dict[str, Any]] = {
     "find_compliance_gap": {"regulations": ["gdpr"]},
     "get_clause_coverage": {"regulation_id": "gdpr", "clause": "Art.5"},
     "list_uncovered_clauses": {"regulations": ["*"], "limit": 3},
+    "get_entity": {"entity_id": "pan-traffic"},
+    "get_neighbors": {"entity_id": "pan-traffic", "predicate": "uses"},
+    "find_related_use_cases": {"entity_id": "5.1.1", "limit": 3},
 }
 
 # Nested dotted paths the MCP tools depend on when they fall back to
@@ -153,8 +156,11 @@ def _check_runtime_schemas(issues: list[str]) -> None:
     from splunk_uc_mcp.catalog import Catalog
     from splunk_uc_mcp.tools import (
         FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
+        FIND_RELATED_OUTPUT_SCHEMA,
         GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
+        GET_ENTITY_OUTPUT_SCHEMA,
         GET_EQUIPMENT_OUTPUT_SCHEMA,
+        GET_NEIGHBORS_OUTPUT_SCHEMA,
         GET_REGULATION_OUTPUT_SCHEMA,
         GET_USE_CASE_OUTPUT_SCHEMA,
         LIST_CATEGORIES_OUTPUT_SCHEMA,
@@ -163,8 +169,11 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
         SEARCH_USE_CASES_OUTPUT_SCHEMA,
         find_compliance_gap,
+        find_related_use_cases,
         get_clause_coverage,
+        get_entity,
         get_equipment,
+        get_neighbors,
         get_regulation,
         get_use_case,
         get_use_case_markdown,
@@ -190,6 +199,9 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "find_compliance_gap": FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
         "get_clause_coverage": GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
         "list_uncovered_clauses": LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+        "get_entity": GET_ENTITY_OUTPUT_SCHEMA,
+        "get_neighbors": GET_NEIGHBORS_OUTPUT_SCHEMA,
+        "find_related_use_cases": FIND_RELATED_OUTPUT_SCHEMA,
     }
     callables: dict[str, Any] = {
         "search_use_cases": search_use_cases,
@@ -203,6 +215,9 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "find_compliance_gap": find_compliance_gap,
         "get_clause_coverage": get_clause_coverage,
         "list_uncovered_clauses": list_uncovered_clauses,
+        "get_entity": get_entity,
+        "get_neighbors": get_neighbors,
+        "find_related_use_cases": find_related_use_cases,
     }
 
     with Catalog(catalog_root=REPO_ROOT) as catalog:

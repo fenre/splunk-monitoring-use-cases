@@ -85,6 +85,11 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `premium` | string | **Premium apps** (ES, ITSI, SOAR) when required (optional). |
 | `hw` | string | **Equipment models:** specific hardware models (optional). |
 | `e` | array | **Equipment IDs:** from `EQUIPMENT` (matched by TA string). |
+| `fs` | array | **Fabric sourcetype ids** resolved from explicit `sourcetype=` tokens (optional, build-emitted). |
+| `fv` | array | **Fabric vendor-product ids** from `equipment` and resolved `app` aliases (optional, build-emitted). |
+| `fa` | array | **Fabric add-on ids** (Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup>) linked to the use case (optional, build-emitted). |
+| `fc` | array | **Fabric CIM dataset ids** (optional, build-emitted). |
+| `fx` | string | **Fabric alias text** on the use case (optional, build-emitted). Search shards do not index it. |
 | `em` | array | **Equipment model IDs** (optional). |
 | `status` | string | **Quality status:** `verified` \| `community` \| `draft` (optional, v5.1+). |
 | `reviewed` | string | **Last reviewed:** ISO date `YYYY-MM-DD` (optional, v5.1+). |
@@ -106,7 +111,7 @@ These fields are **not** authored in `content/cat-*/UC-*.json` — they are comp
 | `escu_rba` | boolean | Whether the ESCU detection is risk-based-alerting (RBA) eligible. |
 | `ind` | array | Industry tags (e.g. `["telco", "energy", "healthcare"]`). |
 | `tuc` | object | Telco use case narrative when present (label, sub-vertical, scope notes). |
-| `sapp` | array | Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> app metadata for `splunkbaseApps[]`: `[{ "id": "<int>", "name": "<str>", "tier": "<premium|free>", "screenshots": ["<url>", …] }]`. |
+| `sapp` | array | Splunkbase app metadata for `splunkbaseApps[]`: `[{ "id": "<int>", "name": "<str>", "tier": "<premium|free>", "screenshots": ["<url>", …] }]`. |
 | `sb` | array | Thin variant of `sapp` used by the [recommender app](recommender-app.md) (Splunkbase IDs only, no metadata). |
 | `_qt` | string | **Quality tier**: `gold` / `silver` / `bronze` / `none`. From the [scorecard methodology](scorecard.md). |
 | `_qs` | number | Quality score (0–100). |

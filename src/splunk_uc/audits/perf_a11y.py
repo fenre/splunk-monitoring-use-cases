@@ -163,7 +163,7 @@ _PERF_BUDGETS: list[PerfBudget] = [
     },
     {
         "file": "dist/catalog.json",
-        "budget_bytes": 172_000_000,  # ~164 MiB
+        "budget_bytes": 190_000_000,  # 190 MB
         "tier": "generated-data",
         "note": (
             "Full JSON catalogue for AI agents / scripted consumers. "
@@ -171,7 +171,9 @@ _PERF_BUDGETS: list[PerfBudget] = [
             "enrichment grew the catalogue past 148 MiB (~14,876 UCs). "
             "Previously 120 MiB in v8.19.0 (~117 MiB). Raised to 172 MiB "
             "after continued catalogue growth exceeded the 160 MiB v8.23.0 "
-            "budget."
+            "budget. Raised to 190 MB after the use-case fabric attached "
+            "sourcetype, product, add-on, and CIM ids plus alias text, and "
+            "category reconciliation added use cases in cat-05 and cat-22."
         ),
     },
     {
