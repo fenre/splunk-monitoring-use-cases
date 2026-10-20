@@ -64,7 +64,7 @@ def test_mcp_src_constant() -> None:
 
 
 def test_probe_args_has_eleven_tools() -> None:
-    """The documented MVP + clause + markdown tool set."""
+    """The documented tool set, including the fabric lookups."""
     assert set(mts._PROBE_ARGS.keys()) == {
         "search_use_cases",
         "get_use_case",
@@ -77,6 +77,9 @@ def test_probe_args_has_eleven_tools() -> None:
         "find_compliance_gap",
         "get_clause_coverage",
         "list_uncovered_clauses",
+        "get_entity",
+        "get_neighbors",
+        "find_related_use_cases",
     }
 
 
@@ -469,6 +472,9 @@ def _install_catalog_and_tools_stubs(
         "find_compliance_gap": "FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA",
         "get_clause_coverage": "GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA",
         "list_uncovered_clauses": "LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA",
+        "get_entity": "GET_ENTITY_OUTPUT_SCHEMA",
+        "get_neighbors": "GET_NEIGHBORS_OUTPUT_SCHEMA",
+        "find_related_use_cases": "FIND_RELATED_OUTPUT_SCHEMA",
     }
     for attr in schemas.values():
         setattr(tools_mod, attr, permissive_schema)
@@ -497,6 +503,9 @@ def _install_catalog_and_tools_stubs(
     tools_mod.find_compliance_gap = _make("find_compliance_gap")  # type: ignore[attr-defined]
     tools_mod.get_clause_coverage = _make("get_clause_coverage")  # type: ignore[attr-defined]
     tools_mod.list_uncovered_clauses = _make("list_uncovered_clauses")  # type: ignore[attr-defined]
+    tools_mod.get_entity = _make("get_entity")  # type: ignore[attr-defined]
+    tools_mod.get_neighbors = _make("get_neighbors")  # type: ignore[attr-defined]
+    tools_mod.find_related_use_cases = _make("find_related_use_cases")  # type: ignore[attr-defined]
 
     monkeypatch.setitem(sys.modules, "splunk_uc_mcp.catalog", catalog_mod)
     monkeypatch.setitem(sys.modules, "splunk_uc_mcp.tools", tools_mod)
@@ -531,8 +540,8 @@ def test_check_runtime_schemas_validation_error(
     monkeypatch.setattr(mts.jsonschema, "validate", fake_validate)
     issues: list[str] = []
     mts._check_runtime_schemas(issues)
-    # All 11 tools failed validation.
-    assert len(issues) == 11
+    # Every probed tool failed validation.
+    assert len(issues) == len(mts._PROBE_ARGS)
     assert all("payload does not match outputSchema" in i for i in issues)
     assert any("path: /foo/1/bar" in i for i in issues)
 
@@ -592,7 +601,7 @@ def test_main_clean(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
     assert mts.main([]) == 0
     out = capsys.readouterr().out
     assert "MCP drift guard: OK" in out
-    assert "11 tools validated" in out
+    assert f"{len(mts._EXPECTED_TOOLS)} tools validated" in out
 
 
 def test_main_quiet_suppresses_success(

@@ -138,7 +138,7 @@ if str(_LEGACY_SCRIPTS_DIR) not in sys.path:
     # where ``sys.path`` does NOT yet include ``scripts/`` and the
     # ``from equipment_lib import load_equipment`` on the next line
     # would fail without this insertion.
-from equipment_lib import load_equipment  # noqa: E402  (post-sys.path hack)
+from equipment_lib import load_equipment
 
 API_VERSION = "v1"
 API_ROOT = REPO_ROOT / "api" / API_VERSION
@@ -1943,6 +1943,11 @@ def _manifest(
                 "detail": f"/api/{API_VERSION}/equipment/{{equipmentId}}.json",
                 "appIndex": f"/api/{API_VERSION}/equipment/app-index.json",
             },
+            "fabric": {
+                "index": f"/api/{API_VERSION}/fabric/index.json",
+                "entity": f"/api/{API_VERSION}/fabric/{{type}}/{{id}}.json",
+                "facets": f"/api/{API_VERSION}/fabric/facets.json",
+            },
         },
         "deprecations": [],
         "successor": None,
@@ -2500,6 +2505,18 @@ def _render(out_root: pathlib.Path) -> None:
     # guard subsumes their output and the MCP drift guard can find
     # compliance/clauses/index.json locally on a fresh checkout.
     _render_story_surfaces(out_root)
+    _render_fabric(out_root)
+
+
+def _render_fabric(out_root: pathlib.Path) -> None:
+    """Write ``fabric/`` from sidecar facts. Additive; no existing path changes."""
+    from splunk_uc.fabric.publish import write_api, write_facets
+    from splunk_uc.fabric.resolve import resolve
+
+    fabric = resolve()
+    fabric_root = out_root / "fabric"
+    write_api(fabric, fabric_root)
+    write_facets(fabric, fabric_root / "facets.json")
 
 
 def _render_story_surfaces(out_root: pathlib.Path) -> None:

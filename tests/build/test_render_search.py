@@ -292,6 +292,53 @@ class TestBuildPostings:
 
 
 class TestShardPostings:
+    def test_fabric_alias_text_is_not_indexed(self):
+        """``fx`` stays on the catalogue record. Shards do not index it."""
+        assert "fx" not in render_search.SEARCHABLE_FIELDS
+
+    def test_keys_in_a_bucket_follow_posting_length_then_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Shortest posting lists first, then the token. Hash-seed insertion
+        order changes gzip size; this order does not."""
+        monkeypatch.setattr(render_search, "_shard_for", lambda _token: 0)
+        shards = render_search._shard_postings(
+            {
+                "zebra": [1, 2, 3, 4],
+                "alpha": [1],
+                "mid": [1, 2],
+            }
+        )
+        assert list(shards[0]) == ["alpha", "mid", "zebra"]
+
+    def test_reproducible_render_keeps_short_postings_first(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Reproducible builds must not alphabetise postings. That order
+        gzipped shard 12 over the cap after alias text was removed."""
+        monkeypatch.setattr(render_search, "_shard_for", lambda _token: 3)
+        ucs = []
+        for i in range(1, 5):
+            ucs.append({"i": f"1.1.{i}", "n": "common token"})
+        ucs[0]["v"] = "raretoken extra"
+        ucs[1]["v"] = "raretoken extra"
+        cat = _empty_catalog(
+            tmp_path,
+            categories=[
+                {"i": 1, "n": "Network", "s": [{"i": "1.1", "n": "Routing", "u": ucs}]},
+            ],
+        )
+        out_dir = tmp_path / "dist"
+        render_search.render(cat, out_dir, reproducible=True)
+        vocab = json.loads(
+            (out_dir / "assets" / "search-vocab.json").read_text(encoding="utf-8")
+        )
+        payload = json.loads(
+            (out_dir / "assets" / vocab["shardFiles"][3]).read_text(encoding="utf-8")
+        )
+        keys = list(payload["postings"])
+        assert keys.index("raretoken") < keys.index("common")
+
     def test_each_token_lands_in_its_own_fnv_bucket(self):
         postings = {
             "alpha": [0, 1, 2],

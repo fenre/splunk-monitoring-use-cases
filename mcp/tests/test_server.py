@@ -39,6 +39,9 @@ EXPECTED_TOOLS = {
     "find_compliance_gap",
     "get_clause_coverage",
     "list_uncovered_clauses",
+    "get_entity",
+    "get_neighbors",
+    "find_related_use_cases",
 }
 
 

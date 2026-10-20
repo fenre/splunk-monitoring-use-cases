@@ -823,6 +823,7 @@ function goHome() {
   currentFilter = 'all'; currentDiffFilter = 'all'; currentIndustryFilter = 'all'; currentMtypeFilter = 'all';
   currentPillarFilter = 'all'; currentRegulationFilter = 'all'; currentEscuFilter = 'all'; currentDtypeFilter = 'all';
   currentPremiumFilter = 'all'; currentCimFilter = 'all'; currentSappFilter = 'all'; currentMitreFilter = '';
+  currentFabricSt = 'all'; currentFabricVendor = 'all'; currentFabricAddon = 'all'; currentFabricCim = 'all';
   currentStatusFilter = 'all'; currentFreshFilter = 'all';
   currentMitreTacticFilter = ''; currentDsGroup = ''; currentDatasourceFilter = ''; currentTrendFilter = false;
   selectedEquipmentId = '';
