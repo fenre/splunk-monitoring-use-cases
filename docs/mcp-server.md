@@ -39,12 +39,13 @@ project's GitHub Pages mirror.
 
 | Surface | Count | Source |
 | --- | --- | --- |
-| Tools | 11 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
+| Tools | 14 | Declared in [`mcp/src/splunk_uc_mcp/server.py`](../mcp/src/splunk_uc_mcp/server.py) |
 | URI families | 4 (`uc://`, `reg://`, `equipment://`, `ledger://`) | Declared in [`mcp/src/splunk_uc_mcp/resources/uri_scheme.py`](../mcp/src/splunk_uc_mcp/resources/uri_scheme.py) |
 | Use cases exposed | 7,337 | `api/v1/recommender/uc-thin.json` + per-UC endpoints |
 | Regulations | 69 | `api/v1/compliance/regulations/index.json` |
 | Equipment slugs | 105 | `api/v1/equipment/index.json` |
 | Compliance gap report | 1 | `api/v1/compliance/gaps.json` |
+| Starter packs | 10 (draft) | `api/v1/starter-packs/index.json` |
 | Signed provenance ledger | 1 889 entries | `data/provenance/mapping-ledger.json` (local only) |
 
 Every operation is **read-only**. The server never writes to disk and
@@ -66,7 +67,7 @@ the stdio transport makes the agent the sole trust boundary.
 │ splunk-uc-mcp (python package, this repo)                            │
 │                                                                      │
 │   ┌────────────┐  ┌──────────────────────┐  ┌──────────────────────┐ │
-│   │ server.py  │─▶│ tools/*.py (11 tools) │─▶│ catalog.py           │ │
+│   │ server.py  │─▶│ tools/*.py (14 tools) │─▶│ catalog.py           │ │
 │   │ stdio loop │  │ resources/uri_scheme │  │ (local + HTTPS)      │ │
 │   └────────────┘  └──────────────────────┘  └──────────┬───────────┘ │
 └─────────────────────────────────────────────────────────┼────────────┘
@@ -390,6 +391,57 @@ hand an implementer a prioritised backlog of unmet obligations.
 }
 ```
 
+### `list_starter_packs`
+
+List guided-onboarding starter packs: short, ordered lists of existing
+use cases for one goal (`security` or `operations`) and one technology.
+Only `status=published` packs are returned unless `include_drafts` is
+true, matching the site's "Start here" wizard. See
+[`docs/starter-packs.md`](starter-packs.md).
+
+```json
+{
+  "goal": "security",                 // optional
+  "equipment_id": "windows",          // optional; compound ids like cisco_catalyst_center work
+  "include_drafts": false             // default false
+}
+```
+
+### `get_starter_pack`
+
+Return one pack: required Splunkbase<sup class="ref">[<a href="#ref-6">6</a>]</sup> add-ons, sourcetypes and indexes,
+industry sources, readiness, and the ordered steps (title, difficulty,
+wave, sourcetypes, and links to each UC's JSON and markdown twins).
+Draft packs return `not_found` unless `include_drafts` is true.
+
+```json
+{ "pack_id": "windows-security-basics", "include_drafts": true }
+```
+
+### `plan_rollout`
+
+Build a starter plan from what the user already has. Runs the same
+planner as the browser wizard (`src/scripts/07-starter-plan.js`,
+mirrored in `mcp/src/splunk_uc_mcp/starter_plan.py` and pinned by
+`tests/fixtures/starter-plan-parity.json`), so both give the same
+answer. Returns at most 10 ordered steps, the packs they come from
+(`unlock`: `full` / `partial` / `none`), and up to three `nextSources`
+that would unlock the most remaining steps. `level` only sets
+`difficultyWarning` on harder steps; nothing is filtered out.
+
+```json
+{
+  "goal": "operations",
+  "level": "beginner",                // beginner | intermediate | advanced | expert
+  "sourcetypes": ["splunkd", "WinEventLog:System"],
+  "indexes": ["_internal"],
+  "equipment": ["windows"],
+  "paste": "index\tsourcetype\tcount\n...",   // optional raw tstats output
+  "include_drafts": false,
+  "max_steps": 10
+}
+```
+
 ## Resource reference
 
 URI-addressable views over the same data. These are ideal for MCP
@@ -654,6 +706,8 @@ in-memory JSON-RPC integration pattern.
 <a id="ref-4"></a>**[4]** European Parliament and Council of the European Union. (2016, April). *Regulation (EU) 2016/679 — General Data Protection Regulation*. Official Journal of the European Union, L 119. ELI: reg/2016/679. https://eur-lex.europa.eu/eli/reg/2016/679/oj
 
 <a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 ### Related repository documents
 

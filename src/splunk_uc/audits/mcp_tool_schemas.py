@@ -13,8 +13,9 @@ Checks performed:
 1. Required tools are declared: the eight MVP tools plus the two
    clause-level story tools (``get_clause_coverage`` and
    ``list_uncovered_clauses``) shipped in v1.6.x and the v7.4.2
-   ``get_use_case_markdown`` LLM-friendly markdown twin — all with
-   matching input and output schemas.
+   ``get_use_case_markdown`` LLM-friendly markdown twin, plus the v8.26
+   guided-onboarding tools (``list_starter_packs``, ``get_starter_pack``,
+   ``plan_rollout``) — all with matching input and output schemas.
 2. Slug regexes are frozen (UC/regulation/equipment) — the drift guard
    asserts the compiled patterns the server uses to validate resource
    URIs, so a future change that relaxes them raises a red flag.
@@ -66,6 +67,13 @@ _PROBE_ARGS: dict[str, dict[str, Any]] = {
     "find_compliance_gap": {"regulations": ["gdpr"]},
     "get_clause_coverage": {"regulation_id": "gdpr", "clause": "Art.5"},
     "list_uncovered_clauses": {"regulations": ["*"], "limit": 3},
+    "list_starter_packs": {"include_drafts": True},
+    "get_starter_pack": {"pack_id": "windows-security-basics", "include_drafts": True},
+    "plan_rollout": {
+        "goal": "security",
+        "sourcetypes": ["XmlWinEventLog:Security"],
+        "include_drafts": True,
+    },
 }
 
 # Nested dotted paths the MCP tools depend on when they fall back to
@@ -156,22 +164,28 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
         GET_EQUIPMENT_OUTPUT_SCHEMA,
         GET_REGULATION_OUTPUT_SCHEMA,
+        GET_STARTER_PACK_OUTPUT_SCHEMA,
         GET_USE_CASE_OUTPUT_SCHEMA,
         LIST_CATEGORIES_OUTPUT_SCHEMA,
         LIST_EQUIPMENT_OUTPUT_SCHEMA,
         LIST_REGULATIONS_OUTPUT_SCHEMA,
+        LIST_STARTER_PACKS_OUTPUT_SCHEMA,
         LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+        PLAN_ROLLOUT_OUTPUT_SCHEMA,
         SEARCH_USE_CASES_OUTPUT_SCHEMA,
         find_compliance_gap,
         get_clause_coverage,
         get_equipment,
         get_regulation,
+        get_starter_pack,
         get_use_case,
         get_use_case_markdown,
         list_categories,
         list_equipment,
         list_regulations,
+        list_starter_packs,
         list_uncovered_clauses,
+        plan_rollout,
         search_use_cases,
     )
     from splunk_uc_mcp.tools.use_case import (
@@ -190,6 +204,9 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "find_compliance_gap": FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA,
         "get_clause_coverage": GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA,
         "list_uncovered_clauses": LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
+        "list_starter_packs": LIST_STARTER_PACKS_OUTPUT_SCHEMA,
+        "get_starter_pack": GET_STARTER_PACK_OUTPUT_SCHEMA,
+        "plan_rollout": PLAN_ROLLOUT_OUTPUT_SCHEMA,
     }
     callables: dict[str, Any] = {
         "search_use_cases": search_use_cases,
@@ -203,6 +220,9 @@ def _check_runtime_schemas(issues: list[str]) -> None:
         "find_compliance_gap": find_compliance_gap,
         "get_clause_coverage": get_clause_coverage,
         "list_uncovered_clauses": list_uncovered_clauses,
+        "list_starter_packs": list_starter_packs,
+        "get_starter_pack": get_starter_pack,
+        "plan_rollout": plan_rollout,
     }
 
     with Catalog(catalog_root=REPO_ROOT) as catalog:

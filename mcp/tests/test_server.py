@@ -39,6 +39,9 @@ EXPECTED_TOOLS = {
     "find_compliance_gap",
     "get_clause_coverage",
     "list_uncovered_clauses",
+    "list_starter_packs",
+    "get_starter_pack",
+    "plan_rollout",
 }
 
 

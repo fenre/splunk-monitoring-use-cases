@@ -522,6 +522,9 @@ schemas. Install with `pip install -e mcp/[test]`. Drift-guarded by
 | `find_compliance_gap(regulations[], equipment_id?)` | ✅ USED | Uncovered clauses with optional equipment overlay |
 | `get_clause_coverage(regulation_id, clause, version?)` | ✅ USED (v7.1) | Per-clause detail: `coverageState`, `coveringUcs`, deep link to the clause navigator |
 | `list_uncovered_clauses(regulations[], tier?, include_common_only?, limit?)` | ✅ USED (v7.1) | Uncovered clauses sorted by priority weight |
+| `list_starter_packs(goal?, equipment_id?, include_drafts?)` | ✅ USED (v8.26, preview) | Guided-onboarding packs; published only by default |
+| `get_starter_pack(pack_id, include_drafts?)` | ✅ USED (v8.26, preview) | One pack with required data and ordered steps |
+| `plan_rollout(goal, level?, sourcetypes?, indexes?, equipment?, paste?, include_drafts?, max_steps?)` | ✅ USED (v8.26, preview) | Ordered starter plan (max 10 UCs) plus next data sources to onboard |
 
 ### Per-regulation Splunk apps (`splunk-apps/`)
 
