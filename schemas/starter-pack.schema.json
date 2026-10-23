@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/starter-pack.schema.json",
+  "title": "Starter pack",
+  "description": "A curated, ordered onboarding pack of existing use cases for one data source and one goal (security or operations). Packs reference UCs by id only; the UC sidecar stays the source of truth for SPL and guidance. Gated by audit-starter-packs and published under /api/v1/starter-packs/.",
+  "version": "1.0.0",
+  "x-stability": "preview",
+  "x-since": "v8.26",
+  "x-changelog": "/schemas/changelogs/starter-pack.md",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "title",
+    "description",
+    "goal",
+    "status",
+    "pairId",
+    "equipment",
+    "requiredData",
+    "industrySources",
+    "steps",
+    "nextPacks"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Repo-relative path to this schema file (for editor validation)."
+    },
+    "id": {
+      "type": "string",
+      "description": "Stable kebab-case pack id. Must match the file name (data/starter-packs/<id>.json). Permanent once published.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 80
+    },
+    "description": {
+      "type": "string",
+      "description": "Plain-language summary shown on the pack card. Who it is for and what it catches.",
+      "minLength": 40,
+      "maxLength": 600
+    },
+    "goal": {
+      "type": "string",
+      "enum": ["security", "operations"],
+      "description": "The wizard and plan_rollout only surface packs whose goal matches the user's selected goal."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "published"],
+      "description": "Drafts are hidden from the UI and MCP by default. Publishing fails while audit-starter-packs reports warnings for the pack."
+    },
+    "pairId": {
+      "type": ["string", "null"],
+      "description": "Sibling pack with the opposite goal for the same data source, or null when industry practice has no distinct list for the other goal. A UC may not appear in both packs of a pair.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "equipment": {
+      "type": "array",
+      "description": "Inventory slugs (EQUIPMENT ids such as 'windows' or compound model ids such as 'cisco_catalyst_center'). The wizard prefers packs whose equipment matches the user's inventory.",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_]*$"
+      }
+    },
+    "requiredData": {
+      "$ref": "#/$defs/requiredData"
+    },
+    "industrySources": {
+      "type": "array",
+      "description": "The external lists the steps were picked from. Keeps future edits anchored to industry practice rather than catalogue criticality.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/industrySource"
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "Ordered UC references. No SPL override; the UC sidecar is the source of truth.",
+      "minItems": 1,
+      "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "nextPacks": {
+      "type": "array",
+      "description": "Suggested follow-on packs. Suggestions only: the UI shows them when the user's inventory matches the next pack's equipment.",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      }
+    },
+    "curationNotes": {
+      "type": "array",
+      "description": "Reviewer notes on known content gaps in packed UCs (for example a threshold that differs from the vendor default). Shown to curators, not to end users.",
+      "items": {
+        "type": "string",
+        "minLength": 10
+      }
+    }
+  },
+  "$defs": {
+    "requiredData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["splunkbaseApps", "sourcetypes", "indexes", "notes"],
+      "properties": {
+        "splunkbaseApps": {
+          "type": "array",
+          "description": "Primary Splunkbase add-ons the pack needs. Empty for packs that run on Splunk's own _internal / _audit data.",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "displayName"],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "displayName": {
+                "type": "string",
+                "minLength": 3
+              }
+            }
+          }
+        },
+        "sourcetypes": {
+          "type": "array",
+          "description": "Sourcetypes the pack steps search. Used by the audit (step coverage) and by the paste-sourcetypes matcher (pack unlock).",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 2
+          }
+        },
+        "indexes": {
+          "type": "array",
+          "description": "Splunk internal indexes the steps read (e.g. _internal, _audit). Customer index names are deployment choices and are not listed.",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^_[a-z0-9_]+$"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Licences, roles, or input settings that are not Splunk apps (for example DNA Advantage, SUPER-ADMIN-ROLE, 'enable Collect BGP data').",
+          "minLength": 10
+        }
+      }
+    },
+    "industrySource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "control"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "control": {
+          "type": "string",
+          "description": "Which control, alert rule, or recommendation in the source the pack follows.",
+          "minLength": 5
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ucId", "order"],
+      "properties": {
+        "ucId": {
+          "type": "string",
+          "pattern": "^UC-[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

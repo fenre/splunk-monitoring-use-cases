@@ -19,6 +19,7 @@
        generate-stewardship-digest generate-mapping-ledger \
        generate-manifest-samples generate-equipment-tags \
        generate-evidence-packs generate-evidence-signatures generate-api-surface \
+       generate-starter-packs audit-starter-packs \
        generate-rag-chunks audit-rag-chunks \
 	generate-alert-actions audit-alert-actions \
 	generate-dashboards audit-dashboards \
@@ -362,6 +363,12 @@ generate-evidence-signatures: ## Generate dist/evidence manifests (unsigned; wor
 generate-api-surface: ## Regenerate api/v1/* static JSON surface
 	$(SPLUNK_UC) generate-api-surface
 
+generate-starter-packs: ## Build api/v1/starter-packs/* from data/starter-packs/
+	$(SPLUNK_UC) generate-starter-packs
+
+audit-starter-packs: ## Validate data/starter-packs/*.json (errors fail; warnings block publish)
+	$(SPLUNK_UC) audit-starter-packs --check
+
 generate-phase2-mini-categories: ## Phase 2.2 generator (cat-22.35-22.49 mini-category UCs)
 	$(SPLUNK_UC) generate-phase2-mini-categories
 
@@ -507,6 +514,7 @@ preflight: _require-py311 ## Regenerate every committed derived artefact, then s
 	@$(BUILD)
 	@echo "==> preflight [3/5] api/v1 static surface"
 	@$(SPLUNK_UC) generate-api-surface
+	@$(SPLUNK_UC) generate-starter-packs
 	@echo "==> preflight [4/5] standalone report writers"
 	@echo "    → docs/splunk-cloud-compat.md"
 	@$(SPLUNK_UC) audit-splunk-cloud-compat
