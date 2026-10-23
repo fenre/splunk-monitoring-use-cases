@@ -896,6 +896,8 @@ html.dark .src-badge.used { color: #85BD46; }
 .start-paste:focus { outline: none; border-color: var(--cisco-blue); box-shadow: 0 0 0 3px rgba(4,159,217,0.12); }
 .start-link { background: none; border: none; padding: 0; color: var(--text-link); cursor: pointer; font-size: inherit; text-decoration: underline; }
 .start-callout { padding: 12px 14px; border-radius: var(--radius-md); background: var(--bg-callout); border: 1px solid var(--border-accent); font-size: 13px; margin-bottom: 12px; }
+.start-callout p { margin: 0 0 6px; }
+.start-callout p:last-child { margin-bottom: 0; }
 .start-preview { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; margin-left: 4px; cursor: pointer; }
 .start-preview.small { font-size: 12px; color: var(--text-tertiary); font-weight: 500; margin: 0 0 8px; }
 .start-summary { font-size: 13px; margin: 4px 0 8px; }
@@ -5566,7 +5568,8 @@ function buildSidebar() {
     var ag = catToGroup[currentCat];
     if (ag) { expandedSidebarGroups.clear(); expandedSidebarGroups.add(ag); }
   }
-  var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
+  var html = '<div class="c-sidebar-item' + (!currentCat && !currentSearch && !packsView ? ' active' : '') + '" onclick="goHome()">' + si('globe') + '<span>Overview</span><span class="c-sidebar-count">' + filt.length + '</span></div>';
+  html += '<div class="c-sidebar-item' + (packsView && !detailOpen ? ' active' : '') + '" tabindex="0" role="button" onclick="openPacksView()" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openPacksView()}">' + si('list') + '<span>Starter packs</span></div>';
   var groupOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   groupOrder.forEach(function(g) {
     if (g === 'personal' && !showFunStuff) return;
@@ -5620,10 +5623,7 @@ function roadmapBlock() {
 }
 
 function starterPackBrowseURL() {
-  var base = (typeof window.__SITE_BASE_PATH === 'string' && window.__SITE_BASE_PATH)
-    ? window.__SITE_BASE_PATH.replace(/\/+$/, '')
-    : '';
-  return base + '/api/v1/starter-packs/';
+  return '#packs';
 }
 
 function renderOverview() {
@@ -5654,7 +5654,7 @@ function renderOverview() {
   html += '<div class="start-cta" role="region" aria-label="Guided onboarding"><div class="start-cta-text"><strong>New to Splunk? Start here</strong>'
     + '<span>Answer a few questions, optionally paste what is already in your Splunk, and get a short ordered list of use cases to turn on first.</span></div>'
     + '<div class="start-cta-actions"><button type="button" class="start-cta-btn" onclick="openStartWizard()">Build my starter plan &rarr;</button>'
-    + '<a class="start-cta-browse" href="' + starterPackBrowseURL() + '">Browse the packs</a></div></div>';
+    + '<a class="start-cta-browse" href="' + starterPackBrowseURL() + '" onclick="openPacksView();return false;">Browse the packs</a></div></div>';
 
   var heroOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   var heroLabels = { infra:'Infrastructure', security:'Security', cloud:'Cloud', app:'Applications', industry:'Industry', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };
@@ -6475,6 +6475,11 @@ function closeDetail() {
   detailEntry = null;
   document.body.classList.remove('detail-open');
   window.scrollTo(0, _detailScrollPos);
+  if (typeof packsView !== 'undefined' && packsView) {
+    currentCat = null;
+    currentSubcat = null;
+    buildSidebar();
+  }
   updateHash(true);
 }
 
@@ -7364,7 +7369,12 @@ function updateHash(replace) {
   if (typeof isStartWizardOpen === 'function' && isStartWizardOpen()) return;
   var pb = document.getElementById('panel-backdrop');
   if (pb && pb.classList.contains('open')) return;
-  if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
+  if (typeof packsView !== 'undefined' && packsView && currentCat == null && !currentSearch) {
+    hash = '#packs';
+    if (packsAnchor) hash += '/' + encodeURIComponent(packsAnchor);
+    else if (packsGoal && packsGoal !== 'all') hash += '?goal=' + encodeURIComponent(packsGoal);
+  }
+  else if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
   else if (currentCat != null) {
     hash = '#cat-' + currentCat;
     if (currentSubcat) hash += '/' + currentSubcat;
@@ -7386,6 +7396,20 @@ function updateHash(replace) {
 
 function restoreFromHash() {
   var h = (location.hash || '').replace(/^#/, '');
+  if (/^packs(?:\/|\?|$)/.test(h)) {
+    var parsed = parsePacksHash(h);
+    packsView = true;
+    packsGoal = parsed.goal;
+    packsAnchor = parsed.anchor;
+    currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
+    var packSearch = document.getElementById('search-input');
+    if (packSearch) packSearch.value = '';
+    if (isStartWizardOpen()) closeStartWizard(true);
+    reRender();
+    if (detailOpen) closeDetail();
+    return;
+  }
+  packsView = false;
   if (/^start(\?|$)/.test(h)) {
     if (!isStartWizardOpen()) {
       currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
@@ -7498,6 +7522,7 @@ function restoreFromHash() {
 }
 
 function goHome() {
+  packsView = false;
   if (detailOpen) closeDetail();
   currentCat = null; currentSubcat = null; catShowAllUCs = false; currentSearch = '';
   ovHeroGroupFilter = null; ovGroupFilter = 'all';
@@ -7591,6 +7616,7 @@ function enableFunStuffAndNavigate() {
 }
 
 function selectCat(id, skipHash) {
+  packsView = false;
   if (id != null && isPersonalCat(id) && !showFunStuff) {
     blockFunStuffNavigation(id);
     return;
@@ -7728,6 +7754,11 @@ function reRender() {
     if (detailOpen) closeDetail();
   }
   buildSidebar();
+  if ((currentCat != null || currentSearch) && !detailOpen) packsView = false;
+  if (packsView) {
+    if (!detailOpen) renderPacksBrowse();
+    return;
+  }
   if (nonTechnicalView) {
     if (currentCat == null) renderNonTechnicalOverview();
     else renderNonTechnicalCategory(currentCat);
@@ -8052,7 +8083,7 @@ function initApp() {
         currentSearch = ev.target.value.trim();
         searchShowAll = false;
         deskInput.value = currentSearch;
-        if (currentSearch) { currentCat = null; }
+        if (currentSearch) { currentCat = null; packsView = false; }
         reRender();
         updateHash(false);
       }, 200);
@@ -8088,7 +8119,7 @@ function initApp() {
     st = setTimeout(function() {
       currentSearch = ev.target.value.trim();
       searchShowAll = false;
-      if (currentSearch) { currentCat = null; }
+      if (currentSearch) { currentCat = null; packsView = false; }
       reRender();
       if (currentSearch) updateHash(false);
       else updateHash(false);
@@ -9182,6 +9213,140 @@ function _startStepPlan() {
     + '<button type="button" class="inv-btn" onclick="startExport(\'csv\')">CSV</button>'
     + '<button type="button" class="inv-btn primary" onclick="startExport(\'ai\')">Copy as AI prompt</button></div>';
   return html;
+}
+
+var packsView;
+var packsGoal;
+var packsAnchor;
+var PACK_BROWSE_ORDER = [
+  'splunk-platform-ops', 'splunk-platform-security',
+  'windows-ops', 'windows-security-basics',
+  'linux-ops-basics', 'linux-security-basics',
+  'catalyst-center-ops', 'catalyst-center-security',
+  'thousandeyes-ops', 'thousandeyes-security',
+  'meraki-ops', 'meraki-security',
+  'ise-ops', 'ise-security',
+  'paloalto-firewall-security'
+];
+
+function parsePacksHash(h) {
+  var out = { goal: 'all', anchor: '' };
+  var m = String(h || '').match(/^packs(?:\/([^?]*))?(?:\?(.*))?$/);
+  if (!m) return out;
+  if (m[1]) {
+    try { out.anchor = decodeURIComponent(m[1]); }
+    catch (_) { out.anchor = m[1]; }
+  }
+  if (m[2]) {
+    m[2].split('&').forEach(function(kv) {
+      var i = kv.indexOf('=');
+      if (i < 1) return;
+      if (kv.slice(0, i) !== 'goal') return;
+      var g = kv.slice(i + 1);
+      if (g === 'security' || g === 'operations' || g === 'all') out.goal = g;
+    });
+  }
+  if (out.anchor) out.goal = 'all';
+  return out;
+}
+
+function openPacksView(goal, anchor) {
+  packsView = true;
+  packsGoal = goal || 'all';
+  packsAnchor = anchor || '';
+  if (packsAnchor) packsGoal = 'all';
+  currentCat = null;
+  currentSubcat = null;
+  currentSearch = '';
+  ovGroupFilter = 'all';
+  ovHeroGroupFilter = null;
+  var si = document.getElementById('search-input');
+  if (si) si.value = '';
+  if (typeof isStartWizardOpen === 'function' && isStartWizardOpen()) closeStartWizard(true);
+  if (detailOpen) closeDetail();
+  reRender();
+  updateHash(false);
+  if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
+}
+
+function _packRank(id) {
+  var i = PACK_BROWSE_ORDER.indexOf(id);
+  return i < 0 ? PACK_BROWSE_ORDER.length : i;
+}
+
+function renderPacksBrowse() {
+  window.scrollTo(0, 0);
+  if (ucScrollObserver) { ucScrollObserver.disconnect(); ucScrollObserver = null; }
+  var main = document.getElementById('main');
+  if (!main) return;
+  var back = document.getElementById('back-btn');
+  if (back) back.style.display = 'flex';
+  main.innerHTML = '<p class="c-section-desc">Loading starter packs…</p>';
+  _spEnsureIndex().then(function(index) {
+    if (!packsView) return;
+    _drawPacks(main, index || { packs: [] });
+  });
+}
+
+function _drawPacks(main, index) {
+  var packs = (index.packs || []).slice().sort(function(a, b) { return _packRank(a.id) - _packRank(b.id); });
+  var byId = {};
+  packs.forEach(function(p) { byId[p.id] = p; });
+  var goal = packsGoal || 'all';
+  var shown = packs.filter(function(p) { return goal === 'all' || p.goal === goal; });
+  var html = '<div class="c-section-header"><div class="ov-hero-badge">Guided onboarding</div>';
+  html += '<h1 class="c-section-title">Starter packs</h1>';
+  html += '<p class="c-section-desc">Short ordered lists of use cases to turn on first. Click a use case to open it.</p></div>';
+  html += '<div class="filter-strip">' + browseToggleHtml();
+  [['all', 'All'], ['operations', 'Operations'], ['security', 'Security']].forEach(function(g) {
+    html += '<button type="button" class="c-chip' + (goal === g[0] ? ' active' : '') + '" onclick="openPacksView(\'' + g[0] + '\')">' + g[1] + '</button>';
+  });
+  html += '</div>';
+  if (packs.some(function(p) { return p.status !== 'published'; })) {
+    html += '<div class="start-callout">Packs marked Preview are still being checked. The Start-here wizard hides them until you tick “Preview draft packs”.</div>';
+  }
+  if (index._error) {
+    html += emptyState('The starter packs did not load.');
+    main.innerHTML = html;
+    return;
+  }
+  var displayed = [];
+  shown.forEach(function(pack) {
+    var data = pack.requiredData || {};
+    var apps = (data.splunkbaseApps || []).map(function(a) { return a.displayName; }).filter(Boolean);
+    html += '<section class="c-subcat-group" id="pack-' + esc(pack.id) + '">';
+    html += '<h2 class="c-subcat-title">' + esc(pack.title) + '</h2>';
+    html += '<div class="uc-card-tags" style="margin:8px 0 10px">';
+    html += '<span class="uc-card-pillar ' + (pack.goal === 'security' ? 'security' : 'observability') + '">' + (pack.goal === 'security' ? 'Security' : 'Operations') + '</span>';
+    if (pack.status !== 'published') html += '<span class="c-badge c-badge-medium">Preview</span>';
+    html += '</div>';
+    html += '<p class="c-section-desc">' + esc(pack.description) + '</p>';
+    var need = '';
+    if (apps.length) need += '<p>Add-on: ' + esc(apps.join(', ')) + '</p>';
+    if (data.indexes && data.indexes.length) need += '<p>Already in Splunk: ' + esc(data.indexes.join(', ')) + '</p>';
+    if (data.notes) need += '<p>' + esc(data.notes) + '</p>';
+    if (need) html += '<div class="start-callout">' + need + '</div>';
+    html += '<div class="' + _ucContainerClass() + '">';
+    (pack.steps || []).forEach(function(step) {
+      var id = String(step.ucId || '').replace(/^UC-/, '');
+      var entry = ucIndex[id];
+      if (!entry) return;
+      displayed.push(entry);
+      html += _renderUC(entry.uc);
+    });
+    html += '</div>';
+    if (pack.pairId && byId[pack.pairId]) {
+      html += '<p class="c-section-desc">The other goal for this data: <a href="#packs/' + esc(pack.pairId) + '" onclick="openPacksView(\'all\',\'' + esc(pack.pairId) + '\');return false;">' + esc(byId[pack.pairId].title) + '</a></p>';
+    }
+    html += '</section>';
+  });
+  if (!shown.length) html += emptyState('No packs for that goal.');
+  currentDisplayedList = displayed;
+  main.innerHTML = html;
+  if (packsAnchor) {
+    var el = document.getElementById('pack-' + packsAnchor);
+    if (el) el.scrollIntoView();
+  }
 }
 
 function _startRender() {

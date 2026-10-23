@@ -696,7 +696,12 @@ function updateHash(replace) {
   if (typeof isStartWizardOpen === 'function' && isStartWizardOpen()) return;
   var pb = document.getElementById('panel-backdrop');
   if (pb && pb.classList.contains('open')) return;
-  if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
+  if (typeof packsView !== 'undefined' && packsView && currentCat == null && !currentSearch) {
+    hash = '#packs';
+    if (packsAnchor) hash += '/' + encodeURIComponent(packsAnchor);
+    else if (packsGoal && packsGoal !== 'all') hash += '?goal=' + encodeURIComponent(packsGoal);
+  }
+  else if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
   else if (currentCat != null) {
     hash = '#cat-' + currentCat;
     if (currentSubcat) hash += '/' + currentSubcat;
@@ -718,6 +723,20 @@ function updateHash(replace) {
 
 function restoreFromHash() {
   var h = (location.hash || '').replace(/^#/, '');
+  if (/^packs(?:\/|\?|$)/.test(h)) {
+    var parsed = parsePacksHash(h);
+    packsView = true;
+    packsGoal = parsed.goal;
+    packsAnchor = parsed.anchor;
+    currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
+    var packSearch = document.getElementById('search-input');
+    if (packSearch) packSearch.value = '';
+    if (isStartWizardOpen()) closeStartWizard(true);
+    reRender();
+    if (detailOpen) closeDetail();
+    return;
+  }
+  packsView = false;
   if (/^start(\?|$)/.test(h)) {
     if (!isStartWizardOpen()) {
       currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
@@ -830,6 +849,7 @@ function restoreFromHash() {
 }
 
 function goHome() {
+  packsView = false;
   if (detailOpen) closeDetail();
   currentCat = null; currentSubcat = null; catShowAllUCs = false; currentSearch = '';
   ovHeroGroupFilter = null; ovGroupFilter = 'all';
@@ -923,6 +943,7 @@ function enableFunStuffAndNavigate() {
 }
 
 function selectCat(id, skipHash) {
+  packsView = false;
   if (id != null && isPersonalCat(id) && !showFunStuff) {
     blockFunStuffNavigation(id);
     return;
@@ -1060,6 +1081,11 @@ function reRender() {
     if (detailOpen) closeDetail();
   }
   buildSidebar();
+  if ((currentCat != null || currentSearch) && !detailOpen) packsView = false;
+  if (packsView) {
+    if (!detailOpen) renderPacksBrowse();
+    return;
+  }
   if (nonTechnicalView) {
     if (currentCat == null) renderNonTechnicalOverview();
     else renderNonTechnicalCategory(currentCat);
@@ -1384,7 +1410,7 @@ function initApp() {
         currentSearch = ev.target.value.trim();
         searchShowAll = false;
         deskInput.value = currentSearch;
-        if (currentSearch) { currentCat = null; }
+        if (currentSearch) { currentCat = null; packsView = false; }
         reRender();
         updateHash(false);
       }, 200);
@@ -1420,7 +1446,7 @@ function initApp() {
     st = setTimeout(function() {
       currentSearch = ev.target.value.trim();
       searchShowAll = false;
-      if (currentSearch) { currentCat = null; }
+      if (currentSearch) { currentCat = null; packsView = false; }
       reRender();
       if (currentSearch) updateHash(false);
       else updateHash(false);
