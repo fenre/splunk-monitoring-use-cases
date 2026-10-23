@@ -10,7 +10,10 @@ var START_QUICK_EQUIPMENT = [
   { id: 'windows', label: 'Windows servers' },
   { id: 'linux', label: 'Linux servers' },
   { id: 'cisco_catalyst_center', label: 'Cisco Catalyst Center (DNA Center)' },
-  { id: 'cisco_thousandeyes', label: 'Cisco ThousandEyes' }
+  { id: 'cisco_thousandeyes', label: 'Cisco ThousandEyes' },
+  { id: 'cisco_meraki', label: 'Cisco Meraki' },
+  { id: 'cisco_ise', label: 'Cisco ISE' },
+  { id: 'paloalto_pan_firewall', label: 'Palo Alto Networks firewalls' }
 ];
 var START_LEVELS = [
   { id: 'beginner', label: 'New to Splunk', hint: 'I have not built searches or alerts yet.' },
