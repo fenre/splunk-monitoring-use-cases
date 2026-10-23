@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starter packs — Use Case Repository for Splunk</title>
+<style>
+  :root {
+    --blue: #049FD9;
+    --navy: #003B8A;
+    --ink: #1B1C1D;
+    --muted: #5C6166;
+    --line: #E4E6E8;
+    --bg: #F7F7F7;
+    --card: #fff;
+    --teal: #047A84;
+    --teal-bg: #E6F6F7;
+    --red: #9C2F22;
+    --red-bg: #FDECEA;
+    --amber: #8A6500;
+    --amber-bg: #FFF6D8;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, "Segoe UI", Helvetica, Arial, sans-serif; background: var(--bg); color: var(--ink); line-height: 1.5; }
+  header { background: var(--navy); color: #fff; padding: 28px 24px 24px; }
+  header a { color: #B7E6F6; text-decoration: none; font-size: 14px; }
+  header a:hover { text-decoration: underline; }
+  header h1 { margin: 10px 0 6px; font-size: 32px; letter-spacing: -0.02em; }
+  header p { margin: 0; max-width: 42rem; color: #D6E4F0; }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 20px 20px 64px; }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 18px; }
+  .tools button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 14px; cursor: pointer; color: var(--ink); }
+  .tools button[aria-pressed="true"] { background: var(--navy); color: #fff; border-color: var(--navy); }
+  article { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px 8px; margin: 0 0 16px; }
+  h2 { margin: 0; font-size: 22px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 10px; }
+  .badge { font-size: 12px; font-weight: 700; letter-spacing: 0.02em; padding: 2px 8px; border-radius: 999px; }
+  .goal-operations { background: var(--teal-bg); color: var(--teal); }
+  .goal-security { background: var(--red-bg); color: var(--red); }
+  .draft { background: var(--amber-bg); color: var(--amber); }
+  .lead { margin: 0 0 14px; color: var(--ink); }
+  h3 { margin: 16px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  ol { margin: 0 0 8px; padding-left: 1.3rem; }
+  li { margin: 0 0 8px; }
+  li a { color: var(--navy); font-weight: 600; text-decoration: none; }
+  li a:hover { text-decoration: underline; }
+  .meta { display: block; color: var(--muted); font-size: 13px; font-weight: 400; }
+  .need { margin: 0 0 8px; }
+  .need code { font-family: "Roboto Mono", ui-monospace, monospace; font-size: 12px; background: #F3F4F5; padding: 1px 5px; border-radius: 4px; }
+  .sources { margin: 0 0 12px; padding-left: 1.2rem; }
+  .sources a { color: var(--navy); }
+  .also a { color: var(--navy); }
+  .note { color: var(--muted); font-size: 14px; }
+  .error { background: var(--red-bg); color: var(--red); padding: 12px 14px; border-radius: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <a id="back" href="../../../#overview">← Back to the catalog</a>
+  <h1>Starter packs</h1>
+  <p>Short lists of use cases to turn on first. Each pack is for one kind of data and one goal: keeping things running, or catching attackers. Click a use case to open it.</p>
+</header>
+<div class="wrap">
+  <div class="tools" role="group" aria-label="Filter by goal">
+    <button type="button" data-goal="all" aria-pressed="true">All</button>
+    <button type="button" data-goal="operations" aria-pressed="false">Operations</button>
+    <button type="button" data-goal="security" aria-pressed="false">Security</button>
+  </div>
+  <div id="list">Loading the packs…</div>
+</div>
+<script>
+(function () {
+  var GOAL = { operations: "Operations", security: "Security" };
+  var LEVEL = { beginner: "Beginner", intermediate: "Some experience", advanced: "Experienced" };
+  var WEIGHT = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+  var ORDER = [
+    "splunk-platform-ops", "splunk-platform-security",
+    "windows-ops", "windows-security-basics",
+    "linux-ops-basics", "linux-security-basics",
+    "catalyst-center-ops", "catalyst-center-security",
+    "thousandeyes-ops", "thousandeyes-security",
+    "meraki-ops", "meraki-security",
+    "ise-ops", "ise-security",
+    "paloalto-firewall-security"
+  ];
+  var goal = "all";
+  var packs = [];
+  var byId = {};
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function root() {
+    var cut = location.pathname.indexOf("/api/v1/starter-packs");
+    return cut >= 0 ? location.pathname.slice(0, cut) : "";
+  }
+  function rank(id) {
+    var i = ORDER.indexOf(id);
+    return i === -1 ? ORDER.length : i;
+  }
+
+  function stepLine(step) {
+    var bits = [];
+    if (LEVEL[step.difficulty]) bits.push(LEVEL[step.difficulty]);
+    if (WEIGHT[step.criticality]) bits.push(WEIGHT[step.criticality]);
+    if (step.sourcetypes && step.sourcetypes.length) bits.push(step.sourcetypes.join(", "));
+    var meta = bits.length ? '<span class="meta">' + esc(bits.join(" · ")) + "</span>" : "";
+    return '<li><a href="' + esc(root() + step.url) + '">' + esc(step.title) + "</a>" + meta + "</li>";
+  }
+
+  function packCard(pack) {
+    var apps = (pack.requiredData.splunkbaseApps || []).map(function (a) { return a.displayName; });
+    var data = pack.requiredData || {};
+    var need = "";
+    if (apps.length) need += "<p class=\"need\"><strong>Add-on.</strong> " + esc(apps.join(", ")) + "</p>";
+    if (data.indexes && data.indexes.length) {
+      need += "<p class=\"need\"><strong>Already in Splunk.</strong> " + esc(data.indexes.join(", ")) + "</p>";
+    }
+    if (data.notes) need += "<p class=\"need\">" + esc(data.notes) + "</p>";
+    var sources = (pack.industrySources || []).map(function (s) {
+      return '<li><a href="' + esc(s.url) + '">' + esc(s.control) + "</a></li>";
+    }).join("");
+    var pair = "";
+    if (pack.pairId && byId[pack.pairId]) {
+      pair = '<p class="also">The other goal for this data: <a href="#' + esc(pack.pairId) + '">' + esc(byId[pack.pairId].title) + "</a></p>";
+    }
+    var draft = pack.status === "published" ? "" : '<span class="badge draft">Preview</span>';
+    return '<article id="' + esc(pack.id) + '">'
+      + "<h2>" + esc(pack.title) + "</h2>"
+      + '<div class="badges"><span class="badge goal-' + esc(pack.goal) + '">' + esc(GOAL[pack.goal] || pack.goal) + "</span>" + draft + "</div>"
+      + '<p class="lead">' + esc(pack.description) + "</p>"
+      + "<h3>Turn these on, in this order</h3><ol>"
+      + pack.steps.map(stepLine).join("")
+      + "</ol>"
+      + (need ? "<h3>What you need</h3>" + need : "")
+      + (sources ? "<h3>Where this list comes from</h3><ul class=\"sources\">" + sources + "</ul>" : "")
+      + pair
+      + "</article>";
+  }
+
+  function draw() {
+    var shown = packs.filter(function (p) { return goal === "all" || p.goal === goal; });
+    var note = packs.some(function (p) { return p.status !== "published"; })
+      ? '<p class="note">Packs marked Preview are still being checked. The Start-here wizard hides them until you tick “Preview draft packs”.</p>'
+      : "";
+    document.getElementById("list").innerHTML = note + (shown.length
+      ? shown.map(packCard).join("")
+      : '<p class="note">No packs for that goal.</p>');
+    if (location.hash) {
+      var el = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (el) el.scrollIntoView();
+    }
+  }
+
+  document.querySelectorAll(".tools button").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      goal = btn.getAttribute("data-goal");
+      document.querySelectorAll(".tools button").forEach(function (b) {
+        b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+      });
+      history.replaceState(null, "", location.pathname + location.search);
+      draw();
+    });
+  });
+
+  document.getElementById("back").setAttribute("href", root() + "/#overview");
+
+  fetch(new URL("index.json", location.href))
+    .then(function (res) { if (!res.ok) throw new Error("Could not load the packs"); return res.json(); })
+    .then(function (data) {
+      packs = (data.packs || []).slice().sort(function (a, b) { return rank(a.id) - rank(b.id); });
+      packs.forEach(function (p) { byId[p.id] = p; });
+      draw();
+    })
+    .catch(function () {
+      document.getElementById("list").innerHTML = '<p class="error">The pack list did not load. Open this page from the catalog site, not as a saved file.</p>';
+    });
+})();
+</script>
+</body>
+</html>

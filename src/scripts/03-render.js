@@ -260,6 +260,13 @@ function roadmapBlock() {
   return h;
 }
 
+function starterPackBrowseURL() {
+  var base = (typeof window.__SITE_BASE_PATH === 'string' && window.__SITE_BASE_PATH)
+    ? window.__SITE_BASE_PATH.replace(/\/+$/, '')
+    : '';
+  return base + '/api/v1/starter-packs/';
+}
+
 function renderOverview() {
   window.scrollTo(0, 0);
   if (ucScrollObserver) { ucScrollObserver.disconnect(); ucScrollObserver = null; }
@@ -287,7 +294,8 @@ function renderOverview() {
   html += '<div class="ov-hero-inline"><div class="ov-hero-badge">' + esc(SITE.heroBadge || '') + '</div><h2 class="ov-hero-h2">' + esc(SITE.heroTitle || '') + ' <span>' + esc(SITE.heroTitleSpan || '') + '</span></h2><p>' + esc(intro) + '</p></div>';
   html += '<div class="start-cta" role="region" aria-label="Guided onboarding"><div class="start-cta-text"><strong>New to Splunk? Start here</strong>'
     + '<span>Answer a few questions, optionally paste what is already in your Splunk, and get a short ordered list of use cases to turn on first.</span></div>'
-    + '<button type="button" class="start-cta-btn" onclick="openStartWizard()">Build my starter plan &rarr;</button></div>';
+    + '<div class="start-cta-actions"><button type="button" class="start-cta-btn" onclick="openStartWizard()">Build my starter plan &rarr;</button>'
+    + '<a class="start-cta-browse" href="' + starterPackBrowseURL() + '">Browse the packs</a></div></div>';
 
   var heroOrder = ['infra','security','cloud','app','industry','compliance','business','personal'];
   var heroLabels = { infra:'Infrastructure', security:'Security', cloud:'Cloud', app:'Applications', industry:'Industry', compliance:'Regulatory & Compliance', business:'Business & Executive', personal:'Fun Stuff' };

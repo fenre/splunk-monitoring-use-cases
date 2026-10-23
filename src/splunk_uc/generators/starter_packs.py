@@ -13,6 +13,8 @@ Outputs (deterministic, no timestamps):
   pack's audit readiness, and the sourcetype alias groups. One fetch is
   enough for the wizard, the paste matcher, and the MCP planner.
 * ``api/v1/starter-packs/{id}.json`` — the same record for one pack.
+* ``api/v1/starter-packs/index.html`` — the same list as a readable page.
+  The markup is static; the page fetches ``index.json``.
 
 Consumers filter ``status == "published"`` by default; drafts are kept in
 the payload so curators can preview them.
@@ -41,6 +43,7 @@ from splunk_uc.audits import starter_packs as audit
 REPO_ROOT = Path(__file__).resolve().parents[3]
 API_OUT_DIR = REPO_ROOT / "api" / "v1" / "starter-packs"
 VERSION_PATH = REPO_ROOT / "VERSION"
+BROWSER_PAGE = Path(__file__).resolve().parent / "starter_pack_browser.html"
 API_VERSION = "v1"
 
 
@@ -159,12 +162,19 @@ def render(out_dir: Path) -> list[Path]:
             encoding="utf-8",
         )
         written.append(path)
+    page = out_dir / "index.html"
+    page.write_bytes(BROWSER_PAGE.read_bytes())
+    written.append(page)
     return written
 
 
+def _surface_names(directory: Path) -> set[str]:
+    return {p.name for p in directory.iterdir() if p.is_file() and p.suffix in {".json", ".html"}}
+
+
 def _diff(fresh: Path, on_disk: Path) -> list[str]:
-    fresh_files = {p.name for p in fresh.glob("*.json")}
-    disk_files = {p.name for p in on_disk.glob("*.json")}
+    fresh_files = _surface_names(fresh)
+    disk_files = _surface_names(on_disk)
     diffs: list[str] = []
     for name in sorted(fresh_files | disk_files):
         if name not in disk_files:
