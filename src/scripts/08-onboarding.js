@@ -508,6 +508,140 @@ function _startStepPlan() {
   return html;
 }
 
+var packsView;
+var packsGoal;
+var packsAnchor;
+var PACK_BROWSE_ORDER = [
+  'splunk-platform-ops', 'splunk-platform-security',
+  'windows-ops', 'windows-security-basics',
+  'linux-ops-basics', 'linux-security-basics',
+  'catalyst-center-ops', 'catalyst-center-security',
+  'thousandeyes-ops', 'thousandeyes-security',
+  'meraki-ops', 'meraki-security',
+  'ise-ops', 'ise-security',
+  'paloalto-firewall-security'
+];
+
+function parsePacksHash(h) {
+  var out = { goal: 'all', anchor: '' };
+  var m = String(h || '').match(/^packs(?:\/([^?]*))?(?:\?(.*))?$/);
+  if (!m) return out;
+  if (m[1]) {
+    try { out.anchor = decodeURIComponent(m[1]); }
+    catch (_) { out.anchor = m[1]; }
+  }
+  if (m[2]) {
+    m[2].split('&').forEach(function(kv) {
+      var i = kv.indexOf('=');
+      if (i < 1) return;
+      if (kv.slice(0, i) !== 'goal') return;
+      var g = kv.slice(i + 1);
+      if (g === 'security' || g === 'operations' || g === 'all') out.goal = g;
+    });
+  }
+  if (out.anchor) out.goal = 'all';
+  return out;
+}
+
+function openPacksView(goal, anchor) {
+  packsView = true;
+  packsGoal = goal || 'all';
+  packsAnchor = anchor || '';
+  if (packsAnchor) packsGoal = 'all';
+  currentCat = null;
+  currentSubcat = null;
+  currentSearch = '';
+  ovGroupFilter = 'all';
+  ovHeroGroupFilter = null;
+  var si = document.getElementById('search-input');
+  if (si) si.value = '';
+  if (typeof isStartWizardOpen === 'function' && isStartWizardOpen()) closeStartWizard(true);
+  if (detailOpen) closeDetail();
+  reRender();
+  updateHash(false);
+  if (typeof closeMobileSidebar === 'function') closeMobileSidebar();
+}
+
+function _packRank(id) {
+  var i = PACK_BROWSE_ORDER.indexOf(id);
+  return i < 0 ? PACK_BROWSE_ORDER.length : i;
+}
+
+function renderPacksBrowse() {
+  window.scrollTo(0, 0);
+  if (ucScrollObserver) { ucScrollObserver.disconnect(); ucScrollObserver = null; }
+  var main = document.getElementById('main');
+  if (!main) return;
+  var back = document.getElementById('back-btn');
+  if (back) back.style.display = 'flex';
+  main.innerHTML = '<p class="c-section-desc">Loading starter packs…</p>';
+  _spEnsureIndex().then(function(index) {
+    if (!packsView) return;
+    _drawPacks(main, index || { packs: [] });
+  });
+}
+
+function _drawPacks(main, index) {
+  var packs = (index.packs || []).slice().sort(function(a, b) { return _packRank(a.id) - _packRank(b.id); });
+  var byId = {};
+  packs.forEach(function(p) { byId[p.id] = p; });
+  var goal = packsGoal || 'all';
+  var shown = packs.filter(function(p) { return goal === 'all' || p.goal === goal; });
+  var html = '<div class="c-section-header"><div class="ov-hero-badge">Guided onboarding</div>';
+  html += '<h1 class="c-section-title">Starter packs</h1>';
+  html += '<p class="c-section-desc">Short ordered lists of use cases to turn on first. Click a use case to open it.</p></div>';
+  html += '<div class="filter-strip">' + browseToggleHtml();
+  [['all', 'All'], ['operations', 'Operations'], ['security', 'Security']].forEach(function(g) {
+    html += '<button type="button" class="c-chip' + (goal === g[0] ? ' active' : '') + '" onclick="openPacksView(\'' + g[0] + '\')">' + g[1] + '</button>';
+  });
+  html += '</div>';
+  if (packs.some(function(p) { return p.status !== 'published'; })) {
+    html += '<div class="start-callout">Packs marked Preview are still being checked. The Start-here wizard hides them until you tick “Preview draft packs”.</div>';
+  }
+  if (index._error) {
+    html += emptyState('The starter packs did not load.');
+    main.innerHTML = html;
+    return;
+  }
+  var displayed = [];
+  shown.forEach(function(pack) {
+    var data = pack.requiredData || {};
+    var apps = (data.splunkbaseApps || []).map(function(a) { return a.displayName; }).filter(Boolean);
+    html += '<section class="c-subcat-group" id="pack-' + esc(pack.id) + '">';
+    html += '<h2 class="c-subcat-title">' + esc(pack.title) + '</h2>';
+    html += '<div class="uc-card-tags" style="margin:8px 0 10px">';
+    html += '<span class="uc-card-pillar ' + (pack.goal === 'security' ? 'security' : 'observability') + '">' + (pack.goal === 'security' ? 'Security' : 'Operations') + '</span>';
+    if (pack.status !== 'published') html += '<span class="c-badge c-badge-medium">Preview</span>';
+    html += '</div>';
+    html += '<p class="c-section-desc">' + esc(pack.description) + '</p>';
+    var need = '';
+    if (apps.length) need += '<p>Add-on: ' + esc(apps.join(', ')) + '</p>';
+    if (data.indexes && data.indexes.length) need += '<p>Already in Splunk: ' + esc(data.indexes.join(', ')) + '</p>';
+    if (data.notes) need += '<p>' + esc(data.notes) + '</p>';
+    if (need) html += '<div class="start-callout">' + need + '</div>';
+    html += '<div class="' + _ucContainerClass() + '">';
+    (pack.steps || []).forEach(function(step) {
+      var id = String(step.ucId || '').replace(/^UC-/, '');
+      var entry = ucIndex[id];
+      if (!entry) return;
+      displayed.push(entry);
+      html += _renderUC(entry.uc);
+    });
+    html += '</div>';
+    if (pack.pairId && byId[pack.pairId]) {
+      html += '<p class="c-section-desc">The other goal for this data: <a href="#packs/' + esc(pack.pairId) + '" onclick="openPacksView(\'all\',\'' + esc(pack.pairId) + '\');return false;">' + esc(byId[pack.pairId].title) + '</a></p>';
+    }
+    html += '</section>';
+  });
+  if (!shown.length) html += emptyState('No packs for that goal.');
+  currentDisplayedList = displayed;
+  main.innerHTML = html;
+  if (packsAnchor) {
+    var el = document.getElementById('pack-' + packsAnchor);
+    if (el) el.scrollIntoView();
+  }
+}
+
 function _startRender() {
   if (!startState) return;
   var body = document.getElementById('start-body');
