@@ -169,7 +169,8 @@ function closeReleaseNotes() {
 function _maybeClearOverlayClass() {
   if (!document.getElementById('src-overlay').classList.contains('open') && !document.getElementById('rn-overlay').classList.contains('open')
     && !document.getElementById('inv-overlay').classList.contains('open') && !document.getElementById('mitre-map-overlay').classList.contains('open')
-    && !document.getElementById('help-overlay').classList.contains('open') && !panelOpen)
+    && !document.getElementById('help-overlay').classList.contains('open')
+    && !(document.getElementById('start-overlay') && document.getElementById('start-overlay').classList.contains('open')) && !panelOpen)
     document.body.classList.remove('overlay-open');
 }
 
@@ -692,6 +693,7 @@ function launchDSAFromInventory() {
 function updateHash(replace) {
   var hash = '#overview';
   if (detailOpen) return;
+  if (typeof isStartWizardOpen === 'function' && isStartWizardOpen()) return;
   var pb = document.getElementById('panel-backdrop');
   if (pb && pb.classList.contains('open')) return;
   if (currentSearch) hash = '#search=' + encodeURIComponent(currentSearch);
@@ -716,6 +718,18 @@ function updateHash(replace) {
 
 function restoreFromHash() {
   var h = (location.hash || '').replace(/^#/, '');
+  if (/^start(\?|$)/.test(h)) {
+    if (!isStartWizardOpen()) {
+      currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
+      document.getElementById('search-input').value = '';
+      reRender();
+    }
+    openStartWizard(parseStartHash(h));
+    // After the overlay is open so closeDetail's updateHash keeps #start.
+    if (detailOpen) closeDetail();
+    return;
+  }
+  if (isStartWizardOpen()) closeStartWizard(true);
   var hm = h.match(/^help(?:=([a-z]+))?$/);
   if (hm) {
     currentCat = null; currentSubcat = null; currentSearch = ''; ovGroupFilter = 'all'; ovHeroGroupFilter = null;
@@ -1418,6 +1432,7 @@ function initApp() {
     if (e.key === '/' && !isInputFocused() && !nonTechnicalView) { e.preventDefault(); siEl.focus(); return; }
     if (e.key === 'Escape') {
       if (document.getElementById('help-overlay').classList.contains('open')) { closeHelpGuide(); return; }
+      if (isStartWizardOpen()) { closeStartWizard(); return; }
       if (document.getElementById('inv-overlay').classList.contains('open')) { closeInventoryModal(); return; }
       if (document.getElementById('src-overlay').classList.contains('open')) { closeSourceCatalog(); return; }
       if (document.getElementById('rn-overlay').classList.contains('open')) { closeReleaseNotes(); return; }

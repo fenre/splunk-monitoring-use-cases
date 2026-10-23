@@ -17,6 +17,8 @@ order, computes a SHA-256 content hash, and emits
 | `03-render.js`   |   ~635 | UC card rendering, sidebar, overview, search results, subcategory view, category view, non-technical viz mockups |
 | `04-panel.js`    |   ~285 | Detail panel: `fillPanelBody`, `openPanel`, `closePanel`, `navPanel`, `copyCode`, MITRE map modal |
 | `05-app.js`     |  ~1040 | Source catalog, inventory modal, exports, hash routing, non-technical view, theme/a11y, UC selection + DSA, `initApp()` (bootstraps the whole app on load), mobile sidebar |
+| `07-starter-plan.js` | ~260 | Pure starter-plan logic: paste parser, sourcetype alias map, `spPlanRollout` (mirrored by `mcp/src/splunk_uc_mcp/starter_plan.py`; parity fixture `tests/fixtures/starter-plan-parity.json`) |
+| `08-onboarding.js`   | ~520 | "Start here" wizard (`#start` hash), paste UI, plan rendering and exports |
 
 The numeric prefix (`01-`, `02-`, …) is significant: it defines both
 the lexical bundle order and the **execution order**. State must
