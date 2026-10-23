@@ -17,6 +17,10 @@ product tag means the search reads that product's data.**
 - **Cisco model tags** need a sourcetype, index, macro, or add-on CIM model in the search; `audit-cisco-tag-evidence --check` gates every pull request.
 - **15** draft Secure Firewall `splVariants` (uc.schema 1.10.0) and six new Cisco models (Duo, Umbrella / Secure Access, Secure Email, Isovalent, Secure Client / NVM, AI Defense).
 
+- **15** draft starter packs (Splunk platform, Windows, Linux, Catalyst Center, ThousandEyes, Meraki, ISE pairs; Palo Alto security-only).
+- **Start-here wizard** at `#start` with client-side paste matching and Markdown / CSV / AI-prompt export.
+- **MCP** grows to **14** tools: `list_starter_packs`, `get_starter_pack`, `plan_rollout`.
+
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.27.0 release entry.
 
 ---
