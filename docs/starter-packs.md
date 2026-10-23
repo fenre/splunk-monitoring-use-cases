@@ -28,7 +28,7 @@ always the source of truth.
 | `status` | `draft` (hidden from end users) or `published`. |
 | `pairId` | Sibling pack with the opposite goal for the same source, or `null`. |
 | `equipment[]` | Inventory slugs (`windows`, `linux`, `splunk`) or model ids (`cisco_catalyst_center`, `cisco_thousandeyes`, `cisco_meraki`, `cisco_ise`, `paloalto_pan_firewall`). The wizard prefers packs whose equipment matches the user's inventory. |
-| `requiredData` | Primary Splunkbase<sup class="ref">[<a href="#ref-4">4</a>]</sup> add-ons, the sourcetypes the steps search, internal indexes (`_internal`, `_audit`, …), and a `notes` string for licences, roles, or input settings that are not Splunk apps. |
+| `requiredData` | Primary Splunkbase<sup class="ref">[<a href="#ref-7">7</a>]</sup> add-ons, the sourcetypes the steps search, internal indexes (`_internal`, `_audit`, …), and a `notes` string for licences, roles, or input settings that are not Splunk apps. |
 | `industrySources[]` | `{url, control}` — the external list the steps were picked from. |
 | `steps[]` | `{ucId, order}` only. At most 10. |
 | `nextPacks[]` | Suggestions only. Mutual suggestions (A → B, B → A) are fine. |
@@ -37,7 +37,7 @@ always the source of truth.
 ## How steps are picked
 
 1. Start from an industry list (vendor default alerts, Microsoft
-   Appendix L, CIS, ThousandEyes<sup class="ref">[<a href="#ref-1">1</a>]</sup> default alert rules, …), recorded in
+   Appendix L, CIS, ThousandEyes<sup class="ref">[<a href="#ref-4">4</a>]</sup> default alert rules, …), recorded in
    `industrySources[]`.
 2. Map each item to the nearest catalogue UC that runs on the default
    add-on or Splunk's own internal data.
@@ -147,8 +147,8 @@ UC searches a sourcetype the default add-on actually emits.
 
 | Source | Decision | Why |
 | --- | --- | --- |
-| Meraki | Pair | Dashboard alerts split cleanly into device/uplink/licence health and admin/rogue-AP events; at least five UCs per goal on `meraki:*` API sourcetypes. UCs on the plain `meraki` syslog sourcetype are excluded. |
-| Cisco ISE | Pair | The ISE alarm catalogue has distinct system-health alarms (Process Down, High Load Average, Replication Failed, CoA Failed) and security alarms (Excessive Failed Attempts, admin lockout, TACACS+ failures). |
+| Meraki<sup class="ref">[<a href="#ref-1">1</a>]</sup> | Pair | Dashboard alerts split cleanly into device/uplink/licence health and admin/rogue-AP events; at least five UCs per goal on `meraki:*` API sourcetypes. UCs on the plain `meraki` syslog sourcetype are excluded. |
+| Cisco ISE<sup class="ref">[<a href="#ref-3">3</a>]</sup> | Pair | The ISE alarm catalogue has distinct system-health alarms (Process Down, High Load Average, Replication Failed, CoA Failed) and security alarms (Excessive Failed Attempts, admin lockout, TACACS+ failures). |
 | Palo Alto firewall | Security only | No distinct beginner ops list on the default add-on. `pan:url` and `pan:wildfire` UCs are excluded because the add-on files those events under `pan:threat`. |
 | Cisco SD-WAN | No pack | Catalogue SD-WAN UCs search `cisco:sdwan:bfd`, `:device`, `:approute`, …; the Cisco Catalyst add-on emits `cisco:sdwan:sitehealth`, `:tunnelhealth`, `:linkhealth`, `:syslog`. Zero packable UCs, so no pack until the UCs are moved to those sourcetypes. |
 
@@ -166,12 +166,18 @@ audit warnings list what must be fixed before it can be published.
 
 ### Supporting sources
 
-<a id="ref-1"></a>**[1]** Cisco ThousandEyes. (2026). *Cisco ThousandEyes Documentation*. Cisco Systems, Inc. Retrieved May 11, 2026, from https://docs.thousandeyes.com/
+<a id="ref-1"></a>**[1]** Cisco Meraki. (2026). *Cisco Meraki Documentation*. Cisco Systems, Inc. Retrieved May 11, 2026, from https://documentation.meraki.com/
 
-<a id="ref-2"></a>**[2]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
+<a id="ref-2"></a>**[2]** Cisco Systems, Inc. (2026). *Cisco Catalyst SD-WAN Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/routers/sd-wan/series.html
 
-<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+<a id="ref-3"></a>**[3]** Cisco Systems, Inc. (2026). *Cisco Identity Services Engine (ISE) Documentation*. Retrieved May 11, 2026, from https://www.cisco.com/c/en/us/support/security/identity-services-engine/series.html
 
-<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+<a id="ref-4"></a>**[4]** Cisco ThousandEyes. (2026). *Cisco ThousandEyes Documentation*. Cisco Systems, Inc. Retrieved May 11, 2026, from https://docs.thousandeyes.com/
+
+<a id="ref-5"></a>**[5]** Gerhards, R. (2009, March). *The Syslog Protocol*. Internet Engineering Task Force. RFC 5424. https://www.rfc-editor.org/rfc/rfc5424
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
+
+<a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 <!-- END-AUTOGENERATED-SOURCES -->
