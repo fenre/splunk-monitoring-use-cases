@@ -16,6 +16,8 @@ def test_render_is_deterministic(tmp_path: Path) -> None:
     gen.render(second)
     names = sorted(p.name for p in first.glob("*.json"))
     assert "index.json" in names
+    assert (first / "index.html").read_bytes() == (second / "index.html").read_bytes()
+    assert b"Starter packs" in (first / "index.html").read_bytes()
     assert names == sorted(p.name for p in second.glob("*.json"))
     for name in names:
         assert (first / name).read_bytes() == (second / name).read_bytes()

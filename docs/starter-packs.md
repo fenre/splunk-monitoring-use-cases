@@ -93,6 +93,7 @@ PYTHONPATH=src python3 -m splunk_uc generate-starter-packs --check
 
 | URL | Content |
 | --- | --- |
+| `/api/v1/starter-packs/` | Readable pack list (the page fetches `index.json`) |
 | `/api/v1/starter-packs/index.json` | All packs (draft and published) with resolved steps, audit readiness, and the alias groups |
 | `/api/v1/starter-packs/{id}.json` | One pack |
 
