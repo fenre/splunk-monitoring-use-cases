@@ -27,7 +27,7 @@ always the source of truth.
 | `goal` | `security` or `operations`. The wizard and `plan_rollout` only show packs whose goal matches the user's goal. |
 | `status` | `draft` (hidden from end users) or `published`. |
 | `pairId` | Sibling pack with the opposite goal for the same source, or `null`. |
-| `equipment[]` | Inventory slugs (`windows`, `linux`, `splunk`) or model ids (`cisco_catalyst_center`, `cisco_thousandeyes`). The wizard prefers packs whose equipment matches the user's inventory. |
+| `equipment[]` | Inventory slugs (`windows`, `linux`, `splunk`) or model ids (`cisco_catalyst_center`, `cisco_thousandeyes`, `cisco_meraki`, `cisco_ise`, `paloalto_pan_firewall`). The wizard prefers packs whose equipment matches the user's inventory. |
 | `requiredData` | Primary Splunkbase<sup class="ref">[<a href="#ref-4">4</a>]</sup> add-ons, the sourcetypes the steps search, internal indexes (`_internal`, `_audit`, …), and a `notes` string for licences, roles, or input settings that are not Splunk apps. |
 | `industrySources[]` | `{url, control}` — the external list the steps were picked from. |
 | `steps[]` | `{ucId, order}` only. At most 10. |
@@ -132,8 +132,29 @@ alias map, and `VERSION`, so `--check` is hermetic.
 | `thousandeyes-ops` | operations | 8 | Splunkbase 7719 (Tests Stream metrics, events) |
 | `thousandeyes-security` | security | 5 | Splunkbase 7719 (BGP, DNSSEC, activity log) |
 
-All ten ship as `draft`. Each pack's `curationNotes[]` and the audit
-warnings list what must be fixed before it can be published.
+## Later-category packs
+
+The pair rule was applied to each remaining source. "Packable" means the
+UC searches a sourcetype the default add-on actually emits.
+
+| Pack | Goal | Steps | Default data |
+| --- | --- | --- | --- |
+| `meraki-ops` | operations | 5 | Splunkbase 5580 (Dashboard API: availability, SD-WAN, uplink loss/latency, assurance alerts, licences) |
+| `meraki-security` | security | 5 | Splunkbase 5580 (Dashboard API: audit, Air Marshal, devices) |
+| `ise-ops` | operations | 5 | Splunkbase 1915 (`cisco:ise:syslog`, ISE system alarms) |
+| `ise-security` | security | 5 | Splunkbase 1915 (`cisco:ise:syslog`, authentication and admin audit) |
+| `paloalto-firewall-security` | security | 6 | Splunkbase 7523 (`pan:config`, `pan:system`, `pan:threat`) |
+
+| Source | Decision | Why |
+| --- | --- | --- |
+| Meraki | Pair | Dashboard alerts split cleanly into device/uplink/licence health and admin/rogue-AP events; at least five UCs per goal on `meraki:*` API sourcetypes. UCs on the plain `meraki` syslog sourcetype are excluded. |
+| Cisco ISE | Pair | The ISE alarm catalogue has distinct system-health alarms (Process Down, High Load Average, Replication Failed, CoA Failed) and security alarms (Excessive Failed Attempts, admin lockout, TACACS+ failures). |
+| Palo Alto firewall | Security only | No distinct beginner ops list on the default add-on. `pan:url` and `pan:wildfire` UCs are excluded because the add-on files those events under `pan:threat`. |
+| Cisco SD-WAN | No pack | Catalogue SD-WAN UCs search `cisco:sdwan:bfd`, `:device`, `:approute`, …; the Cisco Catalyst add-on emits `cisco:sdwan:sitehealth`, `:tunnelhealth`, `:linkhealth`, `:syslog`. Zero packable UCs, so no pack until the UCs are moved to those sourcetypes. |
+
+All fifteen packs ship as `draft`. Each pack's `curationNotes[]` and the
+audit warnings list what must be fixed before it can be published.
+`ise-ops` already has no audit warnings and only needs curator sign-off.
 
 ---
 
