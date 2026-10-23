@@ -334,6 +334,11 @@ function closeDetail() {
   detailEntry = null;
   document.body.classList.remove('detail-open');
   window.scrollTo(0, _detailScrollPos);
+  if (typeof packsView !== 'undefined' && packsView) {
+    currentCat = null;
+    currentSubcat = null;
+    buildSidebar();
+  }
   updateHash(true);
 }
 

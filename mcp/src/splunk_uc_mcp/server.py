@@ -58,6 +58,8 @@ from splunk_uc_mcp.tools import (
     GET_EQUIPMENT_SCHEMA,
     GET_REGULATION_OUTPUT_SCHEMA,
     GET_REGULATION_SCHEMA,
+    GET_STARTER_PACK_OUTPUT_SCHEMA,
+    GET_STARTER_PACK_SCHEMA,
     GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA,
     GET_USE_CASE_MARKDOWN_SCHEMA,
     GET_USE_CASE_OUTPUT_SCHEMA,
@@ -68,20 +70,27 @@ from splunk_uc_mcp.tools import (
     LIST_EQUIPMENT_SCHEMA,
     LIST_REGULATIONS_OUTPUT_SCHEMA,
     LIST_REGULATIONS_SCHEMA,
+    LIST_STARTER_PACKS_OUTPUT_SCHEMA,
+    LIST_STARTER_PACKS_SCHEMA,
     LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
     LIST_UNCOVERED_CLAUSES_SCHEMA,
+    PLAN_ROLLOUT_OUTPUT_SCHEMA,
+    PLAN_ROLLOUT_SCHEMA,
     SEARCH_USE_CASES_OUTPUT_SCHEMA,
     SEARCH_USE_CASES_SCHEMA,
     find_compliance_gap,
     get_clause_coverage,
     get_equipment,
     get_regulation,
+    get_starter_pack,
     get_use_case,
     get_use_case_markdown,
     list_categories,
     list_equipment,
     list_regulations,
+    list_starter_packs,
     list_uncovered_clauses,
+    plan_rollout,
     search_use_cases,
 )
 
@@ -108,7 +117,10 @@ SERVER_INSTRUCTIONS = (
     "`get_clause_coverage` for a single clause's covering UCs / "
     "assurance posture, and `list_uncovered_clauses` for a priority-"
     "sorted worklist of uncovered clauses across one or more "
-    "regulations. The URI families `uc://`, `reg://`, `equipment://`, "
+    "regulations. For people new to Splunk, `list_starter_packs`, "
+    "`get_starter_pack` and `plan_rollout` return short, ordered starter "
+    "plans (max 10 use cases) matched to the sourcetypes they already "
+    "have. The URI families `uc://`, `reg://`, `equipment://`, "
     "and `ledger://` expose the same data as resources for agents that "
     "prefer a pull-based model."
 )
@@ -396,6 +408,43 @@ def _tool_definitions() -> list[Tool]:
             inputSchema=LIST_UNCOVERED_CLAUSES_SCHEMA,
             outputSchema=LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA,
         ),
+        Tool(
+            name="list_starter_packs",
+            description=(
+                "List guided-onboarding starter packs: short, ordered "
+                "lists of existing UCs for one goal (security or "
+                "operations) and one technology. Published packs only "
+                "unless include_drafts=true. Filter by goal or "
+                "equipment_id."
+            ),
+            inputSchema=LIST_STARTER_PACKS_SCHEMA,
+            outputSchema=LIST_STARTER_PACKS_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="get_starter_pack",
+            description=(
+                "Return one starter pack: required Splunkbase add-ons, "
+                "sourcetypes and indexes, industry sources, and the "
+                "ordered steps with each UC's title, difficulty, "
+                "sourcetypes and links."
+            ),
+            inputSchema=GET_STARTER_PACK_SCHEMA,
+            outputSchema=GET_STARTER_PACK_OUTPUT_SCHEMA,
+        ),
+        Tool(
+            name="plan_rollout",
+            description=(
+                "Build a starter plan for someone new to Splunk: give "
+                "the goal, experience level, and the sourcetypes / "
+                "indexes / equipment they already have (or raw pasted "
+                "tstats output). Returns at most 10 ordered UCs, which "
+                "packs they come from, and the next data sources that "
+                "would unlock the most. Same algorithm as the site's "
+                "'Start here' wizard."
+            ),
+            inputSchema=PLAN_ROLLOUT_SCHEMA,
+            outputSchema=PLAN_ROLLOUT_OUTPUT_SCHEMA,
+        ),
     ]
 
 
@@ -430,6 +479,13 @@ def _tool_dispatch(
         "list_uncovered_clauses": lambda args: list_uncovered_clauses(
             catalog=catalog, **args
         ),
+        "list_starter_packs": lambda args: list_starter_packs(
+            catalog=catalog, **args
+        ),
+        "get_starter_pack": lambda args: get_starter_pack(
+            catalog=catalog, **args
+        ),
+        "plan_rollout": lambda args: plan_rollout(catalog=catalog, **args),
     }
 
 

@@ -3,7 +3,7 @@
 P16 wave UU (2026-05-19). The audit guards the contract between the MCP
 server's tool declarations (``mcp/src/splunk_uc_mcp/``) and the catalog
 JSON shape consumed by them. Real test coverage requires the audit to
-exercise four things: importability of the MCP package, the eleven
+exercise four things: importability of the MCP package, the fourteen
 expected tool surface declarations, the ``api/v1/manifest.json``
 endpoint shape, and live validation of each tool's runtime payload
 against its declared ``OUTPUT_SCHEMA``. We pin each one with a
@@ -13,7 +13,7 @@ spawns the real MCP server.
 Tests pin every documented contract:
 
 * Module-level constants (``REPO_ROOT`` walks three parents up;
-  ``MCP_SRC`` targets ``mcp/src``; ``_PROBE_ARGS`` has the eleven
+  ``MCP_SRC`` targets ``mcp/src``; ``_PROBE_ARGS`` has the fourteen
   documented tool names; ``_REQUIRED_MANIFEST_ENDPOINTS`` is the
   documented five-entry tuple; ``_EXPECTED_TOOLS`` is the set of
   _PROBE_ARGS keys).
@@ -63,8 +63,8 @@ def test_mcp_src_constant() -> None:
     assert mts.MCP_SRC == mts.REPO_ROOT / "mcp" / "src"
 
 
-def test_probe_args_has_eleven_tools() -> None:
-    """The documented MVP + clause + markdown tool set."""
+def test_probe_args_has_fourteen_tools() -> None:
+    """The documented MVP + clause + markdown + starter-pack tool set."""
     assert set(mts._PROBE_ARGS.keys()) == {
         "search_use_cases",
         "get_use_case",
@@ -77,6 +77,9 @@ def test_probe_args_has_eleven_tools() -> None:
         "find_compliance_gap",
         "get_clause_coverage",
         "list_uncovered_clauses",
+        "list_starter_packs",
+        "get_starter_pack",
+        "plan_rollout",
     }
 
 
@@ -452,7 +455,7 @@ def _install_catalog_and_tools_stubs(
 
     permissive_schema: dict[str, Any] = {"type": "object"}
 
-    # Build a tools module with 11 schemas + 11 callables. Each callable
+    # Build a tools module with 14 schemas + 14 callables. Each callable
     # accepts ``catalog`` kwarg + any other args and returns the documented
     # payload dict.
     tools_mod = types.ModuleType("splunk_uc_mcp.tools")
@@ -469,6 +472,9 @@ def _install_catalog_and_tools_stubs(
         "find_compliance_gap": "FIND_COMPLIANCE_GAP_OUTPUT_SCHEMA",
         "get_clause_coverage": "GET_CLAUSE_COVERAGE_OUTPUT_SCHEMA",
         "list_uncovered_clauses": "LIST_UNCOVERED_CLAUSES_OUTPUT_SCHEMA",
+        "list_starter_packs": "LIST_STARTER_PACKS_OUTPUT_SCHEMA",
+        "get_starter_pack": "GET_STARTER_PACK_OUTPUT_SCHEMA",
+        "plan_rollout": "PLAN_ROLLOUT_OUTPUT_SCHEMA",
     }
     for attr in schemas.values():
         setattr(tools_mod, attr, permissive_schema)
@@ -476,7 +482,7 @@ def _install_catalog_and_tools_stubs(
     # use_case submodule carries the markdown schema.
     use_case_mod.GET_USE_CASE_MARKDOWN_OUTPUT_SCHEMA = permissive_schema  # type: ignore[attr-defined]
 
-    # 11 callables; honour the ``payloads`` override per-tool.
+    # 14 callables; honour the ``payloads`` override per-tool.
     payloads_dict = payloads or {}
 
     def _make(name: str) -> Any:
@@ -497,6 +503,9 @@ def _install_catalog_and_tools_stubs(
     tools_mod.find_compliance_gap = _make("find_compliance_gap")  # type: ignore[attr-defined]
     tools_mod.get_clause_coverage = _make("get_clause_coverage")  # type: ignore[attr-defined]
     tools_mod.list_uncovered_clauses = _make("list_uncovered_clauses")  # type: ignore[attr-defined]
+    tools_mod.list_starter_packs = _make("list_starter_packs")  # type: ignore[attr-defined]
+    tools_mod.get_starter_pack = _make("get_starter_pack")  # type: ignore[attr-defined]
+    tools_mod.plan_rollout = _make("plan_rollout")  # type: ignore[attr-defined]
 
     monkeypatch.setitem(sys.modules, "splunk_uc_mcp.catalog", catalog_mod)
     monkeypatch.setitem(sys.modules, "splunk_uc_mcp.tools", tools_mod)
@@ -531,8 +540,8 @@ def test_check_runtime_schemas_validation_error(
     monkeypatch.setattr(mts.jsonschema, "validate", fake_validate)
     issues: list[str] = []
     mts._check_runtime_schemas(issues)
-    # All 11 tools failed validation.
-    assert len(issues) == 11
+    # All 14 tools failed validation.
+    assert len(issues) == 14
     assert all("payload does not match outputSchema" in i for i in issues)
     assert any("path: /foo/1/bar" in i for i in issues)
 
@@ -592,7 +601,7 @@ def test_main_clean(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixtu
     assert mts.main([]) == 0
     out = capsys.readouterr().out
     assert "MCP drift guard: OK" in out
-    assert "11 tools validated" in out
+    assert "14 tools validated" in out
 
 
 def test_main_quiet_suppresses_success(

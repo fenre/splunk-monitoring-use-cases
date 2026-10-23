@@ -12,7 +12,31 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
-## [8.25.0] - 2026-07-24
+## [8.26.0] - 2026-10-23
+
+### Added
+
+- **Guided onboarding — starter packs.** Fifteen curated packs of existing use
+  cases, each for one data source and one goal (`security` or `operations`),
+  at most ten ordered steps, with the add-ons, sourcetypes, and industry list
+  each step comes from. Sources: Splunk platform, Windows, Linux, Cisco
+  Catalyst Center, ThousandEyes, Meraki, and ISE (security + operations pairs)
+  and Palo Alto firewalls (security only). No pack for Cisco SD-WAN: no
+  catalogue UC searches a sourcetype the Cisco Catalyst add-on emits. All
+  packs ship as `draft` until their UCs clear the publish audit. No new use
+  cases and no new category. See `docs/starter-packs.md`.
+- **Start-here wizard** (`#start`). "New to Splunk? Start here" on the
+  overview opens a short wizard: pick a goal, tick your equipment or paste a
+  sourcetype list, and get an ordered rollout plan with the next data source
+  to onboard. Pasted data stays in the browser. Exports to Markdown, CSV, and
+  an AI-assistant prompt. Draft packs are hidden unless "Preview draft packs"
+  is ticked.
+- **Starter-pack API and audit.** `schemas/starter-pack.schema.json`,
+  `audit-starter-packs` (CI gate), `generate-starter-packs` →
+  `/api/v1/starter-packs/`, and `data/sourcetype-aliases.json`.
+- **MCP tools `list_starter_packs`, `get_starter_pack`, `plan_rollout`** (14
+  tools total). `plan_rollout` shares a JS/Python parity fixture with the
+  wizard so both produce the same plan.
 
 ### New Use Cases
 
