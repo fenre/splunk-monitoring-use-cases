@@ -5849,6 +5849,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "and data model acceleration guidance",
         f"- [Use Case Fields]({SITE_BASE_URL}/docs/use-case-fields.md): Explanation of every field in "
         "the use case markdown format",
+        f"- [Starter Packs]({SITE_BASE_URL}/api/v1/starter-packs/index.json): Guided onboarding for "
+        "people new to Splunk — short, ordered use-case lists per goal (security / operations) and "
+        "technology, with required add-ons and sourcetypes. Drafts carry status=draft. Guide: "
+        f"{SITE_BASE_URL}/docs/starter-packs.md",
         "",
         "## Categories",
         "",

@@ -157,7 +157,7 @@ def plan_rollout(
         else:
             unlock = "partial"
         missing: list[str] = []
-        for s, r in zip(steps, ready):
+        for s, r in zip(steps, ready, strict=True):
             if not r:
                 missing.extend(step_keys(s))
         evaluated.append(
@@ -187,7 +187,7 @@ def plan_rollout(
     seen: set[str] = set()
     for e in included:
         none_ready = e["readyCount"] == 0
-        for s, r in zip(e["steps"], e["ready"]):
+        for s, r in zip(e["steps"], e["ready"], strict=True):
             if len(plan_steps) >= limit or s["ucId"] in seen:
                 continue
             if not r and not none_ready:
@@ -212,7 +212,7 @@ def plan_rollout(
     unsatisfied: dict[str, list[str]] = {}
     uc_packs: dict[str, set[str]] = {}
     for e in evaluated:
-        for s, r in zip(e["steps"], e["ready"]):
+        for s, r in zip(e["steps"], e["ready"], strict=True):
             if r:
                 continue
             unsatisfied.setdefault(s["ucId"], step_keys(s))
