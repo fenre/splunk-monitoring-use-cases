@@ -700,6 +700,14 @@ register(
         category="audits",
     )
 )
+register(
+    Verb(
+        name="audit-starter-packs",
+        module="audits.starter_packs",
+        help="Validate data/starter-packs/*.json (goal, pairs, step order, data coverage).",
+        category="audits",
+    )
+)
 
 # ----------------------------------------------------------------------
 # Generators (Tier 2)
@@ -799,6 +807,14 @@ register(
         name="generate-evidence-packs",
         module="generators.evidence_packs",
         help="Build per-regulation evidence packs (docs/evidence-packs/*.{md,json}).",
+        category="generators",
+    )
+)
+register(
+    Verb(
+        name="generate-starter-packs",
+        module="generators.starter_packs",
+        help="Build api/v1/starter-packs/*.json from data/starter-packs/ (guided onboarding).",
         category="generators",
     )
 )
