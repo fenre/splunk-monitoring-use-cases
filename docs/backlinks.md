@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_249 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -1222,6 +1222,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/standards-submission-package.md`
+
+_No inbound links yet._
+
+## `docs/starter-packs.md`
 
 _No inbound links yet._
 

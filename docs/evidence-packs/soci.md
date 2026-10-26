@@ -420,7 +420,7 @@ This pack is **generated**, not hand-authored. Re-running the generator produces
 **Generation metadata**
 
 ```
-catalogue_version: 8.25.0
+catalogue_version: 8.26.0
 generator_script:  scripts/generate_evidence_packs.py
 inputs_sha256:     814d8942aebac696b8a91a00bbaff8e9c140b5479dcca51606fbeb99bf25f762
 ```

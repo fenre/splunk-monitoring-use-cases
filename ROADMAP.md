@@ -6,6 +6,25 @@
 
 ## Current release
 
+**v8.26.0 — Guided onboarding starter packs (16,644 use cases)** *(shipped 2026-10-23)*
+
+Theme: **help people who are new to Splunk pick their first use cases.**
+Fifteen draft starter packs over existing UCs, a Start-here wizard that turns
+equipment or a pasted sourcetype list into an ordered rollout plan, and three
+MCP tools that return the same plan.
+
+### Shipped outcomes
+
+- **15** draft starter packs (Splunk platform, Windows, Linux, Catalyst Center, ThousandEyes, Meraki, ISE pairs; Palo Alto security-only).
+- **Start-here wizard** at `#start` with client-side paste matching and Markdown / CSV / AI-prompt export.
+- **MCP** grows to **14** tools: `list_starter_packs`, `get_starter_pack`, `plan_rollout`.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.26.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.25.0 — Industry expansion + Fun Stuff consolidation (16,644 use cases)** *(shipped 2026-07-24)*
 
 Theme: **scale industry vertical coverage and consolidate the Personal &
@@ -22,10 +41,6 @@ catalogue scale.
 - **Link-check (#75) and regulatory change-watch (#80)** resolved.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.25.0 release entry.
-
----
-
-## Previous releases
 
 **v8.24.0 — Cloud expansion + compliance gap closure (15,930 use cases)** *(shipped 2026-07-24)*
 

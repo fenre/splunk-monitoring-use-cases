@@ -1943,6 +1943,10 @@ def _manifest(
                 "detail": f"/api/{API_VERSION}/equipment/{{equipmentId}}.json",
                 "appIndex": f"/api/{API_VERSION}/equipment/app-index.json",
             },
+            "starterPacks": {
+                "index": f"/api/{API_VERSION}/starter-packs/index.json",
+                "detail": f"/api/{API_VERSION}/starter-packs/{{packId}}.json",
+            },
         },
         "deprecations": [],
         "successor": None,
@@ -2119,6 +2123,21 @@ paths:
         ``scripts/generate_evidence_packs.py`` (subtree owned outside this generator).
       parameters:
         - name: regulation
+          in: path
+          required: true
+          schema: { type: string }
+  /starter-packs/index.json:
+    get:
+      summary: Guided-onboarding starter packs (all packs, resolved steps, alias groups)
+      description: |
+        Produced by ``python -m splunk_uc generate-starter-packs`` from
+        ``data/starter-packs/*.json`` (subtree owned outside this generator).
+        Show only ``status: published`` packs to end users.
+  /starter-packs/{packId}.json:
+    get:
+      summary: One starter pack with resolved steps and audit readiness
+      parameters:
+        - name: packId
           in: path
           required: true
           schema: { type: string }
@@ -2562,7 +2581,7 @@ def _render_story_surfaces(out_root: pathlib.Path) -> None:
 #: therefore must be ignored by this script's rmtree / diff logic.
 #: Keep in sync with the corresponding generator entries in
 #: .github/workflows/validate.yml.
-_EXTERNAL_SUBTREES = ("evidence-packs",)
+_EXTERNAL_SUBTREES = ("evidence-packs", "starter-packs")
 
 
 def _is_external(rel: pathlib.Path) -> bool:
