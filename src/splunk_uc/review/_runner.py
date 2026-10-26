@@ -287,7 +287,26 @@ def complete_record(
     if run_id:
         record["run_id"] = run_id
     record["reviewed_at"] = reviewed_at
-    return apply_evidence_rule(record)
+    record = apply_evidence_rule(record)
+    if "verdict" in record:
+        record["verdict"] = derive_verdict(record)
+    return record
+
+
+def derive_verdict(record: dict[str, Any]) -> str:
+    """The rubric's verdict rule, applied after the evidence rule so downgrades count."""
+    severities = {f.get("severity") for f in record.get("findings", [])}
+    severities |= {f.get("severity") for f in record.get("firewalled_field_flags", [])}
+    if "blocker" in severities:
+        return "incorrect"
+    if "major" in severities:
+        return "rewrite"
+    if severities & {"minor", "needs_verification"}:
+        return "polish"
+    scores = record.get("scores") or {}
+    if scores and all(isinstance(v, int) and v >= 4 for v in scores.values()):
+        return "ok"
+    return "polish"
 
 
 @dataclass

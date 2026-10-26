@@ -1,0 +1,113 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9988bdedfb88002f53a07c0b58489bf7659858a2eb0354946bc47f45f0a1697d",
+  "file": "content/cat-02-virtualization/UC-2.7.2.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "vzdump writes free-text task-log lines (for example 'INFO: starting new backup job: vzdump ... --storage X --mode snapshot', 'INFO: Finished Backup of VM 100 (00:02:13)', 'ERROR: Backup of VM 101 failed - ...'). It does not write `jobid`/`status`/`duration_sec`/`size_bytes`/`storage` fields. Duration is HH:MM:SS, and storage appears only on the job-start line. Without extraction rules the SPL's `tonumber(duration_sec)` and `by storage` will be null.",
+      "field": "implementation",
+      "quote": "Parse vzdump lines into structured fields.",
+      "severity": "major",
+      "suggested_fix": "Give the props/transforms (or an `rex` block) that extracts `vmid`, the result (Finished vs failed), the HH:MM:SS duration converted to seconds, the archive size and the job-level `--storage`/`--mode`. Carry storage to each per-VM line, for example with `transaction` or `streamstats` on the task UPID, or ingest the PVE task API (`/nodes/{node}/tasks?typefilter=vzdump`) instead."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Proxmox VE does not document a single `/var/log/vzdump.log`. Backup output goes to the task log under `/var/log/pve/tasks/` and to a per-guest `.log` written next to the archive in the dump directory (older releases also used `/var/log/vzdump/qemu-<vmid>.log` / `lxc-<vmid>.log`).",
+      "field": "app",
+      "quote": "Splunk Universal Forwarder tailing `/var/log/vzdump.log` or journal `vzdump`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current Proxmox VE backup documentation and replace this with the real monitor paths, for example `/var/log/pve/tasks/*/*vzdump*` and/or the dump-directory `vzdump-*.log` files. Set a sourcetype definition that breaks per task."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The whole field is generic boilerplate. A UF file monitor has no poll interval, and there is no 'vendor admin UI inventory count' to reconcile against. The `earliest=-24h@h` schedule contradicts the SPL's 7-day, 1-day-binned window. Nothing here tells the reader how to collect or parse vzdump output.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=proxmox:backup into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search`",
+      "severity": "major",
+      "suggested_fix": "Replace with vzdump-specific steps: the inputs.conf monitor stanza and sourcetype, the extraction rules, a daily schedule after the backup window over `-7d@d`, validation against `Datacenter > Backup` job history or `pvesh get /nodes/<node>/tasks --typefilter vzdump`, and routing of failed jobs to the backup owner."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is Linux capacity boilerplate. Calling 'nightly backup I/O' a false positive for a backup-monitoring UC makes no sense, and none of the items names a real cause of spurious vzdump failure or duration alerts.",
+      "field": "knownFalsePositives",
+      "quote": "Package managers spike `storage` metrics ... Correlate with apt/yum logs ... Nightly backup I/O on `storage` — Predictable `sum` burst on fixed cron",
+      "severity": "major",
+      "suggested_fix": "List real causes. A guest is stopped or locked during the window ('VM is locked (backup)' or 'migrate'). Jobs are intentionally excluded or removed. The first full backup to a new PBS datastore runs long, and the first run after dirty-bitmap reset is slower. Snapshot mode falls back to suspend mode. Manual ad-hoc backups land outside the window."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`exclusions`, `evidence` ('Linux —' panel, `csv:linux_controls`) and the `knownFalsePositives` suppression note recast a Proxmox backup-reliability UC as a Linux capacity control, which is the wrong domain.",
+      "field": "cross_field",
+      "quote": "Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+      "severity": "major",
+      "suggested_fix": "Use a Proxmox-specific exception list (for example a `vmid`/backup-job lookup for guests deliberately excluded or in maintenance) and drop the Linux naming."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic team name. Its implementation text is untailored boilerplate and its fields cannot be produced from raw vzdump logs without parsing that is not described, so it does not show evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", \"lastReviewed\": \"2025-06-01\", \"reviewer\": \"catalog-team\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status to unverified/draft until a named reviewer has run the search against real vzdump data."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`m365` (Microsoft 365) has nothing to do with Proxmox vzdump backups.",
+      "field": "equipment",
+      "quote": "\"m365\", \"proxmox\", \"syslog\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `m365`. Keep `proxmox`, and `syslog` only if the SC4S path is actually supported."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/vzdump.1.html",
+      "explanation": "The link goes to the wiki root, not the vzdump/backup documentation its title promises. The HEC reference is unrelated to a UF file-monitor input.",
+      "field": "references",
+      "quote": "\"title\": \"Proxmox VZDump Backup\", \"url\": \"https://pve.proxmox.com/wiki/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://pve.proxmox.com/pve-docs/vzdump.1.html and the Backup and Restore chapter of the PVE admin guide, and drop the HEC link."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL uses a fixed 14400 s (4 h) p95 threshold, not a per-storage baseline or a computed overnight window.",
+      "field": "implementation",
+      "quote": "Baseline p95 duration per `storage`. Alert on any `failed` job or p95 beyond the overnight window.",
+      "severity": "minor",
+      "suggested_fix": "Say that the default is a static 4-hour p95, and show the per-storage baseline as an optional lookup-driven variant."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Several problems will produce false results. The success regex `(?i)ok|success|finished` matches substrings such as 'broken'. Events with no `status`/`result` evaluate to ok=0 and are counted as failures. `tonumber()` on vzdump's HH:MM:SS duration returns null. `by storage` is null unless storage is propagated from the job-start line, so per-storage rows and the p95 test may silently disappear.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0010-UC-2.7.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Trending vzdump job outcome and duration per storage target is useful, and the grandma text is accurate. But the UC assumes structured vzdump fields that Proxmox does not emit and gives no parsing guidance. Its log path is doubtful, `detailedImplementation` is pure boilerplate, and the UC claims `status: verified` with Linux-capacity template text throughout.",
+  "tier": "deep",
+  "uc_id": "UC-2.7.2",
+  "verdict": "rewrite"
+}

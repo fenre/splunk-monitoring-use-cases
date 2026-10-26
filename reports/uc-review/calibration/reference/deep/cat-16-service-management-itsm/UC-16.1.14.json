@@ -1,0 +1,97 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "75879fef25d3e58e236be50583a6aa9cc813ef5050337429fa89ce1e8d3b17f1",
+  "file": "content/cat-16-service-management-itsm/UC-16.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.servicenow.com/docs/r/zurich/it-service-management/service-level-management/r_TaskSLATable.html",
+      "explanation": "The ServiceNow `task_sla` table has no `sla_start_time` or `due_at` column. The real columns are `start_time`, `planned_end_time` (labelled \"Breach time\"), `has_breached` (the breach flag), `stage`, `percentage`, `business_percentage` and `task` (the reference to the parent incident or task). A reader mapping fields from this text will not find them.",
+      "field": "implementation",
+      "quote": "Ingest SLA task rows with `sla_start_time`, `planned_end_time` (or `due_at`), breach flag, and parent incident.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real columns: `start_time`, `planned_end_time`, `has_breached`, `stage`, `percentage` / `business_percentage`, `task` (parent reference) and `sla` (the SLA definition)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.servicenow.com/docs/r/zurich/it-service-management/service-level-management/r_TaskSLATable.html",
+      "explanation": "The SLA engine already maintains \"Actual elapsed percentage\" (`percentage`) and \"Business elapsed percentage\" (`business_percentage`), both net of pause time. A wall-clock ratio of now minus start over breach time minus start overstates progress for SLAs on business-hours schedules and for paused SLAs. The text also never says to restrict to `stage=in_progress`.",
+      "field": "implementation",
+      "quote": "Compute percent of SLA window consumed. Alert when elapsed ≥80% and breach has not occurred.",
+      "severity": "major",
+      "suggested_fix": "Use `business_percentage` (or `percentage` for 24x7 SLAs) taken from the latest record per task_sla `sys_id`, filtered to `stage=in_progress` and `has_breached=false`. Alert at 80% or higher, tuned per SLA definition."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The text contains two concatenated copies of Steps 1 to 4, and the second is generic boilerplate (a `tstats` count compared with a \"vendor admin UI\", HTTP 401/429 troubleshooting, an \"entity\" the SPL never uses). It also never says that `task_sla` is not a default Splunk_TA_snow input and must be added as a custom table input. The add-on indexes a new event on every record update, so without a per-`sys_id` latest step a 24-hour window returns duplicate and stale snapshots.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps: add a `task_sla` table input in Splunk_TA_snow (sourcetype `snow:task_sla`), set its poll interval, reduce to the latest event per `sys_id`, schedule every 15 minutes, and throttle on `task`. Remove the generic troubleshooting block."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The false positives refer to `host`, maintenance windows and synthetic probes, which have nothing to do with ticket SLAs. The real sources of false at-risk rows are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `itsm` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: paused or on-hold SLAs whose wall-clock percentage keeps rising; business-hours schedules where wall-clock elapsed time exceeds business elapsed time; stale snapshot events for SLAs that have since completed or been cancelled; SLAs reset or retroactively recalculated after a priority change; and duplicate SLA definitions attached to the same task."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The data sources list incident data, but the SPL reads only `snow:task_sla` and never joins incidents. They also do not name any of the task_sla fields the detection depends on.",
+      "field": "dataSources",
+      "quote": "ServiceNow incident + SLA task / task_sla (`sourcetype=snow:task_sla` or equivalent)",
+      "severity": "minor",
+      "suggested_fix": "List `index=itsm sourcetype=snow:task_sla` with fields `sys_id`, `task`, `sla`, `stage`, `has_breached`, `start_time`, `planned_end_time`, `business_percentage`. Mention `snow:incident` only if it is joined for priority or assignment group."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the references describes the ServiceNow Task SLA table or its timing fields, which this UC depends on.",
+      "field": "references",
+      "quote": "Splunk savedsearches.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add the ServiceNow Task SLA table documentation (https://www.servicenow.com/docs/r/zurich/it-service-management/service-level-management/r_TaskSLATable.html)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL references `breach_time`, `sla_start_time`, `parent`, `number` and `sla_type`, which are not task_sla columns. The ServiceNow dictionary has `has_breached`, `start_time`, `task` and `sla`, and `planned_end_time` is the \"Breach time\". As written, `where isnull(breach_time)` passes every row and `pct_elapsed` is always null, so the search returns nothing.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no `stage=\"in_progress\"` filter and no per-`sys_id` latest reduction, so completed, cancelled or paused SLAs and older snapshots can appear as at-risk. Confirm whether Splunk_TA_snow emits glide_date_time fields as `YYYY-MM-DD HH:MM:SS` strings; if so, the arithmetic against `now()` needs `strptime` first.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "SLA breach prediction for ITSM tickets is an operations or observability concern, not Security.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0096-UC-16.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The intent (flag open SLAs that have used at least 80% of their time) is clear and the plain-language explanation is good. However, the implementation and SPL use ServiceNow task_sla field names that do not exist, they recompute an elapsed percentage the SLA engine already provides, and the rest of the prose is generic template text.",
+  "tier": "deep",
+  "uc_id": "UC-16.1.14",
+  "verdict": "incorrect"
+}

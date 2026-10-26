@@ -1,0 +1,96 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "5c014a89cd58975f2e960bee0bbb2d4b3e54648c79be46a4cf4b32b511b8f7c6",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.7.32.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "evidence_url": "https://documents.bmc.com/supportu/API/9.0.27/9.0.27.000/en-US/Documentation/API_Services_ConfigService_Agent.htm",
+      "explanation": "`/run/jobs/status` returns job status, not agent connectivity. The Automation API exposes agent state through `config server:agents::get` (`GET /config/server/{server}/agents`), which returns each agent's nodeid and status (Available, Unavailable, Disabled, Discovering).",
+      "field": "app",
+      "quote": "the Control-M Automation API (`/run/jobs/status`) via HEC scripted inputs",
+      "severity": "major",
+      "suggested_fix": "Name `GET /config/server/{server}/agents` (CLI: `ctm config server:agents::get`) as the poll source for agent connectivity, with fields nodeid and status. Keep `/run/jobs/status` only for the job-failure sibling UCs."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://documents.bmc.com/supportu/API/9.0.27/9.0.27.000/en-US/Documentation/API_Services_ConfigService_Agent.htm",
+      "explanation": "This is the shared subcategory boilerplate. It does not say which source records agent unavailability or what the message looks like, and it leaves out the agents status endpoint.",
+      "field": "dataSources",
+      "quote": "Control-M Automation API job status (`controlm:job`), Control-M/EM gateway and agent logs (`controlm:em`, `controlm:agent`).",
+      "severity": "major",
+      "suggested_fix": "List the agent-status poll (config server agents, status field) as the primary source. Name the specific Control-M/Server or EM alert message for agent unavailability as a secondary source, quoting the message text from your environment."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Control-M/Server tracks agent availability (Server-to-Agent communication). EM gateway logs mainly reflect EM-to-Server traffic, so agent-unavailable messages may not appear there. 'Production host' also relies on a host classification that no field defines.",
+      "field": "implementation",
+      "quote": "Ingest Control-M/EM gateway logs; schedule every 5 minutes and alert on any agent-unavailable event for a production host.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which log or alert stream carries agent-unavailable messages in your Control-M version (Control-M/Server logs or EM alerts). Otherwise poll the agents status endpoint. Add a lookup that marks production agents (nodeid to environment)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The field is the generic five-step template. It has a 24-hour window that contradicts the 5-minute schedule in `implementation`, `list_inputs` roles, and splunkd 401/429 checks, with no Control-M-specific steps such as validating against the Control-M Configuration Manager agent list.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Replace it with Control-M steps. Poll agent status every 5 minutes, compare Unavailable agents against the Configuration Manager or `ctm config server:agents::get` output, suppress Disabled agents, and alert when status stays Unavailable for two consecutive polls."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Neither the SPL nor any data source used for agent connectivity relies on DB Connect.",
+      "field": "equipment",
+      "quote": "\"db_connect\"",
+      "severity": "minor",
+      "suggested_fix": "Remove db_connect unless a reporting-database input is actually documented for this UC."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The references are documentation root pages. None covers agent status.",
+      "field": "references",
+      "quote": "BMC — Control-M documentation",
+      "severity": "minor",
+      "suggested_fix": "Add the Automation API Config service agent page (config server:agents::get)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "An agent shows as unavailable when its service stops, a certificate or port breaks, or the host goes down, not only on network loss.",
+      "field": "grandmaExplanation",
+      "quote": "when a machine running scheduled jobs drops off the network",
+      "severity": "minor",
+      "suggested_fix": "Say 'stops answering the scheduler' rather than 'drops off the network'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The keyword match `\"Agent\" AND (\"Unavailable\" OR \"Disconnected\" OR \"lost\")` is loose, and `rex \"Agent (?<agent>\\S+)\"` grabs whatever word follows 'Agent'. There is no recovery handling, so agents that already reconnected are still listed. Prefer polling agent status (status=\"Unavailable\" by nodeid) or pairing unavailable and available messages with latest-state logic.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0145-UC-24.7.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detection goal is clear, but the text points readers at the job-status API and EM gateway logs instead of the Control-M agent status source (Automation API config server agents, with status Available/Unavailable/Disabled/Discovering). The implementation guidance is a generic template.",
+  "tier": "deep",
+  "uc_id": "UC-24.7.32",
+  "verdict": "rewrite"
+}

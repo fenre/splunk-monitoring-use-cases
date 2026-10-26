@@ -1,0 +1,123 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "dbb544c11b1279e361c5e9e5b04816c05ab4d22da9a087b1c8c1f8e0e243e336",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/envoyproxy/ratelimit/blob/main/README.md",
+      "explanation": "envoyproxy/ratelimit emits per-descriptor stats ratelimit.service.rate_limit.<domain>.<key>.total_hits / over_limit / near_limit / within_limit / shadow_mode. The Prometheus mapper exposes them as ratelimit_service_rate_limit_total_hits, _over_limit and _within_limit; there is no ratelimit_service_rate_limit_total series with a rate_limited label. dataSources repeats the invented name, so the global-RLS lane collects nothing.",
+      "field": "detailedImplementation",
+      "quote": "`ratelimit_service_rate_limit_total{rate_limited=\"true\"}` — requests denied by the global service",
+      "severity": "blocker",
+      "suggested_fix": "Use ratelimit_service_rate_limit_over_limit and ratelimit_service_rate_limit_total_hits (labelled by domain and descriptor key, with USE_PROMETHEUS=true or a statsd_exporter mapping), and compute the over-limit ratio from their deltas."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/local_rate_limit_filter",
+      "explanation": "Envoy defines rate_limited as 'responses without an available token (but not necessarily enforced)' and enforced as 'requests for which rate limiting was applied (e.g. 429 returned)'. Denied requests are counted by enforced, not rate_limited. The stats also live under <stat_prefix>.http_local_rate_limit, so the Prometheus name includes the configured stat_prefix (for example envoy_http_local_rate_limiter_http_local_rate_limit_enforced), not the bare names listed.",
+      "field": "detailedImplementation",
+      "quote": "`envoy_http_local_rate_limit_rate_limited` (counter — requests denied)\n— `envoy_http_local_rate_limit_enforced` (counter — denials enforced vs **shadow mode**)",
+      "severity": "major",
+      "suggested_fix": "Describe enforced as actual denials and rate_limited as token exhaustion including shadow mode. Note that metric names carry the EnvoyFilter stat_prefix, and tell readers to confirm the exact names with a /stats/prometheus query on one sidecar."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Web",
+      "explanation": "The signal is HTTP access-log status 429 per route or authority. That is the CIM Web model (status, url, http_method, dest, src), not Network_Traffic (L3/L4 flows). Authentication models logon success and failure; a rate-limit 429 is not an authentication event.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Network_Traffic\", \"Authentication\"]",
+      "severity": "blocker",
+      "suggested_fix": "Map to Web (Web.status=429, Web.dest or site for the route) and remove Network_Traffic and Authentication."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes reached end of support on 1 January 2024 and has been replaced by the Splunk OpenTelemetry Collector for Kubernetes. It is also not a 'modular input', despite what dataSources says ('Collected via Splunk Connect for Kubernetes ... modular input').",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for access log and event collection. — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "major",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (filelog for sidecar access logs, k8s_events, prometheus receiver) as the single collection path, and drop Splunk Connect for Kubernetes from app and dataSources."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/tasks/policy-enforcement/rate-limit/",
+      "explanation": "Istio has no RateLimitService API. Global rate limiting is configured with EnvoyFilter resources that insert envoy.filters.http.ratelimit and point it at an envoyproxy/ratelimit cluster. Separately, the RLSE flag marks requests rejected because of a rate-limit-service error; it is not set when failure_mode_deny=false lets requests through, as the text implies.",
+      "field": "detailedImplementation",
+      "quote": "**Global rate limiting**: configured via **Istio**'s **RateLimitService** integration with an external **rate limit service**",
+      "severity": "minor",
+      "suggested_fix": "Say global rate limiting is configured through EnvoyFilter (ratelimit filter plus a rate_limit_service cluster). Describe RLSE as 'request rejected due to rate limit service error' and note that fail-open bypasses leave no RLSE flag."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation say the lookup carries max_rps and that the UC detects missing enforcement under high traffic. The described searches only compare observed throttle percentage with an 'expected_rl_pct' and never use max_rps or request rate, so 'throttling absent during high traffic' is never evaluated. A throttle percentage also depends on traffic mix, so it is not a policy-compliance measure.",
+      "field": "cross_field",
+      "quote": "Alert when expected throttling is absent during high traffic or when drift exceeds 10%.",
+      "severity": "major",
+      "suggested_fix": "Either describe the drift check honestly as a comparison of observed and expected 429 share, or define compliance as allowed requests per second per route exceeding max_rps with zero RL/429 responses. Make implementation, detailedImplementation and the alert rules use the same test. Also list all three searches; implementation mentions only two."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "No entry names a real cause of benign throttling alerts. Real ones include planned load tests (the UC's own Step 3 uses hey), client retry storms that amplify 429 counts, batch jobs hitting per-client limits by design, shadow-mode rollouts, and per-pod local limits scaling with replica count (explained in Step 5).",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `route`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with those causes, each with a discriminator: load-test client IPs, retry headers, shadow-mode metrics showing rate_limited but not enforced, and replica changes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated handle (agent-handcraft-2026-04-30), and the RLS health lane relies on a metric that does not exist, so the UC cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the metric names are confirmed against a live sidecar and rate-limit service and the Step 3 validation has been recorded."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The RLS health search filters on metric_name ratelimit_service_rate_limit_total, which envoyproxy/ratelimit does not emit, and sums cumulative counter values instead of deltas, so enforcement_pct is meaningless. The bare envoy_http_local_rate_limit_* names ignore the stat_prefix. It also searches index=containers as events; if that is a metrics index, mstats is required.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one spl field with no combining command, so it cannot run as a single saved search.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "match(response_flags, \"RL\") also matches RLSE (rate-limit service error, which Envoy answers with 500 by default), so service failures are counted as throttling. Match the flag token exactly (for example ^RL$ or (^|,)RL(,|$)).",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The drift search keeps every NO_POLICY route each hour regardless of volume, so every unlisted route alerts hourly.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0018-UC-3.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The access-log part of the UC is sound (429 and the RL flag per route), but the global rate-limit-service metric is invented and the local rate-limit counter semantics are swapped. The CIM mapping (Network_Traffic and Authentication) does not fit HTTP throttling, and the 'policy compliance' drift ignores the max_rps value it collects. Description, value, controlTest, evidence, exclusions and knownFalsePositives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.12",
+  "verdict": "incorrect"
+}

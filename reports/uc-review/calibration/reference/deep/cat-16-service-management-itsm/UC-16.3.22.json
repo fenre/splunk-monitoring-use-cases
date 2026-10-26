@@ -1,0 +1,93 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "1e197a41fa9a4497c5e0797c0a068d6f6b45f2b5240aab898c54ab352e4cadc1",
+  "file": "content/cat-16-service-management-itsm/UC-16.3.22.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-jira-cloud/SourceTypesForAddOn/",
+      "explanation": "The Splunk Add-on for Jira Cloud indexes Jira issue JSON under `jira:cloud:issues`; it does not provide `start_epoch`, `end_epoch`, `issue_type` or `service_ci`. The text does not name the JSM change fields holding the planned window (the change start / completion date custom fields), how they are converted, or how the affected service is derived, so the SPL returns nothing out of the box.",
+      "field": "implementation",
+      "quote": "Require ISO timestamps in custom fields; normalize to epoch at ingest.",
+      "severity": "major",
+      "suggested_fix": "Name the source fields (look up the customfield IDs for the JSM 'Change start date' / 'Change completion date' fields and the affected-service field in your instance), give the props.conf EVAL/FIELDALIAS or search-time `eval strptime(...)` that produces `start_epoch` / `end_epoch`, alias `fields.issuetype.name` to `issue_type`, and explain how `service_ci` is populated."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-jira-cloud/ConfigureInputsForAddOn/",
+      "explanation": "The SPL never calls a lookup; it expects `service_ci` already on the event, so the 'CMDB lookup' is undocumented and unused. The Jira Cloud add-on is an API-polling modular input configured from its Inputs tab in Splunk Web (heavy forwarder or search tier), not something run on a Universal Forwarder.",
+      "field": "app",
+      "quote": "Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci` — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "List Splunk Add-on for Jira Cloud (6211) on a heavy forwarder / Splunk Cloud IDM; if a CMDB mapping is needed, name the lookup and add the `lookup ... OUTPUT service_ci` step to the documented search, otherwise drop the lookup reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-jira-cloud/SourceTypesForAddOn/",
+      "explanation": "The SPL also reads `sourcetype=jira:issue`, which the Jira Cloud add-on does not produce (its sourcetypes are `jira:cloud:issues`, `jira:cloud:audit:log`, `jira:cloud:users`); the sourcetypes and index are not named here.",
+      "field": "dataSources",
+      "quote": "Jira Service Management change tickets with planned start/end",
+      "severity": "minor",
+      "suggested_fix": "State `index=itsm sourcetype=jira:cloud:issues` from add-on 6211 and, if Jira Data Center is in scope, name the separate input that produces `jira:issue`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Overlap detection needs every approved change whose window is still in the future, but `_time` on Jira issue events reflects ingestion/update, so a 24-hour window only sees changes touched in the last day and misses collisions with older approvals. The duplicated generic Steps 1–5 also add a 'vendor admin UI inventory count' check and severity routing that do not apply.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Search back far enough to cover all open changes (or maintain a KV-store of the latest state per change key), keep the latest event per `key` (`dedup key`), and filter to `end_epoch > now()`; remove the duplicated template steps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search does not check approval status (it keeps any issue of type Change or label `change`), so 'approved' describes the intent in the title, not what the detection does.",
+      "field": "grandmaExplanation",
+      "quote": "We look for two approved change windows on top of each other",
+      "severity": "minor",
+      "suggested_fix": "Either say 'two planned change windows for the same service' or note that the search must be limited to CAB-approved changes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Splunk has no built-in Gantt visualization, and an alert email is an alert action rather than a visualization; the reader is not told how to build the view.",
+      "field": "visualization",
+      "quote": "Gantt-style table, Alert email to CAB.",
+      "severity": "minor",
+      "suggested_fix": "Describe a table sorted by `service_ci` and `start` showing both change keys and their windows (or name the Splunkbase Gantt/timeline visualization if one is intended), and move the CAB email to the alert-action step."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats window=1 current=f latest(end)` compares each change only with the immediately preceding change per service; a long change that spans several later ones is missed for all but the first. Use the running `max(end)` of all previous changes per `service_ci`. Re-ingested updates of the same issue are also not deduplicated before sorting.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "No status filter for CAB approval although the title says 'CAB-Approved Windows'; cancelled, rejected or draft changes produce collisions.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0101-UC-16.3.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The goal (flag overlapping change windows on the same service) is clear, but the sidecar never explains how `start_epoch`, `end_epoch`, `issue_type` and `service_ci` come to exist on raw Jira Cloud issue events, promises a CMDB lookup the SPL never performs, mis-describes where the add-on runs, and its scheduling advice would miss most approved future changes.",
+  "tier": "deep",
+  "uc_id": "UC-16.3.22",
+  "verdict": "rewrite"
+}

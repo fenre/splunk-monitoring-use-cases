@@ -1,0 +1,133 @@
+{
+  "confidence": 0.88,
+  "content_sha256": "a352eeabbf35c8c09e1651b94f0c523e91dea842002e2f792d5b5cf73069a805",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.4.73.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This is a GCP-only UC (index=gcp, Cloud Audit Logs), but the primary app is the AWS add-on (Splunkbase 1876). GCP audit logs are collected by Splunk_TA_google-cloudplatform, Splunkbase 3088. The references field repeats the mistake by linking the AWS add-on plus a generic docs.splunk.com page.",
+      "field": "splunkbaseApps",
+      "quote": "\"id\": 1876, \"name\": \"Splunk Add-on for AWS\", \"role\": \"primary\"",
+      "severity": "blocker",
+      "suggested_fix": "Set the primary app to Splunk Add-on for Google Cloud Platform (Splunk_TA_google-cloudplatform, Splunkbase 3088). In references, replace the AWS add-on link with https://splunkbase.splunk.com/app/3088 and the GCP Cloud Audit Logs / AuditLog reference pages."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/gcp.md",
+      "explanation": "'Splunk cloud TA for GCP' is not a product name. The same placeholder appears in dataSources and in the detailedImplementation prerequisites and failure modes.",
+      "field": "app",
+      "quote": "Splunk cloud TA for GCP",
+      "severity": "major",
+      "suggested_fix": "Use 'Splunk Add-on for Google Cloud Platform (`Splunk_TA_google-cloudplatform`, Splunkbase 3088)' everywhere."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-google-cloud-platform/Sourcetypes/",
+      "explanation": "Splunk_TA_google-cloudplatform does not produce a `google:gcp:audit` sourcetype. Pub/Sub-delivered audit logs arrive as `google:gcp:pubsub:audit:admin_activity`, `google:gcp:pubsub:audit:data_access` and related types (4.0.0+), or as `google:gcp:pubsub:message` per the repository GCP guide. The same sourcetype is repeated in controlTest, implementation and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "`index=gcp` sourcetype=`google:gcp:audit`",
+      "severity": "blocker",
+      "suggested_fix": "Use `google:gcp:pubsub:audit:admin_activity` and `google:gcp:pubsub:audit:data_access` (or `google:gcp:pubsub:message` on add-on versions before 4.0.0)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://cloud.google.com/logging/docs/reference/audit/auditlog/rest/Shared.Types/AuditLog",
+      "explanation": "`errorCode` is an AWS CloudTrail field. A GCP AuditLog records failures in `protoPayload.status` (`status.code`, a google.rpc.Code integer, plus `status.message`), so real GCP events never carry `errorCode`. Both scenarios also test single events, not a rate spike.",
+      "field": "controlTest",
+      "quote": "Replay sample `google:gcp:audit` events with `errorCode=\"*\"` into `index=gcp`.",
+      "severity": "blocker",
+      "suggested_fix": "Positive scenario: replay a burst of audit events with non-zero `protoPayload.status.code` (for example 7 PERMISSION_DENIED or 8 RESOURCE_EXHAUSTED) above the baseline. Negative scenario: replay normal volume with only status.code 0 or absent."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The title says 'Error Rate Spike', but the description and SPL list individual events with no rate, baseline or threshold, so nothing detects a spike. No region field is returned either.",
+      "field": "description",
+      "quote": "queries Google Cloud `google:gcp:audit` for search criteria `errorCode=\"*\"` and returns actor, resource, and region context",
+      "severity": "major",
+      "suggested_fix": "Describe a rate detection: errors (non-zero protoPayload.status.code) per serviceName/methodName/principal per time bucket, compared to a baseline or fixed threshold. State the actual threshold once the SPL owner defines one."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "This is generic text with no real cause of GCP API errors.",
+      "field": "knownFalsePositives",
+      "quote": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+      "severity": "major",
+      "suggested_fix": "Name concrete benign error sources: IaC refresh/plan probing resources that do not exist (NOT_FOUND), CI service accounts retrying after quota exhaustion (RESOURCE_EXHAUSTED), PERMISSION_DENIED bursts right after planned IAM changes, and a project being decommissioned."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/gcp.md",
+      "explanation": "This is not actionable. It does not say which log sink filter, Pub/Sub input or audit log types (Admin Activity vs Data Access) are needed for failed calls to appear.",
+      "field": "implementation",
+      "quote": "Configure required cloud inputs per provider guide; index=gcp sourcetype=google:gcp:audit.",
+      "severity": "major",
+      "suggested_fix": "Describe creating a Cloud Logging sink for cloudaudit.googleapis.com logs to a Pub/Sub topic, adding the Pub/Sub input in Splunk_TA_google-cloudplatform, and enabling Data Access logs where failed read calls matter."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the lowercased title with jargon ('api') and does not explain what is being counted.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of gcp cloud api error rate spike so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "Something like: 'We count how often requests to Google Cloud are refused or fail, and warn you when that suddenly jumps, which can mean a broken deployment, a permissions mistake or someone probing your account.'"
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-google-cloud-platform/Sourcetypes/",
+      "explanation": "The GCP add-on maps admin_activity audit events to CIM Change, so leaving this empty hides a usable model. This only matters if the detection is rebuilt on CIM.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "minor",
+      "suggested_fix": "Consider listing Change, or state explicitly that this is a raw-sourcetype detection."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL filters on `errorCode=\"*\"`, an AWS CloudTrail field that does not exist in GCP AuditLog (errors are in protoPayload.status.code/message). It uses the non-existent sourcetype google:gcp:audit and top-level `resourceName` (should be protoPayload.resourceName). It has no rate, baseline or threshold logic, so it cannot detect a 'spike'. Evidence: https://cloud.google.com/logging/docs/reference/audit/auditlog/rest/Shared.Types/AuditLog",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "The pillar is Security, but monitoringType is Operations/Governance and the description says 'operations review'.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 is not supported by an error-rate detection. If it stays, a discovery/brute-force style technique would need SME justification.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "evidenceArtifact names non-existent sourcetype google:gcp:audit, and AU-2 'satisfies' is a stretch for an error-rate alert.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0027-UC-4.4.73",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC promises a GCP API error-rate spike detection, but the text and SPL only list events with an AWS-style `errorCode` field, which GCP audit logs do not have. It uses a sourcetype the GCP add-on does not emit and names the AWS add-on as its primary app. Nearly every fixable field is template boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-4.4.73",
+  "verdict": "incorrect"
+}

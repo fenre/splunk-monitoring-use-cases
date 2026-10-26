@@ -1,0 +1,105 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1ef70bad58f6dd39403f0b7ba15a9af09ce7b42096655d395c51cf9e42a36c29",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.18.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc8273",
+      "explanation": "RFC 8273 gives each host a unique /64 through a unicast Router Advertisement, and the host then forms its address with SLAAC. Its recommended flags are M=0 and A=1, and it describes DHCPv6-PD only as a possible future option. RFC 8273 deployments therefore produce no IA_PD log entries. detailedImplementation's advice to set `no-autoconfig` 'so hosts rely on PD' contradicts the RFC, and ordinary end hosts do not request IA_PD at all, so they would get no address.",
+      "field": "dataSources",
+      "quote": "In the RFC 8273 model, each host receives a delegated /64 prefix instead of a single /128 address.",
+      "severity": "blocker",
+      "suggested_fix": "Separate the two models. DHCPv6-PD (RFC 8415 IA_PD) is for requesting routers, CPE or hypervisors, and is what this SPL can see. RFC 8273 per-host /64 via unicast RA needs router-side subscriber or RA logs instead. Drop the 'disable SLAAC so hosts rely on PD' advice, or limit it to PD-capable clients."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/2812",
+      "explanation": "Splunkbase 2812 is the 'EMC XtremIO App for Splunk Enterprise'. The IOS syslog add-on is TA-cisco_ios (Splunkbase 1467), now deprecated in favour of the Cisco Catalyst Add-on for Splunk (Splunkbase 7538). No add-on named `Splunk_TA_cisco-ios` exists.",
+      "field": "app",
+      "quote": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for IOS syslog.",
+      "severity": "blocker",
+      "suggested_fix": "Replace it with 'Cisco Catalyst Add-on for Splunk (TA_cisco_catalyst, Splunkbase 7538)', noting the legacy TA-cisco_ios (Splunkbase 1467) for existing deployments."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/routers/ios/config/17-x/ip-addressing/b-ip-addressing/m_ip6-dhcp-prefix-xe.html",
+      "explanation": "The Cisco IOS XE DHCPv6 Prefix Delegation guide documents the binding table (show ipv6 dhcp binding) and binding database agents, but no PREFIX_ASSIGN syslog mnemonic. IOS may not log PD bindings to syslog at all without debug, in which case the Cisco half of the SPL has nothing to match.",
+      "field": "dataSources",
+      "quote": "On Cisco IOS, DHCPv6-PD assignments appear in `%DHCPv6-PD-6-PREFIX_ASSIGN` syslog messages.",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the actual mnemonic in the Cisco IOS XE System Message Guide. If none exists, collect `show ipv6 dhcp binding` with a scripted input, or export the binding database agent file."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "`logging buffered` only writes to the router's local RAM buffer. It does not enable DHCPv6 logging or send anything to Splunk, which needs `logging host` and `logging trap informational`. An add-on parses data but does not forward it.",
+      "field": "detailedImplementation",
+      "quote": "Enable DHCPv6 event logging:\n```\nlogging buffered 32768 informational\n```\nDHCPv6-PD events appear as `%DHCPv6-PD-6-PREFIX_ASSIGN` in syslog, forwarded to Splunk via the Cisco IOS TA.",
+      "severity": "major",
+      "suggested_fix": "Show `logging host <collector>` plus `logging trap informational` (to SC4S or a syslog input). Say the add-on parses the events once they are indexed."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Kea's memfile lease6 CSV marks prefix leases with a numeric lease_type column rather than an 'ia-pd' string, and Kea logs allocations with its own message IDs. isc:dhcpd is the ISC DHCP (dhcpd) sourcetype, not Kea's, so the keyword filter may never match Kea data.",
+      "field": "detailedImplementation",
+      "quote": "Kea lease entries include `ia-pd` in the log. Forward to Splunk with `sourcetype=isc:dhcpd`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the Kea message IDs for PD allocation and renewal (for example DHCP6_PD_LEASE_ALLOC in the Kea messages reference) and the lease6 CSV format. Use a Kea-specific sourcetype and extraction."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "explanation": "RFC 9099 §2.1.3 is 'Loopback Addresses'. The relevant section is §2.1.8 'Using a /64 per Host'.",
+      "field": "references",
+      "quote": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.1.3 — prefix delegation security implications)",
+      "severity": "minor",
+      "suggested_fix": "Cite RFC 9099 §2.1.8 (Using a /64 per Host)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/ipv6-operations.md",
+      "explanation": "implementation promises a failed-renewal alert that no search implements. dataSources and SPL put infoblox:dhcp in index=network, while the DNS/DHCP grounding and sibling UC-5.20.10 use index=dhcp.",
+      "field": "cross_field",
+      "quote": "alert on anomalies: non-/64 prefix lengths, excessive prefix count per client, or failed renewals indicating prefix exhaustion.",
+      "severity": "minor",
+      "suggested_fix": "Drop the failed-renewal claim or add a search for it, and use index=dhcp for the DHCP server logs to match the guide."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "prefix_length is computed before stats but is not in the by clause or aggregated, so it is null afterwards and the non_standard flag never reflects the real prefix length. The `prefix[= ]+` rex will not match Cisco's 'Prefix: ' format, and the SPL has no time bound.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'/64 per Host' points to RFC 8273, but the detection tracks DHCPv6-PD delegations, which is a different mechanism.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-5.20.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC conflates RFC 8273 prefix-per-host, which is SLAAC with unicast RAs, with DHCPv6 prefix delegation. It cites a Splunkbase ID that belongs to an unrelated EMC app and relies on a Cisco syslog mnemonic that could not be confirmed. The DHCPv6-PD tracking idea and the Kea and IOS pool examples are useful, but the framing would lead readers to build the wrong thing.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.18",
+  "verdict": "incorrect"
+}

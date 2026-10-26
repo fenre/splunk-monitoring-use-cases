@@ -1,0 +1,163 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7321a3d5f374f4e578dcfb6308c7248901be2b271f42b5257d8298bd206706b7",
+  "file": "content/cat-22-regulatory-compliance/UC-22.2.45.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://csirtsnetwork.eu/homepage/faq",
+      "explanation": "MeliCERTes is the CSIRT-to-CSIRT cooperation platform for national CSIRTs in the EU CSIRTs Network and CERT-EU. It is not a channel that an essential or important entity uses to notify its CSIRT under Art.23, so probing it does not show that the operator's notification path works.",
+      "field": "dataSources",
+      "quote": "`index=network sourcetype=http_probe url=*csirt* OR url=*melicertes*` for synthetic monitoring probes",
+      "severity": "blocker",
+      "suggested_fix": "Remove MeliCERTes as a monitored channel. List the national CSIRT or competent-authority reporting portals, email addresses or single points of contact for each Member State, taken from `nis2_csirt_directory.csv`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/MSExchange/ConfigureTA-Mailbox",
+      "explanation": "The Splunk Add-on for Microsoft Exchange (Splunkbase 3225) writes Exchange message tracking logs as `MSExchange:2013:MessageTracking`, and the default index is `msexchange`. No `exchange:messagetracking` sourcetype exists, so this source would return no events.",
+      "field": "dataSources",
+      "quote": "`index=email sourcetype=sendmail OR sourcetype=exchange:messagetracking` for email relay health",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=MSExchange:2013:MessageTracking` from Splunk Add-on for Microsoft Exchange (Splunkbase 3225). State which extracted fields hold delivery status and recipient domain, for example `event_id`/`action` and `recipient`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/collect-stream-data/install-and-configure-splunk-stream/8.1/protocols/simple-transport",
+      "explanation": "Splunk Stream documents certificate fields such as `ssl_validity_end`, `ssl_commonname` and `ssl_issuer` on the TCP flow protocol (`stream:tcp`). The documentation does not mention a `stream:tls` sourcetype or a `ssl_validity_days` field. Stream's `dest` is normally an IP address, so `dest=*csirt*` would not match a hostname.",
+      "field": "dataSources",
+      "quote": "`index=pki sourcetype=stream:tls dest=*csirt*` for TLS certificate validity of CSIRT portals",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Stream protocol reference. Most likely the source should be `sourcetype=stream:tcp`, filtered on `ssl_commonname=*csirt*`, with days remaining calculated from `ssl_validity_end`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunk Synthetic Monitoring runs in Splunk Observability Cloud and stores results as metrics there. It does not write events to `index=network sourcetype=http_probe`, and `http_probe` is not a sourcetype from any listed add-on.",
+      "field": "dataSources",
+      "quote": "for synthetic monitoring probes (typically run by Splunk Synthetic Monitoring or a custom HTTP scripted input)",
+      "severity": "needs_verification",
+      "suggested_fix": "Present `http_probe` as a custom sourcetype from a scripted or modular input and list its fields (`url`, `response_code`, `response_time_ms`). If Synthetic Monitoring is kept as an option, describe how its results are exported into a Splunk index."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`implementation` says the search runs daily at 06:00 and pages the CSIRT liaison. The `savedsearches.conf` stanza in `detailedImplementation` runs it weekly on Monday at 02:00 and only writes to a summary index. The `evidence` field cites `index=audit_evidence sourcetype=evidence:saved_search` instead.",
+      "field": "cross_field",
+      "quote": "(4) Schedule the SPL daily at 06:00. ... cron_schedule = 0 2 * * 1 ... actions = summary_index",
+      "severity": "major",
+      "suggested_fix": "Pick one schedule (daily at 06:00 matches the daily probes). Make the stanza's `cron_schedule`, alert action and evidence destination match `implementation` and `evidence`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "The `join` subsearch is limited by `subsearch_maxout` (50,000 rows) and `subsearch_maxtime`. `max_searches_per_cpu` controls concurrent search slots and has nothing to do with this limit. The Prerequisites advice to raise `max_searches_per_cpu` is therefore also misleading.",
+      "field": "detailedImplementation",
+      "quote": "Splunk's `| join` subsearch is capped at `max_searches_per_cpu * subsearch_maxout` results (default: 50000)",
+      "severity": "major",
+      "suggested_fix": "Say the join subsearch is limited by `subsearch_maxout` and `subsearch_maxtime` in `limits.conf`, and remove the `max_searches_per_cpu` tuning advice."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Most of these fields do not exist in raw `http_probe` events. They come from the lookup or are calculated by the SPL, so this check always returns nulls and validates nothing. The `fieldsummary | where count=0` check cannot list absent fields, and the threshold-calibration step runs percentiles on `avg_response_ms`, which only exists after `stats`.",
+      "field": "detailedImplementation",
+      "quote": "index=network sourcetype=http_probe earliest=-1h\n| head 100\n| table country_code, csirt_name, notification_channel, channel_type, channel_health, last_http_code, avg_response_ms, cert_days_remaining",
+      "severity": "major",
+      "suggested_fix": "Validate the raw fields the SPL actually reads: `url`, `response_code` and `response_time_ms` on `http_probe`; the certificate fields on the Stream sourcetype; and the delivery-status and recipient fields on the mail sourcetype. Also check that the lookup columns `country_code`, `csirt_name` and `notification_channel` are populated."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The Prerequisites, Step 4 panel text and Step 5 NIS2 bullets (24h early warning, entity tiering, supply chain) are generic template text that never mentions channel-health monitoring. The Step 2 description of the join also leaves out the email join.",
+      "field": "detailedImplementation",
+      "quote": "retention matching the regulation's minimum (PCI: 1y, HIPAA: 6y, NIST 800-53: 1-3y per FIPS 199, SOX: 7y)",
+      "severity": "major",
+      "suggested_fix": "Replace the generic text with channel-specific guidance: how to build `nis2_csirt_directory.csv`, how to send weekly test emails to each CSIRT's published reporting address, how to interpret each `channel_health` value, and the retention needed for NIS2 evidence."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios (QSA sampling, BAA/DPA vendors) that cannot produce an unhealthy-channel row. Real causes of false positives are missing.",
+      "field": "knownFalsePositives",
+      "quote": "QSA activity spikes `index=network` `http_probe` without crossing `avg_response_ms` > 10000. ... BAA/DPA-covered vendor generates expected rows",
+      "severity": "major",
+      "suggested_fix": "List real causes: announced maintenance windows on a CSIRT portal, an outage or proxy change on the probe host, geo-blocking or rate-limiting of the probe IP by the portal, and test emails held in an outbound queue or rejected because the CSIRT's mailbox does not accept automated test messages."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL uses only an inputlookup, raw searches and joins; it uses no ES macros, notables or data-model correlation. Listing ES as a requirement (and in `premiumApps`) overstates what the UC needs.",
+      "field": "app",
+      "quote": "Splunk Enterprise Security (Splunkbase 263) ≥7.0 for correlation",
+      "severity": "major",
+      "suggested_fix": "Remove ES from `app` and `premiumApps`, or describe it as optional for routing results as notables."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though it relies on sourcetypes and fields that do not exist and on a channel operators cannot use. Verified status is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until a subject-matter expert has confirmed the data sources and channel list."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1809 is the Splunk App for Stream, according to data/splunkbase-catalog.json.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Stream on Splunkbase\",\n      \"url\": \"https://splunkbase.splunk.com/app/1809\"",
+      "severity": "minor",
+      "suggested_fix": "Retitle the reference \"Splunk App for Stream on Splunkbase\"."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "`cimSpl` uses only the Web data model. Certificates is listed but not used, and custom `http_probe` events are not Web-tagged unless the implementer adds tags.",
+      "field": "cimModels",
+      "quote": "\"Web\",\n    \"Certificates\"",
+      "severity": "minor",
+      "suggested_fix": "Either add a Certificates (SSL dataset, `ssl_end_time`) variant or drop Certificates. Note that probe events need eventtypes and tags to populate Web."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "`controlObjective` says the UC proves channels are 'configured with valid credentials', but `exclusions` says it does not validate portal credentials. The objective overclaims what the detection proves. The `assurance_rationale` also names MeliCERTes, which operators do not use for Art.23 notification.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`country_code` is derived from the last label of the URL, certificate subject or recipient domain. This fails for URLs with paths and for `.eu` hosts, so joins to the lookup's ISO country codes miss rows. `ssl_validity_days` is not a documented Stream field (Stream provides `ssl_validity_end`). `EMAIL_STALE` can never fire because the subsearch window is `earliest=-7d`, so emails older than 7 days are null and reported as EMAIL_FAIL. `exchange:messagetracking` should be `MSExchange:2013:MessageTracking`.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "Holds a free-text 'N/A (...)' string instead of an empty list.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0128-UC-22.2.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea of testing CSIRT notification channels is sound, but the text names a channel operators cannot use (MeliCERTes), sourcetypes that do not exist (`exchange:messagetracking`, `stream:tls`), and an implementation whose schedule, validation steps and join limits contradict the SPL. Much of the remaining prose is template residue copied from other regulations.",
+  "tier": "deep",
+  "uc_id": "UC-22.2.45",
+  "verdict": "incorrect"
+}

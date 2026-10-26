@@ -1,0 +1,78 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "25629616728ee8c3e9c31e400da4a97abd59085e649dade3a31a7f465a3022a6",
+  "file": "content/cat-07-database-data-platforms/UC-7.1.48.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://dev.mysql.com/doc/refman/8.0/en/server-status-variables.html",
+      "explanation": "MySQL defines `Innodb_log_waits` as the number of times the log buffer was too small and a wait was required for it to be flushed. The tuning lever is `innodb_log_buffer_size`, not redo log capacity. Pointing operators at `innodb_redo_log_capacity` sends them to the wrong setting.",
+      "field": "implementation",
+      "quote": "Correlate with disk latency metrics and innodb_redo_log_capacity changes.",
+      "severity": "blocker",
+      "suggested_fix": "State that a rising `Innodb_log_waits` means the InnoDB log buffer is too small for the write burst, and that you should review `innodb_log_buffer_size` alongside disk flush latency. Treat redo capacity (`Innodb_redo_log_resize_status`, checkpoint age) as a separate, optional signal."
+    },
+    {
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC measures write stalls on a single MySQL server caused by a full log buffer. It has nothing to do with replication, apply lag or regions, so a non-technical reader would misunderstand what it watches.",
+      "field": "grandmaExplanation",
+      "quote": "We track replication and apply lag so we can meet recovery and read-your-writes expectations when a region or network path is under stress.",
+      "severity": "blocker",
+      "suggested_fix": "Explain that the database keeps a small holding area for changes before writing them to disk. We count how often writes had to wait because that area was full, which slows the application during busy periods."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "A DB Connect input that runs `SHOW GLOBAL STATUS` returns one row per `Variable_name`/`Value` pair, but the SPL expects a field literally named `Innodb_log_waits`. The pivot step is missing. `Innodb_redo_log_resize_status` is a string state (for example `OK`) that the SPL never uses.",
+      "field": "dataSources",
+      "quote": "`SHOW GLOBAL STATUS` `Innodb_log_waits`, `Innodb_redo_log_resize_status` (MySQL 8.0.30+) ingested on `mysql:status`",
+      "severity": "major",
+      "suggested_fix": "Specify the DB Connect query, for example `SELECT VARIABLE_VALUE AS Innodb_log_waits FROM performance_schema.global_status WHERE VARIABLE_NAME='Innodb_log_waits'` (or a pivot of the needed variables), with `sourcetype=mysql:status` and a fixed execution frequency. Drop `Innodb_redo_log_resize_status` unless a later step uses it."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate. It mentions HEC tokens, vendor API rate limits and HTTP 401/429 errors that do not apply to a DB Connect JDBC input, and it never names the MySQL grant needed (PROCESS, or SELECT on `performance_schema`). A 900-second poll would leave some 15-minute `timechart` buckets empty, so the delta breaks.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=mysql:status into database. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Describe the DB Connect connection (MySQL JDBC driver, read-only user with PROCESS or `performance_schema` SELECT), a batch input every 60–300 seconds, and validation by comparing `SHOW GLOBAL STATUS LIKE 'Innodb_log_waits'` in the mysql client with the latest indexed value."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real cause of log buffer waits or of false deltas. Real ones include a counter reset after a mysqld restart (a negative or huge delta), bulk loads and batch ETL, and large transactions with LOB writes.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `database` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List mysqld restarts (the counter resets, so ignore negative deltas), scheduled bulk imports or ETL windows, and backup tools that cause bursty writes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... by host` turns each host into its own column and removes the `host` field, so `streamstats ... by host` and the `innodb_log_waits` arithmetic run on non-existent fields. The search returns no meaningful rows.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`streamstats window=2 last(innodb_log_waits)` returns the current row's value (`current=t` by default), so `log_waits_delta` is always 0. Use `streamstats current=f window=1 last(...)` (or `delta`) after a `stats`/`bin` by `_time` and `host`, and handle counter resets.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0047-UC-7.1.48",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC targets a real counter (`Innodb_log_waits`) but misdescribes it as redo-log capacity pressure, when MySQL defines it as log buffer waits. The plain-language explanation is about replication lag. The SPL cannot produce a per-host delta as written, and the implementation never explains how `SHOW GLOBAL STATUS` rows become an `Innodb_log_waits` field.",
+  "tier": "deep",
+  "uc_id": "UC-7.1.48",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,96 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9ac2ce18dcde4edb051b170db2523f4e3d6262651c808e6f6f672316f3a91b17",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-20-cost-capacity-management/UC-20.1.4.json",
+      "explanation": "UC-20.1.4's SPL outputs `dimensions.InstanceId`, `instance_type`, `avg_cpu`, `peak_cpu`, `monthly_cost` and `tags`; it produces no `lineItem_UsageAccountId` and no `estimated_monthly_savings`, and it has no `collect` step. Collecting its output into `cloud:idle_candidates` would make this UC's `stats ... by lineItem_UsageAccountId` return nothing. UC-20.1.4 also describes weekly reports, while this SPL reads only the last day.",
+      "field": "implementation",
+      "quote": "Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the summary-populating search explicitly: run the idle-detection logic daily, add the owning AWS account ID (e.g. from `aws:metadata` or the CUR `lineItem_UsageAccountId` joined on resource ID) and an `estimated_monthly_savings` value, then `| collect index=summary sourcetype=cloud:idle_candidates`. Align the cadence with this search's `earliest=-1d` window."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Collect",
+      "explanation": "`index=summary` with a custom sourcetype is written by a scheduled search using summary indexing / `collect` on the search head, not by a Universal Forwarder, modular input or scripted poll. The same wrong mechanism is repeated in `app` and in `detailedImplementation` ('Enable the modular input or HEC token that writes sourcetype=cloud:idle_candidates into summary').",
+      "field": "dataSources",
+      "quote": "Idle detection output, `lineItem_UsageAccountId` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "dataSources: summary-index events (`index=summary sourcetype=cloud:idle_candidates`) written by the scheduled idle-detection search, with fields `lineItem_UsageAccountId` and `estimated_monthly_savings`; plus the `aws_account_owner` lookup (account_id → owner_email). app: none beyond Splunk core; upstream data from the Splunk Add-on for AWS (Splunkbase 1876)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation states the summary data comes from UC-20.1.4, so this UC cannot work without it, yet no prerequisite is declared.",
+      "field": "prerequisiteUseCases",
+      "quote": "\"prerequisiteUseCases\": []",
+      "severity": "major",
+      "suggested_fix": "Set prerequisiteUseCases to [\"UC-20.1.4\"] (after UC-20.1.4 is extended to emit the needed fields), keeping wave ordering consistent."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The `aws_account_owner` lookup is used but never described (columns, source, refresh), and nothing explains how a daily-window report becomes a monthly email. Also, because the SPL sums `estimated_monthly_savings` over the window, writing candidates more than once per day would double-count.",
+      "field": "implementation",
+      "quote": "Monthly email to top account owners.",
+      "severity": "major",
+      "suggested_fix": "Document the `aws_account_owner` lookup (account_id, owner_email; sourced from AWS Organizations or the CMDB), require exactly one summary write per resource per day, and schedule the report monthly (cron on day 1) with an email action to `owner_email`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `src` field, no `span=1h` and no threshold; it is a top-25 ranking report. Real accuracy issues are missing: resources idle by design (DR standby, batch hosts with periodic load), stopped instances still listed, and resources whose account is not in the owner lookup.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "Replace with report caveats: DR/standby and scheduled-batch instances (exclude by tag), resources already terminated since the summary run, accounts missing from `aws_account_owner` (empty owner_email), and savings estimates based on on-demand price that overstate RI/SP-covered instances."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The duplicated generic Steps 1–5 (poll interval, vendor inventory count, forwarder/HEC troubleshooting, on-call routing) do not apply to a search-head report over a summary index, and the earlier Step 3 'compare with Cost Explorer' does not validate estimated idle savings.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Remove the generic block. Validate by checking that the summary-populating search ran (`index=_internal sourcetype=scheduler savedsearch_name=...`), that each day's summary has one row per resource, and by spot-checking two flagged instances in CloudWatch."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "`app`/`dataSources` imply multi-cloud and CMDB inputs, but the grouping key `lineItem_UsageAccountId` is an AWS CUR column, so Azure or GCP idle candidates (UC-20.1.4 mentions Azure Monitor) would be dropped. `equipment: splunk` also does not reflect the AWS scope.",
+      "field": "cross_field",
+      "quote": "Cloud metrics, CUR, CMDB",
+      "severity": "minor",
+      "suggested_fix": "State that the UC is AWS-only (equipment `aws`), or describe a normalized account field if multi-cloud is intended."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum(estimated_monthly_savings)` over `earliest=-1d` double-counts if the summary is written more than once in the window; consider `latest()`/dedup by resource before summing.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0118-UC-20.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC is a roll-up report over a summary index that is supposed to be fed by UC-20.1.4, but UC-20.1.4 produces none of the fields this SPL needs and the collection guidance (Universal Forwarder, modular input, HEC) does not describe how a summary index is populated, so a reader cannot implement it as written.",
+  "tier": "deep",
+  "uc_id": "UC-20.1.20",
+  "verdict": "incorrect"
+}

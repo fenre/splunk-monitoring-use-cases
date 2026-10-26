@@ -1,0 +1,107 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "8f32b83e3cbf840393a5d0613e2e3ce84fa966ef1434931be68136b8e70d4ebf",
+  "file": "content/cat-06-storage-backup/UC-6.1.38.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.truenas.com/docs/scale/26/gettingstarted/deprecations/",
+      "explanation": "TrueNAS deprecated the REST API in SCALE 25.04 and removed it in TrueNAS 26, so REST endpoints no longer work. For a UC scoped to TrueNAS SCALE, polling `/api/v2.0/pool` fails on current releases.",
+      "field": "implementation",
+      "quote": "Poll `/api/v2.0/pool` and expand nested `scan` data.",
+      "severity": "blocker",
+      "suggested_fix": "Use the JSON-RPC 2.0 WebSocket method `pool.query` (for example via `midclt call pool.query` or the truenas_api_client) for 25.04+. Mention `/api/v2.0/pool` only for older SCALE/CORE releases."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://api.truenas.com/v25.04/api_events_pool.query.html",
+      "explanation": "The SPL has no duration logic. It flags any SCRUB whose state is neither FINISHED nor 'ACTIVE', so a normally running scrub (state SCANNING) is flagged on every poll, and a truly stalled scrub is never measured against an expected duration.",
+      "field": "implementation",
+      "quote": "warn if a scrub stays non-`FINISHED` longer than twice your expected duration.",
+      "severity": "major",
+      "suggested_fix": "Describe the stall check concretely: for `scan.function=SCRUB AND scan.state=SCANNING`, compute `now() - scan.start_time` and compare it to a per-pool expected-duration lookup (×2), or watch for `scan.percentage` not advancing between polls."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "CORE and SCALE share the same middleware pool schema, with a nested `scan` object containing function/state/errors/percentage. No source is given for CORE returning flat `scan_state`-style keys, so the 'flat keys' variant may be invented.",
+      "field": "implementation",
+      "quote": "Normalize TrueNAS CORE vs SCALE field paths (`scan.state` vs flat keys).",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a CORE 13.x `/api/v2.0/pool` response. If both return nested `scan`, drop the normalisation claim and tell the collector to flatten `scan.*` itself."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The real false-positive cause is never named. The pool's `scan` object always reflects the most recent scrub, so a pool whose last scrub found and repaired errors re-alerts on every run until the next scrub or `zpool clear`. Long scrubs on large or busy pools also look 'stalled'.",
+      "field": "knownFalsePositives",
+      "quote": "1. **Maintenance window on `storage` (UC-6.1.38)** — Planned work for 'TrueNAS SCALE ZFS Pool Scrub Errors and Stalled Scrubs' shifts `count`",
+      "severity": "major",
+      "suggested_fix": "Name both causes. Suggest de-duplicating on `scan.end_time` (alert once per scrub) and tuning the expected duration per pool size."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.truenas.com/docs/scale/api/",
+      "explanation": "The link goes to the Advanced Settings UI reference page, not the API documentation.",
+      "field": "references",
+      "quote": "\"title\": \"TrueNAS API documentation\",\n      \"url\": \"https://www.truenas.com/docs/scale/scaleuireference/systemsettings/advanced/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://www.truenas.com/docs/scale/api/ or the versioned `pool.query` page on api.truenas.com."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The whole section is a generic template. There is no collector script, no API-key/service-account setup, no field flattening (`scan.*` to `scan_function`/`scan_state`/`scan_errors`/`scan_progress`, plus a `hostname` the API does not return), no `zpool status -v` validation, and no runbook.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=truenas:pool into storage. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Write TrueNAS-specific steps: create a read-only service account and API key, show a collector that calls `pool.query` and flattens `scan`, adds `hostname` and posts to HEC as `truenas:pool`, validate against `zpool status -v`, and give a runbook for scrub errors (identify the device and checksum counts, then replace or resilver)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is generic and would fit any storage UC. It says nothing about the regular self-check that reads every file to find hidden damage, or about warning when that check finds damage or gets stuck.",
+      "field": "grandmaExplanation",
+      "quote": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+      "severity": "major",
+      "suggested_fix": "For example: 'Your TrueNAS box regularly re-reads all its files to catch hidden damage. This tells you if that check found any damage, or if it seems stuck and never finishes.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "In `eval`, unquoted `scan.type` / `scan.state` / `scan.errors` are parsed as string concatenation (`scan . type`), not as dotted field names, so these coalesce fallbacks always return null. Dotted JSON fields need single quotes (`'scan.state'`). The API field is `scan.function`; there is no `scan.type`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "TrueNAS `scan.state` values are SCANNING, FINISHED and CANCELED. There is no 'ACTIVE'. `scan_st!=\"FINISHED\" AND scan_st!=\"ACTIVE\"` therefore flags every running scrub (SCANNING) and every cancelled scrub as stalled (https://api.truenas.com/v25.04/api_events_pool.query.html).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`scan_progress` and `hostname` are never derived and are not pool-object fields (progress is `scan.percentage`). Unless the collector adds them, `progress` is empty and rows group under a null hostname.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0043-UC-6.1.38",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent is sound: alert on ZFS scrub errors and flag scrubs that run too long. However, the collection path is the TrueNAS REST v2.0 API, which is removed in TrueNAS 26, the version the SCALE-specific title targets. The stall logic in the text is not implemented, and detailedImplementation and grandmaExplanation are entirely generic template.",
+  "tier": "deep",
+  "uc_id": "UC-6.1.38",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,98 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "94611100c341e0791125a1352ae28c47eb89a77870a9d43379be494357de0eb1",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL alerts at addr_count > 10. detailedImplementation's alert and the visualization single-value use > 20, its primary search adds a > 50 CRITICAL tier, and implementation just says 'exceeding the threshold'. A reader cannot tell which threshold pages.",
+      "field": "cross_field",
+      "quote": "Trigger: any device with > 20 distinct IPv6 addresses in 24 hours.",
+      "severity": "major",
+      "suggested_fix": "State one alert threshold in implementation and detailedImplementation that matches the SPL (> 10), and present > 20 / > 50 only as severity labels or an optional second alert."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc9099#section-2.6.1.4",
+      "explanation": "Hosts' IPv6-to-MAC mappings live in the neighbor cache of the IPv6 router or L3 gateway. A Layer-2 access switch has no such cache, only a SISF/FHS binding table. RFC 9099 §2.6.1.4 also suggests polling about every 30 seconds because entries are short-lived, so a 5-10 minute poll will undercount churn. detailedImplementation repeats this ('from access/distribution switches').",
+      "field": "implementation",
+      "quote": "Poll NDP caches from switches via SNMP every 5-10 minutes.",
+      "severity": "major",
+      "suggested_fix": "Say to poll the neighbor cache on the first-hop IPv6 routers or L3 SVIs (or the SISF binding table on access switches if used). Recommend a short interval (RFC 9099 suggests ~30 s) and note the trade-off with 5-minute polling."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc8981",
+      "explanation": "RFC 8981 defaults are a 1-day preferred and 2-day valid lifetime, so a continuously connected host generates roughly one new temporary address per prefix per day, plus one at each reconnect. The per-OS figures in detailedImplementation (Windows ~3-5/day, iOS/Android ~8-12/day 'to defeat WiFi tracking') have no source, and the alert thresholds depend on them.",
+      "field": "dataSources",
+      "quote": "With privacy extensions enabled, a typical host will use 2-5 addresses simultaneously (1 stable + 1-4 temporary) and cycle through 3-8 unique addresses per day.",
+      "severity": "needs_verification",
+      "suggested_fix": "Base the baseline on RFC 8981 defaults (TEMP_PREFERRED_LIFETIME 1 day, TEMP_VALID_LIFETIME 2 days), and either cite vendor documentation for per-OS behaviour or tell readers to measure their own baseline with the Step 1 verification search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc9099#section-2.1.5",
+      "explanation": "Most current host operating systems no longer build interface IDs from the MAC (EUI-64); they use RFC 8981 or RFC 7217/8064 stable random IIDs. The link-local filter is still right, but the reason given is wrong.",
+      "field": "detailedImplementation",
+      "quote": "every device always has exactly one link-local address derived from its MAC — this doesn't churn.",
+      "severity": "minor",
+      "suggested_fix": "Say link-local addresses are excluded because they never carry the global prefix being counted and stay stable per interface. Do not say they are MAC-derived."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc9099",
+      "explanation": "RFC 9099 §2.6.1.5 is 'Stateful DHCPv6 Lease'. Temporary addresses are covered in §2.1.5 'Temporary Addresses for SLAAC', and accountability in §2.6.2.1 'Forensic and User Accountability'.",
+      "field": "references",
+      "quote": "RFC 9099 — Operational Security Considerations for IPv6 Networks (§2.6.1.5 — Address accountability vs privacy)",
+      "severity": "minor",
+      "suggested_fix": "Cite §2.1.5 (Temporary Addresses for SLAAC) and §2.6.2.1 (Forensic and User Accountability)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "RFC 8981 temporary addresses are formed by SLAAC and never show up as DHCPv6 leases (except rare IA_TA use), and flow data has no MAC, as implementation itself admits. These alternatives do not feed the same per-MAC count.",
+      "field": "dataSources",
+      "quote": "or `index=dhcp sourcetype=infoblox:dhcp` for DHCPv6 lease churn",
+      "severity": "minor",
+      "suggested_fix": "List ndp:cache (or the SISF binding table) as the required source, and describe flow and DHCPv6 data as optional context, not substitutes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC polls the neighbor cache over SNMP; it does not use traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace snmp_trap with the SNMP polling model, or remove it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where addr_count > 10` runs after the case() that labels 'NORMAL', 'LOW' and 'MINIMAL', so those labels never appear in results. Grouping by mac_address and host also splits one device's count across every router that sees it, which differs from the detailedImplementation search (by mac_address only).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-5.20.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The SPL, implementation and detailedImplementation describe a real per-MAC distinct-address count, but the alert threshold differs between fields. Address-per-day baselines are given without a source, collection is placed on access switches where no neighbor cache exists, and some RFC facts are wrong. The template-generated fields are already flagged deterministically.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.12",
+  "verdict": "rewrite"
+}

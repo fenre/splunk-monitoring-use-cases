@@ -1,0 +1,116 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "ea008cc10a9b4241a519a69e9cd579b002172e3b31109c49260b2c9ef1aa7eb4",
+  "file": "content/cat-05-network-infrastructure/UC-5.1.58.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/Juniper/junos/",
+      "explanation": "Neither Splunk_TA_juniper (Splunkbase 2847) nor the SC4S JunOS source defines `juniper:junos:structured`. Their structured sourcetypes cover only firewall, IDP, AAMW and SecIntel. SC4S routes generic Junos system messages such as chassisd and kernel mastership events to `juniper:legacy` (index netops). The Universal Forwarder is not a Splunkbase app, and the Juniper add-on is 2847 per the repository guide.",
+      "field": "dataSources",
+      "quote": "`sourcetype=juniper:junos:structured` Collected via Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "State the real path. For example: Junos syslog via SC4S lands as `juniper:legacy` (or a site-defined sourcetype on a direct syslog input); the Juniper add-on is Splunk_TA_juniper, Splunkbase 2847 (now archived). Align the index and sourcetype with the SPL owner."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The prerequisites and both Step 2 searches use `index=juniper` and `sourcetype=juniper:structured`, while the saved SPL uses `index=network sourcetype=juniper:junos:structured`. The prerequisite tag list (RPD_REDUNDANCY_RE_SWITCHOVER, KSYNCD_PEER_TIMEOUT, CHASSISD_RE_INIT_INVALID) also does not match the SPL filter (SERD_MASTERSHIP, RE_SWITCHOVER, 'Become master'). A reader would build a different search from each section.",
+      "field": "detailedImplementation",
+      "quote": "Data in `index=juniper` with `sourcetype=juniper:structured`.",
+      "severity": "major",
+      "suggested_fix": "Use one index, one sourcetype and one tag list throughout, matching the saved SPL (or document the SPL as the source of truth and drop the alternative 30-day search)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "After a full Junos-specific Step 1–5, a second generic template Step 1–5 is appended. It talks about modular-input poll intervals of 300–900 s, vendor API rate limits (HTTP 401/429) and 'vendor admin UI inventory' counts, none of which apply to pushed syslog.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Splunk_TA_juniper`, syslog — Universal Forwarder (Splunkbase 617)). Enable the modular input or HEC token",
+      "severity": "major",
+      "suggested_fix": "Delete the second generic Step 1–5 block and keep the Junos-specific steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Three different thresholds are given. The implementation field says any event is critical and more than 1 per 7 days is a warning. detailedImplementation says events > 3 (over 30 d) is a warning and crash-triggered is critical. The SPL alerts on failover_events > 0 per 24 h bin with no maintenance-window logic.",
+      "field": "cross_field",
+      "quote": "Critical alert on any mastership change outside a change window; warning if more than one event per chassis per 7 days.",
+      "severity": "major",
+      "suggested_fix": "Pick one threshold scheme, state it once in the implementation field and in detailedImplementation, and have the SPL owner implement the maintenance-window classification if it stays in the text."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://www.juniper.net/documentation/us/en/software/junos/high-availability/topics/task/routing-engine-redundancy-configuring.html",
+      "explanation": "These tag names, and SERD_MASTERSHIP / 'Become master' in the SPL, could not be confirmed. Juniper's RE redundancy documentation describes mastership events in /var/log/mastership (E_CMD_S, E_NO_IPC, ...) and chassisd tags. The exact tags emitted to syslog on switchover should be checked.",
+      "field": "detailedImplementation",
+      "quote": "Key syslog: `RPD_REDUNDANCY_RE_SWITCHOVER`, `KSYNCD_PEER_TIMEOUT`, `CHASSISD_RE_INIT_INVALID`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each tag in the Juniper System Log Explorer for the target Junos release (for example CHASSISD_RE_SWITCHOVER-style chassisd tags and kernel 'mastership' messages) and list only confirmed ones."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.juniper.net/documentation/us/en/software/junos/high-availability/topics/task/routing-engine-redundancy-configuring.html",
+      "explanation": "GRES is configured under `[edit chassis redundancy]`, not routing-options (the commands themselves are right). `show routing-options nonstop-routing` is configuration-mode syntax, not an operational command.",
+      "field": "detailedImplementation",
+      "quote": "# Junos -- redundancy is configured under routing-options ... Verify NSR is configured: `show routing-options nonstop-routing`.",
+      "severity": "minor",
+      "suggested_fix": "Change the comment to say GRES is under chassis redundancy and NSR under routing-options. Use `show configuration routing-options nonstop-routing` (or `show task replication`) for verification."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Beyond the recorded template issues, the description never says what is detected: a Routing Engine mastership switchover on a dual-RE chassis. It describes SPL mechanics instead.",
+      "field": "description",
+      "quote": "Combines `values` by `host`, `_time` and compares against `failover_events` > 0.",
+      "severity": "minor",
+      "suggested_fix": "Say: 'Alerts when a dual-RE Juniper chassis logs a Routing Engine mastership switchover, per device per day, with raw messages for triage.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the lowercased title and does not explain the event.",
+      "field": "grandmaExplanation",
+      "quote": "We help you know early when something looks wrong with junos routing engine failover monitoring",
+      "severity": "major",
+      "suggested_fix": "Something like: 'Big Juniper routers have two brains so one can take over if the other fails. We tell you whenever that handover happens, so the team can find out why the main one stopped.'"
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The detection uses syslog, not SNMP traps, and 'snmp_trap' is not an equipment model. The hardware field already lists MX/EX9200/SRX5000 chassis.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"snmp_trap\"]",
+      "severity": "minor",
+      "suggested_fix": "Use Juniper dual-RE chassis model IDs (MX240/480/960, etc.) if the taxonomy has them, or drop snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search uses sourcetype juniper:junos:structured, which neither Splunk_TA_juniper nor SC4S produces (generic Junos syslog lands as juniper:legacy in SC4S). The filter term \"Routing Engine.*switch\" is a quoted literal, not a regex, in `search`. The `rex` fields old_role/new_role are extracted but never used. Evidence: https://splunk.github.io/splunk-add-on-for-juniper/Sourcetypes/",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-5.1.58",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The Junos RE-failover domain content (GRES/NSR, CLI validation, troubleshooting) is useful. However, the data-source facts are wrong: the sourcetype is not produced by the Juniper add-on or SC4S, and the Splunkbase ID points at the wrong product. detailedImplementation contradicts the SPL on index, sourcetype and thresholds, and contains two stitched-together Step 1–5 sequences.",
+  "tier": "deep",
+  "uc_id": "UC-5.1.58",
+  "verdict": "incorrect"
+}

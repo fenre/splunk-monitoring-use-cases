@@ -1,0 +1,88 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "a4b512d14be8bc96756e828961d3514bfce1da5e1eecc54adf4ffbd700f980b9",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.5.9.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/617/",
+      "explanation": "Splunkbase app 617 does not exist (the Splunkbase API returns 'App was not found'). Edge Hub logs reach Splunk over the HEC token set at device registration, not through a Universal Forwarder modular input.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say Edge Hub OPC-UA connector logs arrive over HEC into the logs index chosen at registration (default edge_hub_logs). Third-party gateway logs (for example KEPServerEX or Prosys) can be read by a Universal Forwarder file monitor. Remove the Splunkbase 617 reference here and in `app`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `visualization` ('Single value (certs expiring in 30d)', 'cert expiry by endpoint') promise expiry-date alerting. The SPL only lists log lines matching certificate keywords; it reads no expiry date and applies no 30-day window. The `description`'s 'aggregation grain: `entity`; metrics: `count`' also has no counterpart in the SPL, which has no stats.",
+      "field": "cross_field",
+      "quote": "Maintain a script or lookup of cert expiry dates; alert when expiry is within 30 days or when log shows validation failure.",
+      "severity": "major",
+      "suggested_fix": "Either describe the UC as a raw list of certificate-related connector errors (validation failures, rejections), or note that the 30-day expiry check needs a separate expiry lookup the current SPL does not use. Remove the entity/count wording."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/ot-intelligence/administer-splunk-edge-hub-os/2.4/configure-advanced-settings/configure-splunk-edge-hub-os-to-connect-to-an-opc-server",
+      "explanation": "The text never says which certificates matter (the Edge Hub client certificate the OPC-UA server must trust under Sign and Encrypt, and each server's application instance certificate). It also never says how expiry dates are collected or what the lookup's columns are.",
+      "field": "detailedImplementation",
+      "quote": "Parse certificate and trust-related messages. Maintain a script or lookup of cert expiry dates",
+      "severity": "major",
+      "suggested_fix": "Name both certificate sides. Describe a scripted input or scheduled export that reads notAfter from the server's PKI trusted/own folders or the gateway's certificate manager. Define the lookup columns: endpoint, cert_subject, thumbprint, not_after."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text; the SPL has no count, threshold or `src`. Real false positives for a certificate keyword search are not mentioned.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `splunk_edge_hub_log` — Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: informational lines that contain 'certificate' or 'trust' (certificate loaded, trust list refreshed), a first connection from a new client whose self-signed certificate is waiting for administrator approval, and planned certificate rollover during maintenance."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Splunk Edge Hub is a hardware device, not a premium Splunk app, and the SPL needs no premium app.",
+      "field": "premiumApps",
+      "quote": "\"Splunk Edge Hub\"",
+      "severity": "minor",
+      "suggested_fix": "Remove premiumApps; list Edge Hub as a data-source prerequisite."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`rex \"expir|reject|invalid|cert\"` has no named capture group, so it extracts nothing and does nothing. The search never computes days-to-expiry, so the 30-day expiry condition in implementation cannot fire.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search relies on the literal term \"opcua\" appearing in sourcetype splunk_edge_hub_log events. Edge Hub sends OPC-UA data with sourcetype splunk_edge_hub_opcua, so check which sourcetype carries connector certificate errors.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "criticality",
+      "issue": "criticality 'critical' for an unaggregated keyword listing with no threshold looks high; review once the SPL computes expiry.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0089-UC-14.5.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The goal (catch expiring or untrusted OPC-UA certificates before secure sessions break) is clear and the grandma explanation fits. However, the text promises 30-day expiry alerting and per-entity counts that the keyword-search SPL cannot produce, gives the wrong collection path (Universal Forwarder and a non-existent Splunkbase ID), and never says where certificate expiry dates come from.",
+  "tier": "deep",
+  "uc_id": "UC-14.5.9",
+  "verdict": "incorrect"
+}

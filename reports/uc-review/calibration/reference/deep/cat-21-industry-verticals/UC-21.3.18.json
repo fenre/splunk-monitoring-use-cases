@@ -1,0 +1,83 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c7f027cd02455ae82ead9f4690fb38131b58bbfab5923f5a8208a0a5b01721c7",
+  "file": "content/cat-21-industry-verticals/UC-21.3.18.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "implementation and detailedImplementation tell the reader to ingest IIS W3C logs, which carry `time-taken`. The SPL and dataSources expect `sourcetype=dips:arena:applog` with `response_time_ms` and `server_node`. IIS logs onboarded with the Splunk Add-on for Microsoft IIS (Splunkbase 3185) land under that add-on's own sourcetypes and field names, so the search as written returns nothing unless the reader renames the data.",
+      "field": "cross_field",
+      "quote": "Arena runs on .NET with IIS hosting — enable W3C logging with `time-taken` field and forward via Splunk Universal Forwarder.",
+      "severity": "major",
+      "suggested_fix": "Pick one source. If IIS W3C logs are the source, name the Splunk Add-on for Microsoft IIS (Splunkbase 3185), give the sourcetype it assigns, and document the FIELDALIAS or eval mapping from time_taken to response_time_ms and from host or s_computername to server_node. If an Arena application log is the source, say where Arena writes it and drop the IIS instructions."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL applies one 3000 ms threshold to all requests, has no split by request_url or screen type, and alerts on any single 5-minute bucket. The implementation also says to exclude batch processes and API integrations from clinician-facing p95, but the SPL does not exclude anything.",
+      "field": "cross_field",
+      "quote": "p95 < 3 seconds for interactive clinical screens, p95 < 1 second for patient lookup. Alert on sustained degradation (3 consecutive 5-minute intervals above threshold).",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it is (single 3 s p95 per server_node per 5-minute bucket, all requests) or note that the reader must add request_url classification, a 1 s threshold for patient lookup, exclusion of batch/API URLs, and a streak condition (for example streamstats over consecutive breaching buckets)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.dips.com/losninger/dips-journalsystem",
+      "explanation": "DIPS's own figure is that its 100,000 users are over 80% of hospital health personnel (not 80% of hospitals), and that it serves all hospitals in Helse Nord, Helse Vest and Helse Sør-Øst, covering about 4.3 million inhabitants. The implementation's 'serves all regional health authorities' is also wrong: Helse Midt-Norge uses Helseplattformen (Epic).",
+      "field": "detailedImplementation",
+      "quote": "DIPS Arena is Norway's dominant EHR system, serving approximately 80% of Norwegian hospitals with over 100,000 healthcare professionals and 4.3 million patient records.",
+      "severity": "minor",
+      "suggested_fix": "Say 'used by all hospitals in Helse Nord, Helse Vest and Helse Sør-Øst (about 4.3 million inhabitants; over 80% of hospital clinicians); Helse Midt-Norge uses Helseplattformen/Epic'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Step 1 and the 'Understanding this SPL' paragraph are cut off mid-sentence ('degrada…', 'proactive intervention before…'), so the reader loses the threshold and exclusion guidance.",
+      "field": "detailedImplementation",
+      "quote": "Alert on sustained degrada…",
+      "severity": "minor",
+      "suggested_fix": "Render the full implementation text, or summarise it in complete sentences."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The implementation describes forwarding IIS log files, which is a file monitor input and not a modular input or scripted poll. The listed fields `request_url`, `http_status` and `user_count` are never used, although `request_url` is what the per-screen thresholds would need.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "minor",
+      "suggested_fix": "Describe the actual collection (UF monitor of the IIS log directory, or HEC from Arena) and say which field identifies the screen or transaction for threshold splitting."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) has no relation to application response-time monitoring.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "No request-type split, batch/API exclusion or consecutive-interval condition, although the implementation relies on all three. It alerts on a single 5-minute breach.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0123-UC-21.3.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The domain context is useful, but the implementation describes collecting IIS W3C logs with alerting on sustained degradation and per-screen thresholds, while the SPL reads a custom `dips:arena:applog` sourcetype and fires on any single 5-minute bucket above 3 s. Some DIPS market facts are stated loosely.",
+  "tier": "deep",
+  "uc_id": "UC-21.3.18",
+  "verdict": "rewrite"
+}

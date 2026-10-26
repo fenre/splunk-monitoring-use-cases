@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fab9fc8e93b5f5aa7ad9f76bcd0f7d314fa8669c4308d1110e3f560b7d0f96ae",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.53.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The SPL needs `committed` (amount per line) and `category_budget` (the cap) on each event, but nothing says where the cap comes from or that every line must carry it. Re-exporting a budget spreadsheet on a schedule re-ingests the same lines, and `sum(committed)` over the full range then inflates spend.",
+      "field": "implementation",
+      "quote": "Ingest budget lines by category into `index=personal`; flag categories over their cap.",
+      "severity": "major",
+      "suggested_fix": "Document the event shape (`category`, `line_item`, `committed`, `category_budget`). Explain that the cap is either repeated on each line or supplied by a lookup. Tell the reader to ingest only the latest export, or deduplicate by line-item id (for example `dedup line_item_id` or `stats latest(committed)` by line before summing)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The search also depends on `committed` and `category_budget`. A category with no `category_budget` yields a null `cap`, so `committed>cap` silently drops it and the alert never fires for that category. The field-presence check in Step 3(b) tables only `category`.",
+      "field": "detailedImplementation",
+      "quote": "**Fields this search depends on:** `category`. Confirm each is populated before scheduling alerts.",
+      "severity": "major",
+      "suggested_fix": "List `category`, `committed` and `category_budget` as required. Change Step 3(b) to `| table category committed category_budget`, and add a check for categories with null `category_budget`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The real condition is simple and should be stated: total committed spend in a category exceeds that category's budget. The vague 'configured threshold' wording and the title-word list obscure it.",
+      "field": "description",
+      "quote": "Alert logic enforces configured threshold. Title terms: Budget, Category, Overspend, Alert.",
+      "severity": "major",
+      "suggested_fix": "Say it sums committed spend per budget category, compares it with the category's budget cap (`category_budget`), and returns categories where committed exceeds the cap, with the overage amount and percent of cap."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The scenarios (watch and phone sync, rest day, OAuth expiry, weekly bins) come from a fitness template and do not describe a budget spreadsheet.",
+      "field": "knownFalsePositives",
+      "quote": "**Multi-device double-count** — Same activity synced from watch and phone into `event:budget`.",
+      "severity": "major",
+      "suggested_fix": "Use real causes. Repeated CSV exports double-count lines. A deposit and the final invoice for the same vendor are both entered as committed. A planned reallocation means the cap was raised in one category but the export still shows the old cap. Gifts or a family contribution are entered as negative or positive lines in the wrong category."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The app field says the data is task and budget spreadsheets exported to CSV. The vendor API, MQTT broker, OAuth refresh and HTTP 429 troubleshooting in Prerequisites and Step 5 do not apply to a spreadsheet export.",
+      "field": "detailedImplementation",
+      "quote": "**Network**: The connector host must reach both the vendor API/MQTT broker and your Splunk HEC port (8088/tcp).",
+      "severity": "major",
+      "suggested_fix": "Describe the CSV path: a Universal Forwarder `monitor` on the export folder with a CSV sourcetype definition (`INDEXED_EXTRACTIONS = csv`), or a one-shot upload. Replace the OAuth and 429 troubleshooting with header-change and duplicate-file checks (`crcSalt` and re-ingested file names)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Fitness and incident-template residue; the value of catching overspend early is not stated.",
+      "field": "value",
+      "quote": "reduce missed training goals, stale hobby data, and connector failures before incidents compound",
+      "severity": "major",
+      "suggested_fix": "Say the UC flags which wedding budget categories, such as catering, flowers or venue, have committed more than planned, so money can be moved or choices changed before contracts are signed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A wedding budget has no auditor or regulation. The panel text gives no guidance, and Step 2's 'per-device, per-room, or per-user breakdowns' does not fit budget categories.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Describe a horizontal bar of `committed` against `cap` by category, sorted by `over`, plus a single value for total overspend. Drop the auditor and regulation wording, and suggest breakdowns by vendor or payer instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `event:budget`. The other four sourcetypes are copied from the subcategory list.",
+      "field": "dataSources",
+      "quote": "Planning tasks (`event:task`), budget lines (`event:budget`), RSVPs (`event:rsvp`), vendor bookings (`event:vendor`), countdown milestones (`event:countdown`).",
+      "severity": "minor",
+      "suggested_fix": "List only budget lines (`event:budget`) from the budget spreadsheet export, with its required columns."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The PMI overview and the generic Splunk documentation landing pages do not help implement this UC.",
+      "field": "references",
+      "quote": "\"title\": \"Project Management Institute — planning basics\"",
+      "severity": "minor",
+      "suggested_fix": "Reference the Splunk docs for CSV monitoring or structured data (INDEXED_EXTRACTIONS) and the `stats`/`eval` commands, or the budget tool's export documentation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "`splunk` is not the monitored equipment; the data comes from a spreadsheet or planning tool.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Leave equipment empty, or use a slug for the planning tool if one exists."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum(committed)` over the full search range double-counts when spreadsheet snapshots are re-ingested; consider deduplicating by line-item id first. Categories with null `category_budget` are silently excluded by `committed>cap`, and `over_pct` divides by a possibly zero or null cap.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "This is a fixed cap comparison, not anomaly detection, so 'Anomaly' overstates it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0149-UC-25.53.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL and grandma text describe a clear committed-versus-cap check per wedding budget category. The rest is fitness, compliance and vendor-API template residue, and it never explains the budget data shape (`committed`, `category_budget`) or the risk of double-counting repeated CSV snapshots.",
+  "tier": "deep",
+  "uc_id": "UC-25.53.8",
+  "verdict": "rewrite"
+}

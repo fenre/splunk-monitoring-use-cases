@@ -1,0 +1,102 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "26efddcc7473a0e43c7ea17d8ad8aa4588e616dee961c0c2c31742e2a6e6997a",
+  "file": "content/cat-10-security-infrastructure/UC-10.10.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/siem-soar.md",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise-security-8/user-guide/8.6/analytics/soc-operations-dashboard",
+      "explanation": "Notables are written to the notable index by correlation searches on the ES search head, so no forwarder or scripted poll is involved. Triage metadata (owner, status, review time) is not stored on the notable event: it lives in the incident_review KV store and must be joined via `get_event_id` / `incident_review` or incident_updates_lookup on rule_id.",
+      "field": "dataSources",
+      "quote": "Notable event fields (custom field names may vary by ES version) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Splunk ES notable index (`notable` macro) joined to the incident_review KV store (incident_review_lookup / incident_updates_lookup, keyed on rule_id) for first owner/status change time. Optionally use the Incident_Management datamodel, as ES's own SOC Operations 'Mean Time to Triage' panel does."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://splunk.my.site.com/customer/s/article/Missing-owner-and-status-label-fields-when-searching-the-notable-index-in-Splunk-Enterprise-Security",
+      "explanation": "The SPL does not use close time. For notables without the (non-standard) first_owner_assignment_time field it falls back to now()-_time, so open and unassigned notables inflate the average with their current age. The prose promises a triage metric the search does not compute.",
+      "field": "detailedImplementation",
+      "quote": "Average time from notable creation to first owner assignment or close by rule.",
+      "severity": "major",
+      "suggested_fix": "State exactly what is measured: first incident_review update time (owner or status change) minus notable _time, per rule_name. Say whether still-open notables are excluded or reported separately as backlog age."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is subcategory boilerplate. YARA ingestion and a `detection_metrics` index have nothing to do with measuring notable triage time.",
+      "field": "implementation",
+      "quote": "Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
+      "severity": "major",
+      "suggested_fix": "Explain the real prerequisites: ES installed, analysts assigning owners or changing status in Incident Review / Mission Control so that incident_review records exist, and (for ES 8) a check that rule_id formats match between the notable and incident_updates_lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The UC does not rely on a scripted input. Steps 1 to 4 then repeat in a second generic block (HEC tokens, vendor API 401/429, forwarder connectivity, 'sourcetype=see SPL into index=main') that contradicts the first block and does not apply to ES-internal data.",
+      "field": "detailedImplementation",
+      "quote": "Scripted input (generic example)\nThis use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:",
+      "severity": "major",
+      "suggested_fix": "Delete the scripted-input example and the second Step 1 to 5 block. Keep one sequence: verify the `notable` macro and the incident_review join, save the search as a scheduled report, and compare results to the ES SOC Operations 'Mean Time to Triage' panel."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The four items are copied almost verbatim from the es-notables domain pack, which says 'do not copy verbatim'. Items 2 and 3 describe changes in urgency and count, not distortions of triage time. They miss real skews such as bulk-closing old notables, auto-assignment by SOAR or NEAP-style rules making triage look instant, and notables suppressed before review.",
+      "field": "knownFalsePositives",
+      "quote": "**Risk-Based Alerting aggregation** — Individual rule fires consolidated into informational notables; per-rule count drops while risk score remains elevated.",
+      "severity": "major",
+      "suggested_fix": "List triage-time distortions: SOAR playbooks auto-assigning an owner (near-zero triage), bulk status changes during backlog clean-up (huge outliers), suppressed notables never reviewed, and clock or timezone mismatch between notable _time and the incident_review time."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The HEC and inputs.conf references do not support this UC. The ES Incident Review / SOC Operations documentation, which defines the triage metric, is missing.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk HTTP Event Collector\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with the ES SOC operations dashboard documentation and the ES Incident Review / triage findings documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "'Own a triaged item' is jargon and inverted, because ownership is part of triage. It also omits that the figure is broken down by which alert rule produced the item.",
+      "field": "grandmaExplanation",
+      "quote": "how long it takes a human to own a triaged item",
+      "severity": "minor",
+      "suggested_fix": "We measure, for each type of security alert, how long it waits before an analyst picks it up, so we can see which alerts sit too long and staff or tune accordingly."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`first_owner_assignment_time` is not a field ES writes to notables. Owner and status history is in the incident_review KV store. As written, the eval almost always takes the now()-_time branch, so the search reports notable age rather than triage time. Join incident_review_lookup / incident_updates_lookup on rule_id (or use `get_event_id` | `incident_review`) and take the earliest review time.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Compliance' is a questionable label for a SOC operational efficiency metric (time to triage); 'Performance' or operational may fit better.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0064-UC-10.10.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (mean and p95 time to triage per correlation rule) is useful, but the text misstates where triage data lives. ES keeps owner and status changes in the incident_review KV store (incident_review_lookup / incident_updates_lookup), not on notable events, and they are not collected by a Universal Forwarder. The implementation is padded with YARA, scripted-input and duplicated template steps that do not apply.",
+  "tier": "deep",
+  "uc_id": "UC-10.10.8",
+  "verdict": "incorrect"
+}

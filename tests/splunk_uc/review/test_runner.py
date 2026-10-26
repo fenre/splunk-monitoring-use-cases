@@ -139,7 +139,10 @@ def test_review_batch_repairs_missing_uc(tmp_path: Path) -> None:
 
 def test_review_batch_gives_up_after_one_repair(tmp_path: Path) -> None:
     entries = _copy_ucs(tmp_path, "UC-15.1.1")
-    bad = _review("UC-15.1.1", verdict="great")
+    bad = _review(
+        "UC-15.1.1",
+        findings=[{"field": "value", "dimension": "tone", "severity": "major", "explanation": "x" * 20}],
+    )
     invoker = FakeInvoker(_reply(bad), "not json at all")
     outcome = _run(
         runner.review_batch(
@@ -175,6 +178,40 @@ def test_evidence_rule_applied_before_validation(tmp_path: Path) -> None:
     )
     record = json.loads(path.read_text(encoding="utf-8"))
     assert record["findings"][0]["severity"] == "needs_verification"
+
+
+@pytest.mark.parametrize(
+    ("findings", "flags", "scores", "expected"),
+    [
+        ([{"severity": "major"}], [{"severity": "blocker"}], {}, "incorrect"),
+        ([{"severity": "major"}], [], {}, "rewrite"),
+        ([{"severity": "needs_verification"}], [], {}, "polish"),
+        ([], [], dict.fromkeys(SCORE_DIMENSIONS, 4), "ok"),
+        ([], [], {**dict.fromkeys(SCORE_DIMENSIONS, 4), "clarity": 3}, "polish"),
+    ],
+)
+def test_derive_verdict(
+    findings: list[dict[str, Any]],
+    flags: list[dict[str, Any]],
+    scores: dict[str, int],
+    expected: str,
+) -> None:
+    record = {"findings": findings, "firewalled_field_flags": flags, "scores": scores}
+    assert runner.derive_verdict(record) == expected
+
+
+def test_model_verdict_overridden_by_rule(tmp_path: Path) -> None:
+    entries = _copy_ucs(tmp_path, "UC-15.1.1")
+    invoker = FakeInvoker(_reply(_review("UC-15.1.1", verdict="incorrect")))
+    _run(
+        runner.review_batch(
+            invoker, "deep", entries, model=MODEL, root=tmp_path / "l", sleep=_no_sleep
+        )
+    )
+    path = record_path(
+        "deep", "cat-15-data-center-physical-infrastructure", "UC-15.1.1", root=tmp_path / "l"
+    )
+    assert json.loads(path.read_text(encoding="utf-8"))["verdict"] == "rewrite"
 
 
 def test_retryable_startup_error_is_retried(tmp_path: Path) -> None:

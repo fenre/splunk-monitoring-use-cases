@@ -1,0 +1,113 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "8391b05f1d19b168db8fcc4b5c5d73daade67b81c9bd070004c362a84537fd94",
+  "file": "content/cat-11-email-collaboration/UC-11.6.4.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4327",
+      "explanation": "Splunkbase 3185 is the Splunk Add-on for Microsoft IIS, not a Proofpoint add-on. The link sends readers to the wrong product.",
+      "field": "references",
+      "quote": "\"title\": \"Splunkbase — Splunk Add-on for Proofpoint On Demand\", \"url\": \"https://splunkbase.splunk.com/app/3185\"",
+      "severity": "blocker",
+      "suggested_fix": "Point to the Proofpoint On Demand Email Security Add-on, https://splunkbase.splunk.com/app/4327 (TA-pps_ondemand)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4327",
+      "explanation": "The published add-on for Proofpoint on Demand is 'Proofpoint On Demand Email Security Add-on' (folder `TA-pps_ondemand`, Splunkbase 4327), built by Proofpoint. `Splunk_TA_ProofpointOD` does not appear in the Splunkbase catalogue, and a Universal Forwarder cannot run this API-based collection.",
+      "field": "app",
+      "quote": "Proofpoint On-Demand Add-on for Splunk (`Splunk_TA_ProofpointOD`) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "App: Proofpoint On Demand Email Security Add-on (`TA-pps_ondemand`, Splunkbase 4327), installed on a heavy forwarder or Splunk Cloud IDM. Remove the UF reference from app, dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its own implementation says field names must be validated, the sourcetype `proofpoint:filter` is not one the POD add-on documents, and the reference points to an unrelated add-on. No SME evidence supports the status.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the sourcetype, verdict fields and release/false-positive signal have been confirmed against a real POD feed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The POD add-on collects message and mail logs. I could not find a `proofpoint:filter` sourcetype; the add-on's documented sourcetypes appear to be `pps_messagelog`/`pps_maillog`. User and admin quarantine releases, the false-positive signal, are not part of filter verdict events.",
+      "field": "dataSources",
+      "quote": "`sourcetype=proofpoint:filter` spam and content filter verdict events including quarantine or bulk scores",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the TA-pps_ondemand props.conf for the actual sourcetype names and the fields for spam/bulk scores (for example the filter modules' spam score) and quarantine release actions. Document where release events come from."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4327",
+      "explanation": "The Proofpoint On Demand Email Security Add-on maps its message and mail logs to the CIM Email datamodel. Filtering verdicts fit Email.Filtering, so leaving CIM empty hides the normalised path.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "major",
+      "suggested_fix": "Add `Email` (Filtering dataset) to cimModels once the field mapping is confirmed."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC trends how often the spam/content filter wrongly blocks legitimate mail. It has nothing to do with rewriting mail, threats or DLP.",
+      "field": "grandmaExplanation",
+      "quote": "We watch how Proofpoint treats and rewrites mail, so threats and DLP events line up with what the security team already sees in their console.",
+      "severity": "major",
+      "suggested_fix": "We track how often the spam filter wrongly holds back good email that people then have to ask to be released, so mail admins can see if a filter change made things worse."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `entity` split, no ticket join and no baseline comparison; it outputs one daily average rate. The description and implementation describe a different detection from the one shipped.",
+      "field": "cross_field",
+      "quote": "Groups `avg_fp_rate` by `entity` each `1d`. ... (2) Join to service-desk tickets tagged email for ground truth. (3) Alert when FP rate exceeds baseline.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output (daily FP-signal percentage over 30 days), or state the baseline rule and ticket correlation as follow-on steps not covered by the search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate. The SPL runs over -30d@d with no entity, and `host, user, action` are not the fields the search uses (verdict, false_positive, user_release, admin_override).",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity ... Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Give POD-specific steps: configure the POD add-on's log API credentials (cluster ID and token), confirm verdict and release fields in the message log, schedule daily over -30d@d, and validate against the POD quarantine release report."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "It coalesces guessed fields (false_positive, user_release, admin_override, Verdict/Disposition) under an unconfirmed sourcetype `proofpoint:filter`. fp_rate_pct divides by all messages rather than by filtered messages, so it is not a filter false-positive rate, and `filtered` is computed but never used.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "'IT Operations' paired with securityDomain 'soc_operations'. Spam filter tuning is usually owned by messaging or security operations; confirm the intended pillar.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0072-UC-11.6.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 1,
+    "overclaiming": 1,
+    "specificity": 2
+  },
+  "summary": "A spam-filter false-positive trend for Proofpoint On Demand, marked `verified`, but the add-on name and folder look invented and the reference links to the Microsoft IIS add-on. The sourcetype and fields are guesses the text itself admits ('field names vary by POD'), and the plain-language explanation describes a different use case.",
+  "tier": "deep",
+  "uc_id": "UC-11.6.4",
+  "verdict": "incorrect"
+}

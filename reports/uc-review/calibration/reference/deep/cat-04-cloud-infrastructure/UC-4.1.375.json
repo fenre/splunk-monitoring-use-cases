@@ -1,0 +1,107 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ef74da5932bcce2d271f82b627004d7f8626039e780f88028d94cc53c4c283d5",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.1.375.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudtrail-logging-s3-info.html",
+      "explanation": "PutBucketCors is an S3 bucket-level operation, which CloudTrail records as a management event by default. S3 data events (object-level) are not needed and add significant cost.",
+      "field": "implementation",
+      "quote": "Enable organization-wide CloudTrail with management and data events for cloudtrail.",
+      "severity": "minor",
+      "suggested_fix": "Say that management events are enough for PutBucketCors and DeleteBucketCors, and that S3 data events are not required."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The description does not say what the reviewer should look for. A CORS change only matters when it widens which web origins browsers allow, for example AllowedOrigin '*' with GET/PUT on a bucket that serves authenticated or pre-signed content. The SPL also outputs no bucket name, so 'resource context' is not delivered.",
+      "field": "description",
+      "quote": "queries AWS `aws:cloudtrail` for `PutBucketCors` and returns actor, resource, and region context for security review",
+      "severity": "major",
+      "suggested_fix": "Explain that the review checks the bucket (requestParameters.bucketName) and the submitted CORS rules (requestParameters.CORSConfiguration; verify the field path in sample events) for wildcard or unexpected origins and write methods."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "evidence_url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/cors.html",
+      "explanation": "CORS configuration does not grant S3 permissions by itself; it only controls which browser origins may make cross-origin requests that are otherwise authorised. Calling every CORS change 'high-signal' overstates it, since most are routine front-end deployments.",
+      "field": "value",
+      "quote": "is a high-signal control-plane change that should match approved change records and privileged-access monitoring",
+      "severity": "minor",
+      "suggested_fix": "State that CORS changes are mostly routine. The risk case is a permissive origin on a bucket whose objects are reachable through public access, pre-signed URLs or browser credentials."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is boilerplate. It does not name the dominant benign source, static website and single-page-app deployments (CloudFormation, CDK, Terraform, Amplify) that set CORS on asset buckets. `aws:accountId` is not a CloudTrail field (use recipientAccountId or userIdentity.accountId).",
+      "field": "knownFalsePositives",
+      "quote": "Planned change windows registered in CMDB; automation roles used by CI/CD pipelines with documented service accounts; sandbox accounts excluded via `aws:accountId` lookup.",
+      "severity": "major",
+      "suggested_fix": "List web or front-end deployment pipelines and asset or media buckets that legitimately need cross-origin access, identified by pipeline role or bucket naming, and use recipientAccountId for account exclusions."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is template text: there are no thresholds or lookup in the SPL, and CloudTrail arrives through the SQS-based S3 input, not by polling. The UC-specific steps are missing: covering DeleteBucketCors, extracting the bucket and CORS rules, and flagging wildcard origins.",
+      "field": "detailedImplementation",
+      "quote": "Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup. ... (3) API throttling — reduce poll frequency or enable queue buffering",
+      "severity": "major",
+      "suggested_fix": "Replace with steps that add DeleteBucketCors, table the bucket name and CORS rules, highlight AllowedOrigin '*', and keep an allow-list lookup of buckets expected to have CORS."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the generic template with the title pasted in lower case. 'cors policy' is unexplained jargon, and the sentence does not say what is detected.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of aws cloudtrail s3 cors policy so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "For example: 'Our cloud storage folders have a setting that says which other websites may pull files from them inside a web browser. We note every time someone changes that setting, so nobody quietly opens our files to any website.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Only PutBucketCors is matched (DeleteBucketCors is not). No bucket name or CORS rules are output, so the 'resource' column the visualization expects is missing. It also carries the `eval uc_marker` template residue.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`where All_Changes.action=*` returns every change, not CORS changes. PutBucketCors is not in the add-on's documented CloudTrail-to-Change eventName table (v7.10.0); verify that it is tagged.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 (Cloud Accounts) does not describe a bucket CORS change. Verify whether T1530 (Data from Cloud Storage) or a defense-evasion or permission-modification technique fits better, or leave it unmapped.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "AU-2 (Event logging) is a loose fit for a configuration-change alert; CM-3 or AC-3/SC-7 style evidence is closer.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "'AWS CloudTrail S3 CORS policy' does not say what happens; 'S3 Bucket CORS Configuration Changed' is clearer.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-4.1.375",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The CloudTrail filter for `PutBucketCors` is valid. The UC never explains what makes a CORS change risky (for example, wildcard allowed origins) or that CORS by itself grants no S3 permissions. Its collection, false-positive and plain-language text are copied boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-4.1.375",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,114 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "a5635424c34845e551f52164e4414ec3a5e645c3960d78514bb4461f8b5d6310",
+  "file": "content/cat-02-virtualization/UC-2.7.6.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/chapter-pve-firewall.html",
+      "explanation": "Proxmox VE firewall logging is enabled with `log_level_in`/`log_level_out` (and `log_level_forward`) in Firewall → Options at datacenter, host or VM level, or per rule with `-log <loglevel>`. The output appears in Firewall → Log, written by the pve-firewall logger. pve-firewall manages the iptables/nftables ruleset itself, so hand-added LOG rules are not the supported mechanism.",
+      "field": "app",
+      "quote": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink",
+      "severity": "blocker",
+      "suggested_fix": "Say: enable `log_level_in`/`log_level_out` (for example `info`) on the guests or host of interest, or `-log info` on specific rules. Monitor the pve-firewall log file on each node (commonly `/var/log/pve-firewall.log`; confirm the path on your PVE version) with a UF `monitor://` stanza and `sourcetype=proxmox:firewall`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/chapter-pve-firewall.html",
+      "explanation": "The documented line format is `VMID LOGID CHAIN TIMESTAMP POLICY: PACKET_DETAILS` (VMID 0 for the host firewall), with iptables-style packet details (`SRC=`, `DST=`, `PROTO=`, `DPT=`). The format has no `log_prefix`, and none of these lowercase fields exist until custom extractions are written. The UC gives no props/transforms.",
+      "field": "dataSources",
+      "quote": "`chain`, `action`, `proto`, `dport`, `src`, `dst`, `vmid`, `log_prefix`",
+      "severity": "major",
+      "suggested_fix": "Document the extraction: a `rex` or props EXTRACT for `^(?<vmid>\\d+)\\s+(?<logid>\\d+)\\s+(?<chain>\\S+)\\s+...\\s+(?<policy>[^:]+):` plus KV extraction of `SRC`/`DST`/`PROTO`/`DPT`, aliased to `src`/`dst`/`proto`/`dport`. Drop `log_prefix`."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The pve-firewall log line identifies the chain (for example the guest's tap interface IN/OUT chain) and the policy, but it does not appear to carry a rule number or name. 'By rule' grouping may therefore only be possible at chain/policy level.",
+      "field": "description",
+      "quote": "Proxmox VE Hypervisor Firewall Deny Hotspots by Guest and Rule",
+      "severity": "needs_verification",
+      "suggested_fix": "Check sample pve-firewall log lines for a rule identifier. If there is none, describe the grain as 'by guest, chain and policy' and suggest distinct per-rule log levels (LOGID) as a way to tell rules apart."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL is a 24-hour top-50 report with no scanner lookup, no 30-day baseline, no 'new combination' logic and no hourly rollup. The implementation describes a different detection.",
+      "field": "implementation",
+      "quote": "Maintain a lookup of approved scanners. Alert when new vmid/rule combinations spike above a 30-day baseline.",
+      "severity": "major",
+      "suggested_fix": "Either describe the shipped search as a daily top-50 deny report, or give the baseline variant explicitly (hourly summary index, 30-day `avg`/`stdev` per vmid+chain, `lookup approved_scanners src OUTPUT approved | where isnull(approved)`)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is Linux capacity boilerplate. Package updates and backup I/O do not produce firewall drop hotspots, and no real deny-noise source is named.",
+      "field": "knownFalsePositives",
+      "quote": "Package managers spike `vmid` metrics ... Correlate with apt/yum logs ... Nightly backup I/O on `vmid`",
+      "severity": "major",
+      "suggested_fix": "List real causes. Approved vulnerability scanners and monitoring probes hit closed ports. Broadcast/multicast and DHCP/NetBIOS chatter is dropped by default rules. Internet background scanning reaches guests with public IPs. Rules are tightened during change windows. The default `nolog` vs `info` log levels on standard rules produce bursts after logging is enabled."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`exclusions`, `evidence` ('Linux —' panel, `csv:linux_controls`) and the `knownFalsePositives` suppression note treat a hypervisor firewall security report as a Linux capacity control. That conflicts with the 'approved scanners' lookup described in `implementation`.",
+      "field": "cross_field",
+      "quote": "Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+      "severity": "major",
+      "suggested_fix": "Use a single firewall-specific suppression artefact (an approved-scanner `src` lookup and/or a vmid maintenance list) and drop the Linux naming."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate. A file monitor has no poll interval or vendor API, the 'vendor admin UI inventory count' check does not apply to firewall logs, and none of the pve-firewall-specific setup (log levels, file path, extraction, volume rate limiting) is covered.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=proxmox:firewall into pve. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Replace with steps for setting log levels per guest or rule, the UF monitor stanza, the field extraction, a volume check (`log_ratelimit` in Firewall → Options), and validation against Firewall → Log in the PVE UI."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC claims verified status from a generic team reviewer, but its collection method and field names do not match the documented Proxmox log format. That is not evidence of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", \"reviewer\": \"catalog-team\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to unverified until a named reviewer has validated the extraction and the search on real pve-firewall logs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Hyper-V is unrelated to the Proxmox VE firewall.",
+      "field": "equipment",
+      "quote": "\"hyperv\", \"proxmox\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `hyperv`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search expects extracted lowercase `action`/`verdict`, `src`, `dst`, `dport` and `vmid`, which pve-firewall lines do not provide natively. The POLICY token can read like 'policy DROP', so `ac=\"drop\"` equality would miss it. The description says it 'Alerts ... with thresholds', but there is no threshold, only `head 50`. Consider `like(ac, \"%drop%\")` and documenting the extraction dependency.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0011-UC-2.7.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A top-N report of Proxmox firewall drops and rejects per guest is a reasonable idea, and the grandma text is accurate. But the collection advice (hand-built nft/iptables LOG rules) contradicts how Proxmox VE firewall logging works, and the field list does not match the documented pve-firewall log format. The implementation describes a baseline alert that the SPL does not run, and the remaining fields are Linux-capacity boilerplate under a 'verified' status.",
+  "tier": "deep",
+  "uc_id": "UC-2.7.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,132 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "93aac15ea466b6925db13a226e26a6df67ae000bb35a3f24902a9ab08380d0d6",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.4.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/azure/key-vault/general/logging",
+      "explanation": "AuditEvent is the only Key Vault log category. SecretSet is an operationName, and there is no SecretRotate secret operation: rotation operations exist only for keys (KeyRotate, KeyRotateIfDue). A secret rotation appears as SecretSet or SecretUpdate (a new version), often preceded by SecretNearExpiryEventGridNotification.",
+      "field": "dataSources",
+      "quote": "Azure Key Vault diagnostic categories SecretSet and SecretRotate via Splunk Add-on for Microsoft Azure",
+      "severity": "blocker",
+      "suggested_fix": "Collect Key Vault category=AuditEvent and treat operationName IN (SecretSet, SecretUpdate) on the target secret as rotation evidence. Remove SecretRotate here and in detailedImplementation Lane C."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/secretsmanager/latest/userguide/cloudtrail_log_entries.html",
+      "explanation": "RotateSecret only records that a rotation was requested. Secrets Manager writes separate service events (RotationStarted, RotationSucceeded, RotationFailed, RotationAbandoned) that show the outcome. Counting RotateSecret as last_rotation_ts marks failed rotations as compliant, which is exactly the failure that Case K in detailedImplementation describes.",
+      "field": "cross_field",
+      "quote": "sourcetype=aws:cloudtrail RotateSecret and PutSecretValue for AWS Secrets Manager",
+      "severity": "blocker",
+      "suggested_fix": "In dataSources and detailedImplementation Lane B, use eventName=RotationSucceeded (with PutSecretValue plus UpdateSecretVersionStage for manual rotations) as rotation evidence, and RotationFailed/RotationAbandoned as failure signals."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunk-built 'Splunk Add-on for HashiCorp Vault' exists. The Splunkbase listing is the HashiCorp-built 'HashiCorp Vault App for Splunk' (5093). The trailing text makes the AWS TA the collector for every lane, including Vault, Azure and the gateway lanes.",
+      "field": "app",
+      "quote": "Splunk Add-on for HashiCorp Vault — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
+      "severity": "blocker",
+      "suggested_fix": "List each lane's real collector: Splunk Add-on for AWS (1876) for CloudTrail, Splunk Add-on for Microsoft Azure (3757) or Event Hub for Key Vault, Splunk Add-on for Google Cloud Platform (3088), HashiCorp Vault App for Splunk (5093) or a UF file monitor for the Vault audit device, and HEC for gateway logs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/identity-platforms-pam-sso.md",
+      "explanation": "Repository guides use hashicorp:vault:audit (identity-platforms-pam-sso.md) or vault:audit:json (cert-pki.md) for the same feed. The Vault audit device nests fields as request.path and request.operation, not the top-level path or operation that the description implies.",
+      "field": "dataSources",
+      "quote": "index=security sourcetype=vault:audit HashiCorp Vault audit JSON",
+      "severity": "needs_verification",
+      "suggested_fix": "Align the sourcetype with the guides (hashicorp:vault:audit). State that rotation evidence comes from request.operation IN (create, update) on request.path matching the KV path of the LLM credential."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL in Step 3 uses mean(), but the spl field uses avg(). The text claims an exact match that does not hold, so copy-paste readers get a different search from the catalogue one.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL must match the spl JSON field exactly: ... | eventstats mean(key_age_days) AS bu_mean_age",
+      "severity": "major",
+      "suggested_fix": "Replace the fenced block with the exact spl field content, or drop the 'must match exactly' claim."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "CIM data model acceleration and tstats come from the free Splunk Common Information Model add-on (1621), not Enterprise Security. Nothing in the SPL needs ES.",
+      "field": "premiumApps",
+      "quote": "Splunk Enterprise Security — Optional CIM Authentication and Change tstats acceleration",
+      "severity": "major",
+      "suggested_fix": "Remove Enterprise Security from premiumApps and name the CIM add-on as the prerequisite for Change acceleration."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL only queries Change. Authentication appears only as a future enrichment in dataModelAcceleration.",
+      "field": "cimModels",
+      "quote": "\"Change\", \"Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Change only, or say that Authentication is not used by the current search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "A verified status with reviewer 'catalog-team' conflicts with SPL whose AWS lane and Change join always return nothing (see the firewalled flags) and with wrong vendor operation names. No SME sign-off is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the search has been run against real CloudTrail, Key Vault and Vault audit data."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The GCP audit methodName is google.cloud.secretmanager.v1.SecretManagerService.AddSecretVersion; 'SecretVersion Add' is not a searchable value.",
+      "field": "detailedImplementation",
+      "quote": "forward SecretManager SecretVersion Add events through the Splunk Add-on for GCP",
+      "severity": "minor",
+      "suggested_fix": "Use protoPayload.methodName=\"google.cloud.secretmanager.v1.SecretManagerService.AddSecretVersion\"."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "coalesce(requestParameters.secretId, ...) is not quoted. In eval, '.' is the concatenation operator, so the expression evaluates to null and every AWS row becomes 'aws_unscoped', which is then nulled. Use 'requestParameters.secretId' in single quotes. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The CIM Change root dataset is All_Changes. tstats ... FROM datamodel=Change WHERE nodename=Change BY Change.object returns no rows, so change_recent is always 0. Use nodename=All_Changes and All_Changes.object.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The AWS lane keys on eventName=RotateSecret/PutSecretValue instead of RotationSucceeded. The Azure lane filters on 'secretrotate' and the undefined token 'npr'. The Vault lane reads top-level operation and path instead of request.operation and request.path. Each lane can misstate when rotation happened.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "gateway_last_used is taken per logical_key_id alias, not per credential version. A gateway still using the old version after rotation will still advance gateway_last_used, so gateway_cutover_gap cannot detect the stale-key case the title promises without a credential fingerprint or version field.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0082-UC-13.4.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation explains the cosmetic-rotation and gateway-cutover problem well, but several product facts are wrong. The UC cites a non-existent Splunk Vault add-on, Azure Key Vault operations that do not exist, and AWS RotateSecret as proof of a completed rotation. The SPL has field-reference defects that silently empty the AWS and CIM Change lanes.",
+  "tier": "deep",
+  "uc_id": "UC-13.4.10",
+  "verdict": "incorrect"
+}

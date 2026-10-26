@@ -1,0 +1,121 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c29204acbd696ac6468d8f957dc33fcb6662d965c70c3d062376aa5dac823110",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). The Nutanix Prism add-on is 'TA for Nutanix Prism' (Splunkbase 3103, folder TA-nutanix), and the Prism Central variant is 8349. The wrong ID also appears in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "Splunk_TA_nutanix ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076)) for `nutanix:cluster:alerts`",
+      "severity": "blocker",
+      "suggested_fix": "Replace 5076 / Splunk_TA_nutanix with TA for Nutanix Prism (Splunkbase 3103, TA-nutanix). Confirm the alert sourcetype that TA actually emits before naming nutanix:cluster:alerts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://next.nutanix.com/installation-configuration-23/antivirus-on-nutanix-ahv-hosts-and-on-cvms-37041",
+      "explanation": "Nutanix treats the CVM as a storage appliance. Installing third-party software or agents on it is unsupported and voids support, and the CVM login banner says so. Telling readers to install a UF plus Splunk_TA_nix on every CVM is unsupported advice for a production cluster.",
+      "field": "detailedImplementation",
+      "quote": "CVM nix: Universal Forwarder with `cpu`, `vmstat`, `iostat`, `df` to `index=os` at sixty seconds.",
+      "severity": "blocker",
+      "suggested_fix": "Remove the UF-on-CVM lane. Get CVM CPU, memory and I/O from Prism REST stats (per-host or per-CVM metrics) or from agentless SSH or `allssh` collection run from an external collector, if Nutanix support policy allows it. Note the support caveat explicitly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/huit/puppet-splunk/blob/master/files/ta/Splunk_TA_nix/bin/cpu.sh",
+      "explanation": "In Splunk_TA_nix, pctIowait is emitted by cpu.sh (sourcetype cpu: CPU, pctUser, pctNice, pctSystem, pctIowait, pctIdle), not by vmstat. Reading pctIowait from vmstat returns nothing, so the iowait pressure thresholds described in the UC (30 and 50 percent) can never fire.",
+      "field": "dataSources",
+      "quote": "`vmstat` (`pctIowait`, `memUsedPct` or `mem_used_pct`)",
+      "severity": "blocker",
+      "suggested_fix": "State that pctIowait comes from sourcetype=cpu (CPU=all) and memUsedPct from vmstat."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Splunk_TA_nix ships no SSH or genesis script and does not post to HEC. This is a custom script, and attributing it to 833 misleads readers about what they get from installing the add-on.",
+      "field": "dataSources",
+      "quote": "from a Splunk_TA_nix (Splunkbase 833) scripted input or equivalent that SSHs as `nutanix@<cvm_ip>` to each Controller VM and runs `genesis status`, wrapping each service line in JSON and POSTing to HEC",
+      "severity": "major",
+      "suggested_fix": "Describe it as a custom scripted input in a site app (for example TA_nutanix_cvm), independent of Splunk_TA_nix."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "`genesis status` prints each service with its list of PIDs, and an empty list means the service is down. As far as I know it does not print a state word or a restart counter, so restart_count has to be derived, for example from PID changes between samples. I also could not confirm GET /PrismGateway/services/rest/v1/cluster/status, the metric names controller_oplog_drain_outstanding / oplog_outstanding_drain_count on the (existing) v2.0 hosts/{uuid}/stats endpoint, or alert titles like 'StargateDown' / 'ServiceRestartedFrequently'.",
+      "field": "dataSources",
+      "quote": "runs `genesis status` ... fields: ... `state` or `status` in {`running`, `DOWN`, `kforwarding` for Cassandra}, `restart_count` / `restartCount`",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture real `genesis status` and `cluster status` output from a CVM and document how state and restarts are derived (PID-set change). Check the Prism v1/v2 API explorer for the status and stats endpoints and the real oplog metric names, and use real Nutanix alert IDs or titles from the alert policy list."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`index=names` does not exist. It is parsed from the SPL comment 'replace index= names', while the SPL uses index=hci / nutanix / os. `mem_t > 0` is a divide-by-zero guard, not an alert threshold. The real triggers (core service down, two or more services down, iowait > 50/30, memory > 95, oplog > 5,000,000) are not mentioned. controlTest and knownFalsePositives repeat 'names'.",
+      "field": "description",
+      "quote": "sourced from `index=names` sourcetype `nutanix:cvm:genesis_status`. Threshold bundle: `rcount` > 3, or `mem_t` > 0",
+      "severity": "major",
+      "suggested_fix": "Say the UC reads index=hci or nutanix (plus the CVM metrics source) and list the real severity conditions behind critical, high and medium."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios ignore the real benign causes that the detailedImplementation already lists: AOS or LCM rolling upgrades restarting services CVM by CVM, CVM maintenance mode, transient ergon/minerva_cvm restarts, Prism UI cache lag, and Cassandra forwarding mode during node removal.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `count` on `nutanix:cvm:genesis_status`** — Scheduled automation elevates `cvm_ip` without crossing `rcount` > 3",
+      "severity": "major",
+      "suggested_fix": "List those Nutanix-specific causes and say how to suppress them (upgrade_in_progress flag, change_freeze_until in the lookup, a known-transient service allowlist)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified despite a wrong add-on ID, an unsupported agent-on-CVM design, and an SPL that will not parse.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the SPL runs and a Nutanix SME confirms the collection path."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The SPL does not need ITSI, which is only mentioned as an optional KPI target, and the app field just says 'Optional: premiumApps.'",
+      "field": "premiumApps",
+      "quote": "\"premiumApps\": [\n    \"Splunk ITSI\"\n  ]",
+      "severity": "minor",
+      "suggested_fix": "Mark ITSI as optional with a note, or remove it from premiumApps."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Every multisearch arm contains `stats` (and the os arm contains `lookup`). multisearch only accepts purely streaming subsearches, so Splunk rejects the search with 'Multisearch subsearches may only contain purely streaming operations'. Use append/union, or move each stats call after the multisearch.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The os arm sets `_memp2 = 100 - df UsePct` whenever a df event is present and stores it as mem_used_max_pct, so disk free percent is reported as memory used. pctIowait is read from vmstat, which does not have that field. `sort 0 - severity_bucket` sorts the labels alphabetically, not by severity.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0113-UC-19.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The CVM service primer is useful, but the collection design rests on a wrong Splunkbase ID (5076), on installing Universal Forwarders on CVMs (which Nutanix does not support), and on Splunk_TA_nix field names that sit in the wrong sourcetype. The SPL cannot run as written because multisearch arms contain non-streaming stats.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.14",
+  "verdict": "incorrect"
+}

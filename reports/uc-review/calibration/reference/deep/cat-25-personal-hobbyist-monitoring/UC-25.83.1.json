@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "83f6ae034b0a745a8e02029bd9645435f622b3732dab38212bfa1ca5401d375b",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.83.1.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "This is the only implementation guidance, and it does not say how wheelchair battery readings reach Splunk: a manufacturer app export, a custom BLE or controller reader, or a caregiver form. It also asks for per-device-family thresholds that the SPL, which has a single fixed 25% cutoff and no device-family field, cannot apply.",
+      "field": "implementation",
+      "quote": "Tune the threshold to the minimum safe operating level for each device family.",
+      "severity": "major",
+      "suggested_fix": "Name the actual collection path the reader must build: a script or caregiver form that posts `{chair_id, battery_pct}` to HEC as `wheelchair:battery` on a set cadence. Explain that per-family thresholds need a lookup keyed by `chair_id`, used in place of the constant 25."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`metric_value` is created by `stats latest(battery_pct) as metric_value`, so it does not exist on raw events. The field-presence check in Step 3(b), the percentile calibration in Step 3(d), and the 'Fields this search depends on' list in Step 2 therefore return nulls. The raw field is `battery_pct`.",
+      "field": "detailedImplementation",
+      "quote": "| table chair_id, metric_value\n```\n\nEvery column the detection uses should be non-null on recent rows.",
+      "severity": "major",
+      "suggested_fix": "List `chair_id` and `battery_pct` as required raw fields, and run the Step 3(b) and 3(d) checks on `battery_pct` (for example `stats perc10(battery_pct) min(battery_pct) by chair_id`)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL computes no `count`. It takes the latest `battery_pct` per chair and returns chairs whose latest reading is below 25%.",
+      "field": "description",
+      "quote": "Rolls up `count` by `chair_id` across `the scheduled window` and pages when `metric_value` < 25.0.",
+      "severity": "major",
+      "suggested_fix": "Say it takes the most recent battery percentage reported for each wheelchair (`chair_id`) and alerts when that reading is below 25%."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The fitness-template scenarios (watch and phone sync, rest day, weekly bins) do not apply. The real false-positive and false-negative causes for a safety alert are missing. In particular, a chair that stopped reporting keeps its last value, which can trigger a stale low alert or hide a real drain.",
+      "field": "knownFalsePositives",
+      "quote": "**Multi-device double-count** — Same activity synced from watch and phone into `wheelchair:battery`.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Voltage-based state-of-charge estimates sag under load or in cold weather and recover at rest. A reading taken just before charging stays low until the next report. A chair powered off or out of Bluetooth range leaves an old `latest` value. Add a freshness check on the latest reading's `_time`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Template residue ('missed training goals', 'triage for Level Alert'). The real value, avoiding someone being stranded with a flat power chair, is not stated.",
+      "field": "value",
+      "quote": "shorten triage for Level Alert tied to 'Wheelchair Battery Health Low-Level Alert', lowering missed training goals, stale hobby data, and connector failures",
+      "severity": "major",
+      "suggested_fix": "Say it warns the user or caregiver when a power wheelchair's battery drops below a safe level, so it can be charged before an outing and the person is not left stranded."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A household mobility-aid alert has no auditor or regulation. The OAuth, 'vendor developer app sandbox' and HTTP 429 troubleshooting assumes a consumer API the text never identifies.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Describe a table of `chair_id`, latest `battery_pct` and last-report time, plus a battery timechart per chair. Make the troubleshooting fit the chosen collector, for example a missed caregiver form entry or the BLE reader being offline."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "'Wheelchair battery health devices' is the title pasted in; a lay reader would say 'which wheelchairs have batteries running low'. It also omits the 25% cutoff.",
+      "field": "grandmaExplanation",
+      "quote": "which wheelchair battery health devices are getting low",
+      "severity": "minor",
+      "suggested_fix": "For example: 'It tells you when a power wheelchair's battery has dropped below about a quarter, so it can be charged before someone gets stuck.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL uses only `wheelchair:battery`. The other sourcetypes, the hearing-aid and ADA references, and the `splunk` equipment slug do not relate to this UC.",
+      "field": "dataSources",
+      "quote": "stairlift service records (`stairlift:service`), hearing-aid battery records (`hearingaid:battery`), pendant-alert tests (`pendant:test`)",
+      "severity": "minor",
+      "suggested_fix": "List only wheelchair battery telemetry (`wheelchair:battery` with `chair_id` and `battery_pct`). Replace the hearing-aid and ADA references with the wheelchair maker's battery or charging guidance, and drop `splunk` from equipment."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`latest(battery_pct)` over the full search range has no freshness bound, so a chair that stopped reporting days ago still shows its last value. For a high-criticality safety alert, add `max(_time) as last_seen` and either a staleness condition or a bounded `earliest`.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0150-UC-25.83.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple latest-battery-percent-under-25 check per chair. The text never says where wheelchair battery readings come from, its validation steps query a field that exists only after `stats`, and it omits the staleness risk that matters for a high-criticality safety alert.",
+  "tier": "deep",
+  "uc_id": "UC-25.83.1",
+  "verdict": "rewrite"
+}

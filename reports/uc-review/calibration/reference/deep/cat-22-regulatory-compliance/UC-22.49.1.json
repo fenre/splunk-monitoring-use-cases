@@ -1,0 +1,127 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a898cc2c9707d963a1ca9794b2f46837b08d6c0f26a274a55660b93cd2ff8c3d",
+  "file": "content/cat-22-regulatory-compliance/UC-22.49.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "No subcategory preamble defines the source, and the 'supplemented by' clause is boilerplate. The reader is never told what produces `index=datastore sourcetype=retention:inventory` or what it contains.",
+      "field": "dataSources",
+      "quote": "See subcategory preamble. — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
+      "severity": "major",
+      "suggested_fix": "Describe the feed: a per-record (or per-batch) inventory export from each data store, sent through HEC or DB Connect into `index=datastore sourcetype=retention:inventory`, with fields `store`, `record_id`, `data_domain`, `created_at` (ISO 8601 UTC) and `litigation_hold`. Also describe the `retention_policy.csv` lookup (`data_domain`, `retention_period_days`)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL returns only overdue records and has no total record count, so a percentage within retention cannot be calculated. A store × age-bucket heatmap also needs age buckets that the search does not create.",
+      "field": "visualization",
+      "quote": "single-value '% of records within retention'",
+      "severity": "major",
+      "suggested_fix": "Either describe panels the output supports (overdue record count by store and `data_domain`, and a table of overdue records with age), or note that the percentage needs a companion search counting all inventory records per store."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL does handle litigation holds: it excludes records with `litigation_hold=\"true\"`. Saying the UC does not cover hold exceptions is confusing.",
+      "field": "exclusions",
+      "quote": "Does NOT cover litigation-hold exceptions; see UC-22.49.3.",
+      "severity": "minor",
+      "suggested_fix": "Say that records flagged `litigation_hold=true` are excluded from findings, and that checking whether holds were applied or released correctly is covered by UC-22.49.3."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios, and `entity` is not a field in this UC. The real causes of false positives and false negatives are missing.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=datastore` `retention:inventory` without crossing evidence threshold. ... BAA/DPA-covered vendor generates expected rows grouped by `entity`",
+      "severity": "major",
+      "suggested_fix": "List the real causes: records in a soft-delete or purge-queue grace period, holds recorded in a separate legal-hold system but not yet synced into the inventory, `created_at` values in other formats or time zones, and retention measured from a different trigger event (for example contract end rather than creation). Also note that domains missing from `retention_policy.csv` are silently skipped."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://commission.europa.eu/law/law-topic/data-protection/international-dimension-data-protection/adequacy-decisions_en",
+      "explanation": "The 'GDPR-specific failure modes' (DSR timers, transfer adequacy, 72-hour breach clock) have nothing to do with retention enforcement. They also contain errors: the European Commission, not the EDPB, adopts adequacy decisions, and the business-day reading of the Art.12(3) one-month deadline is unsupported. The retention table for PCI/HIPAA/SOX and the ecosystem paragraph are also template residue.",
+      "field": "detailedImplementation",
+      "quote": "Maintain `gdpr_adequacy_list.csv` and refresh when the EDPB updates the adequacy register.",
+      "severity": "major",
+      "suggested_fix": "Replace these with retention-specific caveats: Art.5(1)(e) storage limitation and how retention periods are justified in the RoPA, backups and archives outside the inventory, and how deletion evidence is recorded once overdue records are purged."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`age_days` is calculated by the search and `retention_period_days` comes from the lookup, so neither exists in raw events. Meanwhile the raw fields the SPL depends on, `created_at` and `litigation_hold`, are not checked.",
+      "field": "detailedImplementation",
+      "quote": "This detection specifically needs: `age_days`, `data_domain`, `record_id`, `retention_period_days`, `store`. Run:\n\n```spl\nindex=datastore sourcetype=retention:inventory earliest=-1h\n| head 100\n| table age_days, data_domain, record_id, retention_period_days, store",
+      "severity": "major",
+      "suggested_fix": "Validate `store`, `record_id`, `data_domain`, `created_at` (and that it parses with `%Y-%m-%dT%H:%M:%SZ`) and `litigation_hold` on raw events. Separately confirm that every `data_domain` value has a row in `retention_policy.csv`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The list includes calculated or lookup-derived fields and omits the source fields `created_at` and `litigation_hold`.",
+      "field": "requiredFields",
+      "quote": "\"requiredFields\": [\n    \"age_days\",\n    \"data_domain\",\n    \"record_id\",\n    \"retention_period_days\",\n    \"store\"\n  ]",
+      "severity": "minor",
+      "suggested_fix": "Use `store`, `record_id`, `data_domain`, `created_at` and `litigation_hold`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The `savedsearches.conf` stanza writes to `summary_compliance` under a different search name, and the compliance artefacts cite `audit_evidence`.",
+      "field": "evidence",
+      "quote": "Daily 'retention_execution' writes past-retention records to compliance_summary.",
+      "severity": "minor",
+      "suggested_fix": "Use one saved-search name and one destination index across `evidence`, `detailedImplementation` and the compliance artefacts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with `reviewer: \"N/A\"`, and every compliance artefact says 'Auto-drafted — SME review required'. Nothing supports verified status.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status, or name the reviewer and review date."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The meaning is right, but 'retention and disposal' is jargon and the text does not say what is flagged.",
+      "field": "grandmaExplanation",
+      "quote": "We help you see retention and disposal so data is not kept too long and holds are respected.",
+      "severity": "minor",
+      "suggested_fix": "For example: 'Every day we list stored records that are older than the rules allow and are not frozen for a court case, so they can be deleted on time.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`litigation_hold!=\"true\"` and `age_days>retention_period_days` both evaluate false when the field is null. Records with no hold flag, no lookup match or an unparseable `created_at` are silently dropped instead of surfaced. The search has no total count to support the '% within retention' KPI.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "GDPR Art.5 is marked 'full' with the rationale 'the UC evidences compliance', which overclaims for an inventory-based check that cannot see data outside the inventory. HIPAA §164.310(d)(1) concerns device and media disposal, not record retention. The CCPA §1798.100 label 'Consumer right to know' does not match the data-minimisation rationale. `requires_sme_review: false` conflicts with 'Auto-drafted — SME review required'.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0133-UC-22.49.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection (records older than their domain's retention period and not on litigation hold) is clear in the SPL and the short implementation. However, `dataSources` is a placeholder, the visualisation and exclusions contradict the search, the false positives are template text, and `detailedImplementation` is padded with unrelated GDPR caveats that contain errors.",
+  "tier": "deep",
+  "uc_id": "UC-22.49.1",
+  "verdict": "rewrite"
+}

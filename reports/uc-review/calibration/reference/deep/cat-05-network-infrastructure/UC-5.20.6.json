@@ -1,0 +1,98 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "4bab8cb064852f2de43effcc2d8b61e95f1476aa1a5e151dc4db4323982db776",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.6.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc4293",
+      "explanation": "Per RFC 4293, ipIfStatsEntry .10 is ipIfStatsInUnknownProtos, .7 is ipIfStatsInHdrErrors and .11 is ipIfStatsInTruncatedPkts. HCOutOctets is .33, InDiscards .17 and OutDiscards .25. The text also says 'ipIfStatsHCOutOctets (OID .10)' and '`ipIfStatsInOctets`, OID .2' (.2 is ipIfStatsIfIndex; InOctets is .5). The Telegraf config would collect the wrong counters under the right names.",
+      "field": "detailedImplementation",
+      "quote": "oid = \"1.3.6.1.2.1.4.31.3.1.10\"\n    name = \"HCOutOctets\" ... oid = \"1.3.6.1.2.1.4.31.3.1.7\"\n    name = \"InDiscards\" ... oid = \"1.3.6.1.2.1.4.31.3.1.11\"\n    name = \"OutDiscards\"",
+      "severity": "blocker",
+      "suggested_fix": "Correct the column OIDs: HCInOctets .6, HCOutOctets .33, InDiscards .17, OutDiscards .25, InOctets .5. Or reference them by name (IP-MIB::ipIfStatsHCOutOctets) instead of numeric OIDs."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc4293",
+      "explanation": "ipIfStatsIPVersion (.1) and ipIfStatsIfIndex (.2) are MAX-ACCESS not-accessible index objects, so walking .1.1 returns no instances, and the Telegraf field on oid ...31.3.1.1 tagged `ipVersion` cannot be polled. The IP version and ifIndex can only be read from the instance suffix of each counter OID.",
+      "field": "detailedImplementation",
+      "quote": "Verify with: `snmpwalk -v2c -c <community> <device_ip> 1.3.6.1.2.1.4.31.3.1.1` — this should return entries indexed by IP version (1 or 2) and ifIndex.",
+      "severity": "blocker",
+      "suggested_fix": "Walk a readable column instead (for example 1.3.6.1.2.1.4.31.3.1.6, ipIfStatsHCInOctets) and read version and ifIndex from the OID suffix. In Telegraf, use index_as_tag or oid_index_suffix rather than polling the index columns."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/snmp-data-format/",
+      "explanation": "SC4SNMP varBinds take [MIB-Component, object, index] names (for example ['IP-MIB','ipIfStatsTable']), and its poller inventory is a CSV header block in values.yaml, not a YAML list. A profile with numeric counters goes to the metrics index as sc4snmp.IP-MIB.<counter> metrics, so the event searches (index=network sourcetype=\"sc4snmp:*\" ipIfStatsIPVersion=*) would return nothing.",
+      "field": "detailedImplementation",
+      "quote": "varBinds:\n    - ['1.3.6.1.2.1.4.31.3']       # ipIfStatsTable (full table) ... SC4SNMP sends results to Splunk HEC as `sourcetype=sc4snmp:event` or `sc4snmp:metric`. Configure the HEC token to route to `index=network`.",
+      "severity": "blocker",
+      "suggested_fix": "Use varBinds ['IP-MIB','ipIfStatsTable'] (plus ['IF-MIB','ifDescr']) in scheduler.profiles, show the CSV inventory format, and query the counters with mstats against the SC4SNMP metrics index. Check the exact metric and dimension names in the SC4SNMP data-format docs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation names two alert conditions, but the main SPL has neither a zero-traffic test nor a 10x discard ratio; it just sorts by abs(IPv6-IPv4) discard difference. dataSources and spl use sourcetype snmp:ipIfStatsTable, while every detailedImplementation search uses sourcetype sc4snmp:*.",
+      "field": "cross_field",
+      "quote": "Alert when IPv6 counters are zero on an interface where IPv6 is configured, or when IPv6 discards exceed IPv4 discards by more than 10x.",
+      "severity": "major",
+      "suggested_fix": "Make implementation describe what the SPL actually computes, or point to the zero-counter alert in detailedImplementation as a separate search. Use one sourcetype or metric source across dataSources, implementation and detailedImplementation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Chart",
+      "explanation": "With two aggregations and a split-by, chart names its columns '<alias>: <value>' (for example 'bytes: IPv6'), not 'bytes.IPv6'. So ipv6_bytes_pct always falls back to 0 and discard_ratio to N/A. The SPL also sums cumulative since-boot counters, which mixes uptime with traffic share.",
+      "field": "detailedImplementation",
+      "quote": "| eval ipv6_bytes_pct=if(isnum('bytes.IPv6') AND isnum('bytes.IPv4')",
+      "severity": "major",
+      "suggested_fix": "Reference the columns chart actually produces ('bytes: IPv6'), or replace chart with stats plus eval per version. Compute deltas or rates (streamstats or mstats rate) before comparing IPv4 and IPv6."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "No source is given for per-interface ipIfStatsTable support on these exact releases. Several vendors implement only ipSystemStatsTable, or leave the IPv6 ipIfStatsTable rows incomplete.",
+      "field": "detailedImplementation",
+      "quote": "Most modern platforms do (Cisco IOS-XE 16.x+, NX-OS 7.x+, Juniper Junos 15.1+, Arista EOS 4.20+).",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each vendor's MIB support list (Cisco SNMP Object Navigator / MIB locator, Juniper MIB Explorer, Arista MIB docs) and either cite them or drop the version list."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC polls IP-MIB counters; it does not use SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace snmp_trap with the SNMP polling equipment model (or remove it)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`chart sum(total_bytes) as bytes sum(in_discards) as discards over host by ip_version` produces columns 'bytes: IPv4', 'bytes: IPv6', 'discards: IPv4', 'discards: IPv6'. No bare 'IPv6'/'IPv4' field exists, so ipv6_pct and discard_delta are always null, and discard_delta would mix bytes and discards even if it resolved. Only in_discards is summed (out_discards is dropped), and the SPL compares cumulative counters, not rates.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-5.20.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "dataSources and detailedImplementation are detailed and specific to RFC 4293, but several ipIfStatsTable column OIDs are wrong, the SC4SNMP config and searches do not match how SC4SNMP works, and the alert conditions in implementation are not in the SPL. Marking it `status: verified` overstates its readiness.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.6",
+  "verdict": "incorrect"
+}

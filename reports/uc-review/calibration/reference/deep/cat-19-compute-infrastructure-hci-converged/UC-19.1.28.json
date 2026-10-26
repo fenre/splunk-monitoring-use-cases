@@ -1,0 +1,107 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "59caa25b56cb5b6567dfe178514272f0784642f9362ec8ff873513361efbea87",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.28.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname), not a Nutanix add-on. The cached catalogue lists 'TA for Nutanix Prism' as Splunkbase 3103 with app folder TA-nutanix. Nutanix Prism Central has a separate TA, 8349 (TA-nutanix-PC). The same wrong ID and folder name appear in dataSources, implementation, detailedImplementation, references and the props/inputs paths ($SPLUNK_HOME/etc/apps/Splunk_TA_nutanix/...).",
+      "field": "app",
+      "quote": "Install **Splunk_TA_nutanix** (TA for Nutanix Prism, [Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 5076 / Splunk_TA_nutanix everywhere with 'TA for Nutanix Prism' (Splunkbase 3103, folder TA-nutanix). Mention TA-nutanix-PC (8349) for Prism Central. Fix the reference link and the conf-file paths to match."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.nutanix.dev/api_reference/apis/prism_v2.html",
+      "explanation": "Public examples of the PE v2.0 /protection_domains/{name}/dr_snapshots response show snapshot_create_time_usecs and snapshot_expiry_time_usecs, plus snapshot_id and protection_domain_name. created_time_usecs / expiry_time_usecs may not exist. If so, every event fails `isnotnull(t_create)` and the UC returns nothing. The query flags include_cerebro_snapshots / filter_cerebro_only are also unconfirmed.",
+      "field": "dataSources",
+      "quote": "for each snapshot: `created_time_usecs`, `expiry_time_usecs`, and snapshot `name` or id",
+      "severity": "needs_verification",
+      "suggested_fix": "Check one live dr_snapshots response in the Prism REST API Explorer. Document the actual key names (likely snapshot_create_time_usecs, snapshot_expiry_time_usecs, snapshot_id, protection_domain_name), drop unverified query parameters, and ask SPL owners to add the real keys to the coalesce chain."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "With INDEXED_EXTRACTIONS=json, the timestamp should come from TIMESTAMP_FIELDS rather than a TIME_PREFIX regex. As written, TIME_PREFIX also omits the `\":` separator, so it would not anchor on the value.",
+      "field": "detailedImplementation",
+      "quote": "INDEXED_EXTRACTIONS = json\nTIME_PREFIX = \"created_time_usecs\"\nTIME_FORMAT = %s%6N",
+      "severity": "minor",
+      "suggested_fix": "Use `TIMESTAMP_FIELDS = <verified create-time key>` with `TIME_FORMAT = %s%6N`. Better still, leave _time as poll time (see the SPL flag) and keep the creation time as a field."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Sourcetype names are not part of CIM, and cimModels is empty, so calling them 'CIM-style labels' is misleading. The repeated warnings about the plural 'protection_domains' typo in exclusions, dataSources and detailedImplementation are internal noise.",
+      "field": "detailedImplementation",
+      "quote": "will not match the Splunk CIM-style labels we standardise in this use case",
+      "severity": "minor",
+      "suggested_fix": "Say these are site-chosen sourcetype names for a custom input, and state the plural-typo warning once, in dataSources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real benign cause of retention or RPO drift. Real causes include out-of-band (OOB) snapshots that raise the count, snapshots retained indefinitely via the retain API or `ncli pd retain-snapshot`, schedule pauses during replication or WAN maintenance, and PDs migrated to Leap protection policies. The detailedImplementation already mentions legal hold and DR drills, but the false-positive list ignores them.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `nutanix:protection_domain:dr_snapshot`** — Scheduled automation elevates `pd_name` without crossing `t_create_usec` > 0",
+      "severity": "major",
+      "suggested_fix": "List the Nutanix-specific benign causes: OOB and manual snapshots, retained or legal-hold snapshots, planned schedule suspensions, PDs moved to Leap, and DST or NTP skew. Name the lookup column or filter that excludes each."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified while naming a wrong Splunkbase app (5076) throughout and relying on unconfirmed API field names. Real verification would have caught both.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft until a Nutanix SME confirms the add-on and the dr_snapshots response keys."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The long 'addendum' run-on (PagerDuty, Teams, HIPAA, USB shipping, mTLS and so on) is generic filler, despite claiming to be product-specific, and buries the useful steps.",
+      "field": "detailedImplementation",
+      "quote": "for retail peaks, expect snapshot storms during month-end; for manufacturing OT bridges, this UC is cluster-only ... for air-gapped, ship logs on USB as policy allows",
+      "severity": "minor",
+      "suggested_fix": "Delete the addendum or reduce it to two or three Nutanix-specific points (Async vs NearSync vs Metro semantics, Leap v3/v4 migration)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`earliest=-24h@h` combined with `_time` taken from the snapshot creation time (per the UC's props.conf) means snapshots older than 24h are never in scope. worst_snapshot_age_days can never exceed about 1, so over_age cannot fire for any max_age_days >= 1, and snap_count only covers the last day. If _time is instead the poll time, each snapshot is re-counted on every 30-minute poll, so snap_count is inflated about 48x. It should be dc(snapshot_id) taken from the latest poll only.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The coalesce chains lack the documented v2 keys (snapshot_create_time_usecs, snapshot_expiry_time_usecs, protection_domain_name), so the `isnotnull(t_create)` filter may drop every event. `sort 0 - severity_bucket` sorts the strings alphabetically (warning > info > high > critical), so critical rows end up at the bottom.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The leading `//` comment lines are not valid SPL comments. Splunk uses triple-backtick ``` comment ``` syntax, and the search will fail to parse as written.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0111-UC-19.1.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation detail is real and largely actionable, but the whole UC is built on Splunkbase 5076, which is an unrelated hostname-fixing app; the Nutanix TA is 3103 (TA-nutanix). The SPL's 24-hour window and per-poll event counting also make the age and count checks unreliable.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.28",
+  "verdict": "incorrect"
+}

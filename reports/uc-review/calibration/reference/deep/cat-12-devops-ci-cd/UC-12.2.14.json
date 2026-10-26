@@ -1,0 +1,118 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "84d66e300c7af9d08a218c0b8a58d00c71f36270ed4cda2598fe7345713540fb",
+  "file": "content/cat-12-devops-ci-cd/UC-12.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/jenkinsci/splunk-devops-plugin/blob/master/splunk-devops/src/main/resources/metadata.properties",
+      "explanation": "The Splunk App for Jenkins (Splunkbase 3332) and its Splunk plugin for Jenkins send agent status with sourcetype `json:jenkins`, index `jenkins_statistics`, `event_tag=slave` and fields `node_name`, `is_online`, `label`, `num_executors`, `offline_reason`. The SPL instead reads `sourcetype=jenkins:computer` with Jenkins REST API field names (`displayName`, `offline`, `numExecutors`). Installing the named app does not produce data this search can match.",
+      "field": "app",
+      "quote": "Splunk App for Jenkins, Jenkins API — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Choose one collection path and state it plainly. Option one: a scripted or modular REST input polling `https://<jenkins>/computer/api/json` (one event per `computer[]` element) written as `sourcetype=jenkins:computer`, with the app field reading 'Custom REST poll of the Jenkins Remote Access API'. Option two: the Splunk App for Jenkins (Splunkbase 3332), with the SPL rewritten by a human to use `sourcetype=json:jenkins event_tag=slave is_online=false`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The Universal Forwarder has no Jenkins modular input. The text does not say who polls `/computer/api/json`, how often, with what credentials, or how the `computer[]` array is split into one event per agent. 'Agent heartbeat' is not a named Jenkins data source.",
+      "field": "dataSources",
+      "quote": "`/computer/api/json` `offline=true`, agent heartbeat Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Describe the actual input: a scripted or REST modular input on a heavy forwarder that polls `/computer/api/json?tree=computer[displayName,offline,temporarilyOffline,offlineCauseReason,numExecutors,assignedLabels[name]]` every N minutes with an API token. It should break the response into one event per agent, sourcetype `jenkins:computer`, index `cicd`. Drop 'agent heartbeat' unless a specific source is named."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description`, `controlTest` and `knownFalsePositives` describe a search that groups by `entity`, `host` or `src`, counts over `span=1h`, and compares against a threshold. The SPL has no `stats`, no threshold and none of those fields. It lists raw offline events for agents whose `displayName` maps to `tier=production`.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: return every agent reported `offline=true` whose `displayName` maps to `tier=production` in the `jenkins_agent_tier` lookup. The output columns are agent name, labels, executor count and event time. Remove the references to `entity`, `count`, `src`, `span=1h` and 'configured threshold'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no concept of an agent pool and computes no offline ratio, so the 30% escalation the implementation promises cannot fire from this search. The `jenkins_agent_tier` lookup schema (key `displayName`, output `tier`, and any pool column) is also never described.",
+      "field": "implementation",
+      "quote": "Auto-create incident if >30% of pool offline.",
+      "severity": "major",
+      "suggested_fix": "Either remove the 30% rule or describe it as a separate companion search: latest state per agent, `stats count(eval(offline=\"true\")) as off, count as total by pool`, alert where `off/total > 0.3`. Document the lookup columns: `displayName`, `tier`, and `pool` if used."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The listed false positives are template text and miss the real Jenkins causes. An administrator can mark an agent offline on purpose (`temporarilyOffline=true` with an `offlineCauseReason`). Ephemeral cloud agents (Kubernetes or EC2 plugins) go offline and get removed as part of normal operation. An agent can also be offline while it is still connecting after a controller restart.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Jenkins Agent Offline Alerts' shifts `count` over `span=1h` while `host` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Name those causes and how to filter them: exclude `temporarilyOffline=true` or alert on it at lower severity, exclude cloud-provisioned labels or templates, and suppress the first poll cycle after a controller restart."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Steps 1 to 4 appear twice. The second copy tells the reader to run the search over 24 hours and throttle on a non-existent `entity` field. Over a 24-hour window, a point-in-time state search pages for agents that went offline hours ago and have since recovered.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Schedule over a window slightly longer than the poll interval (for example earliest=-15m), keep only the latest event per `displayName`, and throttle on `displayName`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is generic Jenkins text. It does not say that the UC alerts when a production build machine goes offline.",
+      "field": "grandmaExplanation",
+      "quote": "We watch Jenkins health and jobs so executors, agents, and failures do not stall delivery.",
+      "severity": "major",
+      "suggested_fix": "For example: 'When one of the machines that runs our important software builds stops responding, we alert the on-call team right away so builds do not pile up.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the references document the Jenkins data the UC depends on.",
+      "field": "references",
+      "quote": "Splunk savedsearches.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add the Jenkins Remote Access API documentation (https://www.jenkins.io/doc/book/using/remote-access-api/) and, if the app path is kept, the Splunk App for Jenkins page (https://splunkbase.splunk.com/app/3332)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL keeps only `tier=\"production\"` offline agents, so a grid of agents by tier would show one tier and no online agents.",
+      "field": "visualization",
+      "quote": "Status grid (agent × tier)",
+      "severity": "minor",
+      "suggested_fix": "Base the status grid on a separate all-agent, latest-state search, or drop it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The Jenkins `/computer/api/json` Computer object exports `assignedLabels` (an array of `{name}`), not `labels`. Unless the input renames it, `labels` will be empty. The response is also a single document with a `computer[]` array, so `displayName` and `offline` exist only if the input splits the array per agent. Check against a sample payload.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The search lists every offline event in the window with no latest-state dedup (for example `stats latest(offline) as offline ... by displayName`). Agents that recovered within the window still appear and page.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0074-UC-12.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detection idea (page on offline production-tier Jenkins agents) is sound, but the app field names the Splunk App for Jenkins while the SPL expects a custom `jenkins:computer` REST poll whose fields the app never produces. The prose fields also describe aggregation, thresholds and entities that do not exist in the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-12.2.14",
+  "verdict": "incorrect"
+}

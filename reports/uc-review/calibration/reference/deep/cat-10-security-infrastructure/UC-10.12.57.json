@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d21c075f17e0eca630ffcd1721639d4a6995f727e3251cd9c6a00cfb842dd1e4",
+  "file": "content/cat-10-security-infrastructure/UC-10.12.57.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://help.splunk.com/en/data-management/integrate-data-with-add-ons/splunk-connect-for-zoom/1.2/install-and-configure/install-splunk-connect-for-zoom-on-a-distributed-splunk-enterprise-deployment",
+      "explanation": "Splunk's Zoom integration is 'Splunk Connect for Zoom' (Splunkbase 4961, Splunk_Connect_zoom). It is an HTTPS webhook listener (default port 4443) fed by a Zoom Webhook-Only app, with hardcoded sourcetype zoom:webhook. It has no Server-to-Server OAuth 'Account' stanza and does not poll /v2/metrics endpoints.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Zoom** installed on **heavy forwarder + search head** (`$SPLUNK_HOME/etc/apps/Splunk_TA_zoom/` typical naming varies",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk Connect for Zoom (Splunkbase 4961) and describe its webhook input (HF with a public FQDN and CA-signed certificate, sourcetype zoom:webhook). If participant QoS metrics from the Zoom Dashboard API are required, say they need a custom REST input (for example the Add-on Builder or a REST API modular input), because the Splunk connector does not collect them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://lantern.splunk.com/Platform_Data_Management/Unlock_Insights/Getting_started_with_the_Microsoft_Teams_Add-on_for_Splunk",
+      "explanation": "The Microsoft Cloud Services add-on (Splunk_TA_microsoft-cloudservices, Splunkbase 3110) has no Teams call-record input, and it is not part of a 'splunk_ta_o365 family' as the app field claims. Teams call records with segment-level jitter, packet loss and RTT are collected by the Microsoft Teams Add-on for Splunk (Splunkbase 4994) as sourcetype m365:teams:callRecord. The UC's sourcetypes zoom:meeting_quality and teams:call_quality are not produced by any of these add-ons.",
+      "field": "dataSources",
+      "quote": "**Microsoft Graph** **`/communications/callRecords`** (and expandable segments for session statistics) retrieved using **Splunk Add-on for Microsoft Cloud Services** (MSCS)",
+      "severity": "blocker",
+      "suggested_fix": "Teams: Microsoft Teams Add-on for Splunk (Splunkbase 4994), 'Teams Call Record (New)' input, Graph application permission CallRecords.Read.All, sourcetype m365:teams:callRecord. Zoom: zoom:webhook from Splunk Connect for Zoom, or a custom QoS poller. If renamed sourcetypes are used, say they are local conventions created through props/transforms."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Nothing in the sidecar records SME sign-off, and the TA names, sourcetypes and Graph collection path are wrong. A verified status would mislead implementers.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until the collection path and field names have been validated against a real deployment."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/graph/api/resources/callrecords-mediastream",
+      "explanation": "spath is a search-time command, not an index-time option. The normalisation guidance also ignores real value formats: Graph callRecords mediaStream reports averageJitter and averageRoundTripTime as ISO 8601 durations and averagePacketLossRate as a fraction. Zoom QoS values are typically strings with units. A plain avg(jitter_ms) or avg(latency_ms) will not work without conversion.",
+      "field": "detailedImplementation",
+      "quote": "Map JSON fields: `packet_loss`, `avg_jitter`, `avg_latency`, `participant.user_email` → flatten at index time using `spath` or `INDEXED_EXTRACTIONS = json`",
+      "severity": "major",
+      "suggested_fix": "Say to use KV_MODE=json or INDEXED_EXTRACTIONS=json at ingest, then search-time EVAL/FIELDALIAS to convert Graph durations (for example PT0.03S) to milliseconds and fractions to percent, and to strip units from Zoom QoS strings into numeric packet_loss_pct, jitter_ms and latency_ms."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios (maintenance windows, batch automation, synthetic probes, onboarding bursts) are generic template text and do not describe why a user's call-quality average would breach 2% loss, 30 ms jitter or 200 ms latency without a real fault worth fixing.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `user_email`, `user_location`** — Health checks in `collab` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real benign or misleading causes: a single long call on poor hotel or mobile Wi-Fi dominating a low meeting count, PSTN or dial-in legs with different RTT characteristics, international participants joining distant media relays, VPN hair-pinning of media during known VPN policy, and shared room systems with no user_email. Suggest a minimum `meetings` count before alerting."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Asterisk PBX has nothing to do with Zoom or Teams quality telemetry, and there is no Zoom equipment tag.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "minor",
+      "suggested_fix": "Remove asterisk. Keep m365 and add a Zoom tag if the taxonomy has one."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The Splunkbase link points to the homepage, and the 'List callRecords' reference points to the Graph root, so neither supports the claim it is labelled with.",
+      "field": "references",
+      "quote": "\"title\": \"Splunkbase — Splunk Add-on for Zoom\",\n      \"url\": \"https://splunkbase.splunk.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://splunkbase.splunk.com/app/4961 (Splunk Connect for Zoom), https://splunkbase.splunk.com/app/4994 (Microsoft Teams Add-on for Splunk) and the specific Graph callRecords API page."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The 'Step 3 — Validate' heading is fused onto the end of Step 2, and several prerequisite bullets are telegraphic ('hashed dept only respecting Works Council statutes').",
+      "field": "detailedImplementation",
+      "quote": "severity **informational** routed to Employee Experience mailbox. — Validate",
+      "severity": "minor",
+      "suggested_fix": "Restore the Step 3 heading and rewrite the prerequisite bullets as full sentences."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL queries sourcetypes zoom:meeting_quality and teams:call_quality and fields packet_loss_pct, jitter_ms and latency_ms. No Splunk add-on produces these (the real sourcetypes are zoom:webhook and m365:teams:callRecord), so the search returns nothing unless local renaming and normalisation exist. It also averages across calls of very different length with no minimum-meeting-count guard.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0065-UC-10.12.57",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The operational idea and the dashboard and runbook detail are reasonable, but the collection path is wrong. Splunk's Zoom product (Splunk Connect for Zoom) is a webhook receiver emitting zoom:webhook, not a REST metrics poller. Teams call records come from the Microsoft Teams Add-on for Splunk (m365:teams:callRecord), not from the Microsoft Cloud Services add-on. The UC is also marked verified without supporting evidence.",
+  "tier": "deep",
+  "uc_id": "UC-10.12.57",
+  "verdict": "incorrect"
+}

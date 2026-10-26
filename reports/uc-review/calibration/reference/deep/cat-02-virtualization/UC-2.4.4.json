@@ -1,0 +1,83 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "647b9887445084c39e1510bbec0ee7ffee7529e707a96873d41d59ecfa761cee",
+  "file": "content/cat-02-virtualization/UC-2.4.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "`vmware:events` (vCenter VmCreatedEvent/VmPoweredOnEvent) is collected by the Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) via its DCN API poll. The ESXi Logs add-on (Splunkbase 5603) only parses ESXi syslog and has no modular input for vCenter events. ID 3684 is not in the repository catalogue. The `app` field repeats the same conflation (`Splunk_TA_vmware` labelled as ESXi Logs 3684).",
+      "field": "dataSources",
+      "quote": "vCenter events, ITSM request logs Collected via Splunk Add-on for VMware ESXi Logs (Splunkbase 3684) modular input",
+      "severity": "blocker",
+      "suggested_fix": "State that vCenter events are collected as `sourcetype=vmware:events` by Splunk Add-on for VMware (`Splunk_TA_vmware`, Splunkbase 3215) on a DCN heavy forwarder. Name the actual ITSM add-on (for example ServiceNow) and sourcetype if request time is used. Correct `app` accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "All four scenarios (Patch Tuesday, nightly backup I/O, Nagios probes, new UF host onboarding) are Linux capacity-pack residue. None explains why a provisioning-duration measurement would be wrong. The suppression lookup `linux_capacity_exceptions.csv` keyed on `datacenter` is likewise unrelated.",
+      "field": "knownFalsePositives",
+      "quote": "**Patch Tuesday on `vmware`** — Package managers spike `datacenter` metrics for 'VM Provisioning Time Tracking'. Correlate with apt/yum logs",
+      "severity": "major",
+      "suggested_fix": "List real causes of misleading provisioning durations. Examples: VMs created and intentionally left powered off (templates, DR replicas, staged builds); later re-power-on events joined instead of the first one; clones/deployments from template that emit VmClonedEvent/VmDeployedEvent rather than VmCreatedEvent; renamed VMs breaking the `vm_name` join; replication/SRM placeholder VMs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL only joins vCenter create and power-on events. It uses no ITSM data, has no request or approval timestamps, and has no SLA threshold: it keeps every positive duration. The `description` likewise says \"alert when `provision_minutes` > 0\", which is a sanity filter, not an alert condition.",
+      "field": "implementation",
+      "quote": "Calculate time from request → approval → creation → power-on. Set SLA targets and alert when provisioning exceeds them.",
+      "severity": "major",
+      "suggested_fix": "Either describe the implemented scope (vCenter create-to-first-power-on duration, reported per grouping) or document the ITSM join (ticket ID ↔ VM name/annotation field) and a concrete SLA threshold that the search applies."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is generated filler with a stray capital. It does not say what is measured (how long a new virtual machine takes from creation to first start), and provisioning time does not cause outages.",
+      "field": "grandmaExplanation",
+      "quote": "We keep an eye on provisioning Time and raise the alarm before it drags down real work or real outages start.",
+      "severity": "major",
+      "suggested_fix": "For example: \"We measure how long it takes for a newly created virtual machine to be switched on for the first time, so slow steps in building new servers can be spotted and fixed.\""
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "explanation": "Steps 1–4 appear twice, the second time as a generic template. That copy contains wrong or unhelpful guidance: HEC tokens, a 300–900 s poll, `list_inputs`, and checking vendor 401/429 errors. vCenter events come from the Splunk_TA_vmware DCN collection configured in the add-on's collection configuration, not a per-UC HEC token.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=vmware:events into vmware. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Describe configuring the vCenter target in Splunk Add-on for VMware's collection configuration on the DCN, and verifying `vmware:events` arrival with `event_type` values VmCreatedEvent/VmPoweredOnEvent."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search groups `by datacenter`, but the repository's `vmware:events` field reference lists `event_type`, `vm_name`, `host`, `user`, `message`, `severity`, and `cluster`, with no `datacenter` field. The final stats may return no rows (evidence_ref docs/guides/vmware-vsphere.md). Verify the field name or use `cluster`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`join max=1 vm_name [... VmPoweredOnEvent ...]` takes the first subsearch row (the most recent power-on, in reverse time order), not the first power-on after creation. The subsearch is also subject to result and runtime limits. VMs provisioned by clone or template deployment emit VmClonedEvent/VmDeployedEvent rather than VmCreatedEvent and are missed. Use `stats min(eval(if(event_type=\"VmPoweredOnEvent\" AND _time>=create_time,_time,null())))` by VM identity instead of join.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-2.4.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "This is a generated template entry. It names the wrong add-on for vCenter events, and its false-positive list is Linux capacity residue unrelated to provisioning. It promises ITSM request-to-power-on tracking that the SPL never performs, and duplicates generic implementation steps.",
+  "tier": "deep",
+  "uc_id": "UC-2.4.4",
+  "verdict": "incorrect"
+}

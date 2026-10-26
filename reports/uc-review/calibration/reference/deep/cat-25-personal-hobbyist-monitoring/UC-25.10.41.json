@@ -1,0 +1,128 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "dec915625d6735df305f5ec3293ec22540982ab1d85f97a196258c62005dbd12",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.10.41.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Lightning within 10 km is a seek-shelter signal, and the UC is rated high criticality. A weekly schedule means the alert fires days after the storm has passed.",
+      "field": "implementation",
+      "quote": "Ingest the relevant weather, environment & garden export into `index=personal` and schedule this search weekly.",
+      "severity": "major",
+      "suggested_fix": "Schedule the search every 1–5 minutes over a short lookback such as `earliest=-15m`, or use a real-time alert. Throttle per storm so one approaching cell does not page repeatedly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://weatherflow.github.io/Tempest/api/udp/v171/",
+      "explanation": "The Tempest hub broadcasts lightning strikes as UDP `evt_strike` messages on port 50222. The distance arrives as an unnamed array element (`evt[1]`, in km) next to the epoch time (`evt[0]`) and the energy (`evt[2]`). There is no native `distance_km` field, so the SPL returns nothing unless the bridge or a search-time extraction names it. The text never says this, and it offers HEC as if the hub could post to it directly.",
+      "field": "detailedImplementation",
+      "quote": "**Key fields to extract:** `sourcetype-specific — see search filters`.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual path: a listener on the LAN, or the WeatherFlow WebSocket API, receives `evt_strike` and posts to HEC with `sourcetype=tempest:lightning`. The bridge maps `evt[0]` to `_time`, `evt[1]` to `distance_km` and `evt[2]` to `energy`. Alternatively, extract with `spath path=evt{}` plus `mvindex`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `sourcetype=tempest:lightning`, which is not listed. The listed air-quality, soil and aquarium feeds play no part. The `app` field also lists Ecowitt, PurpleAir and aquarium sensors but not the Tempest lightning detector.",
+      "field": "dataSources",
+      "quote": "Weather-station observations (`ecowitt:obs`, `weatherflow:obs`), air-quality readings (`purpleair:aqi`, `airgradient:sensor`), soil-moisture/greenhouse sensors, aquarium controllers (`aquarium:sensor`).",
+      "severity": "major",
+      "suggested_fix": "Name the single source: WeatherFlow Tempest lightning-strike events (`evt_strike`, with distance in km and energy), ingested as `tempest:lightning` into `index=personal`. Align `app` to the Tempest hub UDP or WebSocket bridge plus HEC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://weatherflow.github.io/Tempest/api/udp/v171/",
+      "explanation": "The scenarios (watch and phone sync, rest day, OAuth expiry, weekly timezone bins) come from a fitness template. Real false positives for a Tempest lightning sensor are missing.",
+      "field": "knownFalsePositives",
+      "quote": "**Multi-device double-count** — Same activity synced from watch and phone into `tempest:lightning`.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Electrical noise near the station (inverters, motors, LED drivers) can register as strikes. Tempest's `device_status.sensor_status` bit flags include 'lightning noise' and 'lightning disturber', which can be used to screen these out. Distance is an estimate, so a single strike reported under 10 km may come from a storm farther away. When both the UDP and API feeds are ingested, the same strike can arrive twice."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence is ungrammatical and repeats the title. It does not say that the weather station has heard a lightning strike close enough to be dangerous.",
+      "field": "grandmaExplanation",
+      "quote": "It combines when tempest lightning approach within ten kilometers matters for your routine.",
+      "severity": "major",
+      "suggested_fix": "For example: 'Your backyard weather station tells you when it detects lightning less than about 10 km away, so you know to get people and pets indoors.'"
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "'Missed training goals' is fitness-template residue. The real value, an early warning to seek shelter or unplug equipment, is not stated.",
+      "field": "value",
+      "quote": "lowering missed training goals, stale hobby data, and connector failures",
+      "severity": "major",
+      "suggested_fix": "Say the UC gives a local, station-measured warning when lightning comes within 10 km. That warning is a cue to stop outdoor activity and protect sensitive electronics."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A home lightning alert has no auditor or regulation. 'Table Or Chart Of Key Fields' gives no panel guidance, and the OAuth and HTTP 429 troubleshooting does not apply to a LAN UDP bridge.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Describe a timeline of strikes with `distance_km` on the y-axis over the last 2 hours, so a falling trend shows the storm approaching, and a single-value panel for the nearest strike in the last 15 minutes. For troubleshooting, cover the UDP listener and port 50222 reachability."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL filters `distance_km<10` in the base search, before `stats`, not after aggregation.",
+      "field": "detailedImplementation",
+      "quote": "It applies numeric thresholds on `distance_km` (< 10) after aggregation",
+      "severity": "minor",
+      "suggested_fix": "Say the search keeps only strikes closer than 10 km and then counts them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk pages, including an Enterprise Security page unrelated to a hobby weather alert. The Tempest API reference is missing.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk ES Content Management\"",
+      "severity": "minor",
+      "suggested_fix": "Add the WeatherFlow Tempest UDP reference (https://weatherflow.github.io/Tempest/api/udp/v171/) and the WebSocket/REST API docs, and drop ES Content Management."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Tempest data arrives over UDP broadcast or the WeatherFlow cloud API, not MQTT. A WeatherFlow/Tempest slug is the relevant one.",
+      "field": "equipment",
+      "quote": "\"mqtt\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with a WeatherFlow/Tempest equipment slug if the catalogue has one, and drop `mqtt` unless an MQTT bridge is documented."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats count by _time` groups at one-second precision, so each strike becomes its own row with count of about 1, and `sort - count` is meaningless. Nothing detects an approach, such as decreasing distance over time. Consider `bin _time span=5m | stats count min(distance_km) as nearest_km by _time`, or a `streamstats` trend on distance.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Approach' implies a trend detection, but the SPL only counts strikes under 10 km.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0147-UC-25.10.41",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "Nearly every field is template residue. The data sources and app describe Ecowitt, PurpleAir and aquarium feeds rather than the Tempest lightning-strike event. Weekly scheduling defeats a lightning-proximity alert, and the grandma text is word salad.",
+  "tier": "deep",
+  "uc_id": "UC-25.10.41",
+  "verdict": "rewrite"
+}

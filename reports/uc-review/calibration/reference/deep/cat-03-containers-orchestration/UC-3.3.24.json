@@ -1,0 +1,136 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "304f907985c1e16d869e998bcac36ce303be6a994605d03f2458c0230003a377",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.24.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/machine/v1/types_controlplanemachineset.go",
+      "explanation": "The machine.openshift.io/v1beta1 MachineSetStatus has replicas, fullyLabeledReplicas, readyReplicas, availableReplicas, errorReason/errorMessage and conditions, but no unavailableReplicas. ControlPlaneMachineSetStatus (machine.openshift.io/v1) has replicas, readyReplicas, updatedReplicas and unavailableReplicas, but no unavailableMachines. detailedImplementation (Step 1 field normalization, Step 2 CPMS lane, Case 1) repeats both, so exporters following it will flatten fields that never exist.",
+      "field": "dataSources",
+      "quote": "sourcetype=openshift:machineset for spec.replicas versus status.readyReplicas, status.availableReplicas, and status.unavailableReplicas; index=openshift sourcetype=openshift:controlplanemachineset or openshift:cpms for control-plane rolling replacement unavailable counters",
+      "severity": "blocker",
+      "suggested_fix": "Derive MachineSet unavailability as spec.replicas minus status.availableReplicas. For ControlPlaneMachineSet, use status.unavailableReplicas (plus readyReplicas and updatedReplicas) and remove every reference to status.unavailableMachines."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/machine/v1beta1/types_machine.go",
+      "explanation": "OpenShift Machine API Machines carry the finalizer machine.machine.openshift.io and embed provider configuration in spec.providerSpec (for example AWSMachineProviderConfig). They do not reference separate AWSMachine/AzureMachine/GCPMachine/VSphereMachine objects through an infrastructureRef; those are upstream Cluster API constructs. The 'Provider InfrastructureRef objects' paragraph, the Step 2 instruction to flatten 'infrastructureRef.kind hints such as AWSMachine', Step 4 and Case 7 all send responders looking for objects and finalizers that do not exist on MAPI clusters.",
+      "field": "detailedImplementation",
+      "quote": "Finalizers such as machine.cluster.x-k8s.io or node.cluster.x-k8s.io uninitialized markers can keep Machines in Deleting while cloud instances are gone",
+      "severity": "blocker",
+      "suggested_fix": "Replace the infrastructureRef and AWSMachine language with spec.providerSpec.value.kind (AWSMachineProviderConfig, AzureMachineProviderSpec, GCPMachineProviderSpec, VSphereMachineProviderSpec) and status.providerStatus / status.errorMessage. Name machine.machine.openshift.io as the Machine finalizer."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint), and it describes process/service/port state, not Machine API remediation. Inventory host attributes do not model MachineHealthCheck remediation either. dataModelAcceleration repeats the Application_State recommendation.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Application_State\", \"Inventory\"]",
+      "severity": "blocker",
+      "suggested_fix": "Leave cimModels empty (the signal is OpenShift API snapshot data with no CIM fit), or at most cite Inventory as an optional asset-enrichment join. Remove Application_State from cimModels and dataModelAcceleration."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "The Splunk Add-on for Kubernetes was deprecated in March 2019 and open-sourced; it only shipped knowledge objects for Splunk Connect for Kubernetes. The OpenTelemetry receiver is named k8sobjects, not 'kubernetesObjects'. The Step 2 events lane repeats 'Splunk Add-on for Kubernetes patterns'. The subcategory guide names the Splunk OpenTelemetry Collector for Kubernetes and the Splunk OpenShift App.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) or OpenTelemetry Collector with kubernetesObjects receiver and k8s_events receiver",
+      "severity": "major",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (distribution: openshift) with the k8sobjects receiver (machinehealthchecks, machines, machinesets, controlplanemachinesets in machine.openshift.io) and the k8s_events receiver. Drop the deprecated add-on."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "dataSources says collection uses a Universal Forwarder modular input, while detailedImplementation Step 2 describes a Python/Go utility posting JSON to HTTP Event Collector, plus an OTel Collector. Neither text mentions a UF modular input that produces openshift:machine* sourcetypes.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "minor",
+      "suggested_fix": "Describe one collection path consistently: an oc-snapshot utility to HEC or the OTel k8sobjects receiver, with the sourcetype assignment for each object kind."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description and controlTest present del_ts>0 (any Machine with a deletion timestamp) as an alert condition and omit the real gates. In the SPL, page fires on ControlPlaneMachineSet unavailable counters, a Machine Deleting for 45 minutes or more, or an MHC gap with remediationsAllowed<=0. Warn fires on phase-event velocity (10 or more), MachineSet gap of 2 or more, or any MHC gap.",
+      "field": "cross_field",
+      "quote": "alert when `del_ts` > 0, `cpms_unavail_m` >= 1, `cpms_unavail_rep` >= 1, or `mac_stuck` >= 1.",
+      "severity": "major",
+      "suggested_fix": "State the page/warn tiers with their thresholds (45-minute stuck-delete dwell, remediationsAllowed exhausted with currentHealthy < expectedMachines, CPMS unavailableReplicas >= 1, MachineSet ready gap >= 2) and use them for the positive and negative controlTest scenarios."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries contain no real OpenShift cause and even list SPL bracket tokens as fields. Genuine benign triggers appear only in detailedImplementation Case 10 and Step 4: approved node-recycling campaigns, cluster upgrades where MCO reboots nodes, autoscaler scale-in deleting Machines, and MHCs paused with the cluster.x-k8s.io/paused annotation.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `]`, `[`, `search`** — Health checks in `openshift` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Rewrite knownFalsePositives around those scenarios, each with how to recognise it (change_ticket_id on events, ClusterVersion Progressing=True, autoscaler scale-down events, paused annotation present)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is an authoring self-check about the document's own structure, not operator guidance.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matches the spl field exactly; multisearch lists four API snapshot arms; coalesce, streamstats, eventstats, and case appear",
+      "severity": "minor",
+      "suggested_fix": "Remove it, or replace it with a go-live checklist (all four snapshot sourcetypes arriving, lookup keys matching cluster labels, Step 4 negative test passing)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "There is no evidence of SME sign-off, the SPL cannot run (non-streaming commands inside multisearch), and two of its status fields do not exist in the OpenShift API, so the UC cannot have been validated against a live cluster.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the SPL is fixed and the Step 4 oc-versus-Splunk comparisons have been recorded on a real cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "All four multisearch arms contain stats, and the Machine arm also has sort and streamstats. These are not streaming commands, and multisearch accepts only streaming subsearches (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch), so the search errors. Use append or union, or move the aggregation after the fan-in.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "phase_tick counts every snapshot of a Machine whose phase matches %runn%, %provision% or %delet%. With 3-5 minute snapshots over 6h, any cluster with a single Running Machine has mac_phase_evt well above 10 and mac_phase_burst=4, so every cluster is at least 'warn'. Count phase transitions (phase != previous phase per Machine), not snapshots.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "ms_unavail reads status.unavailableReplicas, which OpenShift MachineSet does not have, and cpms_unavail_m reads status.unavailableMachines, which ControlPlaneMachineSet does not have (https://github.com/openshift/api/blob/master/machine/v1beta1/types_machineset.go). Both always coalesce to 0.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "After stats BY cluster there is one row per cluster, so streamstats last(mhc_gap) BY cluster returns the same row and mhc_gap_delta is always 0. max(mhc_gap) over 6h also keeps any transient gap in the window alive for 6 hours.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Joins the deprecated Application_State model to Inventory on dest with string filters. It has no relation to MachineHealthCheck, Machine or MachineSet state and cannot reproduce the detection.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0016-UC-3.3.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is thorough on MachineHealthCheck semantics, but it borrows upstream Cluster API vocabulary (InfrastructureRef, AWSMachine objects, cluster.x-k8s.io finalizers) that the OpenShift Machine API does not use, and it relies on status fields MachineSet and ControlPlaneMachineSet do not have. The CIM mapping and add-on references are deprecated, and the description, controlTest and knownFalsePositives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.24",
+  "verdict": "incorrect"
+}

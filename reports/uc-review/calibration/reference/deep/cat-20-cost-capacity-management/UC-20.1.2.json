@@ -1,0 +1,112 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "589501466c726ea299ad98985864b822ac54ae23d50089df8b3d0ac456c12cd6",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL buckets spend per day and feeds the series to `predict`; with a 24-hour window there is at most one or two daily rows, so LLP5 has no baseline and the upper95 band is meaningless. This contradicts the implementation text, which requires a 30-day baseline, and a reader following it would build a non-functional alert.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "blocker",
+      "suggested_fix": "Schedule daily (after the CUR refresh) with a lookback of at least 30 days (e.g. earliest=-30d@d latest=@d), and evaluate only the most recent complete day (e.g. add `| where _time>=relative_time(now(),\"-1d@d\")` in a reviewed SPL revision) so earlier anomalous days do not re-alert every run."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` says the baseline is per account and per service, and `description` says results are grouped by `lineItem_UsageAccountId`, but the SPL runs `addtotals` and `predict Total`, so the anomaly test is on one aggregate series across all accounts; no service field appears anywhere in the SPL. A spike in a small account can be invisible inside the total.",
+      "field": "cross_field",
+      "quote": "Build 30-day baseline of daily spending per account and service.",
+      "severity": "major",
+      "suggested_fix": "State in `description` and `implementation` that the detection evaluates total daily unblended spend across all accounts against an LLP5 forecast, and that per-account series are only shown for drilldown. If per-account/per-service detection is wanted, describe it as a separate variant requiring a different SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.aws.amazon.com/cur/latest/userguide/understanding-report-versions.html",
+      "explanation": "Billing line items are not produced by health checks or maintenance windows; none of the listed scenarios is a real cause of a CUR spend spike. Real benign causes are missing: upfront RI/Savings Plan purchases and monthly fees (RIFee, SavingsPlanRecurringFee, Fee line items), first-of-month subscription/support charges, credits/refunds, tax, and CUR report re-deliveries that AWS refreshes up to several times a day (duplicate line items if re-indexed).",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `lineItem_UsageAccountId`** — Health checks in `cloud_billing` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with billing-specific false positives: planned RI/SP purchases and upfront fees (filter or annotate `lineItem_LineItemType` Fee/RIFee/SavingsPlanUpfrontFee), month-start recurring charges, AWS Support/Marketplace charges, planned migrations or load tests approved through change management, and duplicate line items from report re-delivery (verify how the Splunk Add-on for AWS CUR input handles updated report versions)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-amazon-web-services/DataTypes/",
+      "explanation": "The second set of Steps 1–5 is a generic template duplicated after the UC-specific Steps 1–4: CUR is delivered to S3 a few times per day, so a 5–15 minute poll is not a meaningful setting, `search` is not an index permission, and the 'vendor admin UI inventory count' and HEC/forwarder troubleshooting do not apply to a CUR S3 input.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs` and `search` on the target index.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Describe CUR-specific setup: create the CUR (hourly or daily granularity, CSV, resource IDs optional) in AWS Billing/Data Exports, configure the 'Billing (Cost and Usage Report)' input in the Splunk Add-on for AWS pointing at the report bucket/prefix with sourcetype aws:billing:cur into index cloud_billing, and validate daily totals against Cost Explorer unblended cost."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-amazon-web-services/DataTypes/",
+      "explanation": "The data source never names the actual feed (AWS Cost and Usage Report, sourcetype `aws:billing:cur`) or the fields the SPL relies on (`lineItem_UnblendedCost`, `lineItem_UsageAccountId`), and 'scripted poll' is not how CUR is collected.",
+      "field": "dataSources",
+      "quote": "Billing data with historical trending Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "AWS Cost and Usage Report (legacy CUR, CSV in S3) ingested by the Splunk Add-on for AWS 'Billing (Cost and Usage Report)' input as sourcetype `aws:billing:cur` into `index=cloud_billing`; requires fields `lineItem_UnblendedCost` and `lineItem_UsageAccountId` and at least 30 days of history."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "'cloud billing TAs' is vague and the SPL only reads the AWS CUR sourcetype, so no other TA is needed.",
+      "field": "app",
+      "quote": "`Splunk Add-on for AWS`, cloud billing TAs — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
+      "severity": "minor",
+      "suggested_fix": "Splunk Add-on for Amazon Web Services (Splunkbase 1876)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Foreach",
+      "explanation": "`foreach *` here runs the eval once per column (account series) to replace empty values with 0; it does not iterate over multivalue field values.",
+      "field": "detailedImplementation",
+      "quote": "Iterates over multivalue fields with `foreach`.",
+      "severity": "minor",
+      "suggested_fix": "`foreach *` fills empty per-account daily columns with 0 so `addtotals` and `predict` see a continuous series."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "HEC is not used to collect CUR in this UC, while the central `predict` command and the CUR data dictionary are not referenced.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Replace the HEC reference with the Splunk `predict` command reference (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Predict) and the AWS CUR line item data dictionary."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where anomaly=\"Anomaly\"` is applied to every historical row of the search window, so the same past anomalous day re-alerts on every scheduled run; restrict the comparison to the latest complete day. The anomaly test is also on the aggregate `Total` only, not per account.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "Cost anomaly on CUR spend is a FinOps/Observability signal; 'Security' only fits the crypto-mining sub-case. Consider Observability.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0116-UC-20.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The core idea (predict LLP5 on daily CUR spend and alert above the upper 95% band) is sound and the TA/sourcetype facts are right, but the prose misdescribes the grain (per account / per service vs. one aggregate Total series), the scheduling guidance (earliest=-24h@h) would starve the 30-day baseline, and the false-positive and implementation text is generic template residue rather than real billing-data causes.",
+  "tier": "deep",
+  "uc_id": "UC-20.1.2",
+  "verdict": "incorrect"
+}

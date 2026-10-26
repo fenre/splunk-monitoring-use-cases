@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "69b0ee1620be273561ed6a006735a073285c70363457d803648a3caec5f784c2",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is 'Metrics Add-on for Infrastructure' (TA-linux-metrics), a Linux OS metrics add-on, not an NSX add-on. VMware's NSX-T Splunk App is Splunkbase 4241, and no Splunk_TA_vmware-nsxt package has been found on Splunkbase. The same wrong ID appears in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 4856 with the real NSX integration (VMware NSX-T Splunk App, Splunkbase 4241, or whatever NSX add-on is actually deployed). Correct the package name and the sourcetypes it emits, and fix every field that repeats the wrong ID."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "None of these three syslog tokens appears in NSX's documented alarm catalogue. NSX's MTU alarm is 'MTU Mismatch Within Transport Zone', raised as an alarm, not as a syslog marker. The NSX Manager tunnels API reports tunnel and BFD state, but per-TEP-pair packet-loss, RTT and jitter fields from a /tunnels/{id}/stats route are not documented. The whole detection may rest on telemetry that does not exist.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsxt:syslog`** tails capturing **`OVERLAY_PATH_DEGRADED`**, **`MTU_MISMATCH`**, **`TUNNEL_PERFORMANCE_LOW`** markers; ... **`GET /api/v1/transport-nodes/{id}/tunnels/{tunnel-id}/stats`** ... **`pkt_loss_pct`**, **`rtt_ms`**, **`jitter_ms`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.x alarm catalogue and API reference for the exact events and endpoints that expose TEP-to-TEP latency or loss (for example NSX latency monitoring features) and rewrite dataSources around them. If the metrics come only from a custom probe, say that explicitly."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "netcpa was the legacy control-plane agent and was replaced by nsx-proxy in later NSX-T releases. The other nsxdp-cli and nsxcli subcommands and the 'Path Health' UI blade are not supported by any grounding document and look invented. Following these steps would likely fail.",
+      "field": "detailedImplementation",
+      "quote": "**`nsxdp-cli netcpa stats get`**, **`nsxdp-cli geneve get`**, **`nsxdp-cli vlanstats overlay-pnic-rx-drop`** ... **`nsxcli -c \"get logical-overlay-tunnel <tunnel-id> stats\"`** ... (System ▸ Fabric ▸ Hosts ▸ `<host>` ▸ Tunnels ▸ Path Health)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each CLI command against the NSX 4.x command reference and the UI path against the current NSX Manager. Remove anything that does not exist."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/installation-guide/transport-zones-and-transport-nodes/mtu-guidance.html",
+      "explanation": "VMware's MTU guidance gives 1600 bytes as the minimum and 1700 as the recommended value, so 1700 is not the minimum. With a 9000-byte underlay, VMware recommends a VM MTU of up to about 8800, at least 100 bytes (200 preferred) below the fabric MTU. The guidance contains no '8950' figure.",
+      "field": "detailedImplementation",
+      "quote": "relax when fabrics advertise **`8950`** effective envelopes minus roughly fifty-byte GENEVE overhead (9000 minus 50 aligns with **`8950`** guidance cited beside VMware MTU references linked below) ... aligning with **`1700`** minimum envelopes",
+      "severity": "major",
+      "suggested_fix": "Quote VMware accurately: 1600 minimum and 1700 recommended overlay MTU, and VM MTU at least 100–200 bytes below the fabric MTU (about 8800 on a 9000 fabric). Explain the 400-byte gap in the MTU rule in those terms."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detailedImplementation copy of the search uses `sort()`, which is not an eval function, so the search fails when pasted. The spl field uses `mvsort()` instead. The text claims to paste the spl field, but the two copies differ.",
+      "field": "detailedImplementation",
+      "quote": "| eval tep_pair_hint=mvjoin(sort(mvdedup(mvappend(src_tep_ip_seen,dst_tep_ip_seen))),\",\")",
+      "severity": "major",
+      "suggested_fix": "Make the detailedImplementation search identical to the spl field, using mvsort()."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation points to knownFalsePositives entries (probe_interval_sampling_artefact, lag_rebalance_window, probe_cpu_saturation, tep_pool_exhaustion_onboarding) that do not exist there. The actual knownFalsePositives text is a generic maintenance/batch/probe template. detailedImplementation also uses fields the SPL never produces (tep_pool_used_percent, tor_maintenance_window, rack_id, site_code).",
+      "field": "cross_field",
+      "quote": "independent from **`probe_interval_sampling_artefact`** chatter summarized inside knownFalsePositives ... aligning with **`lag_rebalance_window`** commentary inside **`knownFalsePositives`**",
+      "severity": "major",
+      "suggested_fix": "Either write those named false-positive scenarios into knownFalsePositives with real causes (ToR maintenance, LAG rebalancing, CPU-starved ESXi hosts skewing probes, probe-interval artefacts) or remove the cross-references. Also remove or define the fields the SPL does not produce."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Much of the text is dense, jargon-stacked prose that never says plainly what to configure or when to alert. It is full of em-dash asides and sibling-UC disclaimers, and a reader cannot pull an actionable runbook out of it.",
+      "field": "detailedImplementation",
+      "quote": "those splits isolate overlay-quality regressions requiring probe—not failover—responses coordinated across networking plus virtualization crews referencing UC-18.2.5 narratives centered on binary posture rather than gradients tracked here.",
+      "severity": "major",
+      "suggested_fix": "Rewrite as short imperative steps: what to collect, which thresholds to alert on (loss ≥0.1%, jitter ≥1 ms, RTT ≥50 ms, MTU gap), and how to validate. Move sibling-UC boundaries to exclusions."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow and session records (src/dest, bytes, action). Probe-derived loss, RTT and jitter per TEP pair are not traffic records, and aliasing TEP IPs into it would pollute flow analytics. The SPL also never uses a datamodel.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic. Keep Performance only if the metrics are actually mapped into it, or leave cimModels empty with a note that the telemetry is custom."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent reviewer, yet it contains a wrong Splunkbase ID and unverifiable NSX telemetry claims.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an NSX SME has validated the data sources and commands."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL depends on the custom sourcetype vmware:nsxt:tn_diag and on syslog tokens (OVERLAY_PATH_DEGRADED, MTU_MISMATCH, TUNNEL_PERFORMANCE_LOW) that NSX has not been shown to emit. The 'transport_node_overlay_context' branch flags any transport_node event mentioning 'tunnel stats', which will flood results without indicating any fault.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title is an overlong keyword list and includes a sibling-UC reference ('Beyond Binary UP/DOWN UC-18.2.5').",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0107-UC-18.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC rests on a wrong Splunkbase ID: 4856 is the Metrics Add-on for Infrastructure, not an NSX add-on. It also describes NSX syslog markers, per-TEP-pair loss/RTT/jitter API fields, CLI commands and UI paths that appear to be invented. The detailed implementation is dense word salad that cites false-positive labels which do not exist, and its MTU guidance misquotes VMware.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.9",
+  "verdict": "incorrect"
+}

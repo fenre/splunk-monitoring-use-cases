@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "84168b44cd1477e0ac9d70e2addde4c47369b93413330eff7ac62d3626e86e69",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.1.50.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-amazon-web-services/DataTypes/",
+      "explanation": "The add-on's sourcetype reference lists no Trusted Advisor input or `aws:trustedadvisor` sourcetype. The UC's own implementation text says the data comes from a custom script or Lambda calling the Trusted Advisor API and sending results to S3 or HEC, so the sourcetype is site-defined and the add-on provides no field extractions for it.",
+      "field": "dataSources",
+      "quote": "`index=aws` sourcetype=`aws:trustedadvisor` collected via `Splunk_TA_aws`",
+      "severity": "blocker",
+      "suggested_fix": "State that Trusted Advisor results are collected by a custom script, Lambda or EventBridge pipeline into a site-chosen sourcetype (for example via HEC). Document the fields it emits (check name, category, status, flagged resource count), and remove the claim that Splunk_TA_aws collects it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-amazon-web-services/DataTypes/",
+      "explanation": "No such modular input exists in the Splunk Add-on for AWS, so a reader following this step cannot find it. This step also contradicts Step 1, which describes a Lambda-based export.",
+      "field": "detailedImplementation",
+      "quote": "Install and configure `Splunk_TA_aws` with the modular input for `aws:trustedadvisor`.",
+      "severity": "blocker",
+      "suggested_fix": "Replace it with the real collection path: a scheduled job calling the AWS Support API (DescribeTrustedAdvisorChecks / DescribeTrustedAdvisorCheckResult) or the Trusted Advisor API, or EventBridge Trusted Advisor check-refresh events (published in us-east-1), sent to HEC with an explicit sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Trusted Advisor check results have no actor and are not change events. The description is CloudTrail template text, and it does not mention the check, category or status the UC is about.",
+      "field": "description",
+      "quote": "returns actor, resource, and region context for compliance review and change validation",
+      "severity": "major",
+      "suggested_fix": "Describe the search as listing Trusted Advisor checks in warning or error status, by check name and category (cost optimization, security, fault tolerance, performance, service limits), with the count of flagged resources."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Trusted Advisor cost checks flag idle or under-utilised resources and reservation opportunities. They are not a compromise or cryptomining detector, so claiming they 'often reveal compromised accounts' overstates what the data can show.",
+      "field": "value",
+      "quote": "often reveal compromised accounts mining resources or forgotten idle infrastructure",
+      "severity": "major",
+      "suggested_fix": "Limit the value to what the checks show: idle or over-provisioned resources, savings opportunities, and security or fault-tolerance best-practice gaps that should be tracked to closure."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`visualization` and `implementation` ('Dashboard by category', 'Alert on new critical security checks failing') need check, category and status fields and a 'new failure' comparison. The SPL outputs userIdentity.arn, eventName and sourceIPAddress, and it filters out 'ok', so the ok-versus-warning pie cannot be built. The title stresses cost optimization, but nothing filters to that category.",
+      "field": "cross_field",
+      "quote": "Table (check, category, status), Pie chart (ok vs warning vs error), Bar chart by category.",
+      "severity": "major",
+      "suggested_fix": "Align the prose with one detection: either a cost-optimization finding list, or new security checks moving to error status. Name the fields the ingested payload actually carries."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/awssupport/latest/user/trusted-advisor.html",
+      "explanation": "Full Trusted Advisor checks and API access are available with Business, Enterprise On-Ramp and Enterprise Support, so Enterprise On-Ramp is missing from the list.",
+      "field": "implementation",
+      "quote": "(requires Business/Enterprise Support)",
+      "severity": "minor",
+      "suggested_fix": "Say: requires Business, Enterprise On-Ramp, or Enterprise Support."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the generic template with the title pasted in lower case. It does not explain that AWS itself runs best-practice checks and that the UC tracks the failing ones.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of trusted advisor check results and cost optimization so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "For example: 'AWS runs a regular check-up on our account and points out waste, like servers nobody uses, and risky settings. We collect those warnings so someone fixes them instead of letting them pile up.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These steps are copied from CloudTrail templates. Trusted Advisor data has no userIdentity.arn, so Step 3 cannot be performed as written, and the UC-4.1.78 CloudTrail baseline prerequisite is irrelevant.",
+      "field": "detailedImplementation",
+      "quote": "Confirm field extractions in `props.conf` for `userIdentity.arn` and related actor fields. ... exclude break-glass principals and sandbox accounts via a lookup ... Confirm row counts and `userIdentity.arn` values match the vendor console.",
+      "severity": "major",
+      "suggested_fix": "Validate against the Trusted Advisor console by comparing per-check status and flagged resource counts, and drop the actor and break-glass text."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference is the AWS documentation home page.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.aws.amazon.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the AWS Trusted Advisor user guide and the Trusted Advisor API / Support API reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Selects CloudTrail fields (userIdentity.arn, eventName, sourceIPAddress) that Trusted Advisor results do not contain, against a sourcetype the add-on does not provide. It has no check, category or flagged-resource columns, and it carries the `eval uc_marker` template residue.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "The title and value emphasise cost optimization, but monitoringType is only 'Compliance'; consider adding Capacity/Cost if the cost category stays the focus.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0022-UC-4.1.50",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC says the Splunk Add-on for AWS collects an `aws:trustedadvisor` sourcetype, but the add-on has no such input or sourcetype; its own implementation text describes a custom Lambda and HEC pipeline. The SPL reads CloudTrail fields that Trusted Advisor results do not have, and the value and plain-language text are template or overclaimed.",
+  "tier": "deep",
+  "uc_id": "UC-4.1.50",
+  "verdict": "incorrect"
+}

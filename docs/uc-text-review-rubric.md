@@ -89,10 +89,16 @@ generic, 3 = acceptable with edits, 4 = good, 5 = exemplary.
 
 ### Verdict
 
-- `ok` — no findings above `minor` and every score is at least 4.
-- `polish` — only `minor` findings.
-- `rewrite` — at least one `major` finding, no blocker.
+Severities in `findings` and in `firewalled_field_flags` both count.
+
+- `ok` — no findings and every score is at least 4.
+- `polish` — only `minor` or `needs_verification` items.
+- `rewrite` — at least one `major`, no blocker.
 - `incorrect` — at least one `blocker`.
+
+The runner re-derives the verdict from the severities after applying the
+evidence rule, so a blocker downgraded to `needs_verification` no longer
+makes a UC `incorrect`.
 
 Set `confidence` (0 to 1) to how sure you are of the verdict as a whole.
 

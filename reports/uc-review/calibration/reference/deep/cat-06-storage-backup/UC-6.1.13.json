@@ -1,0 +1,88 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d7d0163b0169cd570946c39faa1e4144438027c92a443fb9dc57294e1dc66884",
+  "file": "content/cat-06-storage-backup/UC-6.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.truenas.com/docs/scale/26/gettingstarted/deprecations/",
+      "explanation": "TrueNAS deprecated the REST API in 25.04, and the deprecations page states it is removed in TrueNAS 26, where REST endpoints no longer work. A collector built from these instructions stops working after an upgrade.",
+      "field": "implementation",
+      "quote": "polls TrueNAS REST API every 5–15 minutes. Use `/api/v2.0/pool` for pool list and `/api/v2.0/pool/id/{id}`",
+      "severity": "blocker",
+      "suggested_fix": "Say that `/api/v2.0/pool` works only up to TrueNAS 25.x (and legacy FreeNAS/TrueNAS CORE). For 25.04+, recommend the JSON-RPC 2.0 WebSocket method `pool.query` (for example via the `midclt` / truenas_api_client), authenticated with a user-linked API key."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://api.truenas.com/v25.04/api_events_pool.query.html",
+      "explanation": "The TrueNAS pool object has no `health` field with value 'HEALTHY'. It exposes a boolean `healthy`, plus `warning`, `status` (ONLINE/DEGRADED/...), `status_code` and `status_detail`. The scrub/resilver state lives in `scan.function`, `scan.state`, `scan.percentage`, `scan.errors` and `scan.total_secs_left`.",
+      "field": "implementation",
+      "quote": "Alert on health != HEALTHY or status != ONLINE.",
+      "severity": "blocker",
+      "suggested_fix": "Alert on `healthy=false OR warning=true OR status!=\"ONLINE\"`. Describe resilver progress as `scan.function=RESILVER AND scan.state=SCANNING` with `scan.percentage` and `scan.total_secs_left` for the ETA."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "A Universal Forwarder has no TrueNAS modular input. Implementation describes a custom scripted or HEC poller, and the sourcetype `truenas:pool` and fields the SPL needs (`pool_name`, `used_pct`, `resilver_progress`, `scrub_status`) are not native API fields, so they must be derived by the collector.",
+      "field": "dataSources",
+      "quote": "TrueNAS API (/api/v2.0/pool, /api/v2.0/pool/id/X) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "State that a custom script (on a heavy forwarder or as HEC push) writes `sourcetype=truenas:pool`, and list the API-to-Splunk field mapping (name to pool_name, allocated/size to used_pct, scan.percentage to resilver_progress, scan.function/state to scrub_status)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Operationalize points to ONTAP and Cisco SAN material that has nothing to do with TrueNAS/ZFS. The scripted-input example is a placeholder (`collect.sh`, `sourcetype = your_sourcetype`, `index = main`) that contradicts the UC's `index=storage sourcetype=truenas:pool`.",
+      "field": "detailedImplementation",
+      "quote": "Point on-call to the ONTAP or array runbook, Cisco SAN references, and SNMP/REST credentials already used in production",
+      "severity": "major",
+      "suggested_fix": "Replace with a TrueNAS-specific runbook (`zpool status -v`, replace the faulted disk, monitor the resilver) and a concrete input stanza or HEC example that writes `index=storage sourcetype=truenas:pool`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is generic and would fit any storage UC. It does not say the check watches a TrueNAS box's disk pools and warns when one is damaged, missing a disk, or rebuilding.",
+      "field": "grandmaExplanation",
+      "quote": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+      "severity": "major",
+      "suggested_fix": "For example: 'Your TrueNAS box keeps files on a group of disks that cover for each other. This warns you when that group is damaged or missing a disk, and shows how far along the repair is.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`health!=\"HEALTHY\"` references a non-existent field. In the `search` command, `field!=value` drops events where the field is absent, so that clause never matches. Use the boolean `healthy` (and `warning`) from the pool object (https://api.truenas.com/v25.04/api_events_pool.query.html).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The bare terms `\"resilver\" OR \"scrub\"` match every pool event that carries the `scan` object for the most recent completed scrub (`\"function\": \"SCRUB\"`), so healthy pools are returned on every poll and the alert always fires. Filter on `scan.state=SCANNING` or `scan.errors>0` instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no dedup or latest-per-pool step. Every poll of an unhealthy pool produces a row (`sort -_time` over raw events), so a 5-minute poll creates 12 alert rows per hour per pool. Use `stats latest(*) by pool_name`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0042-UC-6.1.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation sentence gives a sensible collection outline, but it targets the TrueNAS REST v2.0 API, which was deprecated in 25.04 and removed in TrueNAS 26. It also alerts on a `health != HEALTHY` value the API never returns, since the pool object has a boolean `healthy`. The remaining prose is generic template, including an unrelated ONTAP runbook pointer and a placeholder scripted-input stanza.",
+  "tier": "deep",
+  "uc_id": "UC-6.1.13",
+  "verdict": "incorrect"
+}

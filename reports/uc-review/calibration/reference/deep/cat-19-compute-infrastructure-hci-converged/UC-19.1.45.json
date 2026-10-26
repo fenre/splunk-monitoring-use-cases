@@ -1,0 +1,112 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "bb9d117e9ad87e1e314004f6af88c168e63c188ff3319708911ce885d3a729dc",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.45.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1812",
+      "explanation": "No Splunk-built 'Splunk Add-on for RabbitMQ' appears in the Splunkbase catalogue. The only RabbitMQ-adjacent listings are the BaboonBones AMQP Messaging Modular Input (1812) and JMS Messaging Modular Input (1317), and both consume queue messages rather than polling the Management API. The rabbitmq:management:api:json sourcetype is therefore not produced by any shipped add-on. Splunkbase app IDs are also permanent; they do not 'rotate'.",
+      "field": "app",
+      "quote": "**Splunk Add-on for RabbitMQ** (search Splunkbase for the current listing; ... do not assume a static Splunkbase app number, because listings rotate)",
+      "severity": "blocker",
+      "suggested_fix": "State that Management API data comes from REST API Modular Input (1546) or a custom scripted input. Make rabbitmq:management:api:json an explicitly site-defined sourcetype. Remove the claim that listings rotate."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Splunk_TA_nix collects OS metrics and logs. It does not poll the RabbitMQ Management API or define the rabbitmq:* sourcetypes, so this sentence contradicts the rest of the field, which names the RabbitMQ add-on, 1546 and UF monitor:// stanzas.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Drop the 833 attribution, or limit it to the optional journald/OOM lane if Splunk_TA_nix is actually used for that."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "Splunk's inputs.conf documentation warns against crcSalt = <SOURCE> on rolling log files. Each rotated file (for example rabbit@host.log.1) gets a new path-based CRC and is re-indexed, so the setting causes duplicates rather than preventing them. With a *.log glob this would also inflate the churn and alarm counts the SPL sums.",
+      "field": "detailedImplementation",
+      "quote": "crcSalt = <SOURCE>\n``` ... `crcSalt` as written prevents the classic duplicate",
+      "severity": "blocker",
+      "suggested_fix": "Remove crcSalt = <SOURCE>. Rely on the default CRC (raise initCrcLength if headers repeat), and keep the monitor stanza scoped to the live log file."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rabbitmq.com/docs/logging",
+      "explanation": "The current RabbitMQ logging guide only documents rabbit@<host>.log (plus the _upgrade log). Since RabbitMQ 3.7, SASL/OTP reports go to the main log by default, so a separate -sasl.log should not exist on supported versions. HiPE support was removed from RabbitMQ along with OTP 24.",
+      "field": "dataSources",
+      "quote": "`sourcetype=rabbitmq:sasl` for `/var/log/rabbitmq/rabbit@<host>-sasl.log` (OTP/HiPE/supervisor fatals)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against the RabbitMQ 3.13/4.x logging docs and changelog. If confirmed, drop the rabbitmq:sasl lane, or mark it legacy for pre-3.7 brokers, and remove the HiPE references."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "oslo.messaging names RabbitMQ queues after RPC topics (conductor, scheduler, compute.<host>, reply_<uuid>) and notification topics (notifications.info, versioned_notifications.info). I could not confirm that a queue named 'oslo_messaging_rpc' exists. If it doesn't, the crit_q regex in the SPL will only match notifications.info and *conductor.",
+      "field": "dataSources",
+      "quote": "names of queues like `oslo_messaging_rpc`, `notifications.info`, and conductor RPC",
+      "severity": "needs_verification",
+      "suggested_fix": "Check `rabbitmqctl list_queues` on a Kolla or TripleO controller and list the real queue-name families (conductor, scheduler, compute.*, notifications.info, versioned_notifications.info)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The *.log glob already matches *-sasl.log and *_upgrade.log, so a 'second stanza' for SASL would overlap with it. The same paragraph also has the typo 'two UEs' (meaning UFs). The `/api/healthchecks/node` endpoint is deprecated in favour of `/api/health/checks/*`.",
+      "field": "detailedImplementation",
+      "quote": "[monitor:///var/log/rabbitmq/*.log]\nindex = openstack\nsourcetype = rabbitmq:server",
+      "severity": "minor",
+      "suggested_fix": "Use a specific path (rabbit@*.log) or a blacklist, fix 'UEs' to 'UFs', and point health checks at /api/health/checks/alarms."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The list ignores the real benign causes that the detailedImplementation itself names: Ceilometer or telemetry floods on notifications.info, connection churn during rolling OpenStack service restarts or blue-green upgrades, HAProxy health-check connections, and pause_minority recovery after a planned node reboot.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `rabbitmq:management:api:json`** — Scheduled automation elevates `src_kind` without crossing `mready` > 2000",
+      "severity": "major",
+      "suggested_fix": "Replace the scenarios with these OpenStack/RabbitMQ-specific causes and how to suppress each one (change-id window, queue allowlist, HAProxy source exclusion)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the reviewer is an automated uplift pass, the primary add-on does not exist on Splunkbase, and the crcSalt advice is wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"uplift-handcraft-2026-04\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an SME validates collection on a live OpenStack controller."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats ... by host` groups Management API events by the poller host, not by the RabbitMQ node: /api/nodes returns every cluster member in one response, keyed by `name` (rabbit@node). Alarms on any node collapse onto the poller row, and log-based rows (by node host) never join with API rows. `qn=coalesce(name, ...)` also picks up node names from /api/nodes events.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `memdisk_l` regex matches the generic phrase 'file descriptor' and `n_part_l` counts 'mnesia is overloaded', which is a load warning, not a partition. Both can raise warnings without a real alarm. The `coalesce(mem_alarm, memAlarm, mem_alarm, ...)` call lists mem_alarm twice.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0112-UC-19.1.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The broker-health logic is grounded in real RabbitMQ Management API fields, but the collection story depends on a 'Splunk Add-on for RabbitMQ' that does not appear on Splunkbase. It also credits Splunk_TA_nix with RabbitMQ collection, recommends crcSalt=<SOURCE> on rotating logs, and describes a separate SASL log that current RabbitMQ no longer writes by default.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.45",
+  "verdict": "incorrect"
+}

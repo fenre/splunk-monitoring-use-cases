@@ -1,0 +1,84 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "405a2ece4a6561f3cef4b8423caa8984a542e27c3beef221de75960dfaa920fa",
+  "file": "content/cat-08-application-infrastructure/UC-8.7.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`description` and `controlTest` join the bounds with 'or', which matches every status code. The SPL uses `sc_status >= 400 AND sc_status < 500` (4xx only). Also, this is a 30-day daily trend report, not an alert.",
+      "field": "cross_field",
+      "quote": "alert when `sc_status` >= 400, or `sc_status` < 500",
+      "severity": "major",
+      "suggested_fix": "State: counts requests with HTTP status 400–499 per day per status code over the last 30 days, for service review; no alert threshold."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-iis/Sourcetypes/",
+      "explanation": "The field has two full Step 1–4 sequences. The first 'data collection' step is about interpreting spikes, not collecting data. The second describes a modular input/HEC with poll intervals, vendor API rate limits and HTTP 401/429 errors, none of which apply to IIS log files.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\nPair with marketing campaign calendar to explain spikes.",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence. Step 1: install Splunk Add-on for Microsoft IIS (Splunkbase 3185) on the forwarder and search heads. Add a `[monitor://C:\\inetpub\\logs\\LogFiles\\W3SVC*\\*.log]` input with `sourcetype = ms:iis:auto` and `index = web` (W3C format with `sc-status` logged). Validate by checking `sc_status` is extracted and daily counts match the log files."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-iis/Sourcetypes/",
+      "explanation": "IIS W3C log files are tailed by a forwarder file monitor, not by a modular input or scripted poll. The relevant Splunkbase app is the IIS add-on (3185), not ID 617, which is not in the cached catalogue. `ms:iis:auto` uses index-time W3C extraction, so the add-on must also be on the forwarder.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "IIS W3C access logs (`#Fields:` header including `sc-status`, extracted as `sc_status`) monitored by a Universal Forwarder with Splunk Add-on for Microsoft IIS (Splunkbase 3185) into `index=web`, `sourcetype=ms:iis:auto`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL has no lookup or URI exclusion, and no lookup name or key field (`cs_uri_stem`) is given. It is also the only implementation guidance offered.",
+      "field": "implementation",
+      "quote": "Exclude health-probe URIs via lookup.",
+      "severity": "minor",
+      "suggested_fix": "Name the lookup and key (e.g. a health-probe URI list matched on `cs_uri_stem`), or drop the sentence. Add the forwarder and input setup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence does not say what is measured. Nothing in the UC involves security teams.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to support service owners reviewing quality alongside security teams.",
+      "severity": "major",
+      "suggested_fix": "e.g. \"Every day we count how often visitors to our Windows websites get 'not found' or 'not allowed' style errors, so site owners can spot broken links or misbehaving clients over the month.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "cimSpl counts all Web events by `Web.http_method Web.dest span=5m` with no status filter, so it does not reproduce the 4xx-by-status daily trend. Expected: `where Web.status>=400 Web.status<500 by _time span=1d Web.status`.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "`Compliance` is listed, but a 4xx status trend for service review supports no compliance control claimed in the UC.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0058-UC-8.7.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL is a sound daily trend of IIS 4xx status codes on the recommended `ms:iis:auto` sourcetype. The surrounding text misstates the status filter, `detailedImplementation` has two conflicting step sequences built for an API poller, and the collection method for IIS W3C log files is never described.",
+  "tier": "deep",
+  "uc_id": "UC-8.7.7",
+  "verdict": "rewrite"
+}

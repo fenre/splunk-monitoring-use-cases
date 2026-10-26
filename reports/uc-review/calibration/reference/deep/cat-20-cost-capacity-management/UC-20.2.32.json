@@ -1,0 +1,92 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "105af44abc0502719cb23c55c6dd17953d27c94eca78e19221c27546a4ea1ff3",
+  "file": "content/cat-20-cost-capacity-management/UC-20.2.32.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/NVIDIA/dcgm-exporter/blob/main/etc/default-counters.csv",
+      "explanation": "The SPL reads `gpu_sm_utilization` / `sm_util_pct` as percentages, but DCGM exporter does not emit these names: its default utilization gauge is `DCGM_FI_DEV_GPU_UTIL` (in %), while SM activity is `DCGM_FI_PROF_SM_ACTIVE`, a 0–1 ratio that is disabled in the default counter set. Without stating the mapping and scaling, a reader who maps SM_ACTIVE directly gets values below 1, so every host is flagged underused and the >92 rule never fires.",
+      "field": "implementation",
+      "quote": "(1) Deploy DCGM on GPU nodes and normalize `gpu_index`.",
+      "severity": "major",
+      "suggested_fix": "State which DCGM field feeds `util`: either `DCGM_FI_DEV_GPU_UTIL` (already 0–100) or `DCGM_FI_PROF_SM_ACTIVE` (enable it in the counters CSV and multiply by 100), and the field alias/eval that produces `gpu_sm_utilization`. Map the exporter's `gpu` label to `gpu_index` and `Hostname` to `host`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/NVIDIA/dcgm-exporter",
+      "explanation": "DCGM exporter exposes a Prometheus /metrics endpoint; a Universal Forwarder has no built-in modular input for it. `dcgm:gpu` is a custom sourcetype the reader must create, and the text does not say how the scrape is turned into events. The same vagueness repeats in `app` ('NVIDIA DCGM exporter, Kubernetes GPU metrics, cloud GPU monitoring').",
+      "field": "dataSources",
+      "quote": "`index=ml_infra` `sourcetype=\"dcgm:gpu\"` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Describe a concrete path: scrape dcgm-exporter (default port 9400) with the Splunk Distribution of the OpenTelemetry Collector Prometheus receiver and send to Splunk via HEC as events with sourcetype `dcgm:gpu` into `ml_infra` (or adapt the SPL to `mstats` if sent to a metrics index), or a scripted input that curls /metrics. Name the custom sourcetype as user-defined."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`implementation` applies a 14-day persistence rule, but the SPL looks back only 7 days (`earliest=-7d`) and has no persistence logic. It also talks about node pools and a fleet, yet the SPL's final `stats ... by host` returns one row per host; `fleet_avg`/`fleet_p95` are per-host values, and the workload-type tag from step (2) is never used.",
+      "field": "cross_field",
+      "quote": "(3) Right-size node pools when underused persists fourteen days; scale out when fleet_p95 exceeds ninety-two.",
+      "severity": "major",
+      "suggested_fix": "Either describe the result as per-host (7-day average and peak hourly p95 per GPU host) and state that 14-day persistence requires two consecutive weekly results, or describe a pool-level roll-up by the workload/node-pool tag that a revised SPL would need."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The duplicated generic Steps 1–5 contradict the SPL's 7-day window (a 24-hour window would make the 'underused' verdict noisy), validate against a 'cloud billing console' and 'vendor admin UI inventory count' that do not apply to GPU telemetry, and use HEC/forwarder troubleshooting unrelated to a Prometheus scrape.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Remove the generic block. Schedule weekly (or daily) with the SPL's 7-day window; validate by comparing `util` for one GPU against `nvidia-smi --query-gpu=utilization.gpu --format=csv` or `dcgmi dmon` on that node, and confirm each host reports one series per `gpu_index`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the listed scenarios is a real reason a GPU host would be wrongly flagged. GPU-specific benign causes are missing: interactive/notebook or dev nodes that are idle by design, inference pools sized for peak traffic, standby/DR capacity, MIG-partitioned GPUs where whole-device utilization misrepresents tenant load, and hosts drained for maintenance.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `_time`, `host`, `gpu_index`** — Health checks in `ml_infra` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with GPU-specific cases and exclusions keyed on host or node-pool tags (dev/notebook, inference-peak, standby), note MIG behaviour, and suppress hosts cordoned/drained during the window."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Generic Splunk references only; nothing on DCGM exporter or the utilization fields the UC depends on.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Add https://github.com/NVIDIA/dcgm-exporter and the DCGM field identifiers documentation (https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "Title says 'GPU Pool Utilization' but the SPL reports per host; either retitle to host level or add a pool dimension to the SPL.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`fleet_p95` is the maximum of hourly p95 values per host (a peak), not a fleet p95; field naming misleads readers of the output.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0119-UC-20.2.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (flag under-used and saturated GPU hosts from DCGM telemetry) is clear in the SPL, but the text never explains how DCGM metrics become the percent fields the SPL expects, mixes host-level output with 'pool/fleet' language, gives a 14-day persistence rule the 7-day search cannot evaluate, and buries the UC in generic collection and false-positive boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-20.2.32",
+  "verdict": "rewrite"
+}

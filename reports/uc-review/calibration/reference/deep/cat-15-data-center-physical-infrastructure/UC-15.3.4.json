@@ -1,0 +1,77 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9da3c256edbb009fb26a2e66b4df5d557fdc237018cc243b6e23458124b85f3f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description says the detection groups a count by `entity` against a threshold. The SPL has no aggregation: it lists every status event where `recording_status!=\"recording\"` or `connection_status!=\"connected\"`, keyed on `camera_id`.",
+      "field": "cross_field",
+      "quote": "Groups `count` by `entity` each `the scheduled window`.",
+      "severity": "major",
+      "suggested_fix": "Describe the real grain: one row per camera status event reporting a camera as not connected or not recording, with `camera_id`, `location` and `last_frame`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The listed false positives are generic. They cite `count`, `src` and `host`, which the detection does not use, and they omit the causes the implementation itself hints at (\"maintenance and standby modes\").",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: cameras set to motion-triggered or scheduled recording that report a non-`recording` state between events; cameras disabled or decommissioned in the VMS but not removed; firmware upgrades or reboots; NVR failover to a standby recorder; and vendor status vocabulary (`online`, `ok`, `idle`) that fails the literal `connected`/`recording` comparison."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The search only matches status events that are present. A camera or VMS that stops emitting status events produces no row, so silent heartbeat loss is not detected unless the VMS itself reports the camera as disconnected.",
+      "field": "detailedImplementation",
+      "quote": "surfaces cameras that lost heartbeats or stopped persisting segments",
+      "severity": "minor",
+      "suggested_fix": "Say that the search relies on the VMS reporting a non-connected state. Point to a companion check (for example, comparing the camera inventory lookup against the latest event per `camera_id`) to catch cameras that have gone silent."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/releases/sources/",
+      "explanation": "SC4S has no built-in parser that emits `vms:camera_status`. Unmatched syslog is assigned the `sc4s:fallback` sourcetype, so the reader needs a custom SC4S filter or log path plus a `splunk_metadata.csv` entry to get the sourcetype the SPL expects.",
+      "field": "dataSources",
+      "quote": "NVR/VMS **syslog** into Splunk Connect for Syslog ([Splunkbase app 4740](https://splunkbase.splunk.com/app/4740))",
+      "severity": "minor",
+      "suggested_fix": "Add that an SC4S custom log path (or a heavy forwarder props/transforms sourcetype override) is required to assign `sourcetype=vms:camera_status` and `index=physical`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The title names a REST endpoint reference, but the URL is the general \"Use the HTTP Event Collector\" page. The HEC event path is also `/services/collector/event`, not `stream/collector/event`.",
+      "field": "references",
+      "quote": "Splunk Documentation — REST endpoint POST stream/collector/event (HEC)",
+      "severity": "minor",
+      "suggested_fix": "Retitle the reference \"Splunk Documentation — Set up and use HTTP Event Collector\", or link the actual HEC REST endpoint reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "There is no per-camera reduction, such as `stats latest(connection_status) latest(recording_status) latest(last_frame) by camera_id, location`. A camera that recovered during the window still alerts on its earlier bad event, and a camera reporting several times in the window produces duplicate rows.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0093-UC-15.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 4,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 3
+  },
+  "summary": "The data sources, implementation, evidence, exclusions and visualization are specific and agree with the row-level SPL. The description and known false positives, however, are template text describing a count-by-entity threshold that does not exist, and they miss the main real noise source: cameras that record only on motion or on a schedule.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.4",
+  "verdict": "rewrite"
+}

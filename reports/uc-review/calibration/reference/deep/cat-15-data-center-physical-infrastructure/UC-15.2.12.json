@@ -1,0 +1,100 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "6eb61f9659dc2643b59594e25729c77b47e8239ed458bf17ec62bc53bbc28a38",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/617/",
+      "explanation": "Splunkbase app 617 does not exist (the Splunkbase API returns 'App was not found'), and the Universal Forwarder is not a Splunkbase app. A reader cannot install the stated collection component.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real path for CDU telemetry: SNMP polling (for example Splunk Connect for SNMP), Modbus/BACnet through the BMS or an edge gateway, or the CDU vendor's REST/Redfish API through a scripted input or HEC. State that liquid_cool:loop is a site-defined sourcetype."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL performs no aggregation and has no `entity` field. It evaluates each telemetry sample against three per-loop minimums (min_supply_kpa, min_delta_p, min_flow) and lists every breaching sample by rack_id.",
+      "field": "description",
+      "quote": "Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: for each loop sample, compute differential pressure as supply minus return, and flag the sample when supply pressure, differential pressure or flow (L/min) falls below that loop's configured minimum."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The SPL compares against fields min_supply_kpa, min_delta_p and min_flow, but no step says how those fields get onto the events. Without them every comparison is null and nothing alerts.",
+      "field": "detailedImplementation",
+      "quote": "Define min pressure and flow per vendor. Alert on any breach.",
+      "severity": "major",
+      "suggested_fix": "Describe a lookup keyed by rack_id (or loop/CDU id) with min_supply_kpa, min_delta_p and min_flow taken from the CDU vendor's operating envelope, applied with `lookup` before the where clause, and say who maintains it."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The Step 4 heading appears four times, and a second generic Step 1–5 block follows. That block names fields that do not exist for this feed ('Spot-check two known entities for field presence (`host, user, action`)'), vendor API rate limits and inventory counts.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Remove the repeated headings and the generic second block. Validate against the CDU controller or BMS display: check that supply and return pressure in kPa and flow in L/min match for the same rack and timestamp."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "A clogged strainer or blocked cold plate raises differential pressure, while pump failure or a leak lowers it. The SPL only flags low delta_p, so the text implies coverage of strainer fouling that the search does not provide.",
+      "field": "detailedImplementation",
+      "quote": "Leak or pump failure shows first as pressure loss or delta-P across strainers.",
+      "severity": "minor",
+      "suggested_fix": "Say that low supply pressure, low delta-P or low flow points to pump failure or a leak. Note that high delta-P with low flow (strainer or filter fouling) is not covered unless a maximum threshold is added."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text; the SPL groups on nothing. No real cause of a false low-pressure reading is named.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host` — Health checks in `cooling` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: planned pump changeover or CDU failover briefly dropping pressure, loop draining or filling during maintenance, sensor offline values reported as 0, and threshold units that do not match the feed (bar or psi against kPa)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "No `activity` field exists in the SPL or the data source.",
+      "field": "value",
+      "quote": "Tracking `activity` via UC-15.2.12",
+      "severity": "minor",
+      "suggested_fix": "State the value: early warning of coolant pump failure or leaks before GPUs and CPUs in liquid-cooled racks throttle or shut down."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "min_supply_kpa, min_delta_p and min_flow are never defined (no lookup or eval). Comparisons with null are false, so the search returns no rows and never alerts.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The search runs per event with no dedup or stats by rack or loop, so every breaching sample becomes a separate row. Only low delta-P is checked; high delta-P (fouling) is not.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0090-UC-15.2.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The detection idea (alert when CDU supply pressure, loop differential pressure or flow drops below vendor minimums) is sound. The surrounding text is mostly template residue, with a wrong collection path (Universal Forwarder and a non-existent Splunkbase ID), a description that claims count aggregation the SPL does not do, no explanation of where the per-loop minimums come from, and duplicated or garbled implementation steps.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.12",
+  "verdict": "incorrect"
+}

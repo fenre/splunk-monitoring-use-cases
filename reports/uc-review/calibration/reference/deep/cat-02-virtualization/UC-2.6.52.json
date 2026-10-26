@@ -1,0 +1,106 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "db728577503210fce7bab4901b70ba366671eb5af49e51690c3ab1a8276e65a8",
+  "file": "content/cat-02-virtualization/UC-2.6.52.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-template-xendesktop-7/blob/master/add-ons/TA-XD7-VDA/default/inputs.conf",
+      "explanation": "The Template for Citrix XenDesktop 7 (TA-XD7-VDA / TA-XD7-Broker) defines no `citrix:vda:events` sourcetype. Its version data comes from `xendesktop:7:InstalledSoftware` on the VDA (registry Uninstall keys with `Name`/`Version`), from `WinHostMon` type=operatingSystem for the OS build, and from `xendesktop:7:machine` on the broker (Get-BrokerMachine properties, which include the VDA agent version).",
+      "field": "dataSources",
+      "quote": "`index=xd` `sourcetype=\"citrix:vda:events\"` (VDA agent version, component build, plug-in status)",
+      "severity": "blocker",
+      "suggested_fix": "Name the real inputs: on the broker, `index=xd sourcetype=\"xendesktop:7:machine\"` (Get-BrokerMachine output; check that `AgentVersion` / `OSType` are present). On the VDA, `index=xd sourcetype=\"xendesktop:7:InstalledSoftware\"` (Name=\"Citrix Virtual Delivery Agent*\", `Version`) and `WinHostMon` operatingSystem events for the OS build. Or name the specific uberAgent inventory sourcetype if uberAgent is the source."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `detailedImplementation` both describe joining `citrix_supported_vda.csv` (`supported`, `eol_date`) and alerting on unsupported rows. The primary SPL has no `lookup` or `where supported=...` clause; it only counts hosts per version. The description also claims 'Alert logic enforces configured threshold', but no threshold exists.",
+      "field": "cross_field",
+      "quote": "Add the `lookup` and `where` clauses from the primary SPL once the CSV exists.",
+      "severity": "major",
+      "suggested_fix": "Describe the SPL as it is: an inventory report of host counts per VDA version and OS build. Present the supported-version lookup and the EOL filter as an explicit optional extension, with the exact `lookup citrix_supported_vda.csv vda_version OUTPUT supported eol_date | where supported=\"false\" OR strptime(eol_date,...)<now()` text, rather than pointing to clauses that are not there."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "These scenarios belong to a Linux capacity UC. Windows VDAs have no apt/yum, and a version string cannot 'spike' from backup I/O or probe load. None of them is a real false-positive cause for a version inventory.",
+      "field": "knownFalsePositives",
+      "quote": "Package managers spike `vda_ver` metrics ... Correlate with apt/yum logs ... Nightly backup I/O on `vda_ver` ... mimics sustained load without crossing capacity threshold.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Machines mid-upgrade report the old version until their next heartbeat or registration. Powered-off or maintenance-mode machines keep a stale `last_seen`. Lab or test catalogs run preview VDA builds on purpose. Versions are reported in different formats (for example 2203.0.4000 vs 7.33.4000) and need normalising."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`exclusions`, `knownFalsePositives` (suppression mechanism) and `evidence` ('Linux —' panel, `csv:linux_controls`) all frame a Windows Citrix VDA version-inventory UC as a Linux capacity control. The UC's own `implementation` uses `citrix_supported_vda.csv` instead. The domain is wrong, not just the wording templated.",
+      "field": "cross_field",
+      "quote": "Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+      "severity": "major",
+      "suggested_fix": "Use one Citrix-specific suppression artefact, for example a lab/test catalog list or `citrix_supported_vda.csv` with an `exception_until` column, and drop the Linux naming from exclusions, evidence and the suppression note."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory",
+      "explanation": "OS and software version inventory maps to the CIM Inventory (Compute_Inventory) data model, which has an OS dataset (tags system+version) with `os`/`version` fields. The Endpoint datasets cover processes, services, ports, filesystem and registry activity, so they do not fit this signal.",
+      "field": "cimModels",
+      "quote": "\"Endpoint\"",
+      "severity": "major",
+      "suggested_fix": "Replace with `Inventory` (Compute_Inventory, OS dataset), or leave cimModels empty if the Citrix version data is not CIM-mapped."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://github.com/splunk/splunk-template-xendesktop-7/blob/master/add-ons/TA-XD7-VDA/default/inputs.conf",
+      "explanation": "Steps 1 to 4 appear twice. The second copy is generic boilerplate: TA-XD7-VDA uses scripted/WinHostMon inputs, not a modular input or HEC, and its InstalledSoftware script runs every 21600 s. `list_inputs` is not an ingestion permission. That copy also schedules `earliest=-24h@h`, which conflicts with the 'weekly' schedule in `implementation`.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=citrix:vda:events into xd. Default poll interval 300–900 seconds ... Grant the ingestion role `list_inputs` and `search`",
+      "severity": "major",
+      "suggested_fix": "Delete the duplicated generic Step 1 to 5 block. Keep the Citrix-specific steps, state one schedule and search window that matches the heartbeat cadence (for example weekly report over -7d with `latest` per machine), and name the real input stanzas."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The technical-overview page is not the lifecycle/EOL matrix, and the lifecycle matrix is what a reader needs to populate `eol_date`.",
+      "field": "references",
+      "quote": "\"title\": \"Citrix Virtual Apps and Desktops — product matrix and lifecycle\", \"url\": \"https://docs.citrix.com/en-us/citrix-virtual-apps-desktops/technical-overview/\"",
+      "severity": "minor",
+      "suggested_fix": "Point to the Citrix Product Lifecycle (Product Matrix) page for Citrix Virtual Apps and Desktops LTSR/CR dates, or retitle the existing link."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "No uberAgent sourcetype is named, so the reader cannot build the alternate path.",
+      "field": "dataSources",
+      "quote": "`index=uberagent` host inventory sourcetypes if you standardize on uberAgent for OS build",
+      "severity": "minor",
+      "suggested_fix": "Name the uberAgent sourcetype that carries the OS build and VDA version (check the uberAgent sourcetype reference for the machine/system inventory sourcetype) or drop the alternative."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search runs on `sourcetype=\"citrix:vda:events\"` with `event_type` values AgentInfo/Registration/Heartbeat. The Template for Citrix XenDesktop 7 add-ons do not produce this sourcetype (see TA-XD7-VDA/TA-XD7-Broker inputs.conf: `xendesktop:7:machine`, `xendesktop:7:InstalledSoftware`, WinHostMon). The SPL also has no supported-version lookup or EOL filter, so it is an inventory report, not a lifecycle-compliance alert.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0008-UC-2.6.52",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The idea, a VDA agent and OS build inventory checked against a supported-version lookup, is sound and the grandma text is good. But the stated data path (TA-XD7-VDA writing `citrix:vda:events` with version fields) does not match what the add-on actually collects. The implementation text describes a lookup-driven lifecycle alert that the SPL never runs, and the false-positive, exclusion and evidence text is Linux/capacity boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-2.6.52",
+  "verdict": "incorrect"
+}

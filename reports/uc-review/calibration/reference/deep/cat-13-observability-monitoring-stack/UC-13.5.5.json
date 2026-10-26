@@ -1,0 +1,113 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "0a2de191de62f0f4547480c47eb9e6ea3735709bc3ab06dfc51021849256a9d3",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.5.5.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-observability-cloud.md",
+      "evidence_url": "https://www.splunk.com/en_us/blog/devops/end-of-support-for-signalfx-smart-agent-moving-to-the-opentelemetry-collector.html",
+      "explanation": "The SignalFx Smart Agent reached End of Support on 30 June 2023. It was a metrics-collection agent, not a zero-code tracing instrumentation agent. Traces and logs here come from the Splunk OTel Collector over HEC/OTLP and OTel language agents, not from a Universal Forwarder add-on, and 617 is not a known Splunkbase ID. 'Splunk APM on Splunk Platform' is not a product name.",
+      "field": "app",
+      "quote": "Splunk APM Smart Agent for zero-code instrumentation — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "List the Splunk Distribution of OpenTelemetry Collector (splunk_hec exporter), the Splunk OTel language agents (splunk-otel-java, -dotnet, -python, -js) for zero-code instrumentation, and Splunk Observability Cloud APM/RUM. Remove Smart Agent, the UF/617 suffix and 'Splunk APM on Splunk Platform'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-observability-cloud/manage-data/splunk-distribution-of-the-opentelemetry-collector/get-started-with-the-splunk-distribution-of-the-opentelemetry-collector/migrate-from-the-smart-agent-to-the-collector",
+      "explanation": "This Case, the hardware field and the Step 1 'Smart Agent or Splunk Distribution of OpenTelemetry Collector versions drift' sentence all treat the end-of-support Smart Agent as a current tracing agent. Flask auto-instrumentation comes from splunk-opentelemetry / opentelemetry-instrumentation-flask, and splunk_apm_smart_agent is not a real package name.",
+      "field": "detailedImplementation",
+      "quote": "Case 11 — Smart Agent auto-instrumentation version skew across VMs misses Flask hooks on a subset of hosts: standardize splunk_apm_smart_agent packages",
+      "severity": "major",
+      "suggested_fix": "Rewrite Case 11 around splunk-opentelemetry (Python) agent version skew and the opentelemetry-instrumentation-flask package. Remove Smart Agent from the hardware field and Step 1."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Log-to-trace linkability is not host CPU/memory performance. detailedImplementation admits that the Performance tstats join exists 'not to assert causality, but to prove the search executed in tenants with accelerated Performance summaries', so the CIM mapping and dataModelAcceleration guidance add cost without signal.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to an empty list (OTel/APM-native data has no CIM model). Drop the Performance acceleration guidance and the 'coarse workload anchor' prose."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "clarity",
+      "explanation": "The block that starts at 'Teaching notes for platform auditors' and runs through 'Human judgment still validates automated severity...' appears three times verbatim at the end of the field. This is generation residue and roughly doubles the length.",
+      "field": "detailedImplementation",
+      "quote": "Teaching notes for platform auditors: archive weekly CSV exports of critical and high severity rows",
+      "severity": "major",
+      "suggested_fix": "Keep one copy of the block, or none; most of it (FinOps, IPv6, stakeholder communication) is generic."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/splunk-observability-cloud.md",
+      "explanation": "dataSources and detailedImplementation use apm:traces and sfrum/rum_beacon. The subcategory guide documents otel:trace / apm:span (index apm_traces) for spans and splunk:rum:web / splunk:rum:mobile for RUM. Readers following the guide will build sourcetypes this UC never searches.",
+      "field": "cross_field",
+      "quote": "index=apm sourcetype=apm:traces ... (sourcetype=sfrum OR sourcetype=rum_beacon OR sourcetype=rum* OR sf_service=*)",
+      "severity": "major",
+      "suggested_fix": "Align dataSources and Steps 2 lanes three and four with the guide (index=apm_traces sourcetype=otel:trace; index=rum sourcetype=splunk:rum:web), or explicitly say these are site-specific names."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL's alert logic is coverage-based: warn_trace_coverage_pct below min_warn_trace_cov (default 80) with at least 15 warn/error logs is critical, and log_trace_coverage_pct below 0.85×target or header_propagation_proxy below min_header_cov is high. The description lists volume guards and divide-by-zero checks instead and calls the detection Performance-datamodel based.",
+      "field": "description",
+      "quote": "over datamodel `Performance` with thresholds `log_events` > 0, `warn_err_logs` > 0, `log_events` > 0, or `log_events` >= 20",
+      "severity": "major",
+      "suggested_fix": "Describe the real tiers: critical when fewer than 80% of WARN/ERROR logs carry a trace_id, high when overall coverage is below 85% of the per-service target or header propagation is below 70%. Mention the 15-minute buckets per service, environment and version."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified status with a generic reviewer handle conflicts with SPL that fails at parse time (multisearch with stats) and with a deprecated-agent recommendation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the search has been run against real app_logs and otel_logs data and reviewed by an observability SME."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "All four multisearch subsearches end in stats (transforming). multisearch allows only streaming commands in its subsearches, so the search errors. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch. Move the per-lane stats after the multisearch (computing lane flags with eval), or use append.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "orphan_link_ratio divides a count of log events that carry a trace_id by a count of distinct span trace IDs. These are different units, so the ratio is not an orphan measure.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The Performance tstats join groups BY Performance.process at nodename=Performance. Check whether the Performance root dataset exposes a 'process' field (CPU and Memory fields live in child datasets). Even if it does, matching process names to APM service.name is arbitrary.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "This search queries Performance.cpu_load_percent and Performance.mem_used_percent at the root node and has no relation to log/trace linkability. The CPU and Memory fields belong to the All_Performance.CPU and .Memory datasets.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0083-UC-13.5.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has solid domain narrative on MDC, W3C traceparent and B3 propagation, and Related Content. However, it recommends the end-of-support SignalFx Smart Agent as a zero-code instrumentation agent, attaches an irrelevant CIM Performance anchor, and repeats a large block of the detailedImplementation three times. Its SPL cannot run because multisearch subsearches contain stats.",
+  "tier": "deep",
+  "uc_id": "UC-13.5.5",
+  "verdict": "incorrect"
+}

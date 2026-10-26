@@ -1,0 +1,120 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "a5526086b85958ac50f3657be8b3331039f7448052cd27bb2a7b2a6783d9c545",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.4.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.cloudflare.com/logs/logpush/logpush-job/datasets/zone/http_requests/",
+      "explanation": "Cloudflare documents OriginResponseStatus as an int where 0 means no response was received from the origin and Cloudflare's edge served the response. The field is 0, not null, so `where isnotnull(OriginResponseStatus)` keeps cache hits and edge-served requests. The primary search's `origin_requests` denominator is therefore inflated and the error rate is understated. The Step 1 claim that hit rows 'should NOT have an OriginResponseStatus' and the troubleshooting note 'OriginResponseStatus always null' are wrong for the same reason.",
+      "field": "detailedImplementation",
+      "quote": "Note: `OriginResponseStatus` is only populated for requests that reach the origin. Cache HITs (`CacheCacheStatus=hit`) do not have an origin response.",
+      "severity": "blocker",
+      "suggested_fix": "Filter origin-bound requests with `where OriginResponseStatus>0` (and optionally exclude 304 revalidations), state that cache hits and edge-served responses log OriginResponseStatus=0, and rewrite the Step 1 expectation and the 'always null' troubleshooting bullet to match."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524/",
+      "explanation": "When the origin does not answer within Cloudflare's Proxy Read Timeout, Cloudflare returns its own error 524, not 504. That timeout is the same default for every plan (Cloudflare now documents 125 seconds), and only Enterprise zones can raise it, up to 6,000 seconds. There is no 15-second limit on other plans. A 504 seen in OriginResponseStatus is one the origin or its own upstream proxy generated.",
+      "field": "detailedImplementation",
+      "quote": "**504 Gateway Timeout** — Origin did not respond within Cloudflare's timeout (100s default for Enterprise, 15s for other plans).",
+      "severity": "blocker",
+      "suggested_fix": "Describe 524 as the Cloudflare origin-timeout error, with the documented default Proxy Read Timeout for all plans and the Enterprise-only increase. Describe 504 in OriginResponseStatus as a timeout from the origin's own gateway or load balancer."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The runbook treats 502/503/504 as Cloudflare-generated, but this UC filters on OriginResponseStatus, which records the code the origin itself returned. The origin-failure codes that Cloudflare generates (520 unknown error, 521 web server down, 522 connection timed out, 523, 524, 525/526 SSL) appear in EdgeResponseStatus, usually with OriginResponseStatus=0. Those are the most common 'origin is down' signals, and the documented searches never see them.",
+      "field": "detailedImplementation",
+      "quote": "**502 Bad Gateway** — Cloudflare received an invalid response from the origin. Common causes: origin crashed, overloaded, or returned malformed headers.",
+      "severity": "major",
+      "suggested_fix": "Explain that Cloudflare's 52x origin errors are visible only in EdgeResponseStatus, and add a companion search on `EdgeResponseStatus>=520 AND EdgeResponseStatus<=527`, or note this coverage gap explicitly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The fields disagree on when the detection fires. The description implies a page on any single 5xx. The detailedImplementation primary search keeps rows with error_rate > 1%, its alert section fires at a 5% rate over 15 minutes, and the shipped SPL only plots raw 5xx counts with no threshold. A reader cannot tell what produces an alert.",
+      "field": "cross_field",
+      "quote": "pages when `OriginResponseStatus` >= 500",
+      "severity": "major",
+      "suggested_fix": "Choose one alert rule (for example, origin 5xx rate above X% over 15 minutes per ClientRequestHost) and state it the same way in description, detailedImplementation and visualization."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "An origin 5xx availability signal has nothing to do with unauthorized access, segmentation drift or NAC. This value statement comes from a network-access-control template and misstates what the UC delivers.",
+      "field": "value",
+      "quote": "lowering unauthorized access, segmentation drift, and NAC policy failures",
+      "severity": "major",
+      "suggested_fix": "State the actual value: early detection of origin failures that Cloudflare masks or passes through to users, with per-host and per-colo isolation to separate origin outages from network-path problems."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The SPL does not use `src`. A suppression lookup keyed on OriginResponseStatus would silence every 5xx of a given code. The entries name no real origin-5xx causes, such as origin deploys or restarts, a scanner hitting endpoints that throw 500, or Worker subrequests logging origin codes.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `OriginResponseStatus` >= 500 ... **Suppression mechanism:** `network_exception_register.csv` keyed on `OriginResponseStatus`",
+      "severity": "major",
+      "suggested_fix": "List concrete benign causes (planned origin deploys, vulnerability scanners or bots generating 500s on bad paths, single noisy hostnames used for testing) and key any suppression on ClientRequestHost plus a time window, not on the status code."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Cloudflare does not document a customer-enabled retry setting that writes a separate http_requests log record for each origin retry. Each Logpush HTTP request record is one client request.",
+      "field": "detailedImplementation",
+      "quote": "Cloudflare may be retrying failed requests (if retry is enabled), inflating the Logpush count. Each retry is a separate log entry.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Cloudflare's documentation for origin retry behaviour and how it appears in http_requests logs. Remove the claim if it cannot be confirmed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/edge-security-microsegmentation.md",
+      "explanation": "The subcategory guide pins Cloudflare App for Splunk 4.0+. The UC also uses `index=cdn`, while the guide's Logpush setup writes to `index=cloudflare`.",
+      "field": "detailedImplementation",
+      "quote": "Cloudflare App for Splunk (Splunkbase 4501) v2.x on the Search Head",
+      "severity": "minor",
+      "suggested_fix": "Align the app version with the guide (4.0+). Either use the guide's `cloudflare` index or say that `cdn` is a site-specific index name."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic 'catalog-team' reviewer, yet it contains the documented factual errors above about the OriginResponseStatus semantics and the Cloudflare timeout error codes. No SME sign-off is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has validated the corrected field semantics and runbook."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The title promises an error rate, but the SPL only timecharts raw 5xx counts. EdgeResponseStatus is extracted but unused, and no denominator (requests with OriginResponseStatus>0) is computed. Edge-generated 52x origin errors are also missed because they log OriginResponseStatus=0.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The cimSpl counts all Web events by user/url/http_method and has no status filter, so it does not express an origin 5xx detection. Web.status would also reflect the edge status, not OriginResponseStatus.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0104-UC-17.4.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is a real attempt at origin-5xx monitoring, but it rests on a wrong assumption about how Cloudflare logs cache hits (OriginResponseStatus=0, not null) and its runbook gives incorrect timeout and status-code facts. The value, false-positive and suppression text is template residue about NAC and segmentation, and the thresholds disagree across fields.",
+  "tier": "deep",
+  "uc_id": "UC-17.4.6",
+  "verdict": "incorrect"
+}

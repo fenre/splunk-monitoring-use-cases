@@ -1,0 +1,176 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "05ad0648a8da79c51c9d144b0d129a7e15275ce6ea565e9859ce7cf8aaf01797",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.46.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/node-metrics.md",
+      "explanation": "kube_node_info carries node, kernel, OS, runtime, kubelet, provider_id and IP labels but no Kubernetes node labels. Node-pool labels such as eks.amazonaws.com/nodegroup appear only on kube_node_labels, and only when allowlisted with --metric-labels-allowlist. detailedImplementation Step 3 ('current_size from kube_node_info distinct nodes per pool label such as label_eks_nodegroup') carries the same error, so the at_max_size logic gets no data.",
+      "field": "dataSources",
+      "quote": "kube_node_info for pool node counts",
+      "severity": "blocker",
+      "suggested_fix": "Name kube_node_labels with --metric-labels-allowlist=nodes=[eks.amazonaws.com/nodegroup,cloud.google.com/gke-nodepool,kubernetes.azure.com/agentpool,karpenter.sh/nodepool] as the source for per-pool node counts, and update Step 3 accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/simpleprometheusreceiver/README.md",
+      "explanation": "The simpleprometheus receiver takes a single 'endpoint' (host:port, no scheme or path) plus 'metrics_path'; it has no 'endpoints'/'url' list. It rejects an Authorization header at configuration validation and uses 'use_service_account: true' for token auth instead. As written, the collector will not start this receiver. The text also calls it 'splunkextension prometheus_simple', which is not a real component name.",
+      "field": "detailedImplementation",
+      "quote": "prometheus_simple/cluster_autoscaler:\n    endpoints:\n      - url: http://cluster-autoscaler.kube-system.svc.cluster.local:8085/metrics\n        tls:\n          insecure_skip_verify: true\n        headers:\n          Authorization: Bearer ${K8S_SA_TOKEN}",
+      "severity": "blocker",
+      "suggested_fix": "Show prometheus_simple with endpoint: cluster-autoscaler.kube-system.svc:8085, metrics_path: /metrics and, if auth is needed, use_service_account: true. Or use the prometheus receiver with a full scrape_config. Remove 'splunkextension'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/stanza/docs/operators/regex_parser.md",
+      "explanation": "regex_parser parses fields and does not filter: its on_error default is 'send', so non-matching lines are still forwarded. The prose ('Add regex-based include or operator filters so lines ... elevate cleanly') therefore promises filtering this config does not do. The example also skips the container-log parser needed for /var/log/pods files.",
+      "field": "detailedImplementation",
+      "quote": "operators:\n      - type: regex_parser\n        regex: '(?P<message>.*Failed to scale up.*|.*out of resource.*|.*[Qq]uota.*|.*[Mm]ax[Ss]ize.*)'",
+      "severity": "major",
+      "suggested_fix": "Use a 'filter' operator (or the filter processor) with an expression on body to keep or drop lines, put it after the container parser, and state that unmatched lines are dropped."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://karpenter.sh/docs/getting-started/getting-started-with-karpenter/",
+      "explanation": "The current Karpenter getting-started guide installs the controller into kube-system (KARPENTER_NAMESPACE=kube-system), so a filelog include limited to the karpenter namespace collects nothing for those installs. Step 1 also says 'karpenter namespace logs' without noting the alternative.",
+      "field": "detailedImplementation",
+      "quote": "include:\n      - /var/log/pods/karpenter_*/*/*.log",
+      "severity": "major",
+      "suggested_fix": "Include both /var/log/pods/kube-system_karpenter-*/*/*.log and /var/log/pods/karpenter_*/*/*.log, and tell readers to confirm the namespace with kubectl get pods -A -l app.kubernetes.io/name=karpenter."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/FAQ.md",
+      "explanation": "kube-system/cluster-autoscaler-status is a status report that Cluster Autoscaler publishes (and attaches events to); it is not a pause control. A responder looking there for a pause flag would misdiagnose the problem.",
+      "field": "detailedImplementation",
+      "quote": "Case 7 — Cluster Autoscaler paused via cluster-autoscaler-status ConfigMap or vendor pause annotation",
+      "severity": "blocker",
+      "suggested_fix": "Describe real causes of autoscaler silence: the CA Deployment scaled to zero or crash-looping, a stale last-update annotation on cluster-autoscaler-status, or scale-up disabled for a node group by provider configuration. Point to the status ConfigMap only as a health and diagnostic source."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither it nor Performance (host CPU, memory, storage) models autoscaler scale-up failures or Pending pods. dataModelAcceleration repeats the pairing, and the Step 5 checklist hard-codes it.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Application_State\", \"Performance\"]",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to empty (no CIM datamodel fits Kubernetes autoscaler events), or keep Performance only as an optional node-saturation overlay and say so. Remove Application_State and update dataModelAcceleration and the Step 5 checklist."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "The linked Splunk Add-on for Kubernetes was deprecated in March 2019 and open-sourced. It only supplied knowledge objects for Splunk Connect for Kubernetes and is not documentation for the Splunk OpenTelemetry Collector. The same link appears in references.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "major",
+      "suggested_fix": "Link the Splunk OpenTelemetry Collector for Kubernetes chart (github.com/signalfx/splunk-otel-collector-chart) or its Splunk docs page instead, in both app and references."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description and controlTest list internal intermediate fields (mv, pend) as alert conditions. The SPL actually alerts when the oldest pending pod has waited more than 5 minutes (more than 10 for critical, with gold criticality and quota text), at_max_size is reached, or a fused failure reason exists; severity is set by case.",
+      "field": "cross_field",
+      "quote": "Outputs `pending_pod_count`, `last_failed_scale_up_ts`, `pend` each `1m`; alert when `mv` > 0, `mv` > 0, `mv` > 0, or `pend` > 0.",
+      "severity": "major",
+      "suggested_fix": "Describe the real gates: Pending pods sustained for at least 5 minutes per cluster combined with CA/Karpenter failure signals; critical when a gold pool has waited over 10 minutes with quota/exceeded reasons; high when the pool is at max_size. Build the controlTest scenarios from Step 4 tests A-C."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "High severity requires oldest_pending_min>5, and the soak join discards pods pending under 5 minutes, so the search cannot return high severity within two minutes. CA emits NotTriggerScaleUp, not FailedScaleUp, when a group is at max size. Test A as written will appear to fail.",
+      "field": "detailedImplementation",
+      "quote": "Within two minutes you should see FailedScaleUp or CA logs naming max size, pending_pod_count rising, and uc_3_2_46_autoscaler_scaleout_failure returning high severity with at_max_size equal to one.",
+      "severity": "major",
+      "suggested_fix": "Tell testers to wait at least 5 minutes after pods go Pending (plus one schedule interval), and to expect NotTriggerScaleUp mentioning max node group size."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the entries names a real benign cause. The genuine ones are in detailedImplementation: Karpenter consolidation rescheduling pods, brief CA evaluation lag, spot capacity flapping, and pods that are deliberately unschedulable (for example, a nodeSelector for a pool scaled to zero by design) generating NotTriggerScaleUp. The broad log filter ('error' AND 'scale') will also match routine CA log lines.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `dc` on `kube:container:logs`** — Scheduled automation elevates `nodegroup` without crossing `mv` > 0 for UC-3.2.46.",
+      "severity": "major",
+      "suggested_fix": "Rewrite knownFalsePositives around those causes, each with how to recognise it (scale_failure_reason text, Karpenter consolidation log lines, nodegroup_inventory exception_expiry)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is an authoring self-check for the sidecar, not guidance for an implementer.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five steps use em dash headers exactly; Step 3 fenced SPL matches the spl JSON field; ... monitoringType lists Performance and Capacity; cimModels lists Application_State and Performance.",
+      "severity": "minor",
+      "suggested_fix": "Remove the closing checklist, or replace it with an operator go-live checklist (data present in all three indexes, lookup published, Step 4 tests passed)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "There is no evidence of SME sign-off, and the SPL cannot execute as written (non-streaming stats inside multisearch arms, and a backtick macro reference inside eval), so it cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the SPL runs and the Step 4 synthetic tests have been recorded."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Every multisearch arm contains stats, which is not streaming. multisearch accepts only purely streaming subsearches (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch), so the search fails to parse. Use append or union, or move the stats after the fan-in.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "coalesce(involvedObject_name, `involvedObject.name`, \"\") uses backticks, which is macro-invocation syntax, so Splunk expands an undefined macro named involvedObject.name and the search errors. Field names with dots need single quotes in eval: 'involvedObject.name'.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "NotTriggerScaleUp and FailedScaleUp events are recorded on the Pod (involvedObject is the pod), per the Cluster Autoscaler FAQ, so nodegroup is set to a pod name and never matches nodegroup_inventory.csv or the pool join.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "cluster_autoscaler_failed_scale_ups_total is labelled by reason (plus GPU/DRA labels), not node_group (https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/proposals/metrics.md). The arm always yields cluster_aggregate, and mv>0 on a lifetime counter flags any cluster that has ever had a failure. Use a delta or rate over the window.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The pool-size join reads label_eks_nodegroup/label_node_group from kube_node_info, which has no node labels (they live on kube_node_labels), so current_size is always 0 and at_max_size never triggers.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Metrics are searched as events in index=k8s_metrics (__name__, value fields), while the repository guide queries the same index with mstats. If k8s_metrics is a metrics index, every metric arm returns nothing.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Uses the deprecated Application_State model, Performance.mem_used_percent (not a CIM Performance field; Memory has mem_used and mem_free) and Performance.host (the CIM field is dest). It also bears no relation to autoscaler scale-out failure.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-3.2.46",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation gives solid scope separation and troubleshooting cases, but several product facts are wrong: pool labels are attributed to kube_node_info, the collector configs would not work, the CIM models are deprecated or unrelated, the CA status ConfigMap is described as a pause switch, and the app points at an add-on retired in 2019. Description, value, controlTest and knownFalsePositives are template residue, and the SPL as written cannot run.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.46",
+  "verdict": "incorrect"
+}

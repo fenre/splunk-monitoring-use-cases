@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "bbd31f017322eefd8b7dcb743f9a2929648fc0d5f0649062222345bd07d57b56",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on, and no Splunk_TA_cisco-aci package exists at that ID. Cisco's supported path is Cisco DC Networking (7777), which replaced the deprecated Cisco ACI Add-on (1897). The same wrong ID and version are repeated in detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (Splunkbase 4022, package directory **Splunk_TA_cisco-aci**, versions near 2.0.x in 2026) for syslog parsing into sourcetype=**cisco:aci:syslog**",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (Splunkbase 7777) as the primary ACI collector. Mention the deprecated Cisco ACI Add-on for Splunk Enterprise (1897) only as legacy, and drop the 4022 / Splunk_TA_cisco-aci 2.0.x references. Handle APIC syslog through SC4S or a documented syslog input."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/7777",
+      "explanation": "Cisco DC Networking (7777) collects ACI data through the APIC API itself, including a health input (sourcetype cisco:dc:aci:health) and fault/class inputs. Calling it optional dashboards and telling readers to build bespoke aaaLogin pollers points them at unnecessary custom engineering. The legacy 1897 add-on also polled APIC REST, with sourcetypes cisco:apic:health and cisco:apic:class.",
+      "field": "detailedImplementation",
+      "quote": "Optional Cisco DC Networking Application for Splunk (Splunkbase 7777) when you want curated dashboards spanning Cisco TAs. ... remember this TA normalizes APIC and fabric syslog into sourcetype=**cisco:aci:syslog** only—it does not poll REST APIs by itself.",
+      "severity": "blocker",
+      "suggested_fix": "Make 7777's APIC account and ACI inputs (health, faults, audit, and so on) the primary collection path, and document its sourcetypes (for example cisco:dc:aci:health, cisco:dc:aci:class). Present custom REST pollers only as a fallback."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/6x/aci-fundamentals/cisco-aci-fundamentals-62x/troubleshooting-62x.html",
+      "explanation": "Cisco's ACI Fundamentals guide describes health scores differently. Each MO health-score category has an impact level (Maximum 100%, High 80%, Medium 50%, Low 20%, None 0%), and category scores aggregate with an Lp-norm formula. The 90/60/30/10 fault-severity weights and the class name fvHealthScoreEvalPol do not appear in that model; the Health Score Evaluation Policy exposes 'Ignore Acknowledged Faults'.",
+      "field": "detailedImplementation",
+      "quote": "**fvHealthScoreEvalPol** may tune weights but defaults derive composite scores from descendant **faultInst** defects weighted critical 90%, major 60%, minor 30%, warning 10%, info/cleared 0%.",
+      "severity": "blocker",
+      "suggested_fix": "Replace the weighting sentence with Cisco's documented impact-level and Lp-norm description, or remove it. Name the policy as 'Health Score Evaluation Policy' unless the exact MO class has been checked in the APIC MIM reference."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Several of these fault-code meanings look invented. In Cisco's fault catalogue, F1394 is commonly a fabric-port-down fault, not a TEP move, and the 'LLDP change', 'BGP flap' and 'border-leaf leak' meanings for F0105, F0613 and F2102 are not supported by any grounding document.",
+      "field": "dataSources",
+      "quote": "mnemonic faults such as F0103, F0105, F0467, F0532, F0613, F1394, F2102 ... (examples F0103 link down, F0105 LLDP change, F0613 BGP flap, F1394 TEP move, F2102 border-leaf leak)",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up each code in the Cisco APIC Faults, Events, and System Messages reference and keep only codes whose documented meaning relates to health degradation. Correct or drop the parenthetical descriptions."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The fabric-wide health statistics classes in the APIC MIM are usually named fabricOverallHealth5min / fabricOverallHealthHist5min. The class names given here may not exist, and the same names are used in implementation, detailedImplementation and visualization.",
+      "field": "dataSources",
+      "quote": "**`fabricHealth5min`**, **`fabricHealthHist5min`**, **`fabricHealthInst`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check these class names in the APIC Management Information Model reference and correct them across all fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The SPL has no span=1h, and synthetic probes do not lower APIC health scores. The real benign causes of low ACI health are absent: ISSU or firmware upgrades, nodes in maintenance mode or being decommissioned, acknowledged-but-uncleared faults, and newly provisioned tenants or EPGs with unresolved policy-relation faults (F1011/F1014-style).",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Cisco ACI Fabric Health Score Monitoring (Topology, Tenant, EPG)' shifts `values` over `span=1h` while `dn_lc` remains in-scope. ... Synthetic probe on `dn_lc`",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with ACI-specific benign causes (upgrade/ISSU windows, maintenance-mode nodes, acknowledged faults when Ignore Acknowledged Faults is off, freshly created EPGs missing relations), and suppress by DN plus a change window."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Splunk's tonumber() keeps decimal values; it does not truncate them. This troubleshooting explanation is wrong.",
+      "field": "detailedImplementation",
+      "quote": "Crash-zone mismatch versus GUI typically traces to rounding—Splunk tonumber drops decimals while APIC UI rounds",
+      "severity": "minor",
+      "suggested_fix": "Remove the claim, or say that any rounding difference comes from the poller's or APIC's formatting and should be normalized with round() before thresholds are applied."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL extracts `pod_tag`. There is no `pod_hint` field.",
+      "field": "detailedImplementation",
+      "quote": "confirm pod_hint splits replicate Cisco pod identifiers",
+      "severity": "minor",
+      "suggested_fix": "Change pod_hint to pod_tag."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The end-of-support date for APIC 4.x is stated without a source and may be wrong. Different 4.x trains have different milestones.",
+      "field": "exclusions",
+      "quote": "APIC clusters running 4.x or earlier (out of support since Mar 2024)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco APIC 4.x end-of-life bulletin and cite the exact last-date-of-support, or drop the date."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the reviewer is an automated agent, not an SME, and the text contains a wrong Splunkbase ID and an undocumented scoring model.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a human SME has validated the corrected add-on and health-score facts."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL searches sourcetypes cisco:aci:health / cisco:aci:fault, which no shipped add-on emits. Cisco DC Networking (7777) uses cisco:dc:aci:health / cisco:dc:aci:class, and the legacy 1897 add-on used cisco:apic:health. Out of the box the search returns nothing unless custom pollers are built.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0106-UC-18.1.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation is long and mostly on-topic, but its ingest architecture is built on a non-existent add-on: Splunkbase 4022 is an Nmon add-on, and Cisco DC Networking (7777) already polls APIC health. It also states an invented health-score weighting model and several unverified fault-code meanings. The false-positive text is generic template residue, and the verified status rests on an agent reviewer.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.1",
+  "verdict": "incorrect"
+}

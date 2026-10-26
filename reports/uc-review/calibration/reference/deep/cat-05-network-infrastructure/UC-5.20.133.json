@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "27664c3ce2859f46af901934691eea130a80d544cec9ca6cf74ac71a753a498e",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.133.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is the App for Cisco Network Data, a search-head dashboard app for Cisco syslog. It has no modular input and does not collect NetFlow/IPFIX, which is the only sourcetype the SPL reads. The subcategory guide sends flow data through a NetFlow add-on on a heavy forwarder into `index=netflow`.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name a NetFlow/IPFIX collector (Splunk Stream, or the NetFlow add-on the catalogue standardises on; confirm its Splunkbase ID in data/splunkbase-catalog.json) on a heavy forwarder. Drop the 1352 attribution for this data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "A flow record's next hop is the local router's adjacent hop, so several next hops usually mean ECMP or several exporters, not different anycast sites. NetFlow cannot show which remote instance answered, and nothing in the UC checks service responses.",
+      "field": "dataSources",
+      "quote": "Monitors IPv6 anycast service health by tracking which anycast instance clients reach, detecting routing instability causing flapping between instances, and verifying consistent service responses.",
+      "severity": "major",
+      "suggested_fix": "Describe the signal honestly as 'local egress next-hop diversity toward known anycast addresses'. For instance identification, add a source that can show it, such as DNS NSID / CHAOS `id.server` probes or traceroute/ThousandEyes paths per instance."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description says the search 'pages when `anycast_instances` > 3, or `anycast_instances` > 1', but the SPL labels >1 as OK and only >3 as WARNING. It also never filters, so every destination row is returned regardless of status.",
+      "field": "cross_field",
+      "quote": "anycast_instances > 1, \"OK — \" . anycast_instances . \" anycast instances (normal for multi-homed)\"",
+      "severity": "major",
+      "suggested_fix": "State a single alert condition that matches the SPL (WARNING when distinct next hops > 3 in 4 hours) and describe 2-3 next hops as normal."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL counts distinct next hops over a single 4-hour window with no time ordering. A stable ECMP split looks the same as rapid flapping, so 'rapid changes' cannot be detected. The visualization's 'Timeline: instance changes' and 'Latency to anycast services' are also unsupported, since NetFlow carries no latency.",
+      "field": "implementation",
+      "quote": "Monitor for rapid anycast instance changes.",
+      "severity": "major",
+      "suggested_fix": "Either describe the check as a next-hop diversity count, or specify a change-rate method (for example `streamstats` over `bin _time span=5m` counting next_hop transitions per dest). Remove the latency panel or name a latency source."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/ipv6-operations.md",
+      "explanation": "dataSources offers `cisco:ios` syslog, which has no next-hop field, and the SPL never reads it. The SPL reads `index=network`, while the subcategory guide stores flow data in `index=netflow`.",
+      "field": "cross_field",
+      "quote": "`index=network sourcetype=cisco:ios` or `sourcetype=netflow`",
+      "severity": "minor",
+      "suggested_fix": "List only the flow source the SPL needs, and align the index with the guide's `netflow` index or say the index is site-specific."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The first Steps 1-5 are bare headings with no lookup schema, NetFlow field names (for example the IPFIX next-hop IE) or exporter configuration. The second Steps 1-5 are generic boilerplate about API poll intervals, HEC tokens and vendor HTTP 401/429 errors that does not apply to NetFlow.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Create anycast address lookup.\nStep 2 — Monitor next-hop diversity for anycast destinations.",
+      "severity": "major",
+      "suggested_fix": "Replace both blocks with concrete steps: the anycast lookup columns (dest, service, expected_instances), the exporter template fields needed (ipNextHopIPv6Address / IE 62), the HF collector config, a validation that next_hop is populated, and a runbook that compares against BGP paths for the anycast prefix."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "The SPL counts how many different exits the local network uses toward these services. It does not track individual computers or which city's copy answered, so the explanation promises more than the check delivers.",
+      "field": "grandmaExplanation",
+      "quote": "We make sure your computer consistently reaches the same copy and doesn't keep switching between cities",
+      "severity": "minor",
+      "suggested_fix": "Say it watches how many different routes your network uses to reach these shared services and warns when that number suddenly grows."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "A UC whose detection logic does not measure what the title claims, attributed to an add-on that cannot collect its data, should not be marked verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until the signal and the collection path are corrected and reviewed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`dc(next_hop)` per dest measures local next-hop / ECMP diversity across all exporters, not the anycast instance reached, so the WARNING (>3) mostly reflects topology size. Group by exporter (host / exporter_ip) and dest at minimum, and track transitions over time if flapping is the goal.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The field names `dest` and `next_hop` are assumed. Common NetFlow/IPFIX add-ons expose `dest_ip` and a next-hop field named after the IE (for example `ipNextHopIPv6Address` / `nexthop`). Confirm the field names produced by the chosen collector, or the `match(dest, ...)` filter returns nothing.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The anycast destinations are hard-coded (Google, Cloudflare and OpenDNS resolver IPv6 addresses) instead of using the 'known anycast address lookup' the detailedImplementation describes. Internal anycast services are therefore never covered.",
+      "severity": "minor"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "'Platform' does not fit network service availability monitoring. 'IT Operations' seems more appropriate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0040-UC-5.20.133",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC claims to show which anycast instance clients reach and to detect flapping between instances. Its only signal is a 4-hour count of distinct local NetFlow next hops per well-known resolver address, which shows neither. The collection add-on is a Cisco syslog app that does not ingest NetFlow, and detailedImplementation is a heading-only outline followed by generic API-polling boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.133",
+  "verdict": "incorrect"
+}

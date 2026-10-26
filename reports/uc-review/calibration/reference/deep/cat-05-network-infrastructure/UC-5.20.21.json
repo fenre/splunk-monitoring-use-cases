@@ -1,0 +1,109 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "b993bf20ae70477306d6a9e49c15feaa73b983721d50f6c1bcc05cf2407786b5",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.21.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/dam/global/da_dk/assets/pdfs/cisco_virtual_update-iso-1502se-28-11-12.pdf",
+      "explanation": "Cisco's documented RA Guard drop is a single line with key=value fields: '%SISF-4-PAK_DROP: Message dropped A=FE80::F2F7:55FF:FEBF:F144 G=- V=22 I=Fa1/0/26 P=NDP::RA Reason=Message unauthorized on port'. The text 'RA guard', 'IPv6 SRC:' and 'from port ... interface' never appears. Alert 1's rex extractions and the dataSources filter `Reason:RA guard` would therefore never match.",
+      "field": "detailedImplementation",
+      "quote": "%SISF-4-PAK_DROP: from port Gi1/0/15 interface Vlan100,\n  Packet dropped, Reason:RA guard policy - rogue router advertisement\n  IPv6 SRC: fe80::bad:cafe:dead:beef, IPv6 DST: ff02::1",
+      "severity": "blocker",
+      "suggested_fix": "Use the real format: filter on \"%SISF-4-PAK_DROP\" \"P=NDP::RA\", and extract A= (source address), V= (VLAN) and I= (interface). Check the exact Reason strings for your IOS-XE release in the Cisco System Message Guide."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.zeek.org/en/master/script-reference/log-files.html",
+      "explanation": "Zeek has no icmp.log. ICMP shows up only as summarised flows in conn.log, where the ICMP type sits in id.orig_p, and RA prefix, flags and lifetimes are not logged unless a custom script handles the icmp_router_advertisement event. Every Zeek search here filters on `icmpv6_type=134` and a `prefix=` string that stock Zeek never writes, so the 'secondary detection layer', rate alert, whitelist alert and content-anomaly search have no data.",
+      "field": "detailedImplementation",
+      "quote": "Zeek generates events in `icmp.log` for ICMPv6 Type 134. Forward to Splunk with `sourcetype=corelight_zeek`.",
+      "severity": "blocker",
+      "suggested_fix": "Say that RA visibility needs a custom Zeek script (on icmp_router_advertisement) writing a dedicated log, and name that log and its fields. Or use conn.log with proto=icmp and id.orig_p=134 for presence and rate only. Confirm the Corelight/Zeek sourcetype name used by your add-on."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.juniper.net/documentation/us/en/software/junos/cli-reference/topics/ref/statement/router-advertisement-guard-edit-fo.html",
+      "explanation": "`protocols router-advertisement ... managed-configuration` makes the Junos device send RAs with the M flag set; it does not guard against rogue RAs. Junos RA Guard is configured under `forwarding-options access-security router-advertisement-guard` (policy, vlans, interface). The `ND_RA_BLOCKED` / `RTADV_GUARD_BLOCKED` syslog tags in dataSources also have no source.",
+      "field": "detailedImplementation",
+      "quote": "set protocols router-advertisement interface ge-0/0/0.0 managed-configuration\nset switch-options ip-source-guard-enabled",
+      "severity": "blocker",
+      "suggested_fix": "Replace with the documented RA Guard configuration (for example `set forwarding-options access-security router-advertisement-guard policy <p> accept match-list source-mac-address-list <list>` plus `... vlans <v> policy <p>`). Look up the actual syslog tag Junos emits for dropped RAs before naming it."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/2812",
+      "explanation": "Splunkbase 2812 is the 'EMC XtremIO App for Splunk Enterprise'. Cisco IOS syslog parsing comes from TA-cisco_ios (Splunkbase 1467, deprecated) or its successor, the Cisco Catalyst Add-on for Splunk (Splunkbase 7538).",
+      "field": "app",
+      "quote": "Splunk Add-on for Cisco IOS (`Splunk_TA_cisco-ios`, Splunkbase 2812) for SISF/RA Guard syslog.",
+      "severity": "blocker",
+      "suggested_fix": "Replace it with 'Cisco Catalyst Add-on for Splunk (TA_cisco_catalyst, Splunkbase 7538)', noting legacy TA-cisco_ios (Splunkbase 1467)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "SISF ENTRY_CREATED is logged when a device-tracking binding-table entry is created for a host address. It is not a per-RA 'legitimate RA' event, so counting it as legitimate RAs is likely wrong.",
+      "field": "dataSources",
+      "quote": "and `%SISF-6-ENTRY_CREATED` for legitimate RAs.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco System Message Guide for SISF-6-ENTRY_CREATED. If it is a binding event, drop it from this UC or describe it as host-binding telemetry."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "No source is given for IOS-XE 16.x as the release that adds RFC 7113 fragment handling, or for a 'reassembly' option in the RA Guard policy. The RA Guard policy has `match ipv6 access-list`, but blocking undetermined-transport fragments is normally a separate IPv6 ACL (`deny ipv6 any any undetermined-transport`).",
+      "field": "detailedImplementation",
+      "quote": "Fix: upgrade to Cisco IOS-XE 16.x+ which implements RFC 7113 mitigations, and deploy `ipv6 nd raguard policy <name>` with `match ipv6 access-list` and reassembly.",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite Cisco's RA Guard / IPv6 FHS configuration guide for the RFC 7113 mitigation, or recommend the undetermined-transport ACL on access ports."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Kubernetes and Palo Alto have no part in any search, and equipmentModels lists kubernetes_helm. Suricata is mentioned once in implementation with no data source or search.",
+      "field": "equipment",
+      "quote": "\"kubernetes\",\n    \"paloalto\",\n    \"suricata\"",
+      "severity": "minor",
+      "suggested_fix": "Limit equipment to cisco, juniper, zeek and syslog (and remove kubernetes_helm), or add Suricata/PAN data sources and searches."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/ipv6-operations.md",
+      "explanation": "The IOS command is `ipv6 nd ra interval` (with a space), as the guide's own configuration shows. The 200-second Cisco default is right.",
+      "field": "dataSources",
+      "quote": "(default `ipv6 nd ra-interval 200`)",
+      "severity": "minor",
+      "suggested_fix": "Write `ipv6 nd ra interval` (default 200 s on Cisco IOS)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The \"RA guard\" and \"router-advertisement\" keyword filters do not match the real SISF PAK_DROP format (P=NDP::RA, Reason=...). Stock Zeek writes no icmpv6_type field. The VRRP/HSRP MAC exclusion '^(00:00:5e|00:01:00)' covers VRRP but not HSRPv2-IPv6 (00:05:73:a0), and it marks every physically sourced router RA as UNVERIFIED_RA. As written, the search would mostly return nothing.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0037-UC-5.20.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The threat model and runbook are useful, but the UC's data-collection facts are wrong in several places: the Cisco RA Guard syslog format is invented, Zeek has no icmp.log or icmpv6_type field, the Juniper configuration is not RA Guard, and the Splunkbase ID belongs to an unrelated EMC app. The searches would mostly return nothing, which contradicts `status: verified`.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.21",
+  "verdict": "incorrect"
+}

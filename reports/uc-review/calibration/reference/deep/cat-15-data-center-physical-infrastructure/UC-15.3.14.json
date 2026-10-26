@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fd8f06f7213cc8457c532e454057ed2a8f9bc6db26cc8a071d9cd320c1b1ab24",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "None of the false positives is a real cause of a spurious tailgate or anti-passback (APB) event. Health-check probes and batch automation do not generate access-controller APB violations.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `door`, `badge_holder`, `reader_id`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: users who left through an emergency exit, a held door or an offline exit reader, so no exit read was recorded and their next entry trips APB; timed or soft APB resets that leave stale \"inside\" states; escorted groups or visitors entering on one badge; reader double-reads; and controller clock or offline-buffer replays after a panel reconnects."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Anti-passback violations are a native controller event, but tailgate events exist only where extra hardware produces them, such as anti-tailgating sensors, optical turnstiles or mantrap interlocks. On ordinary badge-reader doors this search will never show tailgating. The guide instead detects tailgating candidates by correlating granted and door-open events.",
+      "field": "dataSources",
+      "quote": "where Splunk extracts `event_subtype` (for example tailgate or apb_violation)",
+      "severity": "major",
+      "suggested_fix": "State that tailgate rows require tailgate-capable hardware or controller logic. For doors without it, point readers to a correlation-based tailgating detection (for example sibling UC-15.3.3, or the transaction-based search in the guide)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "explanation": "In savedsearches.conf, `alert.suppress` is a boolean. Per-field throttling needs `alert.suppress = 1` together with `alert.suppress.fields = door,badge_holder` and `alert.suppress.period`.",
+      "field": "detailedImplementation",
+      "quote": "apply `alert.suppress` on `door` plus `badge_holder` for at least two poll intervals",
+      "severity": "minor",
+      "suggested_fix": "Write the settings out in full: `alert.suppress = 1`, `alert.suppress.fields = door,badge_holder`, `alert.suppress.period = 10m` (two 5-minute intervals)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The text calls it a five-minute window but gives a 15-minute time range.",
+      "field": "detailedImplementation",
+      "quote": "verify a five-minute soak window (`-15m` to `now`)",
+      "severity": "minor",
+      "suggested_fix": "Use one value, for example \"a 15-minute soak window (`-15m` to `now`)\"."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The implementation refers to per-door thresholds, but the SPL has no threshold: any single tailgate or APB event produces a row. The throttle keys (`badge_holder`, `reader_id`) also differ from the `door` plus `badge_holder` keys given in detailedImplementation.",
+      "field": "cross_field",
+      "quote": "tune alert thresholds per `door` with throttles keyed on `badge_holder` and `reader_id`",
+      "severity": "minor",
+      "suggested_fix": "State that every violation alerts by default, and that per-door thresholds need an added `where count >= N` (or a lookup). Use the same throttle fields in both places."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/releases/sources/",
+      "explanation": "The guide's documented path for Lenel OnGuard is DB Connect against `lnl_event_log`, which this UC omits. SC4S also has no built-in parser that emits `sourcetype=access_control`: unmatched syslog lands as `sc4s:fallback` unless a custom log path is written.",
+      "field": "dataSources",
+      "quote": "ingest is commonly via Splunk Connect for Syslog (Splunkbase app 4740) or a Heavy Forwarder `inputs.conf` TCP/UDP syslog listener",
+      "severity": "minor",
+      "suggested_fix": "Add the DB Connect option for database-backed systems (Lenel, CCURE), and note that SC4S needs a custom filter or log path to assign `access_control`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The only equipment tag is the transport. The monitored equipment, the physical access control system, is not tagged.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"syslog\"]",
+      "severity": "minor",
+      "suggested_fix": "Add the catalogue's access-control / badge-system equipment slug."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search counts every Authentication event by user, action and src, with no filter for tailgate or APB events and no physical-access tag, so it does not perform this detection. The Authentication model also has no field for the violation subtype. Either constrain it (for example by tag or `Authentication.signature` mapped from `event_subtype`) or drop the CIM variant.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) covers misuse of logical credentials. Physical tailgating and anti-passback violations are not a clean fit, so confirm the mapping is intended or remove it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0094-UC-15.3.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The ingest, evidence and exclusions text is specific and matches the SPL. The known false positives, however, are a generic template with no real anti-passback or tailgate causes. The UC also never says that tailgate events exist only where the door hardware can detect them, and its CIM search does not isolate tailgate or anti-passback events at all.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.14",
+  "verdict": "rewrite"
+}

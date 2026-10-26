@@ -1,0 +1,132 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "93e672a3d085f832f70ef1e3398320c3726de21e8089b8ed61974637092ccacb",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.97.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 833 (Splunk_TA_nix) collects OS metrics and logs from Unix/Linux hosts. It has no input or parsing for Thread, Matter or 6LoWPAN border routers and does not produce `thread:gateway`, `matter:controller` or `6lowpan:border_router`. dataSources repeats the claim ('Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll').",
+      "field": "app",
+      "quote": "Custom scripted input / Splunk Edge Hub — Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "severity": "blocker",
+      "suggested_fix": "State plainly that collection is custom: an HEC-posting script against the OpenThread Border Router REST API, syslog via SC4S, or Splunk Edge Hub over MQTT. Make clear that no Splunkbase add-on provides these sourcetypes, and remove the Splunkbase 833 attribution from both app and dataSources."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "HTTP Event Collector does not accept UDP syslog on port 514. Pointing device syslog at a 'HEC IP' sends it to a receiver that is not listening, so no events arrive.",
+      "field": "detailedImplementation",
+      "quote": "logging host <splunk_hec_ip> transport udp port 514",
+      "severity": "major",
+      "suggested_fix": "Send syslog to an SC4S instance or a syslog-receiving forwarder (`logging host <sc4s_ip> transport udp port 514`) and state which sourcetype SC4S assigns."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The Cisco IR1101 has no IEEE 802.15.4 / Thread radio. Cisco's 6LoWPAN products (CGR1000 WPAN module, IR500/IR510) use Wi-SUN/CG-Mesh rather than Thread, so the example device appears wrong.",
+      "field": "detailedImplementation",
+      "quote": "Cisco IR1101 or similar industrial border routers can export Thread/6LoWPAN events via syslog",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Cisco IR1101 datasheets for any Thread/802.15.4 support. If there is none, replace the example with a Thread border router that really exports syslog (for example an OpenThread Border Router on Linux via rsyslog)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Port 8081 with `/diagnostics` matches the OpenThread Border Router (otbr-agent) REST server, which is not known to use bearer-token auth. Apple HomePod mini and Google Nest Hub border routers do not expose this API, so Option C will not work for the 'Google/Apple ecosystem' devices named in Prerequisites.",
+      "field": "detailedImplementation",
+      "quote": "**Option C — REST API polling (Google/Apple ecosystem):**\nFor consumer/enterprise Thread border routers, poll the Thread diagnostics API:\n```python\nimport requests\nimport json\n\nresponse = requests.get('http://border-router.local:8081/diagnostics',\n    headers={'Authorization': 'Bearer <token>'})",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OTBR REST API documentation (openthread.io / ot-br-posix rest) and describe Option C as OTBR-only, with no bearer header unless one really exists. Drop HomePod mini / Nest Hub as monitored sources, or state that they offer no log export."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The availability search covers only the last hour, so a border router silent for more than an hour drops out of the results instead of showing as OFFLINE. The routers you most need to see therefore never appear.",
+      "field": "detailedImplementation",
+      "quote": "index=iot sourcetype=\"thread:gateway\" earliest=-1h\n| stats latest(_time) as last_seen by host",
+      "severity": "major",
+      "suggested_fix": "Drive the check from a lookup of expected border routers, or use a longer window (for example `| tstats latest(_time) where index=iot sourcetype=thread:gateway by host` over 7d), so hosts that have gone missing are listed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources lists `index=network sourcetype=syslog`, which the SPL never searches. The SPL searches `6lowpan:border_router`, which dataSources never mentions. All three iot sourcetypes are site-defined names that are never labelled as such.",
+      "field": "cross_field",
+      "quote": "`index=iot sourcetype=thread:gateway` or `sourcetype=matter:controller` or `index=network sourcetype=syslog`",
+      "severity": "major",
+      "suggested_fix": "Align dataSources with the SPL's index and sourcetype list, and state that `thread:gateway`, `matter:controller` and `6lowpan:border_router` are custom sourcetypes the implementer must create in props.conf / HEC."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The OpenThread CLI command for on-mesh prefixes is `prefix` (with `netdata show` and `br omrprefix` for border-router prefixes). `prefixes` may not be a valid ot-ctl command.",
+      "field": "detailedImplementation",
+      "quote": "Check with `ot-ctl prefixes` on an OpenThread border router.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OpenThread CLI reference and use `ot-ctl prefix` / `ot-ctl netdata show` / `ot-ctl br omrprefix` as appropriate."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Matter controllers commission and control Matter devices. The Thread network itself (partitions, leader, prefixes) is managed by Thread routers, the leader and the border router.",
+      "field": "dataSources",
+      "quote": "Matter controllers commission devices and manage the Thread network.",
+      "severity": "minor",
+      "suggested_fix": "Say Matter controllers commission and operate Matter devices, and that the Thread border router and leader manage the Thread mesh."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The explanation describes the setup but never says what the UC watches for: the translator box failing, the mesh splitting into separate groups, address hand-outs failing, or an unusual number of new devices joining.",
+      "field": "grandmaExplanation",
+      "quote": "There's one special device (the border router) that acts like a translator between this mesh network and your home internet.",
+      "severity": "minor",
+      "suggested_fix": "Add a sentence such as: 'This check warns when the translator box stops working, when the mesh splits apart, or when an unexpected number of new gadgets join.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified status is not supported. The collection path relies on an unrelated add-on, invented sourcetypes and unverified device capabilities, which SME review would have caught.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft or community until collection has been tested against a real Thread border router."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The case() patterns are very loose. `(?i)...|BR.*fail` matches any text containing 'br' followed later by 'fail' (for example 'bridge ... failed'). `partition.?id` matches routine Thread log lines that simply print the partition ID, and `attach` matches normal child re-attachments, so BR_FAILURE and MESH_PARTITION will fire on benign events.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search never filters rows by severity, so every host/event_type pair, including INFO and OTHER, is returned. As a scheduled alert it fires on every run. Add `| where severity!=\"INFO\"` or an equivalent filter.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "'Platform' does not fit IoT gateway availability and security monitoring. 'IT Operations' (or Security for the unauthorized-join part) seems more appropriate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-5.20.97",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The protocol background on 6LoWPAN, Thread and Matter is reasonable, but the collection story is wrong or unsupported. The Unix and Linux add-on is named as the collector, syslog is pointed at a HEC IP, a Cisco router without Thread support is cited, and consumer border routers are assumed to expose an authenticated diagnostics API. The sourcetypes are invented and differ between dataSources and the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-5.20.97",
+  "verdict": "incorrect"
+}

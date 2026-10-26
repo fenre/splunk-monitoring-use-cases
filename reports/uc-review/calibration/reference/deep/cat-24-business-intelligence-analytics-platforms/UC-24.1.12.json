@@ -1,0 +1,98 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e458ea2f5899fb327606db1792b9c14ec4bb71424c58911352c3c127d946747d",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.1.12.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://tableau.github.io/tableau-data-dictionary/2025.3/data_dictionary.htm",
+      "explanation": "This is the shared subcategory boilerplate. None of the listed logs or tables carry disk free space, and the sourcetype the SPL actually queries (`tableau:tsm:metrics`, metric `disk_free_bytes`) is not mentioned.",
+      "field": "dataSources",
+      "quote": "Tableau Server logs (`tableau:backgrounder`, `tableau:vizqlserver`, `tableau:httpd`), `workgroup` repository tables (`background_jobs`, `http_requests`, `_views_stats`, `licensing`) via DB Connect",
+      "severity": "major",
+      "suggested_fix": "Name the real disk-space feed. Either the `workgroup` table `public.historical_disk_usage` (worker_id, path, total_space_bytes, used_space_bytes, state, record_timestamp) via DB Connect, or OS disk metrics from the forwarder (for example, Splunk Add-on for Unix and Linux `df`, or Windows Perfmon LogicalDisk). State the sourcetype the SPL expects."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://help.tableau.com/current/server/en-us/trouble_disk_space.htm",
+      "explanation": "I could not find a documented TSM API or metrics stream that emits a `disk_free_bytes` metric per host and mount. Tableau documents disk monitoring through storage.monitoring.* settings, the Server Disk Space admin view and the repository table `historical_disk_usage`.",
+      "field": "implementation",
+      "quote": "Ingest TSM metrics via HEC; schedule every 15 minutes; alert below your threshold.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether `tableau:tsm:metrics` comes from a real TSM endpoint or a custom script. If it is custom, document the script and its output fields. Otherwise switch the guidance to `historical_disk_usage` via DB Connect (free = total_space_bytes - used_space_bytes) or OS disk telemetry."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://help.tableau.com/current/server/en-us/cli_configuration-set_tsm.htm",
+      "explanation": "The text gives no threshold, even though the SPL hardcodes 20 GB. It does not mention Tableau's native warning and critical thresholds (storage.monitoring.warning_percent default 20, critical_percent default 10), and 'temp cleanup' is not tied to any Tableau mechanism.",
+      "field": "implementation",
+      "quote": "alert below your threshold. Automate temp cleanup where safe.",
+      "severity": "major",
+      "suggested_fix": "State the 20 GB SPL threshold, or a percent threshold aligned with storage.monitoring.warning_percent / critical_percent. Reference `tsm maintenance cleanup` for log and temp file removal, and say which node partitions (data directory and repository/pgsql) matter."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The whole field is a generic five-step template (modular input or HEC token, `list_inputs` role, throttle per entity, inventory count comparison) with nothing about Tableau disk monitoring. For a disk-free metric, an inventory count comparison is meaningless.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Replace it with Tableau-specific steps. Collect disk free space per node, validate it against the Server Disk Space administrative view for each node, alert per host and path, and route to the Tableau admin team."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Apache httpd has nothing to do with a disk-space detection. PostgreSQL is relevant only if the repository data partition is what you monitor, and the SPL does not single it out.",
+      "field": "equipmentModels",
+      "quote": "\"apache_httpd\",\n    \"postgresql_pg\"",
+      "severity": "minor",
+      "suggested_fix": "Drop apache_httpd. Keep postgresql_pg only if the UC is narrowed to the repository partition."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the references cover disk-space monitoring.",
+      "field": "references",
+      "quote": "Tableau Server — View server logs",
+      "severity": "minor",
+      "suggested_fix": "Add https://help.tableau.com/current/server/en-us/trouble_disk_space.htm and the Server Disk Space admin view page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sourcetype=tableau:tsm:metrics metric=disk_free_bytes` does not match any documented Tableau feed. Check it, or rewrite against `historical_disk_usage` (total_space_bytes - used_space_bytes by worker_id, path) or OS disk metrics.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Repository Disk Space', but the SPL alerts on every mount on every host and does not isolate the repository (PostgreSQL) data partition.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The fixed 20 GB absolute threshold ignores disk size. Tableau's own monitoring uses percent-remaining thresholds (20% warning, 10% critical), so consider adding a pct_free calculation.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0141-UC-24.1.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The goal is simple and the grandma text fits, but the data-source fields are subcategory boilerplate that never mention a disk-space feed. The SPL relies on an undocumented `tableau:tsm:metrics` / `disk_free_bytes` feed, while Tableau's own documented sources (the `historical_disk_usage` repository table and the storage.monitoring thresholds) are not mentioned anywhere.",
+  "tier": "deep",
+  "uc_id": "UC-24.1.12",
+  "verdict": "rewrite"
+}

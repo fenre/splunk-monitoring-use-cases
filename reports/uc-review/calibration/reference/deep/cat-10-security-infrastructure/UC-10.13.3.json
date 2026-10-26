@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0e6055ba70e60d40b6bb00b02c705133156a894738c4f06dca8f261b7bffaa42",
+  "file": "content/cat-10-security-infrastructure/UC-10.13.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/CommonStatsFunctions",
+      "explanation": "The search embedded in detailedImplementation calls `current()` and `prev()`, which are not Splunk statistical functions; the supported event-order functions are first/last/earliest/latest. It also differs from the spl field, which uses last(). As printed, a reader pasting this into Search gets an error.",
+      "field": "detailedImplementation",
+      "quote": "| streamstats window=2 global=f current(Country) as cur_c prev(Country) as prev_c current(_time) as ts prev(_time) as pts by user",
+      "severity": "blocker",
+      "suggested_fix": "Make the embedded search identical to the reviewed spl field once that is corrected. Explain the previous-event pattern with valid syntax, for example `sort 0 user _time | streamstats current=f window=1 last(Country) as prev_c last(_time) as pts last(lat) as plat last(lon) as plon by user`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation ('two successful auths from distant src locations within a window that precludes travel') describe distance and speed. The spl only checks a country change within 3600 s, and the cimSpl only counts more than one distinct src per 15 minutes. Neither computes distance or speed, so a cross-border commute or two NATed office IPs fire while a distant same-country hop does not.",
+      "field": "cross_field",
+      "quote": "implementation: \"Enrich with `src_lat`/`src_lon` for haversine distance when available; whitelist VPN egress ASNs; tune time window per org.\"",
+      "severity": "major",
+      "suggested_fix": "Describe what the search actually does (country change per user within 1 hour), or document the intended logic: haversine distance between consecutive logins divided by the time delta, flagged above a speed such as 900 km/h, with a minimum distance floor."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Iplocation",
+      "explanation": "`iplocation` is a built-in search command that uses the GeoLite2 City database shipped with Splunk. It returns City, Country, Region, lat and lon, is not TA enrichment, and returns no ASN. Implementation's 'whitelist VPN egress ASNs' therefore needs a separate ASN lookup that is never named.",
+      "field": "app",
+      "quote": "IdP + iplocation enrichment in TA — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Name the authentication add-ons in use (for example Splunk Add-on for Microsoft Windows 742, Splunk Add-on for Okta Identity Cloud 6553, or the Entra ID input) for CIM Authentication. State that geolocation comes from the built-in iplocation command (optionally with an updated MaxMind DB) and that ASN allow-listing needs a separately maintained ASN or VPN-egress lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic template text. They omit the dominant real false-positive causes for impossible travel: corporate VPN or SASE egress (Zscaler, Netskope) in other countries, mobile carrier CGNAT geolocating far from the user, cloud or IdP service IPs logged as src, inaccurate GeoIP for IPv6 and new ranges, and an internal src (RFC1918) that iplocation cannot place.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `user`** — Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List those causes and the fix for each: a VPN/SASE egress lookup, excluding RFC1918 and IdP or cloud service IPs, a minimum-distance floor, and keeping the GeoIP database current."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Steps 1 to 4 appear twice. The second block is generic template text (HEC, vendor API 401/429, 'sourcetype=see SPL') that does not help implement impossible travel. The search must process events in time order per user, and that requirement is never stated.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into security. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence: confirm CIM Authentication src is a public IP; sort ascending by _time per user; compute distance and speed; exclude VPN and SASE egress; schedule with a lookback longer than the speed window; validate with a test login from a known VPN exit in another country."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "It does not say what is detected. A lay reader learns nothing about the same account signing in from two far-apart places too quickly for a person to travel between them.",
+      "field": "grandmaExplanation",
+      "quote": "We use the same kind of check described for \"Impossible Travel Detection\" once our data is shaped in a common, repeatable way across products.",
+      "severity": "major",
+      "suggested_fix": "If the same account signs in from two places so far apart that nobody could travel between them in the time between logins, for example London and then Singapore twenty minutes later, we flag it, because someone else may be using that password."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "HEC, inputs.conf and savedsearches.conf references do not support an impossible-travel UC. The iplocation command reference is missing.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk HTTP Event Collector\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with the iplocation search reference and, if distance is computed, the haversine formula or a Lantern impossible-travel article."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`current()` is not a valid stats or streamstats function, so the search errors. Even with valid functions, last() in a window of 2 that includes the current event returns the current event's value, so prev_c always equals cur_c. Events also arrive newest-first, so the 'previous' event is chronologically later and (ts-pts) is negative and always < 3600. Sort ascending and use `streamstats current=f window=1 last(...) by user`, then compute the time delta and distance.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`dc(Authentication.src) > 1` per 15 minutes is not impossible travel. It fires on any user with two source IPs (NAT, IPv4/IPv6 dual stack, Wi-Fi to LTE) and does no geolocation.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0067-UC-10.13.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC is labelled critical/advanced impossible-travel, but the text describes distance-based logic (haversine, ASN allow-listing) that neither search implements. The detailedImplementation SPL differs from the spl field and uses `prev()`, which is not a Splunk stats function. Geolocation is credited to a TA rather than the built-in `iplocation` command, and the remaining prose is template residue.",
+  "tier": "deep",
+  "uc_id": "UC-10.13.3",
+  "verdict": "incorrect"
+}

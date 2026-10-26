@@ -1,0 +1,109 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "aefbe368a5c58fe89a9f4460102f9f1c0b87985efffcfe4a17b20a1fc843af1b",
+  "file": "content/cat-06-storage-backup/UC-6.1.51.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/NetApp/Sourcetypes",
+      "explanation": "The Splunk Add-on for NetApp Data ONTAP writes volume inventory to `ontap:volume` and performance data to `ontap:perf`, and it collects through ONTAP API polling run by the Hydra scheduler on data collection nodes. It has no `netapp:ontap:vol` sourcetype and does not collect through a Universal Forwarder modular input. Sibling UC-6.1.39 already uses the TA's real `ontap:*` naming.",
+      "field": "dataSources",
+      "quote": "Volume capacity with FabricPool footprint in `netapp:ontap:vol` (ONTAP REST storage/volumes) Collected via Universal Forwarder (Splunkbase 617) modular input",
+      "severity": "blocker",
+      "suggested_fix": "Say the volume inventory comes from the Splunk Add-on for NetApp Data ONTAP as `sourcetype=ontap:volume` (index `ontap` by default), collected by the TA's API scheduler on a data collection node or heavy forwarder. If a custom ONTAP REST scripted input is intended instead, name it as custom and state its sourcetype explicitly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.netapp.com/us-en/ontap-restapi/get-storage-volumes.html",
+      "explanation": "The ONTAP REST `/api/storage/volumes` resource has no `space.cloud_storage` or `cloud_storage_footprint` field. The per-volume FabricPool footprint is reported as `space.capacity_tier_footprint` (cloud or capacity tier) and `space.performance_tier_footprint` (local tier). `space.logical_space` is an object, not a byte count.",
+      "field": "implementation",
+      "quote": "Map REST `space.cloud_storage` or `cloud_storage_footprint` with `FIELDALIAS`",
+      "severity": "blocker",
+      "suggested_fix": "Reference `space.capacity_tier_footprint` and `space.performance_tier_footprint`, and `space.logical_space.used` for logical usage. Note that these are expensive fields that must be requested explicitly with `fields=`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/storage-backup.md",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/NetApp/Sourcetypes",
+      "explanation": "API collection for this add-on is managed by the Hydra scheduler working with data collection nodes, not by a Universal Forwarder. Pairing the add-on with the Universal Forwarder misleads readers about where to deploy it. The add-on's Splunkbase listing is 1664, as the UC's own references and the storage guide show.",
+      "field": "app",
+      "quote": "Splunk Add-on for NetApp Data ONTAP (`TA-netapp_ontap`) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk Add-on for NetApp Data ONTAP (Splunkbase 1664), deployed on a data collection node or heavy forwarder and the search heads. Remove the Universal Forwarder reference."
+    },
+    {
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC trends how much volume data ONTAP FabricPool has moved to the cloud or capacity tier relative to logical size. It is not a capacity-exhaustion warning, and the explanation never mentions tiering, cold data, or cloud cost.",
+      "field": "grandmaExplanation",
+      "quote": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+      "severity": "major",
+      "suggested_fix": "Explain that the storage system moves rarely used data to cheaper cloud storage, and that this view shows how much each volume has moved over time so you can confirm the savings and spot unexpected changes."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL computes `cold_pct` and then drops it with a `timechart` that only keeps `cloud_bytes` and `logical_bytes` by `volume_name`, so a `cold_pct` table cannot be built from this search's output. Nothing in the UC computes savings, even though the title promises 'footprint savings'.",
+      "field": "visualization",
+      "quote": "table (volume, cold_pct), single value (fleet cloud TB)",
+      "severity": "major",
+      "suggested_fix": "Either describe only the panels the SPL supports (cloud bytes against logical bytes per volume), or note that the `cold_pct` table and the fleet total need a separate `stats latest(...) by volume_name` search."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "This is a capacity and cost trending report with no alert condition, so throttling, paging and severity routing do not apply. Steps such as granting `list_inputs` and running `| tstats count where index=... sourcetype=...` are generic boilerplate that never mentions FabricPool, the tiering policy, or the object store.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. ... Route critical severity to the platform on-call channel",
+      "severity": "major",
+      "suggested_fix": "Describe enabling the TA's volume inventory collection, confirming the FabricPool footprint fields are populated for volumes on FabricPool aggregates, and scheduling the search as a daily report. Remove the alert-paging steps."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The `implementation` field mixes the TA's real `ontap:vserver` sourcetype with the invented `netapp:ontap:vol` used in `dataSources` and the SPL. The two names cannot both come from the same add-on.",
+      "field": "cross_field",
+      "quote": "Optional: join `ontap:vserver` events for SVM ownership.",
+      "severity": "minor",
+      "suggested_fix": "Use one sourcetype family throughout (`ontap:volume` and `ontap:vserver` from the add-on)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sourcetype=\"netapp:ontap:vol\"` is not a sourcetype the Splunk Add-on for NetApp Data ONTAP produces (it produces `ontap:volume`, default index `ontap`). The search will return nothing on a standard TA deployment.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "In `eval`, the unquoted `space.cloud_storage` and `space.logical` are parsed as string concatenation of the fields `space` and `cloud_storage`, not as dotted field names. They need single quotes, and these REST fields do not exist anyway; the correct field is `space.capacity_tier_footprint`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`timechart span=1h sum(cloud_b)` sums point-in-time gauge values. With a 300-second poll it reports about 12 times the real footprint. Use `latest()` or `avg()` per volume. `cold_pct` is computed and then discarded.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'cloud footprint savings', but the SPL computes no savings metric.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0044-UC-6.1.51",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The text is mostly template residue, and its product facts are wrong. The Splunk Add-on for NetApp Data ONTAP does not emit `netapp:ontap:vol`, does not collect through a Universal Forwarder, and the ONTAP REST field named for the cloud-tier footprint does not exist. The plain-language explanation describes generic capacity exhaustion rather than FabricPool tiering or savings.",
+  "tier": "deep",
+  "uc_id": "UC-6.1.51",
+  "verdict": "incorrect"
+}

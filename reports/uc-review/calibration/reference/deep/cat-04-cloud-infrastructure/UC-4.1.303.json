@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "6b9d5868480ec113ec4d206e06bdf170eb93c6cff7d93490c424d22b6424c0a3",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.1.303.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Creating a virtual MFA device is normally a user enrolling MFA, which reduces risk. It does not expand network attack surface, and nothing supports 'often precedes ... crypto-mining'. The meaningful signal is MFA registered by someone other than the account owner, or registered on root or a high-privilege user, which is a persistence technique.",
+      "field": "value",
+      "quote": "expands credential and network attack surface and often precedes persistence or crypto-mining activity",
+      "severity": "major",
+      "suggested_fix": "Explain that most events are legitimate enrollments, and that the UC matters when the caller differs from the user the device is enabled for, when it targets root or privileged users, or when it follows suspicious access (adversary-registered MFA for persistence)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is boilerplate. It omits the dominant benign cause, users enrolling or re-enrolling MFA through the console during onboarding or after a lost phone (often leaving orphan devices from abandoned attempts). `aws:accountId` is not a CloudTrail field (use recipientAccountId or userIdentity.accountId).",
+      "field": "knownFalsePositives",
+      "quote": "Planned change windows registered in CMDB; automation roles used by CI/CD pipelines with documented service accounts; sandbox accounts excluded via `aws:accountId` lookup.",
+      "severity": "major",
+      "suggested_fix": "List self-service MFA enrollment (the caller is the same user who later calls EnableMFADevice), helpdesk MFA resets by a named admin role, and onboarding waves, and replace `aws:accountId` with recipientAccountId."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is template text: the SPL has no thresholds or lookup, and CloudTrail is ingested through the SQS-based S3 input, not by polling. It leaves out the key tuning step: correlating CreateVirtualMFADevice with the following EnableMFADevice to see which user the device was attached to and whether the caller is that user.",
+      "field": "detailedImplementation",
+      "quote": "Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup. ... (3) API throttling — reduce poll frequency or enable queue buffering",
+      "severity": "major",
+      "suggested_fix": "Add a step that correlates CreateVirtualMFADevice with EnableMFADevice (requestParameters.userName) and flags cases where userIdentity differs from the target user, or where the target is root or a privileged user."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html",
+      "explanation": "CreateVirtualMFADevice is an IAM management event, so data events are not needed. IAM is a global service whose events are recorded in us-east-1, so a trail or input limited to other regions misses them, and awsRegion will always be us-east-1.",
+      "field": "implementation",
+      "quote": "Enable organization-wide CloudTrail with management and data events for cloudtrail.",
+      "severity": "minor",
+      "suggested_fix": "Say that management events are sufficient, and that the trail (multi-region or org trail) and the add-on input must include us-east-1, where IAM events are delivered."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "`visualization` says 'critical alert' although `criticality` is medium, and it asks for a resource column the SPL does not output (no virtual MFA device name or target user).",
+      "field": "cross_field",
+      "quote": "Events list (critical alert), Timeline by eventName, Table of actor and resource.",
+      "severity": "minor",
+      "suggested_fix": "Drop 'critical' and name the resource field to show (for example requestParameters.virtualMFADeviceName; verify against sample events)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the generic template with the title pasted in lower case. It is jargon-heavy and does not explain why a new MFA device matters.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of aws cloudtrail iam virtual mfa device create so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "For example: 'When someone sets up a new phone app for the second login step on an AWS account, we note it. Usually it's the owner, but if someone else does it, they may be trying to lock in their own way back into that account.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 (Cloud Accounts) is weak. Adversary MFA registration maps more directly to T1098.005 (Account Manipulation: Device Registration) or T1556.006 (Modify Authentication Process: Multi-Factor Authentication).",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Does not output the device name or target user, and does not correlate with EnableMFADevice, so caller-versus-target analysis is impossible. It also carries the `eval uc_marker` template residue.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`where All_Changes.action=*` returns all changes rather than this event. The add-on maps CreateVirtualMFADevice to Change/Account_Management, so filter on that dataset and action.",
+      "severity": "minor"
+    },
+    {
+      "field": "compliance",
+      "issue": "AU-2 (Event logging) is a loose fit; MFA enrollment monitoring is closer to IA-2(1)/IA-5 or AC-2 account-management evidence.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0024-UC-4.1.303",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The CloudTrail filter for `CreateVirtualMFADevice` is valid. The value text overstates the risk of what is usually routine MFA enrollment and never explains the real threat, which is an attacker registering their own MFA device on a compromised identity. Implementation, false-positive and plain-language text are template boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-4.1.303",
+  "verdict": "rewrite"
+}

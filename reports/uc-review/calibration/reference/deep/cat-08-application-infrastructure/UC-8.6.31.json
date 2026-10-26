@@ -1,0 +1,79 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "967f408dc27a9ed56423c14e94bd9e83d5192be359ba3447e1efec0f0268e15b",
+  "file": "content/cat-08-application-infrastructure/UC-8.6.31.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`implementation` describes a per-queue p95 baseline sustained for 15 minutes, while the SPL, `description` and `controlTest` use a fixed `redeliver_rate > 5` (messages per second) evaluated per 5-minute bucket with no baseline or persistence check.",
+      "field": "cross_field",
+      "quote": "Baseline per queue. Alert when redeliver rate exceeds historical p95 for 15 minutes.",
+      "severity": "major",
+      "suggested_fix": "Pick one rule and state it everywhere: either the fixed threshold of more than 5 redeliveries per second per queue, or a per-queue p95 baseline (and then the SPL must be changed by a human to compute it)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://www.rabbitmq.com/docs/management",
+      "explanation": "Generic template steps that never say how to poll RabbitMQ: no endpoint URL, no management user with the `monitoring` tag, no note that `/api/queues` returns one JSON array for all queues and must be split into one event per queue, and no `KV_MODE=json`. Without splitting, `name` and `vhost` become multivalue and the per-queue split fails. A 300–900 s poll interval is also coarse for a 5-minute spike window.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=rabbitmq:queue into messaging. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs`",
+      "severity": "major",
+      "suggested_fix": "Describe a scripted or HEC poller calling `GET http://<broker>:15672/api/queues` (optionally `?columns=name,vhost,message_stats.redeliver_details.rate`) as a read-only `monitoring` user every 60 s, emitting one JSON event per queue to `index=messaging sourcetype=rabbitmq:queue` with `KV_MODE=json`; validate by comparing a queue's rate in the management UI with the indexed value."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "explanation": "The note is useful but does not tell the reader that the dotted JSON path must be referenced as `'message_stats.redeliver_details.rate'` (single-quoted) in eval, or which flattened name the fallback `redeliver_rate` is expected to be.",
+      "field": "implementation",
+      "quote": "Normalize field names after JSON extraction (some collectors flatten with underscores).",
+      "severity": "minor",
+      "suggested_fix": "Name both supported field spellings (dotted JSON path from KV_MODE=json and the flattened `redeliver_rate`) and how to alias one to the other in props.conf."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence is ungrammatical ('to surfaces') and relies on jargon (consumers, retry storms, broker) a non-technical reader will not know.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to surfaces flaky consumers and retry storms that waste broker resources",
+      "severity": "minor",
+      "suggested_fix": "e.g. \"We watch for messages that keep getting handed out again because the program meant to process them keeps failing, which wastes the message system's capacity and slows everything down.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... by vhost, name` uses two split-by fields; timechart accepts only one split-by field, so the search fails. Use `eval queue=vhost.\"/\".name | timechart ... by queue` or switch to `bin _time span=5m | stats ... by _time vhost name`. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "In `coalesce(message_stats.redeliver_details.rate, redeliver_rate, 0)` the unquoted periods are eval's concatenation operator, so the JSON path is never read and the search silently falls back to `redeliver_rate` or 0. The field must be written `'message_stats.redeliver_details.rate'`. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(redeliver_rate) as redeliver_eps` sums per-second rate samples within each 5-minute bucket; with more than one poll per bucket the value overstates the rate. `avg` or `max` matches the 'eps' label.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0057-UC-8.6.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The data source (`/api/queues` `message_stats.redeliver_details.rate`) is correctly identified, but the implementation text disagrees with the SPL on the alert condition and omits the collection details that make the fields usable. The SPL itself has two defects that stop it running as written (flagged for human editors).",
+  "tier": "deep",
+  "uc_id": "UC-8.6.31",
+  "verdict": "rewrite"
+}

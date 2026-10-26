@@ -1,0 +1,99 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ce2617d0e7e8c6fa247394160a6f63b847ab81a61b8fadae180d38fd34720ad3",
+  "file": "content/cat-07-database-data-platforms/UC-7.1.73.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://stackoverflow.com/questions/57246291/decipher-dropped-mutations-message",
+      "explanation": "Cassandra reports dropped messages in `system.log` as one summary line per message type every 5 seconds, for example `MUTATION messages were dropped in last 5000 ms: 0 internal and 65 cross node`. The number of log lines measures how many 5-second intervals had any drops, not how many mutations were dropped. A threshold of 10 lines per 5 minutes is therefore not a meaningful rate.",
+      "field": "implementation",
+      "quote": "Page when event rate exceeds 10 per 5 minutes outside drills.",
+      "severity": "blocker",
+      "suggested_fix": "Explain that the alert should extract the internal and cross-node counts from the `<TYPE> messages were dropped in last 5000 ms` lines (with `TYPE` set to MUTATION, READ, and so on) and threshold on their sum per host per 5 minutes. Alternatively, use the JMX `DroppedMessage` metrics."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "No Splunkbase add-on defines these sourcetypes, so they are custom. The text never names the log file paths (`/var/log/cassandra/system.log`, `gc.log`), the log lines that matter (MessagingService dropped-message summaries, ReadTimeoutException or WriteTimeoutException stack traces, GCInspector pause lines), or the fact that `pause_time_ms` must be extracted by the customer.",
+      "field": "dataSources",
+      "quote": "`cassandra:system` log; JVM `cassandra:gc` long pauses correlated",
+      "severity": "major",
+      "suggested_fix": "Name the files and the exact message patterns, and state that `cassandra:system` and `cassandra:gc` are custom sourcetypes needing props.conf line-breaking (multi-line Java stack traces) and a `pause_time_ms` extraction."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "`TRANSFORMS-` classes in props.conf run at index time. Search-time field extraction for these values is normally done with `EXTRACT-` or `REPORT-`, which do not need a re-index when the pattern changes.",
+      "field": "implementation",
+      "quote": "use `TRANSFORMS` to extract `coordinator`, `keyspace`, `table` when present",
+      "severity": "minor",
+      "suggested_fix": "Use `EXTRACT-` (inline regex) or `REPORT-` (transforms.conf) in props.conf for `keyspace`, `table` and `coordinator`."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "Collection is a Universal Forwarder file monitor, so poll intervals, HEC tokens, 'vendor API' HTTP 401/429 errors and 'vendor admin UI inventory count' do not apply. The text gives no `[monitor://]` stanza and no comparison with `nodetool tpstats` dropped counts.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cassandra:system, cassandra:gc into database. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Give `[monitor:///var/log/cassandra/system.log]` and `gc.log` stanzas with the sourcetypes and `index=database`. For validation, compare the summed dropped counts in Splunk with the 'Dropped' section of `nodetool tpstats` on the same node."
+    },
+    {
+      "dimension": "grandma_fidelity",
+      "explanation": "The explanation repeats the title and says nothing concrete. It does not explain that the database is throwing away writes or failing to answer reads in time because a node is overloaded or paused.",
+      "field": "grandmaExplanation",
+      "quote": "We watch Cassandra Dropped Mutations and Read Timeouts so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+      "severity": "major",
+      "suggested_fix": "Explain that when a database node is overloaded or frozen for a moment, it can give up on saving some changes or answering some requests in time. We warn you when that starts happening often on a server."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL outputs only `events` and `kinds` per host and 5-minute bucket. It never computes a maximum GC pause, so this overlay needs a separate search.",
+      "field": "visualization",
+      "quote": "Overlay GC pause max line.",
+      "severity": "minor",
+      "suggested_fix": "Either note that the GC overlay comes from a separate `max(pause_time_ms)` timechart, or drop it."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The 'Timeouts' title points at the documentation root. The HEC and savedsearches.conf references are generic and unrelated to file-monitored Cassandra logs.",
+      "field": "references",
+      "quote": "\"title\": \"Apache Cassandra — Timeouts\", \"url\": \"https://cassandra.apache.org/doc/latest/cassandra/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Cassandra metrics page (DroppedMessage metrics) and the `cassandra.yaml` request-timeout settings, and replace HEC with the Splunk monitor-input documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search term \"DroppedMutation\" does not appear in Cassandra `system.log`, which writes `MUTATION messages were dropped in last 5000 ms: ...`. The dropped-mutation half of the detection matches nothing. \"Operation timed out\" is mainly a client or driver message.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "GC-pause events are counted together with timeout lines toward `events >= 10`, mixing cause and symptom. The `rex \"(Read|Write|CAS) timeout\"` pattern will not match exception class names such as `ReadTimeoutException`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Counting log lines measures 5-second report intervals, not dropped messages. Extract and sum the internal and cross-node counts.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-7.1.73",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The goal is sound, but the search keys on a token (`DroppedMutation`) that Cassandra's `system.log` does not write. The 'more than 10 events per 5 minutes' rule counts 5-second summary lines rather than dropped messages. Implementation, data-source, plain-language and reference text are generic or describe collection steps that do not apply to a file-monitored log.",
+  "tier": "deep",
+  "uc_id": "UC-7.1.73",
+  "verdict": "incorrect"
+}

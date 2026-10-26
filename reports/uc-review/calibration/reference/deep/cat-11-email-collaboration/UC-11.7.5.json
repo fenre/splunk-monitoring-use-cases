@@ -1,0 +1,92 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "7a979707b45ec7551ab4ef6c7dceb9bc281c89d1ee184c6e5323a11e54dfa53f",
+  "file": "content/cat-11-email-collaboration/UC-11.7.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.asterisk.org/Deployment/Asterisk-Security-Framework/Asterisk-Security-Event-Logger/",
+      "explanation": "Asterisk security events always include `RemoteAddress` (for example `IPV4/UDP/203.0.113.5/5060`), so there is nothing to add. The step that matters is missing: res_security_log must be loaded and the 'security' level routed to a file in logger.conf (for example `security_log => security`), then that file monitored as `asterisk:security`.",
+      "field": "implementation",
+      "quote": "(1) Log client IP in security events. (2) Tune thresholds. (3) SOAR or firewall integration. (4) Allowlist scanners.",
+      "severity": "major",
+      "suggested_fix": "Step 1: load res_security_log and add `security_log => security` to logger.conf; monitor /var/log/asterisk/security_log with sourcetype asterisk:security. Step 2: extract SecurityEvent, Service, AccountID and the IP from RemoteAddress. Step 3: tune thresholds and allowlist known SBC/monitoring IPs. Step 4: optional fail2ban/firewall block."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.asterisk.org/Latest_API/API_Documentation/AMI_Events/InvalidAccountID/",
+      "explanation": "The description never names the security events that count as failures (InvalidAccountID, InvalidPassword, ChallengeResponseFailed, FailedACL) or the Service values in scope (SIP/PJSIP vs AMI/IAX2). Grouping by account alone misses the common SIP scanner pattern of one IP trying many extensions (InvalidAccountID).",
+      "field": "description",
+      "quote": "Summarises `sources` grouped by `user` across `the scheduled window` before applying `count` >= 15, or `sources` >= 5.",
+      "severity": "major",
+      "suggested_fix": "Explain that the search counts failed-authentication security events per AccountID in the last hour and flags 15+ failures or failures from 5+ distinct remote IPs. Note that a per-source-IP view is needed to catch extension enumeration."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the shared Asterisk-family template. The UC detects password-guessing attacks against phone accounts, not call, trunk, queue or voicemail health.",
+      "field": "grandmaExplanation",
+      "quote": "We watch this Asterisk system’s calls and health, so trunks, queues, and voicemail stay in shape for everyday use.",
+      "severity": "major",
+      "suggested_fix": "We watch for someone repeatedly guessing passwords on our phone system's accounts, often from many internet addresses, so we can block them before they break in and run up call charges."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but its search relies on guessed field names (user/username/account, src_ip/remote_ip) that the Asterisk security log does not produce, and the implementation is a four-word checklist. Nothing shows SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the search has been run against a real security_log with the AccountID/RemoteAddress extractions."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generic API-polling boilerplate. The Asterisk security log is a local file tailed by a forwarder, with no API, poll interval or vendor admin UI 'inventory count'. The stated schedule `-24h@h` also conflicts with the SPL's `earliest=-1h`.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=asterisk:security into voip. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Describe a [monitor:///var/log/asterisk/security_log] stanza (sourcetype asterisk:security, index voip), props for timestamp `[%b %d %H:%M:%S]` and KV extraction, an hourly schedule matching -1h, and validation by triggering a failed registration from a test softphone."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The wiki root is generic; Asterisk documentation now lives at docs.asterisk.org and has a dedicated security event logger page.",
+      "field": "references",
+      "quote": "\"title\": \"Asterisk Wiki\", \"url\": \"https://wiki.asterisk.org/\"",
+      "severity": "minor",
+      "suggested_fix": "Cite https://docs.asterisk.org/Deployment/Asterisk-Security-Framework/Asterisk-Security-Event-Logger/."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`user` coalesces user/username/account and `src` coalesces src_ip/remote_ip/SRC, but the security log emits `AccountID` and `RemoteAddress` (format IPV4/UDP/<ip>/<port>). Every row would collapse into user=\"\" with dc(src)=1. Extract the account from AccountID and the IP from RemoteAddress with rex, and consider filtering Service to SIP/PJSIP and SecurityEvent to the failure types rather than a raw keyword regex. Evidence: https://docs.asterisk.org/Latest_API/API_Documentation/AMI_Events/InvalidAccountID/",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Availability' does not fit a credential brute-force detection; Security alone is appropriate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0073-UC-11.7.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The brute-force idea is sound, but the implementation never says how to enable the Asterisk security log and asks for a client IP the log already carries. The text does not mention the real event and field names (SecurityEvent, AccountID, RemoteAddress, Service), the plain-language explanation describes trunk and voicemail health, and the UC is marked `verified` without support.",
+  "tier": "deep",
+  "uc_id": "UC-11.7.5",
+  "verdict": "rewrite"
+}

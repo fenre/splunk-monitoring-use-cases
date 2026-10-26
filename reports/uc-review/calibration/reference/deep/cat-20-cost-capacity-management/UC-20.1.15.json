@@ -1,0 +1,96 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c4acdb5315df10396cd0cad0f594ad58092cffb171f17c3a4203201eaab5d44b",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html",
+      "explanation": "Tagging resources is not enough: a user-defined tag only appears as a `resourceTags/user:*` column in the CUR after it is activated as a cost allocation tag in the Billing console, and only from activation onward. Without that step every row lands in `untagged`.",
+      "field": "implementation",
+      "quote": "Requires tags on resources generating egress; untagged flows appear as `untagged`.",
+      "severity": "major",
+      "suggested_fix": "Add: activate the `Application` tag as a user-defined cost allocation tag in AWS Billing and Cost Management (management/payer account), enable 'Include resource IDs' on the CUR, and note that tag values are not back-filled before activation; the column surfaces in Splunk as `resourceTags_user_Application`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.aws.amazon.com/cur/latest/userguide/cur-data-transfers-charges.html",
+      "explanation": "The SPL attributes only EC2-product data transfer, yet the title, `implementation` and `visualization` ('egress by tag') present it as data-transfer attribution in general. Transfer billed under other product codes (S3, RDS, CloudFront, etc.) is excluded, and the `*Bytes*` wildcard also pulls in NAT Gateway processing (`NatGateway-Bytes`) and zero-cost `*-In-Bytes` lines.",
+      "field": "cross_field",
+      "quote": "lineItem_ProductCode=\"AmazonEC2\" (lineItem_UsageType=\"*DataTransfer*\" OR lineItem_UsageType=\"*Bytes*\")",
+      "severity": "major",
+      "suggested_fix": "State in `description` and `implementation` that the report covers EC2 data-transfer and NAT-processing usage types only (e.g. `*-DataTransfer-Out-Bytes`, `*-DataTransfer-Regional-Bytes`, `*-AWS-Out-Bytes`), and point to sibling UC-20.1.8 / UC-20.1.25 for other services and NAT egress."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `span` and no threshold; it is a sorted attribution report, so alert-style false positives (maintenance windows, synthetic probes, batch jobs) do not apply. The real accuracy issues for this report are mis-attribution: untagged or inconsistently cased tag values, tags activated mid-period, and shared resources (NAT gateways, load balancers) whose transfer lands on one tag.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Data Transfer Cost Attribution by Tag' shifts `xfer_cost` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "Replace with attribution caveats: tag-value drift (e.g. 'Payments' vs 'payments'), costs before tag activation reported as untagged, shared-infrastructure transfer attributed to the owner of the ENI/instance, and in-bytes rows that carry zero cost."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The duplicated generic Steps 1–5 treat this chargeback report as a paging alert with 5–15 minute polling, vendor 'inventory count' validation and HEC troubleshooting. CUR lands in S3 a few times a day, and chargeback is normally run per billing month, so a 24-hour window and per-entity throttling are wrong guidance.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Remove the generic block. Run the report per billing period (e.g. month-to-date and last full month), schedule it daily after the CUR refresh, and validate totals against Cost Explorer filtered to Usage Type Group 'EC2: Data Transfer' for the same accounts and dates."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "'CUR with resource tags' is a data source, not an app; it also leaks into `detailedImplementation` as 'Install and configure the required add-on or app: CUR with resource tags.'",
+      "field": "app",
+      "quote": "CUR with resource tags — Splunk Add-on for Amazon Web Services (Splunkbase 1876)",
+      "severity": "minor",
+      "suggested_fix": "App: Splunk Add-on for Amazon Web Services (Splunkbase 1876), 'Billing (Cost and Usage Report)' input. Move 'CUR with resource tags' to `dataSources`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC reads AWS CUR data only; tagging it as Splunk equipment is inconsistent with sibling AWS cost UCs (e.g. UC-20.1.2 uses `aws`).",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Set equipment to `aws`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "HEC and inputs.conf are generic and not used by this CUR input; the references a reader actually needs (CUR data-transfer usage types, cost allocation tag activation) are missing.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Replace with https://docs.aws.amazon.com/cur/latest/userguide/cur-data-transfers-charges.html and https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`lineItem_UsageType=\"*Bytes*\"` also matches `NatGateway-Bytes` (NAT data processing, not transfer) and zero-charge `*-In-Bytes` rows; consider explicit transfer usage-type patterns, and optionally filter `lineItem_LineItemType` to usage rows so credits/discounts do not skew per-app totals.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0117-UC-20.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL is a reasonable EC2 data-transfer chargeback report on CUR, but the text never says it is EC2-only, omits the essential cost-allocation-tag activation step, and wraps a ranking report in generic alerting, false-positive and troubleshooting boilerplate that does not fit it.",
+  "tier": "deep",
+  "uc_id": "UC-20.1.15",
+  "verdict": "rewrite"
+}

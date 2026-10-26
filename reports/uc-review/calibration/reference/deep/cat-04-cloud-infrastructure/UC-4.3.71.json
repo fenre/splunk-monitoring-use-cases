@@ -1,0 +1,114 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "2d712277560a3cbc4c6e51a0e29948483cd091296ba7306b0541a6cda7c2ba01",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.3.71.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/gcp.md",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-google-cloud-platform/Sourcetypes/",
+      "explanation": "Splunk_TA_google-cloudplatform does not produce a `google:gcp:audit` sourcetype. Since 4.0.0, Pub/Sub-delivered Admin Activity audit logs land as `google:gcp:pubsub:audit:admin_activity`, which the add-on maps to CIM Change. The repository guide instead uses `google:gcp:pubsub:message`. The same wrong sourcetype appears in controlTest and detailedImplementation (Prerequisites and Step 1).",
+      "field": "dataSources",
+      "quote": "`index=gcp` sourcetype=`google:gcp:audit` collected via Splunk Add-on for Google Cloud Platform",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=google:gcp:pubsub:audit:admin_activity` (or `google:gcp:pubsub:message` on add-on versions before 4.0.0, as in the GCP guide) in dataSources, controlTest and detailedImplementation, and note which add-on version gives which sourcetype."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://cloud.google.com/artifact-registry/docs/audit-logging",
+      "explanation": "Artifact Registry audit logs record methodName as `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository` / `DeleteRepository` / `UpdateRepository`. `artifactregistry.repositories.create` is an IAM permission, so neither the exact nor the wildcard pattern matches a real event. The positive test would fail, and the negative test would pass for the wrong reason.",
+      "field": "controlTest",
+      "quote": "protoPayload.methodName=\"*artifactregistry.repositories.create*\" OR protoPayload.methodName=\"artifactregistry.repositories.create\"",
+      "severity": "blocker",
+      "suggested_fix": "Base the positive and negative scenarios on `protoPayload.methodName` values `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository`, `DeleteRepository` and `UpdateRepository`, as listed in the Artifact Registry audit-logging page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://cloud.google.com/artifact-registry/docs/audit-logging",
+      "explanation": "The description repeats both wrong facts (the sourcetype and the IAM-permission-style methodName). The '+3 related API operations' are really two operations, create and delete, each written twice. The SPL returns no region field.",
+      "field": "description",
+      "quote": "queries Google Cloud `google:gcp:audit` for `*artifactregistry.repositories.create*` (+3 related API operations) and returns actor, resource, and region context",
+      "severity": "blocker",
+      "suggested_fix": "Describe the detection as Admin Activity events for Artifact Registry CreateRepository, DeleteRepository and UpdateRepository, returning time, method, principalEmail and protoPayload.resourceName. Only mention region if a location field is added to the output."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://cloud.google.com/artifact-registry/docs/audit-logging",
+      "explanation": "The title and value promise repository 'changes', but the SPL, description and controlTest cover only create and delete. UpdateRepository (for example cleanup-policy, immutable-tag or IAM changes) and ArtifactRegistry.SetIamPolicy are Admin Activity changes that are not covered.",
+      "field": "cross_field",
+      "quote": "GCP Artifact Registry Repository Changes",
+      "severity": "major",
+      "suggested_fix": "Either state in the description that only create and delete are in scope, or list UpdateRepository and SetIamPolicy as methods the SPL owner should add."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate that names no real cause specific to Artifact Registry.",
+      "field": "knownFalsePositives",
+      "quote": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+      "severity": "major",
+      "suggested_fix": "Name concrete benign sources: Terraform or Cloud Build service accounts provisioning repositories, ephemeral per-branch repositories created and deleted by CI pipelines, and gcr.io-domain repositories created on first push (Docker-CreateOnPush). Describe how to exclude them, for example with a lookup of approved CI principalEmail values."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "It repeats the lowercased title and claims the UC catches service problems. The detection actually tells you when someone creates or deletes a storage area for software packages and container images.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of gcp artifact registry repository changes so your team catches problems in your online services before customers or auditors do.",
+      "severity": "major",
+      "suggested_fix": "Something like: 'We tell you whenever someone creates or deletes a storage area where your company keeps its software packages and container images, and who did it, so unexpected changes can be checked.'"
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The SPL has no threshold to tune, and the add-on pulls Pub/Sub subscriptions rather than polling, so the throttling advice does not apply. The Step 4 dashboard line also ends with a doubled period.",
+      "field": "detailedImplementation",
+      "quote": "Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup. ... (3) API throttling — reduce poll frequency or enable queue buffering",
+      "severity": "minor",
+      "suggested_fix": "Drop the threshold wording, and replace the throttling failure mode with Pub/Sub-specific ones: subscription backlog, or the log sink filter not including Artifact Registry Admin Activity logs. Fix the '..' typo."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The filter uses `artifactregistry.repositories.create/delete` (IAM permission names). Real audit methodNames are `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository` / `DeleteRepository` / `UpdateRepository`, so the search returns nothing. The sourcetype `google:gcp:audit` is not emitted by Splunk_TA_google-cloudplatform (use `google:gcp:pubsub:audit:admin_activity`). The table column `resourceName` should be `protoPayload.resourceName`. Evidence: https://cloud.google.com/artifact-registry/docs/audit-logging and https://splunk.github.io/splunk-add-on-for-google-cloud-platform/Sourcetypes/",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The generic Change.All_Changes tstats is not scoped to Artifact Registry (no filter on object_category, vendor_product or command), so it returns every change in the estate rather than this detection.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "evidenceArtifact names sourcetype google:gcp:audit, which does not exist in the add-on.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 (Valid Accounts: Cloud Accounts) is a weak fit for repository create/delete. Consider T1485 (Data Destruction) for deletes or T1525 (Implant Internal Image) for repository tampering; SME to confirm.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:12:12Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0026-UC-4.3.71",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC targets a real Admin Activity signal, but two core product facts are wrong. The sourcetype `google:gcp:audit` does not exist in the Splunk GCP add-on, and `artifactregistry.repositories.create/delete` are IAM permission names, not audit-log methodNames, so the search and the control tests would never match. The rest of the text is generic template prose.",
+  "tier": "deep",
+  "uc_id": "UC-4.3.71",
+  "verdict": "incorrect"
+}
