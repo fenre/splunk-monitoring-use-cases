@@ -23,7 +23,7 @@ def _model_record(**overrides: object) -> dict[str, object]:
         {
             "verdict": "incorrect",
             "confidence": 0.8,
-            "scores": {dim: 3 for dim in ledger.SCORE_DIMENSIONS},
+            "scores": dict.fromkeys(ledger.SCORE_DIMENSIONS, 3),
             "findings": [
                 {
                     "field": "cimModels",

@@ -1071,3 +1071,18 @@ register(
         category="lift",
     )
 )
+
+# ----------------------------------------------------------------------
+# UC text-quality review -- tiered review of every UC's text (deterministic
+# pre-pass, fast-model triage, heavy-model deep review, cross-model
+# adjudication). See docs/uc-text-review-rubric.md and
+# docs/superpowers/plans/2026-10-26-uc-text-quality-review.md.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="review-prompt",
+        module="review.prompt",
+        help="Emit the UC review prompt for one tier (triage batch / deep / adjudication).",
+        category="review",
+    )
+)
