@@ -1,0 +1,78 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "237b5bcf1191f0448a42a1c16692f4a61dc1859048a6f748e3ce0e1017397e7c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.40.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The catalog lists Splunkbase 1352 as 'App for Cisco Network Data' (cisco_ios), not a Cisco Security add-on, and it does not provide Spaces IoT or BMS data.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "severity": "blocker",
+      "suggested_fix": "Remove it or replace it with the Spaces Add-On for Splunk (8485)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL joins only the latest BMS HVAC event and latest occupancy per zone, with no relation to when the sensor alert fired, so the 15-minute window is not enforced.",
+      "field": "implementation",
+      "quote": "when a sensor alert fires, check whether a corresponding BMS action occurred within 15 minutes",
+      "severity": "major",
+      "suggested_fix": "Describe the join as a simplified approximation or give the time-window logic the reader must add."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The guide lists the BACnet sourcetypes as bacnet:metrics and bacnet:event, and the SPL itself uses bms:events. The plural name does not match the grounding.",
+      "field": "dataSources",
+      "quote": "`sourcetype=bacnet:events`",
+      "severity": "major",
+      "suggested_fix": "Use the sourcetype names from the guide or state that bms:events is a custom feed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The two conditions together cover every value, so the test cannot distinguish alert from no alert; `zone_id]` also carries a stray bracket here and in description and knownFalsePositives.",
+      "field": "controlTest",
+      "quote": "`response_delay_min` > 15, or `response_delay_min` <= 15",
+      "severity": "major",
+      "suggested_fix": "Test that a zone with a delay above 15 minutes yields 'Slow Response' and a zone with no BMS event yields 'BMS Non-Response'; fix the `zone_id` spelling everywhere."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "A missing logged BMS action can also mean the BMS does not log that action, zone IDs do not match between systems, or ingestion lags.",
+      "field": "detailedImplementation",
+      "quote": "When a temperature alert fires and the HVAC doesn't respond within 15 minutes, that's an automation failure.",
+      "severity": "minor",
+      "suggested_fix": "Say it is a candidate automation failure to verify."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "response_delay_min = (_time - bms_response_time)/60 is negative whenever the BMS acts after the sensor alert, so 'Slow Response' (> 15) cannot fire for normal ordering; the BMS action is the latest event per zone rather than the first after the alert.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0012-UC-15.3.36",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The sensor-to-BMS correlation is a good idea, but the response delay is computed with the wrong sign and without a time window, a stray bracket corrupts the field name in several fields, and one reference names the wrong Splunkbase app.",
+  "tier": "triage",
+  "uc_id": "UC-15.3.40",
+  "verdict": "incorrect"
+}

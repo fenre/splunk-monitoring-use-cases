@@ -1,0 +1,123 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "23abca133453c09533671e3354a87f3ee19b69567c0c149530fa37fd4d86e2b4",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.5.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/617 returns 404.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual SNMP collector: Splunk Connect for SNMP or the SNMP Modular Input (Splunkbase 1537), polling PowerNet-MIB rPDULoadStatusTable. Drop the Universal Forwarder and the 617 ID."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description says the search groups by entity and outputs count; knownFalsePositives keys on host; the spl does neither and tables pdu_name, bank_a, bank_b and headroom. A reader cannot tell what one result row is.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Use pdu_name consistently in description and knownFalsePositives, and state that each row is a PDU whose bank load leaves less than 4 A headroom."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "SC4SNMP writes polling events as sourcetype sc4snmp:event to index netops by default, but the spl expects sourcetype snmp:apc:pdu in index=power with a flat pdu_name field. Nothing explains the override. The repository guide uses sourcetype snmp:pdu / snmp:rpdu.",
+      "field": "cross_field",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input",
+      "severity": "major",
+      "suggested_fix": "Document how sourcetype snmp:apc:pdu, index=power and pdu_name are produced, or align with the guide's sourcetype."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.apc.com/us/en/faqs/FA156142/",
+      "explanation": "The SPL hardcodes a 32 A limit, so 'map breaker rating' is not wired in. The text doesn't warn that rPDULoadStatusTable instance 1 is total current on single-phase multibank PDUs, so bank_a may be the whole-PDU total rather than bank 1.",
+      "field": "implementation",
+      "quote": "(1) Map breaker rating per feed. (2) Use actual nameplate not nominal.",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to supply the per-bank breaker rating from a lookup keyed on pdu_name and bank, to map instances using rPDULoadStatusPhaseNumber/BankNumber, and to consider the device's own rPDULoadStatusLoadState (near-overload/overload) as a cross-check."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The spl uses earliest=-1h, and the HEC and vendor-API troubleshooting doesn't apply to SNMP polling of a rack PDU.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint",
+      "severity": "major",
+      "suggested_fix": "Match the schedule to the 1-hour window and replace the REST troubleshooting with SNMP polling checks (credentials, UDP 161, MIB loading, verifying bank instances)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios that don't describe a real cause of low bank headroom.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `snmp:apc:pdu` — Scheduled automation elevates `bank_a` without crossing `headroom` < 4",
+      "severity": "major",
+      "suggested_fix": "List real causes: A/B feed failover temporarily doubling load on one bank, server boot inrush, wrong breaker rating in the 32 A assumption (for example 16 A or 20 A bank breakers), and instance 1 being total current rather than bank 1 on some models."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The SPL reads a non-existent object for bank B and a hardcoded limit, so the UC cannot have been validated as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or unverified until an SME validates it."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/",
+      "explanation": "SC4SNMP is not distributed through Splunkbase.",
+      "field": "references",
+      "quote": "https://splunkbase.splunk.com/apps#/search=connect%20for%20snmp",
+      "severity": "minor",
+      "suggested_fix": "Link https://splunk.github.io/splunk-connect-for-snmp/ and the PowerNet-MIB rPDULoadStatusTable definition."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "The detection uses polled values, not traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap, or add the APC rPDU near-overload/overload traps as a complementary source."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.12.2.3.1",
+      "field": "spl",
+      "issue": "rPDULoadStatusLoad2 is not a PowerNet-MIB object. rPDULoadStatusLoad is a single table column (tenths of amps) with one instance per phase or bank, and instance 1 is total current on single-phase multibank PDUs (https://oidref.com/1.3.6.1.4.1.318.1.1.12.2.3.1, https://www.apc.com/us/en/faqs/FA156142/). Bank values must be taken per instance, keyed by rPDULoadStatusBankNumber.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Headroom uses a hardcoded 32 A for bank_a only, while bank_b gets a separate 'bank_b>28' test. The breaker rating should come from a lookup and be applied to every bank uniformly.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0095-UC-15.4.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "A bank-headroom check that hardcodes a 32 A breaker, applies different tests to the two banks, and reads a non-existent 'rPDULoadStatusLoad2' object. The prose names entity, host and count fields that the SPL does not have.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.5",
+  "verdict": "incorrect"
+}

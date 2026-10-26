@@ -1,0 +1,121 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "1aacd589ebdcd46d26170c6ba2e0b99f3ddc90b663b027651306470aed8f3af9",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com and is not a Splunkbase app; splunkbase.splunk.com/app/617 returns 404 and ID 617 is absent from data/splunkbase-catalog.json. The false ID is repeated in dataSources and detailedImplementation. Splunk Connect for SNMP is Splunkbase 6266 and SNMP Modular Input is 1537 per the catalog.",
+      "field": "app",
+      "quote": "APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Remove \"Universal Forwarder (Splunkbase 617)\" and cite Splunk Connect for SNMP (Splunkbase 6266) or SNMP Modular Input (Splunkbase 1537)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/librenms/librenms/blob/master/mibs/netbotz/NETBOTZV2-MIB",
+      "explanation": "NetBotz appliances expose humidity and dew point through NETBOTZV2-MIB (enterprise 5528): humiSensorValue in tenths of a percent and dewPointSensorValue in tenths of °C, with label/enclosure columns for naming. The SPL instead reads `humiditySensorRelativeHumidity`, which does not appear in PowerNet-MIB or NETBOTZV2-MIB, and AirIR-MIB is a cooling MIB. A reader mapping humiSensorValue straight to `rh` would alert at 6.5% RH.",
+      "field": "dataSources",
+      "quote": "(APC PowerNet / AirIR / ATS / NetBotz OIDs per deployment)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which MIB the target NetBotz model uses (NETBOTZV2-MIB for NetBotz 4xx/5xx appliances; PowerNet-MIB iem/uio sensor objects for NMC-attached probes) and list the exact OIDs, their scale (divide tenths by 10, or use humiSensorValueInt), and the field names the SPL expects."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL relies on `dewpoint_margin_c`, but no field explains how it is produced; dew-point margin is air (or surface) temperature minus dew point, which must be computed from a temperature and a dew-point (or RH) reading. \"Alert facilities before setpoint changes\" is unclear.",
+      "field": "implementation",
+      "quote": "(1) Pair with supply temp if available. (2) Alert facilities before setpoint changes.",
+      "severity": "major",
+      "suggested_fix": "Explain that `dewpoint_margin_c` = temperature - dew point (e.g. tempSensorValue/10 - dewPointSensorValue/10 for the same enclosure), computed at ingest or in an eval, and that the alert fires when RH exceeds 65% or the margin drops below 3 °C. Replace step 2 with a concrete action (e.g. notify facilities to check CRAC humidification/dehumidification)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The SPL outputs `latest(rh) as rh_pct` per sensor_name and location, not a count, and does not output `dew_gap`, so a row triggered by the dew-point condition shows no dew value. The 65% RH threshold is not justified anywhere (ASHRAE recommends at most 60% RH / 15 °C dew point; the A1 allowable limit is 80% RH per the repo guide).",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when `rh` > 65, or `dew_gap` < 3.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output (latest RH per sensor and location over 24 h where either condition was met) and explain the 65% RH and 3 °C margin choice, noting they should be tuned to the site's ASHRAE class."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic boilerplate: it refers to vendor API rate limits and HTTP errors that do not apply to SNMP polling, and gives no NetBotz-specific steps (MIB loading, OIDs, sensor labels, scale conversion).",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower. ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Give NetBotz-specific steps: enable SNMPv3 on the appliance, load the right MIB, poll humidity, temperature and dew-point tables every 60-300 s, map sensor label/enclosure to `sensor_name`/`location`, and validate against the NetBotz web console readings."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a high-RH or low-dew-margin reading.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `location` without crossing `rh` > 65 for UC-15.4.10.",
+      "severity": "major",
+      "suggested_fix": "Name real causes: humidifier overshoot after CRAC maintenance, doors to loading docks or outdoor air left open, economizer mode during humid weather, sensors placed near CRAC supply or humidifier output, and uncalibrated or failing humidity probes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Most narrative fields are template residue, the collection path cites a non-existent Splunkbase ID and the humidity field name is unverified; the UC cannot have passed SME verification.",
+      "field": "status",
+      "quote": "\"status\": \"verified\",",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates OIDs, scale and thresholds against a real NetBotz."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The Schneider link is a PDU product category, not NetBotz documentation; the SC4SNMP link is a Splunkbase search URL.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Link NetBotz/NETBOTZV2-MIB documentation, https://splunkbase.splunk.com/app/6266 and the ASHRAE TC 9.9 thermal guidelines."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It does not mention humidity or water condensing on equipment, which is what this UC watches.",
+      "field": "grandmaExplanation",
+      "quote": "We watch the physical data center for power, cooling, environment, and physical access.",
+      "severity": "minor",
+      "suggested_fix": "e.g. \"We warn the facilities team when the server room air gets so damp that water could start forming on the equipment.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`humiditySensorRelativeHumidity` is not an object in PowerNet-MIB or NETBOTZV2-MIB (NetBotz uses humiSensorValue in tenths of a percent); confirm the real field name and scale, otherwise `rh>65` either never fires or always fires.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`where` runs before `stats latest(...)`, so over 24 h it reports the latest *matching* reading, not the current one; a sensor that recovered hours ago still alerts. `dew_gap` is not carried into the output. Compute latest values per sensor first, then apply the condition, and include dew_gap.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0088-UC-15.4.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A sensible condensation-risk idea, but the text never says where the humidity and dew-point-margin values come from or in what scale, cites a non-existent Splunkbase ID, and wraps template boilerplate in a `verified` status.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.10",
+  "verdict": "incorrect"
+}

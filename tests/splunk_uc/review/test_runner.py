@@ -547,3 +547,39 @@ def test_cli_requires_api_key(
     rc = cli.main(["--root", str(tmp_path), "deep", "--uc", "UC-15.1.1"])
     assert rc == 1
     assert "CURSOR_API_KEY" in capsys.readouterr().err
+
+
+def test_firewalled_blocker_url_in_issue_is_lifted(tmp_path: Path) -> None:
+    entries = _copy_ucs(tmp_path, "UC-15.1.1")
+    review = _review(
+        "UC-15.1.1",
+        findings=[],
+        firewalled_field_flags=[
+            {
+                "field": "spl",
+                "severity": "blocker",
+                "issue": "timechart accepts one split-by field (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart).",
+            }
+        ],
+    )
+    _run(
+        runner.review_batch(
+            FakeInvoker(_reply(review)),
+            "deep",
+            entries,
+            model=MODEL,
+            root=tmp_path / "l",
+            sleep=_no_sleep,
+        )
+    )
+    path = record_path(
+        "deep", "cat-15-data-center-physical-infrastructure", "UC-15.1.1", root=tmp_path / "l"
+    )
+    record = json.loads(path.read_text(encoding="utf-8"))
+    flag = record["firewalled_field_flags"][0]
+    assert flag["severity"] == "blocker"
+    assert (
+        flag["evidence_url"]
+        == "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Timechart"
+    )
+    assert record["verdict"] == "incorrect"

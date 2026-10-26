@@ -1,0 +1,91 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d87f940fd53a51635e64b3cc07a40e3e3a3a7456e0a949e84b3bf38e91d832b3",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.42.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description (and the title) frame the detection as gaps 'vs Expected FPS', but the SPL only measures wall-clock gaps between segment end and next segment start. No frame rate, frame count or expected-FPS field appears in the SPL, dataSources or implementation.",
+      "field": "cross_field",
+      "quote": "Focuses on Expected FPS behaviour so operations teams can triage UC-15.3.42",
+      "severity": "major",
+      "suggested_fix": "Describe the detection as 'time gap between consecutive recording segments per camera exceeds 15 seconds'. If FPS comparison is intended, name the frame-count/FPS field the export must carry and ask the SPL owner to add it."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "No jurisdiction or standard is cited, and continuous-recording requirements are set by local regulation, insurer or contract rather than by a common 15-second rule. Stated this way, a reader may treat the threshold as a compliance baseline.",
+      "field": "implementation",
+      "quote": "`gap_sec > 15` matches many jurisdictions' tolerance—tighten for high-security sites.",
+      "severity": "major",
+      "suggested_fix": "Say the 15-second threshold is a starting default to be set by the site's legal/compliance owner (detailedImplementation already lists 'Legal team sets acceptable gap threshold'), or cite the specific regulation it comes from."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Filling nulls for missing export windows would hide exactly the outages this UC is meant to surface; a missing export is itself a gap signal. The appended generic template also does not fit this feed: a 24h@h schedule for 5-minute exports, 'poll interval 300–900 seconds', 'vendor admin UI inventory count (+/-5%)'.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Optional `fillnull` for missing export windows.",
+      "severity": "major",
+      "suggested_fix": "Replace with: alert separately when no nvr:recording_health events arrive for a camera within two export intervals. Validate by comparing Splunk-reported gaps with the VMS built-in gap/recording report for the same camera and day."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL partitions only by camera_id, so interleaved segments from multiple streams of one camera would produce false negative or garbled gaps. The advice is not reflected in the search or in dataSources (no `stream` field listed).",
+      "field": "implementation",
+      "quote": "Handle multiplexed streams by `camera_id`+`stream` key.",
+      "severity": "minor",
+      "suggested_fix": "List `stream` (or equivalent) as a required export field and note that the SPL must partition on camera_id and stream; flag the SPL change to its owner."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These are normalised names that a custom export must produce, not native field names of those vendor SDKs, and the text implies they come out of the box.",
+      "field": "dataSources",
+      "quote": "Milestone, Genetec, or Hikvision SDK exports with `segment_start_epoch`, `segment_end_epoch`, `camera_id`",
+      "severity": "minor",
+      "suggested_fix": "State that the export script must emit these normalised fields (epoch seconds, UTC), and name the vendor API object each value is derived from once confirmed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The title promises logging/auditing documentation but the URL is the vendor homepage. The Search Reference URL also contains a stray apostrophe (What'sInThisManual).",
+      "field": "references",
+      "quote": "\"title\": \"Milestone XProtect — logging and auditing\",\n      \"url\": \"https://www.milestonesys.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Milestone documentation page for recording/sequence data export, and use https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`streamstats window=1 global=f last(segment_end_epoch) as prev_end by camera_id` keeps the default current=true, so the one-event window contains the current event and prev_end equals the event's own segment_end_epoch. gap_sec = start - own end is always negative, so the alert never fires. Needs `current=f` (see https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats).",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "'vs Expected FPS' is not implemented by the SPL; either rename to 'NVR Recording Segment Gap Detection' or extend the SPL with an FPS/frame-count comparison.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0081-UC-15.3.42",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A useful idea (detect gaps between consecutive recording segments per camera). But the title and description promise an 'expected FPS' comparison the SPL never makes, the implementation asserts an unsupported regulatory 15-second tolerance, and the SPL as written cannot produce a positive gap.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.42",
+  "verdict": "incorrect"
+}

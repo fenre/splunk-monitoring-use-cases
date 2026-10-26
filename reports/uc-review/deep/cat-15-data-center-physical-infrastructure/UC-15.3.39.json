@@ -1,0 +1,118 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d3ac829df642b6c918f760e071ec01a0da601e05c34bc5102d0772782e34b3e3",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.39.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is the \"App for Cisco Network Data\" (cisco_ios), not a Cisco Security add-on, and it is unrelated to Cisco Spaces dwell analytics. The remaining references (generic Cisco Security support, HEC, Meraki add-on) do not document this feed either.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Cisco Security (Splunkbase 1352)\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 1352, Cisco Security and HEC references. Cite the Spaces Add-On (Splunkbase 8485) and the Cisco Spaces Firehose DEVICE_PRESENCE event documentation, which covers visitDurationMinutes and visitClassification."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The `pos` slug was inferred from the optional remark about correlating with point-of-sale data. The UC ingests no POS data, so tagging it as POS equipment is misleading.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"cisco\", \"pos\"]",
+      "severity": "major",
+      "suggested_fix": "Remove `pos` from `equipment`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL reads only Cisco Spaces dwell data. Meraki and Catalyst APs feed Cisco Spaces directly, and their Splunk add-ons contribute nothing to this search. Listing them, along with `cisco_ios`/`cisco_meraki` in `equipmentModels`, adds unneeded prerequisites.",
+      "field": "app",
+      "quote": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (Catalyst), Cisco Spaces API",
+      "severity": "major",
+      "suggested_fix": "List only the Spaces Add-On for Splunk (Splunkbase 8485), and keep the AP models in `hardware` as the location sources behind Cisco Spaces."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "`dwell_bucket` is created by the SPL's eval, not ingested. The SPL depends on `device_mac` and `repeat_visit`, which are not listed, and `cisco:spaces:occupancy` is listed but never searched. The Firehose DEVICE_PRESENCE payload exposes `visitDurationMinutes`, `daysSinceLastVisit` and `visitClassification` (for example NEW_VISITOR) under `devicePresence`, so dwell_min and repeat_visit need a documented mapping.",
+      "field": "dataSources",
+      "quote": "Key fields: _time, dwell_bucket, dwell_min, zone_name, zone_type.",
+      "severity": "major",
+      "suggested_fix": "List the raw fields the SPL needs (device MAC, zone name and type, dwell minutes, repeat-visit flag) with their Firehose JSON paths, for example devicePresence.visitDurationMinutes and devicePresence.visitClassification. Drop the unused occupancy sourcetype, and use the same index as the sibling Spaces UCs (`cisco_spaces`)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/",
+      "explanation": "Cisco's Firehose documentation describes presence and dwell in terms of device lifecycle activity: entry, inactive after 10 minutes, and exit after an industry-specific idle time of typically 3 hours. It does not describe dwell as probe-request duration. Probe-based tracking is also undermined by MAC randomisation, which inflates unique_visitors and suppresses repeat visits.",
+      "field": "implementation",
+      "quote": "Cisco Spaces calculates dwell time by tracking how long a device's Wi-Fi probe requests are detected within a zone boundary.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against Cisco Spaces documentation how visitDurationMinutes / dwell time is computed and whether probing-only clients are included. Reword the sentence accordingly and add a note about MAC randomisation."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "`implementation` defines a repeat visit as a return within 7 days, but `spl` only counts `repeat_visit==\"Yes\"` from the event and never applies a 7-day window. The reader cannot tell where that flag comes from or how it is defined.",
+      "field": "cross_field",
+      "quote": "repeat visit rate (same device returning within 7 days)",
+      "severity": "minor",
+      "suggested_fix": "State that the repeat-visit flag comes from Cisco Spaces (for example visitClassification or daysSinceLastVisit<=7), or document how it is derived before ingestion."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A building management system holds no dwell-time or visitor data. Validation should be against Cisco Spaces' own dwell and visit analytics. The text also repeats the Step 4 heading four times and truncates the implementation (\"visitor v…\").",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by comparing one zone's daily unique visitors and average dwell with the Cisco Spaces location analytics report for the same day. Remove the duplicated headings."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "On Splunkbase, the current Spaces Add-On (2.0.20) supports Splunk 9.4 through 10.6.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "Change the value to 9.4+ (and Cloud)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`dwell_bucket` is computed but never used: it is not in the stats by-clause, aggregated or tabled, so the Passerby/Brief/Engaged classification never reaches the output. Either add `dwell_bucket` to the by-clause or remove the eval.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`engagement_score` adds minutes, a percentage and a raw visitor count with arbitrary weights (0.4/0.3/0.03), so large zones dominate through volume alone. The weights and their units should be documented, or each term normalised before weighting.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "field": "spl",
+      "issue": "`index=spaces sourcetype=\"cisco:spaces:dwell_time\"`: check that this sourcetype exists in ta_cisco_spaces. A published setup guide lists only cisco:spaces:firehose, cisco:spaces:firehose:health and cisco:spaces:log, with a default index of `cisco_spaces` (https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0078-UC-15.3.39",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The engagement-scoring idea is explained, but the UC carries the same wrong Splunkbase 1352 reference as its siblings. It adds a spurious `pos` equipment tag and lists Meraki and IOS add-ons that supply no data. Its data-source fields also do not match what the SPL reads (`device_mac`, `repeat_visit`), and dwell-time computation is attributed to probe requests.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.39",
+  "verdict": "incorrect"
+}

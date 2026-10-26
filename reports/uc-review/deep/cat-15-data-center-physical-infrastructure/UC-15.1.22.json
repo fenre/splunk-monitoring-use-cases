@@ -1,0 +1,79 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d2fbcb1ba30ec0605c1f40de4015a88e69c7e34cea7abb39d48880d906cdcb05",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.22.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it does not poll SNMP. The repository guide installs an SNMP add-on on a heavy forwarder, and sibling UC-15.1.1 names Splunk Connect for SNMP (6266) or SNMP Modular Input (1537).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say that UPS-MIB is polled with Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input add-on (Splunkbase 1537) on a heavy forwarder, every 5 minutes as the implementation states. Correct `app` and `detailedImplementation` Step 1 to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc1628",
+      "explanation": "The SPL uses `battery_status`, `runtime_remaining_min`, `battery_temp_c` and `charge_pct`, but the text never maps these to the MIB objects. In RFC 1628, upsBatteryStatus is an integer enum (1 unknown, 2 batteryNormal, 3 batteryLow, 4 batteryDepleted), so a raw poll never equals the string \"normal\" and every event would match `battery_status!=\"normal\"`. upsEstimatedChargeRemaining, which `charge_pct` needs, is not listed at all.",
+      "field": "dataSources",
+      "quote": "SNMP UPS-MIB (upsEstimatedMinutesRemaining, upsBatteryStatus, upsBatteryTemperature)",
+      "severity": "major",
+      "suggested_fix": "Document the mapping: upsEstimatedMinutesRemaining → runtime_remaining_min, upsBatteryTemperature (degrees Centigrade) → battery_temp_c, upsEstimatedChargeRemaining → charge_pct, and upsBatteryStatus → battery_status through a lookup or EVAL (2=normal, 3=low, 4=depleted, 1=unknown). Add upsEstimatedChargeRemaining to the object list."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `charge_pct` condition. It only outputs charge in the table, so the low-charge alert promised here (and repeated in detailedImplementation Step 1) never fires on its own.",
+      "field": "implementation",
+      "quote": "Alert on low charge (<80%), low runtime (<30 min), high temperature (>35°C), or abnormal status.",
+      "severity": "major",
+      "suggested_fix": "Either drop 'low charge (<80%)' from the alert criteria and describe `charge_pct` as context only, or ask a human to add `OR charge_pct < 80` to the SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is a UPS UC, yet validation points to a PDU UI. The 'Step 4 — Operationalize' heading is repeated four times, and the full Step 1–5 block is duplicated with HEC token and vendor-API HTTP 401/429 troubleshooting that does not apply to SNMP polling.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Collapse into one sequence. Validate against the UPS network management card web UI (runtime, battery status, temperature) and test with a controlled battery self-test. Replace the HEC/API troubleshooting with SNMP timeouts, community/USM credentials and MIB resolution."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The UC overlaps heavily with siblings UC-15.1.1 (UPS Battery Health) and UC-15.1.10 (UPS Battery Runtime Remaining) on the same `snmp:ups` feed, and the description does not say how it differs or which one to deploy.",
+      "field": "description",
+      "quote": "alert when `runtime_remaining_min` < 30, or `battery_temp_c` > 35.",
+      "severity": "minor",
+      "suggested_fix": "State the scope that sets this UC apart (for example, a combined status/runtime/temperature fault alert) and cross-reference UC-15.1.1 and UC-15.1.10, or mark it as superseded."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`battery_status!=\"normal\"` depends on an undocumented string mapping of the UPS-MIB integer enum, and it also matches events where `battery_status` is null. There is no `charge_pct < 80` clause despite the implementation text, and no `stats latest(*) by ups_name` dedup, so a 24h run repeats each UPS once per poll.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-15.1.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC names the right UPS-MIB objects, but it never explains how the integer upsBatteryStatus becomes the string `battery_status=\"normal\"` the SPL tests. It also claims a low-charge (<80%) alert that the SPL does not implement, and it routes collection through a Universal Forwarder 'Splunkbase 617' that does not exist.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.22",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,102 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7816119443f508c78c51981c9b43b644d3e4461caaae554320326ee92611b1de",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.22.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "Cisco's add-on documentation lists the Devices Availabilities input (`meraki:devicesavailabilities`, TA 3.3+) with a default interval of daily, not 1 hour. Neither interval can support a 15-minute offline alert, and the API data itself refreshes only every 5 minutes. The same text is repeated in detailedImplementation Step 1.",
+      "field": "implementation",
+      "quote": "Configure `cisco_meraki_devices_availabilities` to poll `GET /organizations/{orgId}/devices/availabilities` (default 1h). ... Alert when any MV reports `status=\"offline\"` for more than 15 minutes",
+      "severity": "blocker",
+      "suggested_fix": "State the default is daily and that the input interval must be lowered (for example to 5–15 minutes, within API rate limits) for timely alerts; express the alert target in terms of consecutive offline polls rather than a 15-minute duration the SPL does not measure."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase app 5631 is not in the cached Splunkbase catalogue and its URL returns 404; the Meraki add-on used by this UC is Cisco Meraki Add-on for Splunk, Splunkbase 5580. Listing a second, differently named \"Splunk Add-on for Cisco Meraki\" sends readers looking for a product that does not exist.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Cisco Meraki (Splunkbase 5631)\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 5631 entry; rename the 5580 entry to \"Cisco Meraki Add-on for Splunk (Splunkbase 5580)\" and add the Cisco Meraki add-on documentation page as a reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/api-v1/get-organization-devices-availabilities/",
+      "explanation": "The Meraki getOrganizationDevicesAvailabilities response contains `mac`, `name`, `network.id`, `productType`, `serial`, `status` and `tags`; it has no `model` and no `network.name`. Unless the add-on enriches these events, the SPL's `stats ... by serial, \"network.name\", model` drops every row and the search returns nothing.",
+      "field": "dataSources",
+      "quote": "Key fields: `serial`, `model`, `network.name`, `productType`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a sample `meraki:devicesavailabilities` event. If `model` and `network.name` are absent, document `network.id` and `name`, and note that model and network name come from a lookup built from `meraki:devices` / `meraki:organizationsnetworks`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description, controlTest and knownFalsePositives describe a count threshold; the SPL takes the latest status per camera and lists those whose latest status is `offline`, with `offline_min` measuring minutes since the last poll event, not how long the camera has been offline.",
+      "field": "cross_field",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: one row per MV camera whose most recent availability status is offline, with network, model and minutes since that status was last reported."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic templates. Real causes for offline MV cameras that are not incidents include planned PoE switch or uplink maintenance, cameras being relocated or re-claimed, sites with scheduled power-down, and stale results when the poll interval is longer than the outage.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `serial`, `\"network.name\"`, `model`** — Health checks in `meraki` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and suppress by `serial` or `network.id` during documented maintenance windows."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL returns only offline cameras and no location fields, so neither a status map nor an availability percentage can be built from its results.",
+      "field": "visualization",
+      "quote": "Camera status map; offline camera list; availability percentage gauge.",
+      "severity": "minor",
+      "suggested_fix": "Keep the offline camera table; note that the gauge needs a separate search over all cameras (online versus total) and the map needs a location lookup."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A generic Cisco Security support landing page has nothing to do with Meraki MV availability.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco Security documentation\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with the Meraki getOrganizationDevicesAvailabilities API page or Meraki MV documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`offline_min=round((now()-last_seen)/60)` is time since the last poll event, not offline duration, and nothing enforces the >15 minute rule in implementation. Grouping by `\"network.name\"` and `model` drops all rows if those fields are absent from availabilities events.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Meraki uses a `dormant` status for devices that have been offline for a long time; `where camera_status=\"offline\"` stops reporting such cameras. Verify the dormant semantics and consider including `dormant` (and `alerting`).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0060-UC-15.3.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The add-on (Splunkbase 5580) and sourcetype are right, but the stated default poll interval is wrong (the Devices Availabilities input defaults to daily), the \"offline for more than 15 minutes\" alert cannot be met by either the poll cadence or the SPL, a second reference points to a non-existent Splunkbase app, and the `model` / `network.name` fields are not in the availabilities API response.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.22",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,93 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1ddab178d44ed85897a523f7a6948b62e391875bf5a071a297c2f17ed326ce2f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.11.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1546",
+      "explanation": "Splunkbase app 1747 is the Splunk Add-on for Cisco WSA (Splunk_TA_cisco-wsa). The REST API Modular Input by BaboonBones is app 1546. The wrong ID also appears in `implementation` ('Splunkbase #1747'), in `detailedImplementation` ('Splunkbase app 1747') and in the `references` entry titled 'REST API Modular Input (Splunkbase 1747)'. A reader following any of these would install a Cisco WSA add-on.",
+      "field": "dataSources",
+      "quote": "Use the REST API Modular Input (Splunkbase app ID 1747)",
+      "severity": "blocker",
+      "suggested_fix": "Replace 1747 with 1546 (REST API Modular Input, https://splunkbase.splunk.com/app/1546) in dataSources, implementation, detailedImplementation and the references title and URL."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`description` says the search groups by `entity`, outputs a count and alerts only on storage above 90%. The `spl` has no aggregation and also returns cameras whose `connection_status` is not 'online' or whose `recording_status` is not 'recording', which is the main point of the UC.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `storage_util_pct` > 90.",
+      "severity": "major",
+      "suggested_fix": "Describe one row per camera poll where the camera is not online, is not recording, or the backing NVR storage is above 90%, with camera_id, location, both statuses, storage_util_pct and last_frame_time."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `host`, `src`, `count` and `span=1h`, which this search does not use, and name no real CCTV cause. Real causes go unmentioned. NVRs configured for continuous overwrite normally run storage near full, so `storage_util_pct` > 90 is expected. Cameras on schedule-based or motion-based recording legitimately report a non-'recording' state between triggers.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `nvr:camera_status`** — Scheduled automation elevates `src` without crossing `storage_util_pct` > 90",
+      "severity": "major",
+      "suggested_fix": "List real causes: ring-buffer NVRs that sit at 90–99% by design; motion-based or scheduled recording profiles that report idle; planned camera firmware upgrades or reboots; and cameras decommissioned in the VMS but still polled. Explain how to exclude each one, for example by checking the recording profile or using a camera inventory lookup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "This URL returned HTTP 404, while other docs.splunk.com Data-manual URLs (for example UsetheHTTPEventCollector) resolve. Splunk Enterprise has no native 'monitor REST API' input, so the page title may be invented.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorRESTfulAPIs",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether the page exists. If it does not, replace it with the REST API Modular Input documentation, or with the HEC documentation if polling is done by an external script."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Nothing in the UC implements per-role masking. Splunk role restrictions control index and app access, not field-level masking of a single field. The sentence also says ONVIF identifiers are folded 'into the same sourcetype via FIELDALIAS', but FIELDALIAS only renames fields at search time and does not move data between sourcetypes.",
+      "field": "detailedImplementation",
+      "quote": "reviewers without CCTV clearance should see masked location tokens only.",
+      "severity": "minor",
+      "suggested_fix": "Either describe a concrete masking mechanism (for example a separate summary index without location, or ingest-time masking) or drop the claim. Say that ONVIF data should be landed with sourcetype `nvr:camera_status` and use FIELDALIAS only to normalise field names."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The subcategory guide places CCTV data in `index=physical_security` with vendor sourcetypes (`genetec:event`, `milestone:event`, `axis:camera`, `avigilon:event`). This UC uses `index=physical` and a custom `nvr:camera_status` without saying it is a site-defined normalisation layer.",
+      "field": "dataSources",
+      "quote": "land normalized JSON or XML in index=physical",
+      "severity": "minor",
+      "suggested_fix": "State that `nvr:camera_status` is a custom normalised sourcetype. Mention that deployments following the guide may use `physical_security` and the vendor sourcetypes instead."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`storage_util_pct > 90` will fire continuously on NVRs that use circular overwrite, which is the normal NVR configuration. `storage_util_pct` is also an NVR-level metric repeated on every camera row. A retention-days or overwrite-rate check, or a per-NVR threshold, would fit better.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search does not reduce to the latest status per camera, for example `stats latest(...) by camera_id`. With the documented -15m window and 5-minute polls, each faulty camera appears two or three times. `last_frame_time` is shown but not used to catch cameras that are 'online' with a frozen stream.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-15.3.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The collection, validation and evidence text is reasonably specific to VMS and NVR polling. The UC repeatedly names Splunkbase 1747 as the REST API Modular Input, but 1747 is the Splunk Add-on for Cisco WSA. The description and false-positive text are template residue that misstate what the search alerts on.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.11",
+  "verdict": "incorrect"
+}

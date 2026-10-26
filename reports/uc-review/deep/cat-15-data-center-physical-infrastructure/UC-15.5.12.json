@@ -1,0 +1,79 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d9b592ee1e2db3fe874507b938470bbe1760a028792614e0f23780323941ec89",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.12.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and Splunkbase /app/617 returns 404. 'ONVIF pull' is a protocol pattern, not an installable add-on, and nothing named here emits `onvif:events` with `pullpoint_endpoint`/`camera_id`.",
+      "field": "app",
+      "quote": "ONVIF pull, Hikvision ISAPI HEC, or Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Say that subscription health comes from the ONVIF client: the VMS (for example the Milestone or Genetec server logs) or a custom PullPoint collector script. Name the log file or sourcetype, and remove 'Universal Forwarder (Splunkbase 617)'."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://www.onvif.org/specs/core/ONVIF-Core-Specification.pdf",
+      "explanation": "ONVIF devices authenticate each request with WS-UsernameToken (a password digest with nonce and Created timestamp) or HTTP Digest. There is no long-lived token to rotate. The common cause of 401/NotAuthorized on renew is clock skew between client and camera, or a changed password, not an expired token.",
+      "field": "implementation",
+      "quote": "(3) Automate token rotation.",
+      "severity": "major",
+      "suggested_fix": "Replace this step with: keep camera and client clocks NTP-synchronised, manage ONVIF user credentials centrally, and alert on repeated NotAuthorized faults per camera."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The sourcetype name suggests camera event notifications such as motion or tamper. Renew, Subscribe and PullMessages failures are only visible in the subscribing client's logs, and the UC never says which client, which log, or which fields hold `pullpoint_endpoint`/`camera_id`.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"onvif:events\"`",
+      "severity": "major",
+      "suggested_fix": "Name the client-side log source and its fields (subscription reference/endpoint, camera, operation such as CreatePullPointSubscription/Renew/PullMessages, SOAP fault code), and rename the sourcetype accordingly if it is custom."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "evidence_url": "https://www.onvif.org/specs/core/ONVIF-Core-Specification.pdf",
+      "explanation": "PullPoint subscriptions have a termination time and must be renewed before it expires (often within about a minute). Advice to poll every 300–900 s would itself let subscriptions lapse. The rest is REST-API template text (HTTP 401/429 'vendor endpoint', `list_inputs`, 'vendor admin UI inventory').",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Describe the PullPoint lifecycle (CreatePullPointSubscription, then PullMessages and Renew before TerminationTime) and how failures are logged. Validate by forcing a camera reboot or credential change and checking that a failure row appears."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although its data source is undefined, its app reference is a non-existent Splunkbase listing, and the SPL counts normal renewals.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until an SME has validated it against a real ONVIF client log."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`match(lower(_raw), \"(?i)renew|subscribe|...\")` matches every successful Subscribe and Renew line, and healthy PullPoint clients renew continuously, so `count` measures normal activity, not reconnect failures. There is no threshold or failure-only filter. Restrict the search to fault or failure outcomes (SOAP fault, NotAuthorized/401, timeout, renew failed) and compare against a per-camera threshold.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0102-UC-15.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Monitoring ONVIF PullPoint subscription health is a legitimate goal, but the text does not say where subscription-failure logs come from. It cites a non-existent Splunkbase app and recommends 'token rotation', which does not fit how ONVIF authenticates. The SPL counts healthy renewals as failures.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.12",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,110 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b04cf5a813fcb4d613443cba82f8351015a8d2ca81dfd896fa58e3226869ac0b",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.36.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/8365",
+      "explanation": "The Webex add-on is published on Splunkbase as \"Webex Add-on for Splunk\" (app 8365, ta_cisco_webex_add_on_for_splunk). Pointing readers only at GitHub hides the supported, Cloud-vetted distribution.",
+      "field": "app",
+      "quote": "`ta_cisco_webex_add_on_for_splunk` (GitHub)",
+      "severity": "major",
+      "suggested_fix": "Write \"`Webex Add-on for Splunk` (Splunkbase 8365)\". Also remove the Meraki add-on unless the SPL or data sources actually use Meraki data."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "`github` was derived from the \"(GitHub)\" download note in the app field. This UC does not monitor GitHub, so it will show up wrongly in the GitHub equipment filter.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"cisco\", \"github\"]",
+      "severity": "major",
+      "suggested_fix": "Remove `github` from `equipment`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "The data sources name neither the indexes and sourcetypes the SPL uses (`cisco_spaces` / `cisco:spaces:workspace` and `webex` / `webex:workspace_bookings`) nor any field (`workspaceId`, `peopleCount`, `roomCapacity`, `bookingStart`). They also do not say which feed supplies the booking records: calendar bookings come from Microsoft 365 or Google, not from the Webex add-on's built-in inputs. Cisco Spaces already emits SPACE_OCCUPANCY events with `peopleCount`/`peakPeopleCount`, `capacity` and `bookingStatus`, so the extra calendar join may not be needed.",
+      "field": "dataSources",
+      "quote": "Cisco Spaces occupancy data, Webex device people count (RoomAnalytics), calendar/booking system data",
+      "severity": "major",
+      "suggested_fix": "List each feed with its index, sourcetype and key fields, and state which system supplies the booking start and end times. Consider recommending the Cisco Spaces SPACE_OCCUPANCY event (space.capacity, peakPeopleCount, bookingStatus) as the source of truth for occupancy against bookings."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` defines a ghost booking using a 10-minute window after booking start and a 25% low-occupancy threshold. The `spl` uses neither: it never compares the occupancy event time with bookingStart or bookingEnd, and it sets no fill threshold. It aggregates per room, not per floor or building, so the documented detection cannot be built from it.",
+      "field": "cross_field",
+      "quote": "Define ghost booking as: room booked but no occupancy detected within 10 minutes of booking start. Generate weekly facility reports showing: ghost booking rate per floor/building, rooms with avg occupancy below 25% of capacity",
+      "severity": "major",
+      "suggested_fix": "Either describe what the SPL actually computes (a per-room ratio of occupancy samples with no people while any booking exists), or note that the SPL needs a time-bounded match and a 25% avg_fill filter (a human must make that SPL change)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Ghost booking validation belongs in the calendar system or the Webex Control Hub / Cisco Spaces workspace view, not a building management system. The text also truncates the implementation (\"ghost b…\") and repeats the Step 4 heading four times.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by picking two rooms, comparing their bookings in the calendar system with the Cisco Spaces / Control Hub occupancy history for the same day, and confirming that the ghost_booking count matches."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk index pages (one URL contains a literal apostrophe). None documents Webex RoomAnalytics people count, Cisco Spaces occupancy events or the Webex add-on inputs.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Search Reference\", \"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual\"",
+      "severity": "minor",
+      "suggested_fix": "Add the Webex Add-on (Splunkbase 8365) documentation, the RoomAnalytics PeopleCountOutOfCall configuration reference, and the Cisco Spaces Firehose occupancy event documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "On Splunkbase, the Spaces Add-On (2.0.20) supports 9.4 through 10.6 and the Webex Add-on (1.4.3) supports 9.3 through 10.6, so 9.2 is below what either add-on supports.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "Change the value to 9.4+ (and Cloud)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`join type=left max=0 workspaceId [...]` attaches every booking in the search window to every occupancy event for that room, with no time match. As a result, `booked=1` whenever the room had any booking during the window, `sum(booked)` counts event×booking pairs rather than bookings, and ghost_rate and walk_ins are meaningless. Match occupancy samples to bookings on time, for example by expanding bookings into time buckets, or by using `bin _time` and requiring bookingStart<=_time<=bookingEnd.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/splunk/ta_cisco_webex_add_on_for_splunk/blob/main/package/README.md",
+      "field": "spl",
+      "issue": "`sourcetype=\"webex:workspace_bookings\"` is not produced by the Webex Add-on for Splunk. Its documented sourcetypes are cisco:webex:meetings, cisco:webex:meeting:usage:reports, ... and `cisco:webex:<API Endpoint>` for the generic input (https://github.com/splunk/ta_cisco_webex_add_on_for_splunk/blob/main/package/README.md). The booking feed must be named for its real source, such as a calendar integration or a Webex generic endpoint.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "field": "spl",
+      "issue": "Check whether `sourcetype=\"cisco:spaces:workspace\"` exists in ta_cisco_spaces: a published setup guide lists only cisco:spaces:firehose, cisco:spaces:firehose:health and cisco:spaces:log (https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup). In the Firehose payload, `workspaceName`, `roomCapacity` and `peopleCount` are nested (spaceOccupancy.space.name / .capacity / peakPeopleCount).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0075-UC-15.3.36",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation describes a sensible way to correlate bookings with occupancy. However, the SPL's join ignores time windows, the Webex booking sourcetype is not one the Webex add-on produces, the Webex add-on is described as GitHub-only when it is on Splunkbase, and the data-source text gives no index or sourcetype detail.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.36",
+  "verdict": "incorrect"
+}

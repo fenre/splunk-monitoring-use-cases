@@ -1,0 +1,98 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3463e08aed523c01a53ab066e0a158dbbdd42ec4f40a797368626fa36fac2cfd",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.29.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/upsCommStatus",
+      "explanation": "upsCommStatus (.1.3.6.1.4.1.318.1.1.1.8.1) is 'the status of agent's communication with UPS': ok(1) or noComm(2) between the NMC and the UPS it manages. When the NMC itself stops answering SNMP, which is what the title, implementation and detailedImplementation describe (VLAN ACLs, ICMP tests, spanning-tree), no poll arrives at all and upsCommStatus=2 is never observed. Detecting SNMP loss requires a missing-data search, for example hosts in an inventory lookup with no events in N poll intervals.",
+      "field": "cross_field",
+      "quote": "Primary poll metrics arrive as sourcetype=snmp:apc:ups with the extracted numeric field upsCommStatus from PowerNet-MIB",
+      "severity": "blocker",
+      "suggested_fix": "Describe upsCommStatus=2 as 'NMC has lost its internal link to the UPS' and add a separate absence-of-data detection (inventory lookup versus latest poll time) for NMC SNMP reachability. Alternatively, retitle the UC to match what upsCommStatus measures."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "With Splunk Connect for SNMP, polled INTEGER values such as upsCommStatus are classified as metrics and go to the metrics index as sc4snmp:metric, and traps arrive as sc4snmp:traps. Neither lands as snmp:apc:ups or snmp:trap in index=power. The APC communicationLost trap also signals loss of the agent-to-UPS link, not loss of SNMP reachability.",
+      "field": "dataSources",
+      "quote": "complementary APC enterprise SNMP traps may appear under sourcetype=snmp:trap carrying communicationLost semantics",
+      "severity": "blocker",
+      "suggested_fix": "Document the SC4SNMP sourcetypes and indexes (sc4snmp:metric with mstats; sc4snmp:traps), or restrict snmp:apc:ups to SNMP Modular Input (1537) collection. Describe communicationLost as an NMC-to-UPS link trap."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The MIB defines a fixed enumeration, ok(1) and noComm(2). No source is given for firmware releases changing it, and the claim pushes readers into unnecessary per-firmware lookups. detailedImplementation repeats it ('commonly 1=ok, 2=commLost on classic builds'), where the label should read noComm.",
+      "field": "implementation",
+      "quote": "upsCommStatus enumerations occasionally shift between maintenance releases",
+      "severity": "needs_verification",
+      "suggested_fix": "Check APC PowerNet-MIB release notes. Unless a change is documented, state the fixed enumeration ok(1)/noComm(2) and drop the per-firmware mapping step."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL alerts on a single latest(upsCommStatus)=2 per host and has no three-poll persistence. A -15m window with 5-minute polls also drops a silent host from the results entirely instead of flagging it.",
+      "field": "cross_field",
+      "quote": "Tune scheduled searches with dispatch.earliest_time=-15m and three consecutive poll failures before paging",
+      "severity": "major",
+      "suggested_fix": "Either say that the SPL pages on the latest single poll, or describe how to add persistence, for example count of comm=2 over the last three polls >= 3."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs only host and upsCommStatus. mgmt_ip, last OK time and ticket correlation are not produced (evidence also cites mgmt_ip), and the choropleth suggestion is generic.",
+      "field": "visualization",
+      "quote": "sortable table with host, mgmt_ip, last OK time, and correlated NetOps ticket",
+      "severity": "minor",
+      "suggested_fix": "List the columns the SPL actually returns, or name the lookups that supply mgmt_ip and ticket data."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 2 and 5 are generic template text that does not apply to this UC: data model advice with no cimModels, exception keys such as user, src and process_name, and step numbering that jumps from 2 to 5. Step 1 also lists snmp:trap as referenced by the SPL when it is not.",
+      "field": "detailedImplementation",
+      "quote": "For high-volume sources, use `tstats` against the accelerated data model when possible.",
+      "severity": "major",
+      "suggested_fix": "Replace these steps with SNMP-reachability troubleshooting (poller timeout logs, a missing-host inventory search) and correct the list of sourcetypes the SPL references."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats latest(comm) ... | where upsCommStatus=2` only sees hosts that are still answering SNMP, so it cannot detect the NMC SNMP communication loss named in the title. It detects NMC-to-UPS link loss instead. Reachability loss needs an inventory-versus-latest-event gap search.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "The title 'NMC SNMP Communication Loss' does not match the upsCommStatus signal, which reports NMC-to-UPS communication.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "This UC uses 'IT Operations' while its APC UPS siblings (UC-15.1.26–28) use 'Observability'. Confirm which pillar is intended.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0022-UC-15.1.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC confuses two different failures. PowerNet-MIB upsCommStatus reports the link between the management card and the UPS, not Splunk's SNMP reachability to the card, so the detection cannot see the loss of SNMP communication its title promises. The collection path and the persistence rules are also inconsistent with the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.29",
+  "verdict": "incorrect"
+}

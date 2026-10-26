@@ -92,7 +92,7 @@ Return exactly one fenced ```json block and nothing else. Shape:
         {{"field": "...", "dimension": "clarity | specificity | consistency | correctness | grandma_fidelity | overclaiming | spelling", "severity": "blocker | major | minor | needs_verification", "quote": "...", "explanation": "...", "suggested_fix": "...", "evidence_url": "https://... (optional)", "evidence_ref": "docs/guides/... (optional)", "confidence": 0.0}}
       ],
       "firewalled_field_flags": [
-        {{"field": "spl | cimSpl | compliance | monitoringType | splunkPillar | criticality | difficulty | title | id | mitreAttack", "issue": "...", "severity": "blocker | major | minor | needs_verification"}}
+        {{"field": "spl | cimSpl | compliance | monitoringType | splunkPillar | criticality | difficulty | title | id | mitreAttack", "issue": "...", "severity": "blocker | major | minor | needs_verification", "evidence_url": "https://... (optional)", "evidence_ref": "docs/... (optional)"}}
       ]{adjudicates}
     }}
   ]
@@ -103,7 +103,8 @@ Rules:
 * One entry in `reviews` per UC, in the order given: {uc_ids}.
 * Omit optional keys rather than sending empty strings.
 * Do not repeat deterministic findings; they are already recorded.
-* Do not propose edits to firewalled fields under `findings`."""
+* Do not propose edits to firewalled fields under `findings`.
+* A blocker in `firewalled_field_flags` needs `evidence_url` or `evidence_ref` too (for SPL behaviour, cite the Splunk Search Reference page)."""
 
 ADJUDICATES_SNIPPET = """,
       "adjudicates": {{"tier": "{prior_tier}", "model": "{prior_model}", "agrees": true}}"""

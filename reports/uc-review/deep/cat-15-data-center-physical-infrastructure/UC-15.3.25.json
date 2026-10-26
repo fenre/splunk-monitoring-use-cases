@@ -1,0 +1,104 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d64198c89fa50be532b07a5a6ff18a4868010f5022fb59b4184562297f771c44",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.25.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "The add-on documents the Devices Uplinks Loss and Latency input (getOrganizationDevicesUplinksLossAndLatency) as returning 'uplink loss and latency for every MX and MG in the organization'. MV cameras are not included, so there is no per-camera loss or latency to proxy stream health. The same claim in dataSources ('uplink loss/latency to the cloud archive') is also wrong.",
+      "field": "implementation",
+      "quote": "The most reliable proxy for cloud-archive stream health is the camera's uplink loss and latency, polled via `cisco_meraki_devices_uplinks_loss_and_latency`.",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild the UC on data that covers cameras: meraki:devicesavailabilities with productType=camera (status online, offline, alerting or dormant), meraki:assurancealerts with deviceType=MV, or meraki:webhook alerts such as 'Potential Cloud Archive Issue'. If WAN health is kept, say explicitly that it measures the site MX uplink, not the camera."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources makes camera availability a source, but the SPL never queries meraki:devicesavailabilities, so no camera filter is applied anywhere.",
+      "field": "cross_field",
+      "quote": "`index=meraki sourcetype=meraki:devicesavailabilities productType=\"camera\"` plus `index=meraki sourcetype=meraki:devicesuplinkslossandlatency`",
+      "severity": "major",
+      "suggested_fix": "Either remove devicesavailabilities from dataSources or describe how it is joined (for example by serial with productType=camera) once the SPL is corrected."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources and implementation both state the TA exposes no per-camera quality score, and the SPL yields only a FAIR or POOR label. A 'quality score gauge per camera' cannot be built.",
+      "field": "visualization",
+      "quote": "Quality score gauge per camera; quality trend line; affected camera list.",
+      "severity": "major",
+      "suggested_fix": "Use a table of affected cameras with their health state and a timeline of availability or alert events."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_url": "https://documentation.meraki.com/IoT/MV_-_Smart_Cameras/Design_and_Configure/Initial_Configuration/MV_Cloud_Archive",
+      "explanation": "No source is given for these thresholds. Meraki's Cloud Archive guidance states bandwidth needs (up to 3 Mbps upload per camera) rather than loss or latency limits.",
+      "field": "implementation",
+      "quote": "Loss > 1% or latency > 100ms generally degrades cloud video continuity.",
+      "severity": "minor",
+      "suggested_fix": "Present the thresholds as starting values to tune, or cite Meraki guidance. Mention the Cloud Archive upload-bandwidth requirement."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/webhooks/webhook-sample-alerts/",
+      "explanation": "The Meraki webhook sample-alert catalogue lists the cloud-archive alert as 'Potential Cloud Archive Issue' (cloud_archive_alert). It has no alert named 'Camera unable to upload to cloud'.",
+      "field": "implementation",
+      "quote": "subscribe to `Camera offline` and `Camera unable to upload to cloud` alerts.",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the alert names in Network-wide > Alerts or with GET /organizations/{organizationId}/webhooks/alertTypes, and use the exact labels and alertTypeIds."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "The Meraki add-on is Splunkbase 5580 (Splunk_TA_cisco_meraki). splunkbase.splunk.com/app/5631 returns 404 and is not in the cached catalogue.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 5631 reference. Retitle the 5580 entry 'Cisco Meraki Add-on for Splunk'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A generic Cisco Security support index adds nothing for MV stream health.",
+      "field": "references",
+      "quote": "Cisco Security documentation",
+      "severity": "minor",
+      "suggested_fix": "Cite the Meraki add-on inputs table and the MV Cloud Archive article instead."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search targets meraki:devicesuplinkslossandlatency, which covers only MX and MG uplinks, so it never returns camera rows. Its field paths are also wrong for that sourcetype: loss and latency sit in timeSeries{}.lossPercent and timeSeries{}.latencyMs, and there is no network.name (only networkId), per scripts/_meraki_field_manifests.json. As written, avg(lossPercent) and the network.name group-by are null. The search needs a camera-scoped source.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "'Camera Video Quality Score' names a metric the UC itself says does not exist in the TA. Retitle around camera stream or availability health.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0063-UC-15.3.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC's central premise is false: it infers camera stream health from `meraki:devicesuplinkslossandlatency`, which the add-on documents as covering only MX and MG uplinks. Cameras never appear in that data, the field paths in the SPL do not match the sourcetype, and the 'quality score' visualisation contradicts the UC's own admission that no score exists.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.25",
+  "verdict": "incorrect"
+}

@@ -86,7 +86,9 @@ generic, 3 = acceptable with edits, 4 = good, 5 = exemplary.
   blocker MUST cite evidence: `evidence_url` (vendor or Splunk
   documentation) or `evidence_ref` (a repository file such as a guide under
   `docs/guides/` or `data/splunkbase-catalog.json`). Without evidence, use
-  `needs_verification` instead.
+  `needs_verification` instead. A blocker under `firewalled_field_flags`
+  needs evidence the same way; for SPL behaviour cite the Splunk Search
+  Reference page for the command or function.
 - **major** — Templated, generic, or not actionable. The text is not wrong
   but does not help the reader implement this UC.
 - **minor** — Style, wording, spelling, small omissions.

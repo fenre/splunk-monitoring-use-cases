@@ -48,7 +48,7 @@ def test_deep_prompt_sections(tmp_path: Path) -> None:
     assert all(s["id"] != "UC-5.1.1" for s in ground["siblings"])
     det = _json_block_after(prompt, "## Deterministic findings (already recorded")
     assert any(row["check"] == "premium_app_pillar_mismatch" for row in det)
-    assert prompt.rstrip().endswith("Do not propose edits to firewalled fields under `findings`.")
+    assert prompt.rstrip().endswith("cite the Splunk Search Reference page).")
 
 
 def test_stored_deterministic_record_used_when_current(tmp_path: Path) -> None:

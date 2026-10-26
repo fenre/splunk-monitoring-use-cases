@@ -1,0 +1,109 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "db483b336484661def235e6e8d3c49595f0160ae0cc80761ca059b77a907047c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.19.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources lists zone, sensor_id and conductivity, but the SPL filters on leak_detected=1 and groups by crac_id, neither of which is declared; sensor_id and conductivity are never used.",
+      "field": "cross_field",
+      "quote": "(zone, sensor_id, conductivity)",
+      "severity": "major",
+      "suggested_fix": "Align the field list with the SPL (leak_detected, zone, crac_id) or change the SPL to the declared fields; say where crac_id comes from (event or zone-to-CRAC lookup)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL only counts leak_detected events per zone and CRAC; it does not correlate sensors, localise a source, or trigger anything, and triggering EPO (emergency power off) from this alert is a safety-critical claim.",
+      "field": "detailedImplementation",
+      "quote": "Correlates multiple rope sensors to localize leak source and trigger EPO workflows under raised floor.",
+      "severity": "major",
+      "suggested_fix": "Describe what is actually detected (leak events per zone/CRAC) and treat EPO or isolation actions as separate, human-approved runbook steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The text is in the 'Configure data collection' step but says nothing about collection, and showing adjacent zones or isolation valves needs a zone-adjacency lookup that is neither provided nor in the SPL.",
+      "field": "implementation",
+      "quote": "On any leak, show adjacent zones and nearest CRAC/isolation valve.",
+      "severity": "major",
+      "suggested_fix": "Describe how the leak panel is ingested, and if adjacency is wanted, define the lookup (zone, adjacent_zone, crac_id, valve_id)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no threshold: any single leak_detected=1 event produces a row. 'Outputs count each the scheduled window' also glosses over that stats count counts events, not distinct sensors.",
+      "field": "description",
+      "quote": "alert when configured threshold",
+      "severity": "major",
+      "suggested_fix": "State that any positive leak reading raises a row per zone and CRAC; use dc() on sensor_id if sensor counts are meant."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is an arrow-notation placeholder, not a product, add-on or input; the reader cannot tell what to install.",
+      "field": "app",
+      "quote": "Leak detection panel → Splunk",
+      "severity": "major",
+      "suggested_fix": "Name the leak-detection controller or BMS and the input used (SNMP, REST, HEC)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The grounding guide ingests leak sensors as index=dc_environmental sourcetype snmp:envmon with sensor_type=leak and leak_state=WET; this UC uses index=environment, sourcetype leak_detection and leak_detected=1, and sibling UC-15.2.5 already covers water leak detection.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"leak_detection\"` (zone, sensor_id, conductivity)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the index, sourcetype and field names against the guide, and state how this UC differs from UC-15.2.5."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "Step 4 is repeated four times, Steps 1-4 appear twice, and 'Compare with the BMS console' is generic; the generic 300-900 second poll interval is also at odds with a critical leak alert.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Keep one coherent step list with a short polling interval appropriate for leak alarms."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "No real leak false-positive cause is named; typical ones are CRAC condensate drain pan overflow, floor cleaning, sprinkler or chilled-water maintenance and a wet sensor rope after an earlier event.",
+      "field": "knownFalsePositives",
+      "quote": "Maintenance window on `environment` (UC-15.2.19)",
+      "severity": "major",
+      "suggested_fix": "Replace the generic scenarios with these physical causes and suppress per zone after a documented clean-up."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "'Zone Correlation' overpromises: the SPL is stats count by zone, crac_id and performs no cross-sensor correlation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "stats count counts raw events, so repeated polls of the same wet sensor inflate the count; use dc(sensor_id) or latest state per zone.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0007-UC-15.2.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A simple leak-count search is dressed up as sensor-zone correlation with EPO workflows; field names do not match the declared data source, the app field is not a real product, and the implementation field says nothing about how to collect data.",
+  "tier": "triage",
+  "uc_id": "UC-15.2.19",
+  "verdict": "rewrite"
+}

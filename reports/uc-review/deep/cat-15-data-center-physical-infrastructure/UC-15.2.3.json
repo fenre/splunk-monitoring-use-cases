@@ -1,0 +1,88 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "058df0285a7511e3ef19cbda63c57bc2f446e3e1097cfbbbde751f33f90ef348",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/forward-and-process-data/ingest-actions/process-data-with-forwarders/forwarder-comparison",
+      "explanation": "The Universal Forwarder is a standalone executable, not Splunkbase app 617 (absent from the cached catalogue), and it does not bundle Python for modular inputs; the guide's documented paths for CRAC/CRAH data are SNMP polling and BACnet/BMS integration.",
+      "field": "dataSources",
+      "quote": "CRAC/CRAH unit SNMP metrics, BMS alarms Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual collector: SNMP polling of the unit's network card (for example SNMP Modular Input, Splunkbase 1537, on a heavy forwarder) or BACnet via Edge Hub / BMS export, and drop the 'Splunkbase 617' reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The subcategory guide models CRAC SNMP data as `sourcetype=\"snmp:crac\"` with `unit_name`, `supply_temp_c`, `compressor_state`, `unit_state` (online/standby) and `unit_alarm`, while sibling UC-15.2.8 uses `bms:crac` with `unit_alarm`, `compressor_fault`, `fan_fault`. This UC uses yet another set (`unit_status`, `supply_temp_f`, `setpoint_f`, `compressor_status`) that dataSources never lists, so a reader cannot tell which fields the feed must produce.",
+      "field": "cross_field",
+      "quote": "index=cooling sourcetype=\"bms:crac\"\n| where unit_status!=\"running\" OR supply_temp_f > setpoint_f + 5 OR compressor_status!=\"normal\"",
+      "severity": "major",
+      "suggested_fix": "List the required fields and units in dataSources (`unit_name`, `unit_status`, `supply_temp_f`, `setpoint_f`, `compressor_status`) and either align with the guide's `snmp:crac` field dictionary or state that `bms:crac` is a custom BMS feed and how its fields map."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real CRAC false positive. The dominant one is built into the logic: standby units in an N+1 or lead/lag rotation report a non-'running' status and will alert on every run; others are defrost or dehumidification cycles raising supply temperature, and setpoint changes during commissioning.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "Replace with standby/lead-lag units (exclude `unit_status=\"standby\"` or check redundancy in UC-15.2.17), compressor short-cycling during low load, supply-air excursions right after a unit restart, and planned maintenance on a single unit."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL does no aggregation and has no `entity` field; it filters raw records on three explicit conditions that the description never states.",
+      "field": "description",
+      "quote": "by aggregating `count` grouped by `entity` over `the scheduled window` and alerting when configured threshold",
+      "severity": "major",
+      "suggested_fix": "Describe the three conditions: unit not running, supply air more than 5 °F above setpoint, or compressor status not normal, reported per `unit_name`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "`host`, `user` and `action` are authentication-style fields unrelated to a CRAC feed; this sits in a second, duplicated Step 1–5 block (after 'Step 4 — Operationalize' printed four times) full of vendor-API text that does not apply to SNMP/BMS polling.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`host, user, action`).",
+      "severity": "major",
+      "suggested_fix": "Keep one procedure and validate the fields the SPL uses (`unit_name`, `unit_status`, `supply_temp_f`, `setpoint_f`, `compressor_status`) against the unit's local display or BMS screen."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "No runtime-hours field is collected or searched, and the visualization's 'Gauge (cooling capacity %)' and 'Line chart (supply/return temps)' need return temperature and capacity fields the SPL does not have. CRAH (chilled-water) units also have no compressor, which the text does not acknowledge.",
+      "field": "implementation",
+      "quote": "Track runtime hours for maintenance scheduling.",
+      "severity": "minor",
+      "suggested_fix": "Either add the fields (return_temp_f, runtime_hours, capacity_pct, chilled-water valve position for CRAH) to dataSources or remove those claims."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`unit_status!=\"running\"` alerts on every standby unit in an N+1 or lead/lag configuration; there is also no time bound or latest-per-unit step, so with a 24h schedule each degraded poll and already-recovered units are reported.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0041-UC-15.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL is a reasonable unit-health filter (not running, supply air 5 °F above setpoint, compressor abnormal), but the ingestion path is wrong, the sourcetype and field names disagree with the subcategory guide and with sibling UC-15.2.8, and the description, false positives and second implementation block are generic template text with wrong field names.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.3",
+  "verdict": "incorrect"
+}

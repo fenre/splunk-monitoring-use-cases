@@ -1,0 +1,112 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c25fe1e950dcb3d9d3291210c4c8c2baf5d9ac372910d18f0c28fc1b73cf3fb1",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.33.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "Cisco Spaces IOT_TELEMETRY events nest readings under `iotTelemetry`. The real paths are `temperature.temperatureInCelsius`, `humidity.humidityInPercentage`, `carbonEmissions.co2Ppm`, `tvoc.valueInPpb` and `massConcentration` (type MCT_PM_2_5), with `deviceInfo.deviceName`/`deviceModel` and `location.name`. No flat `co2`, `pm25`, `sensorName`, `sensorModel` or `building` field exists, and `alert` is computed by the search, not delivered by the source. The sourcetype `cisco:spaces:sensors` is also unconfirmed: third-party setup notes for the Spaces add-on list `cisco:spaces:firehose`.",
+      "field": "dataSources",
+      "quote": "Sourcetypes: cisco:spaces:sensors. Key fields: alert, building, co2, humidity, location, pm25, sensorModel, sensorName.",
+      "severity": "blocker",
+      "suggested_fix": "List the real IOT_TELEMETRY JSON paths, or the FIELDALIAS/eval mappings needed to produce the short names. Verify and state the sourcetype the Spaces Add-On (8485) writes. Remove `alert` from the source field list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.meraki.com/Platform_Management/Dashboard_Administration/Operate_and_Maintain/How-Tos/Cisco_Meraki_Add-on_for_Splunk",
+      "explanation": "Meraki webhooks send alert events (for example 'Sensor change detected' when a dashboard threshold is crossed), not a continuous telemetry stream. Continuous MT readings come from the Dashboard API: Splunk_TA_cisco_meraki (5580) has a Sensor Readings History input (`meraki:sensorreadingshistory`). A reader following the webhook path would get sparse alert events without the fields this search evaluates.",
+      "field": "implementation",
+      "quote": "Stream telemetry to Splunk via the Spaces Add-On or direct Meraki webhook integration to HEC.",
+      "severity": "blocker",
+      "suggested_fix": "Name the two real telemetry paths: Cisco Spaces IOT_TELEMETRY via the Spaces Add-On (8485), or the Meraki Dashboard API via Splunk_TA_cisco_meraki (5580) Sensor Readings History (`meraki:sensorreadingshistory`). Describe webhooks only as a channel for dashboard-side threshold alerts, and add 5580 to `app` if the API path is offered."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is 'App for Cisco Network Data' (cisco_ios), an IOS, NX-OS and WLC dashboard app. It is not a Cisco Security add-on and is unrelated to MT sensor telemetry.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Security (Splunkbase 1352)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 1352 reference and the generic Cisco Security support link. Cite the Cisco Spaces Firehose sample events, the Meraki MT datasheets, and Splunkbase 5580 if the Dashboard API path is used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL applies one global band (alert above 28°C or below 16°C) with no location lookup and no severity tiers. Every cold-storage sensor would permanently raise 'Low Temperature', and a server room at 27.5°C, already outside the 18-27°C band, would stay silent.",
+      "field": "cross_field",
+      "quote": "Define location-specific thresholds (server rooms: 18-27°C; offices: 20-24°C; cold storage: 2-8°C). Create severity tiers: warning (approaching threshold), critical (exceeding threshold), emergency",
+      "severity": "major",
+      "suggested_fix": "Describe a threshold lookup keyed on sensor or location (min_temp, max_temp, max_humidity), applied with `lookup` before the case(). Explain how warning, critical and emergency are derived. Otherwise, state plainly that the shipped search uses a single office-oriented 16-28°C band."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The validation step points at a BMS console rather than Meraki Dashboard (Sensors) or Cisco Spaces IoT Explorer, the 'Step 4' heading appears four times, and Step 1 and the SPL explanation stop mid-sentence ('MT sensors have…', 'immediate response to environmental…').",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.\n\n\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Validate latest readings per sensor against Meraki Dashboard > Sensors or Cisco Spaces IoT Explorer for the same time window. Remove the duplicate headings and complete the truncated sentences."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Battery life and local buffering differ by MT model. Some models in the hardware list (MT14, MT15) are USB-powered, so a blanket five-year battery claim and a five-day storage figure are unverified.",
+      "field": "implementation",
+      "quote": "MT sensors have five-year battery life and five days of onboard data storage.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Meraki MT datasheets per model and either quote per-model figures or drop the claim."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the entries is a real environmental false positive. Real causes include sensors placed near a CRAC supply vent or in direct sunlight, door-open events in cold rooms, cleaning (VOC and PM spikes), occupancy-driven CO2 in meeting rooms, and condensation on leak cables.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `sensorName`, `sensorModel`, `location`, `building`** — Health checks in `cisco_spaces` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those sensor-placement and activity causes and suggest a short persistence window (for example two consecutive readings) before alerting."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search keeps only rows already in breach and returns the latest value per sensor, so it cannot drive a 7-day trend or a map of all sensors' status. Those panels need a separate unfiltered search.",
+      "field": "visualization",
+      "quote": "Line chart (environmental trends over 7 days), Map (sensor locations with color-coded status)",
+      "severity": "minor",
+      "suggested_fix": "Note that trend and map panels use a separate unfiltered timechart or latest-per-sensor search, and that this alert search feeds only the active-alerts table."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "field": "spl",
+      "issue": "The search evaluates flat fields (`temperature`, `humidity`, `pm25`, `co2`, `tvoc`, `waterDetected`, `sensorName`, `sensorModel`, `building`) that do not exist in Cisco Spaces IOT_TELEMETRY, where readings are nested under `iotTelemetry.*` (https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/). Without aliases, no row matches. `stats latest(...)` runs only over breaching events, so it reports the latest breaching value, not the current reading.",
+      "severity": "blocker"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "The type includes 'Availability', but the search does not detect sensors that stop reporting or have low battery.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0072-UC-15.3.33",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation narrative about Meraki MT sensors is helpful, but the documented field names do not match the Cisco Spaces IOT_TELEMETRY payload. Meraki webhooks are wrongly offered as a telemetry stream, the global thresholds contradict the location-specific ones in the prose, and a reference names the wrong Splunkbase app.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.33",
+  "verdict": "incorrect"
+}

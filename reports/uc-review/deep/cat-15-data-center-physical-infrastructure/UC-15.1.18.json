@@ -1,0 +1,97 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "4f9a2204828399f8d923a7333b325d24691d1361d822ca316a3b4b8e6eac9187",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.18.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/",
+      "explanation": "detailedImplementation, and dataSources ('a Heavy Forwarder running Splunk Connect for SNMP'), place SC4SNMP on a heavy forwarder configured through inputs.conf. SC4SNMP is a containerized, edge-deployed collector that sends to Splunk over HEC and has its own inventory and profile configuration. Only SNMP Modular Input (1537) uses inputs.conf stanzas on a forwarder.",
+      "field": "cross_field",
+      "quote": "SNMP walks or traps via **Splunk Connect for SNMP (Splunkbase 6266)** or **SNMP Modular Input (Splunkbase 1537)** on a Heavy Forwarder with `inputs.conf` stanzas",
+      "severity": "blocker",
+      "suggested_fix": "Separate the two paths. SNMP Modular Input (1537) uses [snmp://...] stanzas in inputs.conf on a heavy forwarder. SC4SNMP (6266) is deployed as its own container stack that forwards over HEC; say how its output is mapped to index=power and sourcetype generator:events."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "Neither SNMP collector is scheduled with cron. SNMP Modular Input uses the snmpinterval setting in seconds, as in the guide's example stanza, and SC4SNMP uses a polling frequency in its profiles.",
+      "field": "detailedImplementation",
+      "quote": "Poll or stream start/fault logs at least every **five minutes** (`cron` `*/5 * * * *` on SNMP jobs)",
+      "severity": "minor",
+      "suggested_fix": "Say 'set snmpinterval = 300 on the SNMP Modular Input stanza (or frequency: 300 in the SC4SNMP profile)'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL does not group or count. It lists each generator:events row where start_result is fail or abort, or crank_count exceeds 3, newest first. The alert condition is that OR, not crank_count > 3 alone.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `crank_count` > 3.",
+      "severity": "major",
+      "suggested_fix": "Describe the output as a time-ordered list of start attempts that failed, were aborted, or needed more than three crank attempts, with generator_id and fault_code."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are templates keyed on host, src, count and span=1h, none of which the SPL uses. They miss the causes a facilities team actually sees.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `count` on `generator:events`** — Scheduled automation elevates `src` without crossing `crank_count` > 3",
+      "severity": "major",
+      "suggested_fix": "List generator-specific causes: operator-aborted or emergency-stopped exercise runs recorded as abort; controller left in Off or Manual (not in Auto) during maintenance; crank_count exported as a cumulative lifetime counter instead of per-attempt cranks, which makes every row match; and replayed historian data re-reporting old failures."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The detection keys on generator_id, not host. A maintenance lookup keyed on host will not match generator events forwarded from a BMS or historian.",
+      "field": "implementation",
+      "quote": "throttle notifications when maintenance lookups mark a host in a sanctioned test",
+      "severity": "minor",
+      "suggested_fix": "Key the maintenance and exercise lookup, and the alert throttle, on generator_id."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "This names a device, not a Splunk app, add-on or input.",
+      "field": "app",
+      "quote": "Generator controller",
+      "severity": "minor",
+      "suggested_fix": "Name the ingestion mechanism, such as SNMP Modular Input (1537), SC4SNMP (6266) or HEC from the BMS historian."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "spelling",
+      "explanation": "'bost' is a typo.",
+      "field": "detailedImplementation",
+      "quote": "battery/bost, fuel solenoid, air-bleed",
+      "severity": "minor",
+      "suggested_fix": "Use 'battery/boost' or 'starting battery and charger'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Check the meaning of crank_count > 3. Controllers that use the common three-cycle crank sequence declare overcrank after the third attempt, so a count above 3 may never occur. Conversely, a cumulative crank counter makes every row match. There is also no dedup per generator_id and start attempt, so overlapping alert windows re-alert on the same failure.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0010-UC-15.1.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "dataSources, evidence, exclusions and visualization are specific to generator start telemetry. However, the collection guidance treats Splunk Connect for SNMP as a heavy-forwarder inputs.conf add-on, the description misstates the SPL's output, and the false positives ignore generator-specific causes such as operator aborts and cumulative crank counters.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.18",
+  "verdict": "incorrect"
+}

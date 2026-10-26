@@ -1,0 +1,90 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "5bd63127ef7c50bd0cdcc83193fe892e04bcaee29e00e05f1908b80d27a9837e",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.27.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "dataSources calls this field enumerated, and an enumeration does not increment. The SPL only tests the text of the value with a regex.",
+      "field": "implementation",
+      "quote": "or when `upsLastTransferReason` increments on the trap path",
+      "severity": "major",
+      "suggested_fix": "Describe it as an enumerated cause code that is matched, or count changes in it explicitly in the SPL."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Check PowerNet-MIB: the APC object for the cause of the last transfer to battery is believed to be `upsAdvInputLineFailCause`, so `upsLastTransferReason` may not exist. `upsBasicOutputStatus` is an enumerated state, not status bits, and the SPL never reads it.",
+      "field": "dataSources",
+      "quote": "enumerated `upsLastTransferReason`, and status bits from `upsBasicOutputStatus`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the real OID names and value enumerations in PowerNet-MIB, and drop `upsBasicOutputStatus` from the primary readings unless the SPL uses it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes 108 and 132 V and has no lookup. The text also says the alert fires only when voltage stays below 108 V across two polls, but the SPL fires on a single reading in a 15-minute bucket.",
+      "field": "implementation",
+      "quote": "Normalize nominal voltage using lookup `ups_nominal_voltage` keyed on `host`.",
+      "severity": "major",
+      "suggested_fix": "Either add the nominal-voltage lookup and the two-poll condition to the SPL, or reduce the text to the fixed 108/132 V thresholds the SPL applies."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Check whether Splunk Connect for SNMP emits `snmp:apc:ups` and `snmp:trap`, and whether it can be installed on a Heavy Forwarder as the prerequisites imply. SC4SNMP is normally deployed on Docker or Kubernetes and sends via HEC.",
+      "field": "dataSources",
+      "quote": "standardize `sourcetype=snmp:apc:ups` for scheduled walks",
+      "severity": "needs_verification",
+      "suggested_fix": "State the sourcetypes SC4SNMP really writes and its supported deployment model."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC has no CIM model (`cimModels` is empty), so this validation step does not apply. Steps 3 and 4 are also missing from the numbering.",
+      "field": "detailedImplementation",
+      "quote": "Confirm CIM field extractions resolve by running `| datamodel <model> search | head 1`",
+      "severity": "minor",
+      "suggested_fix": "Replace with a check against the APC web UI input voltage and the event log, and renumber the steps."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The UC polls APC PowerNet-MIB objects, not RFC 1628 objects, and the APC link titled as an application note is the same FAQ cited elsewhere. Neither reference supports the OIDs used.",
+      "field": "references",
+      "quote": "IETF RFC 1628 — UPS Management Information Base",
+      "severity": "minor",
+      "suggested_fix": "Cite PowerNet-MIB for `upsAdvInputLineVoltage` and the transfer-cause object, and verify that the APC FAQ page covers them."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The title promises voltage sag with transfer to battery, but the `where` clause is an OR across under-voltage, over-voltage (`vin > 132`) and any transfer-reason match. An over-voltage reading alone raises an alert.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`match(toString(reason), \"(?i)transfer|battery|boost|trim\")` would also match a no-transfer value such as `noTransfer`, producing a row on healthy polls. Check the enumeration labels and anchor the regex.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0004-UC-15.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "A reasonably specific APC UC, but the SPL is broader than the title and the implementation describes logic the SPL does not have. Several PowerNet-MIB object names and semantics are doubtful.",
+  "tier": "triage",
+  "uc_id": "UC-15.1.27",
+  "verdict": "rewrite"
+}

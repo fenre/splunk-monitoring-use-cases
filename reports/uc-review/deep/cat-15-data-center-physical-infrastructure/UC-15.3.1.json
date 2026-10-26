@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f605d14cc6c647804ec60031a61a132985d0dc3422a0c2f707329ee391059958",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "`splunktcp://` receives Splunk-to-Splunk (forwarder) traffic, not syslog; raw syslog over TCP uses a `tcp://<port>` stanza (and `udp://<port>` for UDP). A reader configuring a splunktcp listener for the PACS head-end would receive nothing parsable.",
+      "field": "dataSources",
+      "quote": "a Heavy Forwarder `inputs.conf` `splunktcp://` / `udp://` stanza",
+      "severity": "blocker",
+      "suggested_fix": "Say `tcp://<port>` or `udp://<port>` stanzas (or SC4S) for syslog from the access control head-end; reserve splunktcp for forwarder-to-indexer traffic."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "dataSources and detailedImplementation present syslog as the common path, but the category guide documents Lenel OnGuard, CCURE 9000 and AMAG Symmetry via Splunk DB Connect (Splunkbase 2686) or REST, landing in index=physical_security with vendor sourcetypes (lenel:event, software_house:ccure, amag:symmetry). The UC's index=physical / sourcetype=access_control is a normalised name the reader must create.",
+      "field": "cross_field",
+      "quote": "ingest is commonly via syslog through Splunk Connect for Syslog (Splunkbase app 4740)",
+      "severity": "major",
+      "suggested_fix": "Add the DB Connect path (e.g. Lenel lnl_event_log query, Splunkbase 2686) alongside syslog/REST, and state that index=physical and sourcetype=access_control are site conventions that differ from the guide's physical_security index and vendor sourcetypes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL performs no aggregation and no threshold; it lists every badge event (_time, badge_holder, badge_id, door, action, result) newest first as an audit trail.",
+      "field": "description",
+      "quote": "Summarises `count` grouped by `entity` across `the scheduled window` before applying configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a badge-event audit report: one row per access-control event showing who badged at which door, the action and the grant/deny result, for evidence export and review."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios applies to a badge audit trail. Relevant noise includes controller replay of buffered events after a network outage (duplicate or out-of-order rows), test/maintenance badges, door-held alarms without a badge_holder, and time skew between panels.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with PACS-specific data-quality caveats: buffered event replay, test cards, events without cardholder, panel clock drift."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "implementation names roles physical_security and splunk_monitoring_ops while detailedImplementation names physical_security_analyst and audit_reader for the same restriction.",
+      "field": "cross_field",
+      "quote": "restrict `index=physical` to `physical_security` and `splunk_monitoring_ops` roles",
+      "severity": "minor",
+      "suggested_fix": "Use one set of role names (marked as examples) in both fields."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "The window shown is 15 minutes, not five; similarly \"2× the controller poll interval\" assumes polling although the primary path described is pushed syslog.",
+      "field": "detailedImplementation",
+      "quote": "Use a five-minute acceptance test window (`-15m@m` to `now`)",
+      "severity": "minor",
+      "suggested_fix": "Make the window text match the time modifier and phrase throttling in terms of the actual delivery path (syslog push vs REST/DB Connect poll interval)."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "\"those event types\" refers to a list that is not in this field (it lives in dataSources), so the sentence is unclear on its own.",
+      "field": "implementation",
+      "quote": "Classify every PACS export line or API payload into those event types",
+      "severity": "minor",
+      "suggested_fix": "Name the event types inline: grant, deny, door held, door forced."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "Nothing in this UC uses Microsoft 365 data; the tag misroutes the UC in equipment filters.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365; tag the access-control/physical-security equipment slug instead if one exists."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The reference is titled PCI DSS Requirement 9 but links to the council home page.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.pcisecuritystandards.org/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the PCI DSS v4.0.1 document library entry, and add the PACS vendor export/DB Connect documentation actually used."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.nerc.com/pa/Stand/Reliability%20Standards/CIP-006-6.pdf",
+      "field": "compliance",
+      "issue": "NERC CIP mapping cites CIP-005-7 R1 (Electronic Security Perimeter), but physical access logging is CIP-006 (Physical Security of BES Cyber Systems, e.g. CIP-006-6 R1 physical access logging; see https://www.nerc.com/pa/Stand/Reliability%20Standards/CIP-006-6.pdf). The API RP 1164 and NERC CIP entries are also each duplicated under two regulation spellings ('api-rp-1164'/'API RP 1164', 'nerc-cip'/'NERC CIP').",
+      "severity": "blocker"
+    },
+    {
+      "field": "compliance",
+      "issue": "TSA SD02C III.A mapping ('physical badge audit is one of the plan components') and mode 'satisfies' for a raw event listing should be verified against the directive text; a table of badge events contributes evidence but does not by itself satisfy a cybersecurity plan clause.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is a logical-account technique; a physical badge audit listing does not detect it. Remove or justify the mapping.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-15.3.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "dataSources, implementation, visualization and evidence are mostly specific to a badge audit trail, but the description claims thresholded alerting the SPL does not do, the syslog ingest guidance names the wrong inputs.conf stanza, the collection path ignores the guide's DB Connect route for PACS, and the compliance mappings cite the wrong NERC CIP standard and are duplicated.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.1",
+  "verdict": "incorrect"
+}

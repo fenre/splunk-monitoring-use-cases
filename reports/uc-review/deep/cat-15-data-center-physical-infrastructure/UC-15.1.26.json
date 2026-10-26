@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "470cfb72bc254290f799a94c2d64109e249effe13542eb648d21c3cdc791e02a",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.26.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/snmp-data-format/",
+      "explanation": "SC4SNMP classifies TimeTicks/Gauge/Integer varbinds as metrics, so any profile that polls upsAdvBatteryRunTimeRemaining goes to the metrics index (default netmetrics) with sourcetype sc4snmp:metric. The metric is named sc4snmp.PowerNet-MIB.upsAdvBatteryRunTimeRemaining. It does not arrive as an event field in index=power with sourcetype snmp:apc:ups, and sourcetype overrides in SC4SNMP apply to the whole deployment, not to one device. A reader who follows this text will find no events for the SPL to match.",
+      "field": "dataSources",
+      "quote": "ingestion uses Splunk Connect for SNMP (Splunkbase #6266) into `index=power` with `sourcetype=snmp:apc:ups`",
+      "severity": "blocker",
+      "suggested_fix": "Say that SC4SNMP lands this value in a metrics index as sc4snmp:metric and that the search needs mstats on metric_name=\"sc4snmp.PowerNet-MIB.upsAdvBatteryRunTimeRemaining\". If the event-search SPL is kept, say that the snmp:apc:ups event sourcetype only applies to SNMP Modular Input (1537) polling or to a custom poller that writes events."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.1.2.2.3",
+      "explanation": "PowerNet-MIB defines upsAdvBatteryRunTimeRemaining as TimeTicks, which is hundredths of a second. That is why /6000 yields minutes. The claim about hundredths of a minute is false, and the detailedImplementation's suggestion that /100 might be the right divisor would produce seconds and inflate runtime 60-fold, so the 15-minute alert would be masked.",
+      "field": "implementation",
+      "quote": "PowerNet sometimes stores hundredths of a minute",
+      "severity": "blocker",
+      "suggested_fix": "State that the OID is TimeTicks (centiseconds), so divide by 6000 for minutes or by 100 for seconds. Remove the per-firmware divisor lookup unless a specific firmware deviation is documented."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/snmpv3/",
+      "explanation": "SC4SNMP does not use the Splunk credential store. SNMPv3 credentials are Kubernetes Secrets referenced in values.yaml under poller.usernameSecrets (microk8s), or entries in secrets.json (docker compose).",
+      "field": "detailedImplementation",
+      "quote": "Install Splunk Connect for SNMP (Splunkbase #6266) workers with SNMPv3 secrets in the credential store",
+      "severity": "minor",
+      "suggested_fix": "Replace 'in the credential store' with 'as Kubernetes Secrets referenced by poller.usernameSecrets (or secrets.json for docker compose)'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The boilerplate sentence appended to dataSources (and repeated in detailedImplementation Step 1) contradicts the UC's own collection design. SC4SNMP is a standalone Kubernetes or docker service that sends over HEC, and the implementation explicitly says not to run a second collector. A Universal Forwarder is not a Splunkbase add-on.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Delete the Universal Forwarder sentence from dataSources and Step 1 and keep a single named collector, either SC4SNMP or SNMP Modular Input."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 2 and 5 are generic template text: tstats and data model advice for a UC whose cimModels list is empty, exception-lookup guidance keyed on 'user, src, process_name', and step numbering that jumps from Step 2 to Step 5. None of it helps tune a UPS runtime alert.",
+      "field": "detailedImplementation",
+      "quote": "For high-volume sources, use `tstats` against the accelerated data model when possible.",
+      "severity": "major",
+      "suggested_fix": "Replace Steps 2 and 5 with UPS-specific guidance: verify the metric or field name in mpreview or a raw search, handle the transient runtime drop right after transfer to battery, and correlate with upsBasicOutputStatus. Renumber the steps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "A 65-minute window with timechart span=1h produces one partial leading bucket and one partial trailing bucket, so the 'one-hour rolling average' in implementation is really a pair of calendar-hour fragments averaged over different sample counts.",
+      "field": "detailedImplementation",
+      "quote": "sample pattern `dispatch.earliest_time=-65m@m`, `dispatch.latest_time=now`, `cron_schedule=*/5 * * * *`",
+      "severity": "minor",
+      "suggested_fix": "Either use earliest=-60m@m with stats avg(runtime_min) by host for a true rolling hour, or align the window to complete hour buckets (-1h@h to @h)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The UC is poll-only (upsAdvBatteryRunTimeRemaining gauge); nothing in the SPL or data sources uses traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap unless a trap-based path is added to dataSources."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart span=1h avg(runtime_min) as avg_runtime by host` emits one column per host value, not a field named avg_runtime, so `| where avg_runtime < 15` matches nothing and the alert can never fire. Use `stats avg(runtime_min) as avg_runtime by host` (or bin _time span=1h + stats by _time host) before the where clause. The search also needs mstats against the metrics index if SC4SNMP is the collector.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "tonumber(upsAdvBatteryRunTimeRemaining) returns null when the poller renders TimeTicks in net-snmp text form, for example '(1200000) 3:20:00.00'. Check the raw format the chosen collector produces.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0019-UC-15.1.26",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The vendor-specific prerequisites and implementation bullets are useful, but the collection path is wrong: Splunk Connect for SNMP sends TimeTicks values such as upsAdvBatteryRunTimeRemaining to a metrics index as sc4snmp:metric, not to an event index as snmp:apc:ups. The implementation also misstates the PowerNet unit, and the SPL can never return a row because timechart ... by host does not create an avg_runtime column.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.26",
+  "verdict": "incorrect"
+}

@@ -48,6 +48,7 @@ MODELS_CONFIG = REPO_ROOT / "config" / "uc-review-models.json"
 RUN_LOG_NAME = "run-log.jsonl"
 MAX_STARTUP_ATTEMPTS = 4
 BACKOFF_SECONDS = (4, 8, 16, 32)
+URL_IN_TEXT_RE = re.compile(r"https?://[^\s)\]>]+")
 JSON_FENCE_RE = re.compile(r"```json\s*\n(.*?)\n```", re.DOTALL)
 
 Entry = tuple[Path, dict[str, Any]]
@@ -294,6 +295,16 @@ def complete_record(
     for finding in record["findings"]:
         if isinstance(finding, dict) and isinstance(finding.get("quote"), str):
             finding["quote"] = _clip(finding["quote"], QUOTE_MAX)
+    for flag in record["firewalled_field_flags"]:
+        if (
+            isinstance(flag, dict)
+            and not flag.get("evidence_url")
+            and not flag.get("evidence_ref")
+            and isinstance(flag.get("issue"), str)
+        ):
+            cited = URL_IN_TEXT_RE.search(flag["issue"])
+            if cited:
+                flag["evidence_url"] = cited.group(0).rstrip(".,;:'\"`")
     if isinstance(record.get("summary"), str):
         record["summary"] = _clip(record["summary"], SUMMARY_MAX)
     if tier != "adjudication":

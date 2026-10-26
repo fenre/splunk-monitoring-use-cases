@@ -1,0 +1,91 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "89437d98f9783d1cf0811a60192cde26f5ed77c8fffa736d5dbe9f2a559a01f2",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.11.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/9.3.1/Forwarding/Typesofforwarders",
+      "explanation": "The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it does not bundle Python for modular inputs.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real BMS path (BACnet/Modbus gateway, Edge Hub, BMS historian via DB Connect Splunkbase 2686, or SNMP from the chiller controller) and drop 'Universal Forwarder (Splunkbase 617)'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources lists tons, kw and cop, but the SPL also needs `chiller_id` and `design_kw_per_ton` and never uses `cop`; implementation says the design baseline comes from commissioning but does not say how it reaches the event (lookup or field).",
+      "field": "cross_field",
+      "quote": "`sourcetype=\"bms:chiller\"` (tons, kw, cop)",
+      "severity": "major",
+      "suggested_fix": "List chiller_id and design_kw_per_ton, and state that design_kw_per_ton comes from a commissioning lookup keyed on chiller_id (or is set per chiller in the BMS export). Drop cop or explain its use (kW/ton = 3.517 / COP)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL filters individual samples above 115% of design before charting, so one high sample alerts and there is no persistence logic; the 15% margin appears only in the SPL and is not explained in prose.",
+      "field": "implementation",
+      "quote": "Alert on sustained degradation.",
+      "severity": "major",
+      "suggested_fix": "State the threshold (kW/ton above 115% of design) and the persistence rule the reader should add (e.g. average over 1–2 hours at comparable load), or describe the UC as a trend report."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic and miss the main real causes of high kW/ton readings.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `avg` on `bms:chiller`** — Scheduled automation elevates `kw_per_ton` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: low part-load operation where kW/ton rises naturally, chiller start-up and staging transitions, near-zero tons readings that inflate the ratio, high condenser water temperature on hot days, and stale design values after retrofits."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The body is generic template text (HEC tokens, list_inputs, vendor API 401/429) and duplicates Steps 1–4, with 'Step 4 — Operationalize' repeated four times; nothing explains BMS point mapping for kW and tons.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`chiller_id`). Run `timechart count span=1h` over 7 days",
+      "severity": "major",
+      "suggested_fix": "Deduplicate and replace with chiller-specific steps: map BMS points for chiller kW input and tons (or flow × ΔT), load the design lookup, exclude rows with tons below a minimum load, and validate against the BMS chiller efficiency screen."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The monitored equipment is a chiller plant / BMS, not Splunk.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the BMS or chiller equipment slug."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where kw_per_ton > design_kw_per_ton * 1.15` runs before `timechart`, so the chart shows only exceeding samples (gaps elsewhere) and alerts on single readings, which does not match 'sustained degradation'. Near-zero `tons` at low load inflates kw_per_ton; add a minimum-load filter. `design_kw_per_ton` has no lookup.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Chiller Plant Efficiency' usually means total plant kW/ton (chillers + pumps + towers), but the SPL computes per-chiller kW/ton.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-15.2.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The kW/ton math is right and the degradation causes are real, but the SPL depends on an undocumented design_kw_per_ton field, alerts on single samples rather than sustained degradation, and the collection path names a non-existent Splunkbase Universal Forwarder app; most other text is template residue.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.11",
+  "verdict": "incorrect"
+}

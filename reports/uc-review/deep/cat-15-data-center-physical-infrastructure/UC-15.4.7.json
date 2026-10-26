@@ -1,0 +1,98 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "6d352a4822f722c542d98a819a0d2dc9afb97246342639a4ff09b91d4e153494",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.7.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "By default, SC4SNMP writes polled numeric values to the metrics index `netmetrics` with sourcetype `sc4snmp:metric`, and non-metric values to `netops` with `sc4snmp:event`. It never writes `snmp:apc:cooling` into `index=cooling`, so a reader who picks SC4SNMP gets zero results from this SPL. There is also no MIB module called 'AirIR-MIB'. The InRow objects sit in the airIR subtree of PowerNet-MIB, and an SC4SNMP profile that names 'AirIR-MIB' will not resolve.",
+      "field": "app",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input; APC PowerNet-MIB / AirIR-MIB field extractions",
+      "severity": "blocker",
+      "suggested_fix": "Name one collector. For SC4SNMP, say the data arrives as metrics such as `sc4snmp.PowerNet-MIB.airIRRCUnitStatusFanSpeed` in the configured metrics index and needs `mstats`, or describe the custom sourcetype override. For the SNMP Modular Input (Splunkbase 1537), describe the stanza that sets `sourcetype=snmp:apc:cooling`. Replace 'AirIR-MIB' with 'PowerNet-MIB (airIR / airIRRC subtree)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP modular input of its own. Splunkbase /app/617 returns 404. The sentence tells the reader to install a non-existent app as the SNMP collector.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Remove 'Universal Forwarder (Splunkbase 617)'. Say the data comes from SC4SNMP or from the SNMP Modular Input (Splunkbase 1537) running on a heavy forwarder, and match the index to the SPL (`index=cooling`) rather than `index=power|cooling|environment`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `implementation` field describes a load-normalised alert (+20 points at the same load) and a per-season baseline. The `spl` field is only a 24-hour `timechart` of avg fan % and airflow: it reads no load or cooling-demand value, stores no baseline and has no threshold. So `detailedImplementation`'s 'throttle per entity to avoid duplicate pages' has nothing to page on.",
+      "field": "cross_field",
+      "quote": "(2) Alert when fan_pct rises 20 points at same load.",
+      "severity": "major",
+      "suggested_fix": "Either describe this as a trending dashboard with no alert, or say how load is measured (for example `airIRRCUnitStatusCoolDemand` / `airIRRCUnitStatusCoolOutput`), where the seasonal baseline is stored (lookup or summary index) and the exact comparison that raises an alert."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2.2",
+      "explanation": "The steps are a generic REST-API template: vendor API rate limits, the HTTP 401/429 'vendor endpoint configured in inputs.conf', a 'vendor admin UI inventory count' and a placeholder `tstats count where index=... sourcetype=...`. None of it covers SNMP polling of an InRow NMC: SNMP community or v3 credentials, the OIDs to poll, mapping `airIRRCUnitIdentName` to `unit_name`, or the tenths-of-percent scaling.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=snmp:apc:cooling into cooling. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs`",
+      "severity": "major",
+      "suggested_fix": "Rewrite the steps for SNMP. Enable SNMP on the InRow network management card. Poll `airIRRCUnitStatusFanSpeed` (tenths of percent), `airIRRCUnitStatusAirFlowUS` (CFM) and `airIRRCUnitIdentName`. Extract or rename them to the SPL fields and validate against the unit's front-panel or web UI readings."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its MIB object names do not exist in PowerNet-MIB, it cites a non-existent Splunkbase app, and its text is template residue. That is not consistent with SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to a draft or unverified value until an SME has checked the collector, OIDs and field mapping against a real InRow unit."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The Schneider reference is a PDU product-category page, not InRow cooling, and the Splunkbase link is a search URL. Nothing points to the PowerNet-MIB objects the UC depends on.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Cite the InRow RC/RP SNMP or PowerNet-MIB documentation, the SNMP Modular Input page (https://splunkbase.splunk.com/app/1537) or the SC4SNMP docs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC trends polled gauge values, and no trap feeds this search.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop `snmp_trap` unless a trap-based step is added."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2.2",
+      "field": "spl",
+      "issue": "`airIRFanSpeed` and `airIRFanAirflow` are not PowerNet-MIB objects. The InRow RC objects are `airIRRCUnitStatusFanSpeed`, which is in tenths of percent and must be divided by 10 to give fan_pct, and `airIRRCUnitStatusAirFlowUS` (CFM) or `airIRRCUnitStatusAirFlowMetric` (hundredths of L/s). InRow RP units use the airIRRP100/airIRRP500 prefixes. With SC4SNMP the values are metrics and need `mstats` against the metrics index. Evidence: https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2.2",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0097-UC-15.4.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC aims at a real signal: InRow fan speed and airflow trends. The collection text is wrong, though. SC4SNMP does not emit `snmp:apc:cooling` events, 'AirIR-MIB' is not a MIB, and the Universal Forwarder is not Splunkbase app 617. The SPL reads MIB object names that do not exist, the implementation promises a load-normalised alert the SPL never computes, and the rest is generic template text.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.7",
+  "verdict": "incorrect"
+}

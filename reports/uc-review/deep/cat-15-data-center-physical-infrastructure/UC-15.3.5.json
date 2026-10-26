@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0818634261e0c433fe5a908b34fc4086d0e7f95a750d615d08570451aab4955e",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1546",
+      "explanation": "Splunkbase 1747 is the Splunk Add-on for Cisco WSA (Splunk_TA_cisco-wsa); REST API Modular Input (rest_ta) is Splunkbase 1546. The wrong ID is repeated in detailedImplementation prerequisites and in the references entry 'REST API Modular Input on Splunkbase (1747)'.",
+      "field": "dataSources",
+      "quote": "**REST API Modular Input** ([Splunkbase **1747**](https://splunkbase.splunk.com/app/1747))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 1747 with 1546 (https://splunkbase.splunk.com/app/1546) in dataSources, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "HashiCorp Vault is a secrets manager, unrelated to smart cabinet locks. The tag probably came from the 'store tokens in storage/passwords (or your vault)' phrase, and it will list this UC under the wrong product in the equipment picker.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"hashicorp\", \"syslog\"], \"equipmentModels\": [\"hashicorp_vault\"]",
+      "severity": "major",
+      "suggested_fix": "Remove hashicorp / hashicorp_vault and tag the smart-lock / physical-access equipment slug if one exists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is a placeholder, not a product or add-on. dataSources and detailedImplementation then refer to 'the integration path documented for Cabinet lock sensor input' as if it were documented somewhere, so the reader has no concrete collector to install.",
+      "field": "app",
+      "quote": "\"app\": \"Cabinet lock sensor input\"",
+      "severity": "major",
+      "suggested_fix": "Name the collection mechanism directly: vendor smart-lock gateway (for example, the lock or DCIM head-end) sending via HEC, syslog through SC4S, or REST API Modular Input (Splunkbase 1546) polling the gateway's event export."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/architecture/",
+      "explanation": "SC4S is a containerised syslog-ng service deployed on its own Linux host near the sources and sends to Splunk HEC; it is not run on a heavy forwarder. detailedImplementation's 'syslog backlogs on the Heavy Forwarder' troubleshooting step inherits the same mix-up.",
+      "field": "dataSources",
+      "quote": "**Splunk Connect for Syslog** ([Splunkbase app **4740**](https://splunkbase.splunk.com/app/4740)) on a Heavy Forwarder",
+      "severity": "major",
+      "suggested_fix": "Say: SC4S on a dedicated syslog host sending to HEC, or a heavy forwarder with a syslog TCP/UDP input. Adjust the troubleshooting step to check SC4S disk buffer/HEC errors or HF input queues accordingly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/administer/manage-users-and-security/10.5.2605/manage-splunk-platform-users-and-roles/define-roles-on-the-splunk-platform-with-capabilities",
+      "explanation": "`edit_alert_actions` lets a role view and edit all alert actions regardless of ACLs and is documented for privileged roles only. A service account that just runs this saved search and fires its configured action needs `schedule_search` plus write access to the saved search.",
+      "field": "detailedImplementation",
+      "quote": "use a scheduler service account with `schedule_search` and `edit_alert_actions`",
+      "severity": "minor",
+      "suggested_fix": "Drop `edit_alert_actions` from the service-account guidance, or explain that it is an admin-level capability needed only to manage alert action configuration."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "CIM Authentication.action expects success/failure, while the lock feed's action is 'opened'. The real mapping is `authorized` → action (success/failure) and rack_id → dest, plus an `authentication` tag on the sourcetype; the text does not say this.",
+      "field": "dataModelAcceleration",
+      "quote": "enable **Authentication** data model acceleration only after `FIELDALIAS`/`EVAL` maps lock `user` and `action` into the CIM Authentication fields",
+      "severity": "minor",
+      "suggested_fix": "Spell out the mapping: tag the cabinet_lock eventtype with `authentication`, derive action=success|failure from `authorized`, alias rack_id to dest and user to user."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "A -5m to now window on a 5-minute cron misses events indexed late (gateway buffering, syslog delay), which is a likely cause of the 'silent false negatives' warned about earlier.",
+      "field": "detailedImplementation",
+      "quote": "set `cron_schedule=*/5 * * * *`, `dispatch.earliest_time=-5m`, `dispatch.latest_time=now`",
+      "severity": "minor",
+      "suggested_fix": "Recommend a lagged, snapped window such as earliest=-6m@m latest=-1m@m, or a slightly overlapping window combined with the rack_id suppression already described."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats query runs over the entire Authentication datamodel with no tag, sourcetype or app filter, so it returns all logins (Windows, VPN and so on), not cabinet-lock opens. It also groups by Authentication.src, which the lock feed does not populate.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`where action=\"opened\" AND NOT authorized=\"true\"` evaluates to null (not true) when `authorized` is missing, so opens lacking the field are silently excluded. Consider `isnull(authorized) OR authorized!=\"true\"`.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 Valid Accounts is an Enterprise ATT&CK credential technique. An unauthorized physical cabinet opening is not use of valid accounts and has no direct Enterprise ATT&CK mapping; consider removing it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0084-UC-15.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 3
+  },
+  "summary": "Implementation, detailedImplementation, evidence and exclusions are concrete and match the simple unauthorized-open SPL. However, the REST API Modular Input is cited under the wrong Splunkbase ID throughout, the equipment tags point at HashiCorp Vault, SC4S is placed on a heavy forwarder, and the app field names no real product.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.5",
+  "verdict": "incorrect"
+}

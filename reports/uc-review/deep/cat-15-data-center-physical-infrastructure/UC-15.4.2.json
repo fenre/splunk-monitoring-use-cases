@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "30575b7ca5235c040c6d2a6e3c045ce2ef5f07da99ad31a8ea6d69f40b3ea26f",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.2.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/617 returns 404. A reader following this would not collect any UPS data.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual SNMP collector: Splunk Connect for SNMP or the SNMP Modular Input (Splunkbase 1537), polling PowerNet-MIB upsAdvInputLineVoltage. Drop the Universal Forwarder and the 617 ID."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "SC4SNMP writes polling events as sourcetype sc4snmp:event to index netops by default, but the spl expects sourcetype snmp:apc:ups in index=power with a flat ups_name field. Nothing explains the override or extraction. The repository guide uses sourcetype snmp:ups.",
+      "field": "cross_field",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input",
+      "severity": "major",
+      "suggested_fix": "Document how sourcetype snmp:apc:ups, index=power and ups_name are produced (SC4SNMP sourcetypePollingEvents/eventIndex overrides plus props), or align with the guide's snmp:ups sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The SPL defaults nominal_input_voltage to 230, so every 120 V or 208 V UPS deviates far more than 8% and alerts on every sample. The implementation never says where nominal_input_voltage comes from; it is not a PowerNet-MIB object.",
+      "field": "implementation",
+      "quote": "(1) Normalize nominal voltage per region. (2) Correlate with ATS transfers.",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to populate nominal_input_voltage per UPS from a lookup (asset inventory or the UPS nameplate input rating) before scheduling. Warn that the 230 V fallback only fits 230 V sites, and name the ATS UC (UC-15.4.8) for the correlation step."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This lists title words in place of an explanation. It never says the search flags 5-minute samples where input voltage deviates more than 8% from nominal, either high or low.",
+      "field": "description",
+      "quote": "Keywords: APC, UPS, SNMP, Input, Voltage. Focuses on Brownout Detection behaviour",
+      "severity": "major",
+      "suggested_fix": "Describe the detection: per-UPS input line voltage compared with the site nominal, with rows where the absolute deviation exceeds 8% (sags/brownouts or surges) charted every 5 minutes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic REST/HEC troubleshooting steps that don't apply to SNMP polling of a UPS network management card, and the 'joins/lookups enrich owner' text describes SPL that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token ... unless the vendor API rate-limits lower ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint",
+      "severity": "major",
+      "suggested_fix": "Rewrite for SNMP: SNMPv3 credentials on the NMC, UDP 161 reachability, poll interval, PowerNet-MIB loading, the nominal-voltage lookup, and SNMP timeout errors in the collector logs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios that don't describe a real cause of voltage deviation alerts.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `avg` on `snmp:apc:ups` — Scheduled automation elevates `vin` without crossing `pct_dev` > 8",
+      "severity": "major",
+      "suggested_fix": "List real causes: wrong or missing nominal voltage for the site (the most common one), generator testing or utility switching during planned transfers, a single bad SNMP sample (0 V read during an NMC reboot), and sites with known wide utility tolerance."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The collection path is wrong and the hardcoded 230 V nominal would alert constantly at 120/208 V sites, so the UC cannot have been validated as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or unverified until an SME validates it against real UPS data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "There is no field named activity in the SPL or the data.",
+      "field": "value",
+      "quote": "by tracking `activity` on `snmp:apc:ups` feeds",
+      "severity": "minor",
+      "suggested_fix": "Say the UC tracks UPS input line voltage against nominal."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A PDU product-category page is cited for a UPS input-voltage UC, and the SC4SNMP link points to a Splunkbase search although SC4SNMP is not distributed there.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Cite the PowerNet-MIB upsAdvInputLineVoltage definition and the SC4SNMP docs (https://splunk.github.io/splunk-connect-for-snmp/)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "The detection uses polled values, not traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap or add a trap-based variant (for example, APC input-voltage traps)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "nominal_input_voltage is not a PowerNet-MIB or RFC 1628 object and defaults to 230, so 120 V/208 V UPSes always exceed 8% and alert continuously. The nominal should come from a lookup keyed on ups_name. Because of the where clause, the timechart only plots deviant samples, so the 'Timechart input V' visualization will show gaps rather than the voltage trend.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0092-UC-15.4.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The input-voltage deviation search uses real MIB objects (APC upsAdvInputLineVoltage, RFC 1628 upsInputVoltage), but it hardcodes a 230 V nominal and the surrounding text is template residue. The collection path names the Universal Forwarder as a Splunkbase SNMP input, which is wrong.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.2",
+  "verdict": "incorrect"
+}

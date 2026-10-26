@@ -1,0 +1,103 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "f98088b13aaff446ff4ae49c73f6c338ff5feebbb054b71307e7f4c6a21368f6",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.8.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs latest fuel %, run hours and engine status per `generator_id`, not a count. It also fires when the engine status is anything other than 'standby' or 'running' (for example a fault), which the description omits.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when `fuel_pct` < 30.",
+      "severity": "major",
+      "suggested_fix": "Say the search returns one row per generator whose latest fuel level is below 30% or whose engine status is neither standby nor running, with fuel %, run hours and status."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL treats 'running' as a normal state and has no utility-outage correlation or fuel-burn-rate calculation, so 'unexpected runtime' (a generator running without a utility outage or scheduled test) is never detected. The implementation field and the SPL describe different detections.",
+      "field": "cross_field",
+      "quote": "Alert on low fuel (<30%), engine fault, or unexpected runtime. Correlate with utility outage events. Report fuel consumption rate during run events.",
+      "severity": "major",
+      "suggested_fix": "Limit the implementation text to low fuel and abnormal engine state, or describe the extra logic (an outage/test-window lookup for unexpected runtime, and a fuel-delta-per-hour calculation) as a separate search or follow-on UC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "A Universal Forwarder has no SNMP or Modbus input. The text does not name the sourcetype (`generator:telemetry`), the `generator_id` key, the allowed `engine_status` values, or which collector turns controller registers or OIDs into these fields.",
+      "field": "dataSources",
+      "quote": "Generator controller telemetry (fuel_level_pct, run_hours, engine_status) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State that controller telemetry lands in `index=power sourcetype=generator:telemetry` with `generator_id`, `fuel_level_pct`, `run_hours` and a normalised `engine_status`. Name the collection path: an SNMP poller such as Splunk Connect for SNMP (as in sibling UC-15.1.12), a Modbus gateway or scripted input, or a BMS export."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "This UC monitors generators, not PDUs. Validation should compare against the generator controller display, the BMS, or a manual tank-gauge reading. The second validation step also spot-checks `fuel_pct`, which is the SPL's renamed output; the raw event field is `fuel_level_pct`.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate the latest `fuel_level_pct`, `run_hours` and `engine_status` per `generator_id` against the controller panel or BMS for the same time, and check the raw field names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Two templates are concatenated: Steps 1–4 appear twice and one heading repeats four times. The generic advice (HEC token ACLs, vendor API 401/429, tstats ±5% inventory count) does not fit SNMP/Modbus generator telemetry.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Collapse to one sequence: the collector and poll interval, field normalisation for `engine_status`, the scheduled search, validation against the controller, and routing to facilities."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a spurious low-fuel or abnormal-status row.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `generator_id` — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: controllers that report normal idle as 'auto' or 'stopped' rather than 'standby' (normalise values), fuel-level sensor jumps during refuelling or fuel polishing, a generator deliberately placed in off/manual mode for maintenance (a real readiness risk, so route rather than suppress), and stale `latest()` values when telemetry has stopped."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "Listing only three states implies a fixed enum, but controller vendors use different state names. Any unmapped value (for example 'auto', 'cooldown', 'off') falls into the alert branch.",
+      "field": "implementation",
+      "quote": "Ingest fuel_level_pct, run_hours, engine_status (standby, running, fault).",
+      "severity": "minor",
+      "suggested_fix": "Add a normalisation step (lookup or eval) that maps vendor-specific controller states to standby, running or fault before the search runs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC polls controller telemetry over SNMP or Modbus and does not use traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with polling-based SNMP and Modbus model IDs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats latest(...)` reports the last known values even if telemetry stopped hours ago, so a silent controller looks healthy. Add `latest(_time)` and a staleness condition. Status comparisons are case-sensitive, and null `fuel_pct` silently drops out of the fuel branch.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0030-UC-15.1.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 1
+  },
+  "summary": "The SPL reasonably flags generators with low fuel or a non-normal engine state, but the description mentions only the fuel branch and the implementation promises runtime and outage correlation the search does not do. Data sources do not explain how SNMP/Modbus telemetry becomes `generator:telemetry`, and detailedImplementation is a duplicated template that validates against a 'PDU UI'.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.8",
+  "verdict": "rewrite"
+}
