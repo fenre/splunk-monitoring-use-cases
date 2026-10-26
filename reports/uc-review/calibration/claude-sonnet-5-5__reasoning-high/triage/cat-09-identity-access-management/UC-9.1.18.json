@@ -1,0 +1,109 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9226ab1937a8cd350f6f6a9816e9a4be0a0e3e53d454b1f12a9379635e459788",
+  "file": "content/cat-09-identity-access-management/UC-9.1.18.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/active-directory-entra-id.md",
+      "explanation": "The grounding guide lists only `mscs:azure:audit`, `mscs:azure:signin` and `mscs:azure:identityprotection` for Entra ID from Splunk_TA_microsoft-cloudservices. Check whether any Splunk add-on writes device inventory as `azure:aad:devices` (plural) or `azure:intune:devices`, and which add-on and Splunkbase ID provide it.",
+      "field": "dataSources",
+      "quote": "sourcetype=\"azure:intune:devices\" OR sourcetype=\"azure:aad:devices\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the real sourcetype names and the add-on that creates them, or describe a custom Graph input and state that the sourcetypes are custom."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "`trustType` is a property of the Entra device object. The Intune managed-device record uses different names such as `complianceState`. The search queries both sourcetypes but filters on `trustType`, so the Intune events would be dropped. The description also names only `azure:intune:devices`.",
+      "field": "cross_field",
+      "quote": "where trustType=\"ServerAd\" AND (isCompliant=\"false\" OR isCompliant=\"False\")",
+      "severity": "major",
+      "suggested_fix": "Use one device source that carries `trustType` and `isCompliant` (the Entra device object), or normalise the two sources before filtering."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no join with sign-in data, no comparison of previous and current compliance state, and no duration test. It only lists non-compliant hybrid devices.",
+      "field": "implementation",
+      "quote": "Join with sign-in logs for non-compliant hybrid devices. Alert on compliance flip from true to false or long-running non-compliance.",
+      "severity": "major",
+      "suggested_fix": "Describe what the search does, or add the join and state comparison to the SPL."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no `count` and has no threshold. It returns one row per device with `last_seen`.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "State that each row is a hybrid-joined device reported as non-compliant, with the last time it was seen, and that any row is actionable."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "It does not say which Graph endpoint (Entra devices or Intune managed devices), which application permissions, which input or add-on, or how often to poll. A reader cannot build the data feed.",
+      "field": "implementation",
+      "quote": "Ingest device inventory from Graph/Intune on a schedule.",
+      "severity": "major",
+      "suggested_fix": "Name the Graph resource and permission used, the input or script that calls it, and a polling interval. Note that devices without Intune enrolment may have no compliance value."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "A list of non-compliant hybrid devices does not show account takeover and has no bearing on help-desk load or audit findings.",
+      "field": "value",
+      "quote": "reduce account takeover risk, help-desk load, and audit findings",
+      "severity": "minor",
+      "suggested_fix": "Limit the claim to finding hybrid-joined devices that fail the compliance policy so they can be fixed before conditional access blocks the users."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Hybrid-joined' is jargon, and the UC does not look at network access. Whether a non-compliant device is blocked depends on Conditional Access policy.",
+      "field": "grandmaExplanation",
+      "quote": "hybrid-joined devices ... let risky devices stay on the network",
+      "severity": "minor",
+      "suggested_fix": "Say it lists company computers that are registered both in the office directory and in the cloud and are failing the company's security checks."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Step 1 repeats the short implementation text and refers to a generic implementation guide. There is no troubleshooting step, and the text mixes 'Hybrid Azure AD join' with Entra naming.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\nIngest device inventory from Graph/Intune on a schedule.",
+      "severity": "minor",
+      "suggested_fix": "Add the input configuration, expected field names, a validation search and failure modes (empty `isCompliant`, Graph permission errors)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `where` runs before `stats latest(...)`, and `isCompliant` is in the `by` clause. A device that was non-compliant earlier and is compliant now still appears, because only its non-compliant events survive the filter. The search should take the latest state per device first and then filter.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) is not supported by a device compliance list.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0066-UC-9.1.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The Entra device fields (`trustType` of `ServerAd` for hybrid join, `isCompliant`, `managementType`) are the right ones, but the sourcetypes are not supported by the grounding, and the implementation promises a sign-in join and a compliance-flip alert that the SPL does not do. The collection steps are too vague to follow.",
+  "tier": "triage",
+  "uc_id": "UC-9.1.18",
+  "verdict": "rewrite"
+}

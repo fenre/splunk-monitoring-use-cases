@@ -1,0 +1,102 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c59633b479a1367e90cbc3aef6e16b3872f9a90b7116eae6cd709a2078788ed4",
+  "file": "content/cat-08-application-infrastructure/UC-8.4.45.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.php.net/manual/en/install.fpm.configuration.php",
+      "explanation": "PHP-FPM access logs are not W3C format; they are controlled by the pool's `access.log` and `access.format` directives, where `%m` is the request method and `%n` the pool name. The default format `\"%R - %u %t \\\"%m %r\\\" %s\"` does not include `%n`, so the `pool` field the SPL groups on will not exist unless the format is changed or pool is derived from the per-pool log path.",
+      "field": "implementation",
+      "quote": "Use W3C-like access format with method field; extract `cs_method`.",
+      "severity": "major",
+      "suggested_fix": "Explain: set `access.log = /var/log/php-fpm/$pool.access` and an `access.format` that includes `%n` and `%m` in each pool config; monitor the file with sourcetype `phpfpm:access`; add EXTRACT/REPORT stanzas producing `pool` and `cs_method` (and a FIELDALIAS `cs_method AS http_method` if CIM Web mapping is wanted)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "An access log is collected by a forwarder `[monitor://]` file input; there is no modular input, poll interval, vendor API, 'vendor admin UI inventory count' (Step 3) or 'HTTP 401/429 from the vendor endpoint' (Step 5). A reader following these steps would look for components that do not exist.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=phpfpm:access into web. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace Steps 1, 3 and 5 with file-monitor specifics: inputs.conf `[monitor:///var/log/php-fpm/*.access]` with `sourcetype = phpfpm:access`, `index = web`; validate by comparing event counts to `wc -l` of the log; troubleshoot via `splunk list monitor` and `index=_internal component=TailReader`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description`, `controlTest`, `knownFalsePositives` (\"without crossing configured threshold\", \"`span=1h`\") and `detailedImplementation` Step 2 (\"throttle per entity to avoid duplicate pages\") describe a threshold alert, but the SPL is an unthresholded `stats count by cs_method, pool | sort - count` report with no `span` and no alert condition.",
+      "field": "cross_field",
+      "quote": "alert when configured threshold",
+      "severity": "major",
+      "suggested_fix": "Describe the UC as a distribution report (share of GET/POST/PUT/DELETE etc. per pool over the search window). If alerting on unexpected method spikes is intended, say so and name the baseline/threshold to be added by a human to the SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The field contains a value statement instead of describing the data, and it says collection is by modular input or scripted poll, which is wrong for a log file. The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and ID 617 is not in data/splunkbase-catalog.json.",
+      "field": "dataSources",
+      "quote": "Unexpected POST/PUT spikes can signal abuse or API misuse. Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "State: PHP-FPM pool access log (`access.log` per pool, format including `%n` pool and `%m` method) tailed by a Universal Forwarder monitor input into `index=web`, `sourcetype=phpfpm:access`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence does not say what is counted or why; it would fit almost any UC.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to support security and product teams with behavioral context.",
+      "severity": "major",
+      "suggested_fix": "e.g. \"We count what kinds of web requests (reading pages versus sending or changing data) each PHP website pool receives, so a sudden jump in data-changing requests stands out.\""
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Pool utilization, queue and latency are not produced by this SPL; only method counts per pool are.",
+      "field": "visualization",
+      "quote": "Time series (pool utilization, queue, latency percentiles), single value alerts, top charts for scripts and methods.",
+      "severity": "minor",
+      "suggested_fix": "Stacked bar or pie of count by cs_method split by pool; optional timechart of count by cs_method to spot spikes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_url": "https://www.php.net/manual/en/install.fpm.configuration.php",
+      "explanation": "The link points to the PHP manual root, not the FPM configuration page that documents access.format.",
+      "field": "references",
+      "quote": "\"title\": \"PHP-FPM configuration\",\n      \"url\": \"https://www.php.net/manual/en/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://www.php.net/manual/en/install.fpm.configuration.php."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "cimSpl groups by `Web.http_method Web.dest span=5m` while the raw SPL groups by `cs_method, pool` with no span; `dest` is not the PHP-FPM pool, so the two searches answer different questions. No FIELDALIAS from cs_method to http_method is documented.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "`Security` is listed although the SPL is a pure traffic-mix report with no security condition; consider whether Analytics alone fits.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0056-UC-8.4.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple method-by-pool distribution report, but almost all prose around it is generic template text about polled vendor APIs, thresholds and alerting that does not apply to a tailed PHP-FPM access log. The implementation omits the access.format directives needed to produce the method and pool fields the SPL depends on.",
+  "tier": "deep",
+  "uc_id": "UC-8.4.45",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,132 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "3c92bcb30cffbfee43fbbf8bd1fc8b256b989aaff485905a1e6aa0eaa91b867f",
+  "file": "content/cat-22-regulatory-compliance/UC-22.29.1.json",
+  "findings": [
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "http://www.npc.gov.cn/npc/c30834/202108/a8c4e3672c74491a80b53a172bb753fe.shtml",
+      "explanation": "PIPL Art. 58 sets extra duties for personal information handlers that provide important internet platform services with a very large user base and complex business types. It is not defined by a 1M-individual threshold. The quantity-based thresholds relate to localization of PI (Art. 40, where the CAC sets the volume) and to the CAC outbound-transfer security-assessment rules, not to Art. 58.",
+      "field": "detailedImplementation",
+      "quote": "PIPL Art. 58 applies to handlers processing PI of >1M people. Detections supporting large-scale obligations must validate scale against this specific threshold.",
+      "severity": "blocker",
+      "suggested_fix": "Correct the text. Say Art. 58 covers large internet platform handlers (gatekeeper duties), and put any 1M-individual threshold under the CAC outbound-transfer and localization rules (Art. 40) after checking the current CAC measures."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation, the dashboard panels and the visualization (jurisdiction x action, open reviews, exports without mechanism) describe a transfer-register and DPIA workflow. The SPL only reads `oracle:audit`, never uses `apac_transfer_register.csv`, and has no jurisdiction, mechanism or review field. The dashboard panels cannot be built from the search output.",
+      "field": "cross_field",
+      "quote": "(1) Maintain `apac_transfer_register.csv` and consent or DPIA lookups referenced in runbooks.",
+      "severity": "major",
+      "suggested_fix": "Either add the register lookup and transfer-mechanism check to the SPL, or describe only what the search produces: users, tables and client IPs of SELECT access from outside China."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The description says the count is compared against a 36-hour baseline and uses a placeholder window ('the scheduled window'). The SPL counts rows in a 36-hour window and applies no comparison or threshold. The row filter is a country check plus a name regex.",
+      "field": "cross_field",
+      "quote": "Combines `count` by `DBUserName`, `Obj_Name`, `client_ip` and compares against -36h.",
+      "severity": "major",
+      "suggested_fix": "State the real logic: SELECTs in the last 36 hours from client IPs geolocated outside China against object names containing 'resident'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is the subcategory boilerplate copied unchanged to every sibling. The search needs only Oracle audit records (`index=db_audit` `sourcetype=oracle:audit`), and the `app` field lists ES, the Windows TA, the O365 add-on and the AWS add-on, none of which the SPL uses.",
+      "field": "dataSources",
+      "quote": "Windows Security Event Logs, cloud audit trails, DLP system outputs, consent management platforms, data classification tools, cross-border transfer logs, privacy impact assessments, breach notification records",
+      "severity": "major",
+      "suggested_fix": "List the Oracle audit feed and the fields used. Name the add-on or DB Connect input that produces it, and drop unrelated add-ons from `app`."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Check that `oracle:audit` is a real sourcetype and that `DBUserName`, `Obj_Name`, `client_ip` and `Action=\"SELECT\"` are the extracted names and values. The Splunk add-on for Oracle uses different sourcetypes for XML, text and unified audit, and traditional audit often records the action as a numeric code. `client_ip` is not a standard Oracle audit field either.",
+      "field": "dataSources",
+      "quote": "sourcetype=\"oracle:audit\" Action=\"SELECT\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the sourcetype and field names in the Splunk Add-on for Oracle Database documentation, and document how `client_ip` is extracted."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is 'verified' although the evidenceArtifact says 'Auto-drafted — SME review required' while `requires_sme_review` is false. A heuristic on the string 'resident' in an object name cannot confirm PIPL conformance.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"Compliance SME Panel\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status unless a signed review can be cited, and correct the SME review flag."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "QSA (PCI) and BAA (HIPAA) do not apply to PIPL. There are no scenarios for this search, such as Chinese staff connecting through VPN or cloud egress points that geolocate abroad, offshore support DBAs, or IP geolocation errors. Internal-address clients have no `Country` and are dropped silently.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=db_audit` `oracle:audit` without crossing evidence threshold. ... BAA/DPA-covered vendor",
+      "severity": "major",
+      "suggested_fix": "Describe how to handle approved overseas access, VPN or proxy egress addresses and private address ranges, with a lookup for approved sources."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It talks about all of Asia-Pacific and 'duties are met', which the UC does not show. It never says that the check looks for database queries from outside China against tables holding resident data.",
+      "field": "grandmaExplanation",
+      "quote": "We help you show Asia-Pacific data-protection duties are met, including access and handling people can prove in an audit.",
+      "severity": "major",
+      "suggested_fix": "Say in plain words that the check looks for people outside China reading databases that hold residents' personal data."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Retention list for unrelated regulations in a PIPL UC. Step 1 says there is no canonical TA, which is unhelpful because the Oracle audit input is the key setup step. Four 'Hint' items repeat the implementation text, and the Step 2 prose is generic aggregation commentary.",
+      "field": "detailedImplementation",
+      "quote": "PCI: 1y, HIPAA: 6y, NIST 800-53: 1-3y per FIPS 199, SOX: 7y",
+      "severity": "major",
+      "suggested_fix": "State the PIPL retention expectation (verify with counsel) and give concrete steps for ingesting Oracle audit logs. Remove the generic hints."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "The authoritative PIPL link is plain http and no reference covers the CAC outbound-transfer measures or the Oracle add-on actually needed. The three add-on links are for sources the SPL does not use.",
+      "field": "references",
+      "quote": "http://www.npc.gov.cn/npc/c30834/202108/a8c4e3672c74491a80b53a172bb753fe.shtml",
+      "severity": "minor",
+      "suggested_fix": "Add the CAC cross-border transfer measures and the Oracle audit add-on documentation. Remove the unrelated add-on links."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "Art. 38 covers conditions for providing personal information outside China (security assessment, certification, standard contract). Data localization is a different obligation (Art. 40). The title mixes the two, and the SPL detects remote SELECT access, not a transfer or a localization breach. Check the intended clause.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "mode 'satisfies' with assurance 'partial' for Art.38, while the same entry says 'Auto-drafted — SME review required' and `requires_sme_review` is false. A SELECT-access heuristic does not satisfy the transfer-mechanism conditions of Art. 38.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`where Country!=\"China\" AND match(Obj_Name,\"(?i)resident\")` relies on a name pattern as a proxy for personal-data tables and treats foreign access as a transfer. `iplocation` returns no Country for private addresses and these rows are dropped by `where`. `cimModels` is empty, so CIM mapping is not documented.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0034-UC-22.29.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The search (SELECTs on Oracle audit data from non-China client IPs against 'resident' tables) is a rough proxy for a cross-border access signal, but the surrounding text describes a transfer-register, consent and DPIA workflow that the SPL does not implement. One factual statement about PIPL Art. 58 appears to be wrong, and the compliance, source and status claims are overstated.",
+  "tier": "triage",
+  "uc_id": "UC-22.29.1",
+  "verdict": "incorrect"
+}

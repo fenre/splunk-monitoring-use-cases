@@ -1,0 +1,94 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "470cfb72bc254290f799a94c2d64109e249effe13542eb648d21c3cdc791e02a",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.26.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Dividing by 6000 converts hundredths of a second (TimeTicks) to minutes. Hundredths of a minute would need /100, so the sentence contradicts itself. Check the SYNTAX of upsAdvBatteryRunTimeRemaining in PowerNet-MIB before documenting any unit.",
+      "field": "implementation",
+      "quote": "PowerNet sometimes stores hundredths of a minute—mirror the SPL `eval runtime_min=tonumber(upsAdvBatteryRunTimeRemaining)/6000` pattern",
+      "severity": "major",
+      "suggested_fix": "State the unit from PowerNet-MIB (verify it is TimeTicks, hundredths of a second) and explain /6000 on that basis. Drop the claim that other divisors such as /100 may apply unless a firmware reference supports it."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The same field says ingestion uses Splunk Connect for SNMP, then appends a Universal Forwarder collection sentence. Those are two different collection paths, and Splunkbase 617 is not in the cached Splunkbase catalogue.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Keep only the Splunk Connect for SNMP and SNMP Modular Input description and remove the Universal Forwarder sentence from `dataSources` and `app`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Splunk Connect for SNMP is configured through its own profiles and sends events and metrics with its own sourcetypes. Check the SC4SNMP documentation for whether it can emit `snmp:apc:ups` with a flat `upsAdvBatteryRunTimeRemaining` field.",
+      "field": "dataSources",
+      "quote": "ingestion uses Splunk Connect for SNMP (Splunkbase #6266) into `index=power` with `sourcetype=snmp:apc:ups`",
+      "severity": "needs_verification",
+      "suggested_fix": "Document the sourcetype and field names SC4SNMP actually produces, or the props/transforms that rename them."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "implementation describes a rolling average, but the SPL uses non-overlapping `timechart span=1h` buckets and fires on any single bucket.",
+      "field": "cross_field",
+      "quote": "Fire when the one-hour rolling average stays below fifteen minutes",
+      "severity": "minor",
+      "suggested_fix": "Describe hourly buckets, or change the described logic to match the SPL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC has empty `cimModels` and `dataModelAcceleration: Not applicable`, so there is no data model to run `tstats` against. The generic Step 2 and Step 5 text also skips Steps 3 and 4.",
+      "field": "detailedImplementation",
+      "quote": "For high-volume sources, use `tstats` against the accelerated data model when possible.",
+      "severity": "minor",
+      "suggested_fix": "Remove the data-model advice, and number the steps consistently."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Backticks in SPL invoke a macro, so the example search as written would not run.",
+      "field": "detailedImplementation",
+      "quote": "search title=`role_name`",
+      "severity": "minor",
+      "suggested_fix": "Use a plain quoted value such as title=\"power_ops\"."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The same APC FAQ URL (FA156148) is cited with different titles in sibling UCs. Check that the page actually covers PowerNet-MIB battery runtime objects.",
+      "field": "references",
+      "quote": "APC FAQ — PowerNet-MIB and SNMP",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the PowerNet-MIB definition or the APC page that documents upsAdvBatteryRunTimeRemaining."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart span=1h avg(runtime_min) as avg_runtime by host` creates one column per host value, so no field named `avg_runtime` exists afterwards and `| where avg_runtime < 15` never matches. The alert cannot fire. Use `bin` plus `stats avg(runtime_min) as avg_runtime by _time, host` and then filter.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0004-UC-15.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "A specific APC runtime UC, but the SPL alert condition refers to a column that `timechart ... by host` does not produce, so it cannot fire. The implementation also contradicts itself on the unit conversion.",
+  "tier": "triage",
+  "uc_id": "UC-15.1.26",
+  "verdict": "rewrite"
+}

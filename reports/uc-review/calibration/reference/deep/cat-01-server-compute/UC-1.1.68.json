@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e1da6515acb028682b88abd2ade2229072e68a41093d8aeda2d69de556e90cf8",
+  "file": "content/cat-01-server-compute/UC-1.1.68.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/aide/aide/v0.19.3/src/report_json.c",
+      "explanation": "`scriptExample` captures `event_time` before `aide --check` runs, and props.conf turns it into `_time`. Every finding from a scan that runs longer than about 30 minutes is indexed with a `_time` already outside the scheduled search's window, so it is never alerted. A full-system hash scan often takes that long. The text sizes the lookback only for forwarding delay, not for scan duration.",
+      "field": "detailedImplementation",
+      "quote": "Schedule every 15 minutes with a 30-minute lookback to tolerate forwarding delay.",
+      "severity": "major",
+      "suggested_fix": "Stamp findings with the scan completion time: capture `date -u` after `aide --check` returns, or use the report's `end_time`. Alternatively, tell the reader to size the lookback above the maximum observed scan runtime plus forwarding delay, or to schedule on `_index_earliest`/`_index_latest`. Name the chosen approach in both `implementation` and `detailedImplementation`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "explanation": "`dataSources` and `detailedImplementation` tell the reader to reuse an existing audit.log collection, but the SPL only matches `sourcetype=linux:audit`. The repository's Linux guide collects audit.log as `linux_audit` via Splunk_TA_nix, and sibling UCs (1.1.18, 1.1.21, 1.1.22) use `sourcetype=auditd` from `rlog.sh`. A reader who follows the \"already collected\" path gets an IMA branch that silently returns nothing.",
+      "field": "cross_field",
+      "quote": "Optional near-real-time coverage uses `index=os sourcetype=linux:audit` records ... and, only if it is not already collected, `/var/log/audit/audit.log`.",
+      "severity": "major",
+      "suggested_fix": "State that the IMA branch requires audit records under the sourcetype the SPL names. Otherwise the SPL sourcetype must be aligned with the deployment's existing audit sourcetype (`linux_audit` per the Linux guide). Add a validation step that confirms IMA records are searchable under that exact sourcetype."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Spath",
+      "explanation": "`scriptExample` emits `attributes_changed` as a JSON array. With `KV_MODE = json`, Splunk extracts array members under the field name `attributes_changed{}`, not `attributes_changed`. The documented required field therefore never exists, `mvjoin(attributes_changed, \",\")` evaluates to null, and `reason` quietly falls back to `change_summary`.",
+      "field": "dataSources",
+      "quote": "required fields are `event_time`, `event_kind`, `scanner`, `run_id`, `change_type`, `file_path`, `change_summary`, and `attributes_changed`",
+      "severity": "major",
+      "suggested_fix": "Document the extracted field as `attributes_changed{}`, or have the flattener emit a comma-joined string (`attributes_changed: (... | keys | join(\",\"))`). Then add a check to Step 3 that `reason` contains attribute names for `changed` findings."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/aide/aide/v0.19.3/doc/aide.conf.5",
+      "explanation": "The jq flattener only works when `added`/`removed`/`changed` are objects keyed by path. AIDE produces that shape only with `report_grouped=true` and `report_summarize_changes=true`. Both are defaults, but distribution configs can override them. With summarize off, the sections are arrays, so `to_entries` yields numeric indexes as `file_path`. With grouping off, AIDE writes a single `entries` object, so zero findings are emitted even though the exit code reports differences. Both cases fail open without any error.",
+      "field": "detailedImplementation",
+      "quote": "report_level=changed_attributes\nreport_format=json\nreport_url=stdout",
+      "severity": "major",
+      "suggested_fix": "Add `report_grouped=true` and `report_summarize_changes=true` before `report_url` in the config snippet. Also have the wrapper compare the emitted finding count to `number_of_entries.added/removed/changed`, and write `scan_status=parse_mismatch` when they differ."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://raw.githubusercontent.com/torvalds/linux/master/security/integrity/ima/ima_api.c",
+      "explanation": "`description`, `exclusions` and `detailedImplementation` say the IMA branch selects only failed appraisals. In the kernel, `INTEGRITY_DATA` with `res=0` is also emitted for `op=collect_data` (hash collection failure or timeout) and `op=set_data` (denied write of `security.ima`). The SPL does not filter on `op`, even though `dataSources` lists `op` as a required field.",
+      "field": "cross_field",
+      "quote": "together with failed Linux IMA appraisal records",
+      "severity": "major",
+      "suggested_fix": "Either describe the branch as \"IMA integrity audit failures, including appraisal, collection and xattr-write failures\", or state that `op=appraise_data` (or `op=appraise_*`) is required for appraisal-only scope. Add an `op` breakdown to the Step 3 IMA validation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Here the trailing `Z` is just a literal character. Without `TZ = UTC` on the parsing tier, Splunk can interpret the UTC timestamp in the forwarder's or indexer's local zone. That shifts `_time` and makes the lookback problem worse.",
+      "field": "detailedImplementation",
+      "quote": "TIME_FORMAT = %Y-%m-%dT%H:%M:%SZ",
+      "severity": "minor",
+      "suggested_fix": "Add `TZ = UTC` to the `[linux:fim:aide]` props stanza, or use a format with an explicit zone token, and verify against a known scan time."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The SPL calls `lookup linux_fim_authorized_changes` without the `.csv` extension, which requires a lookup definition. The steps only describe creating the CSV file.",
+      "field": "detailedImplementation",
+      "quote": "Create `linux_fim_authorized_changes.csv` with exactly this header",
+      "severity": "minor",
+      "suggested_fix": "Add a step that creates a lookup definition named `linux_fim_authorized_changes` pointing at the CSV, with permissions and case-sensitivity settings consistent with exact host/path matching."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "explanation": "File-integrity exceptions fit the CIM Change datamodel (file changes) and Endpoint.Filesystem. The repository's Linux guide routes Linux file-integrity events into Change/Endpoint for ES. Leaving this empty without saying why is a missed mapping.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "minor",
+      "suggested_fix": "Consider mapping to `Change` (file object category) with appropriate tags, or state explicitly that the custom sourcetypes are not CIM-mapped."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "\"Rootkit Detection via File Integrity\" claims more than the UC delivers. The exclusions, description and controlTest all say a hit is not a rootkit determination. A title such as \"Unexpected Linux File Integrity Exceptions (AIDE/IMA)\" would match the detection.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`mvjoin(attributes_changed, \",\")` refers to a field that KV_MODE=json extracts as `attributes_changed{}`, so it is always null. The IMA branch also lacks an `op=appraise_*` filter, so `collect_data` and `set_data` failures are included.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The hardcoded `sourcetype=linux:audit` does not match the repository's established audit sourcetypes (`linux_audit` from the Splunk_TA_nix monitor, `auditd` from rlog.sh), even though the text encourages reusing existing collection.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`convert ctime(...)` runs before `sort - last_seen`, so rows are sorted as mm/dd/yyyy strings rather than as epoch times. Sort first, or use `fieldformat`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0001-UC-1.1.68",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 5
+  },
+  "summary": "An unusually careful, specific UC. The AIDE exit-code semantics, JSON report options and IMA audit record types are accurate, and the exclusions are honest about what the detection cannot show. Several implementation defects would still make it miss findings or mislabel them: the scan-start timestamp can fall outside the 30-minute lookback, the IMA branch's sourcetype clashes with the repository's own audit collection, the KV_MODE=json array field name is wrong, and the jq flattener depends on default report options it never pins.",
+  "tier": "deep",
+  "uc_id": "UC-1.1.68",
+  "verdict": "rewrite"
+}

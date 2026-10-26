@@ -1,0 +1,168 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "86fdc9bfbbd775125ebff55f59c949e37605d301647e0a1106a2ef71bafc832f",
+  "file": "content/cat-23-business-analytics/UC-23.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.google.com/google-ads/api/reference/rpc/latest/AdGroupCriterion",
+      "explanation": "As far as I know, Google Ads has no `metrics.quality_score` field. Quality Score is a keyword-level attribute exposed as `ad_group_criterion.quality_info.quality_score`, and only for search keywords. The SPL reads `metrics.quality_score` for the 'Quality Score' half of this UC, so `qs_numeric` would always be null for Google rows and every Google row would fall into the 'unknown' band.",
+      "field": "dataSources",
+      "quote": "`metrics.quality_score`",
+      "severity": "blocker",
+      "suggested_fix": "Query the keyword-level resource (`ad_group_criterion.quality_info.quality_score`, with its sub-scores if needed) and aggregate it to campaign level in the poller. Correct the `metrics.*` alias list accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are the SPL's micros-to-currency conversion tests, not alert conditions. The real alert in the SPL fires when blended CPA exceeds the platform target, the week-over-week CPA delta is above 25%, LTV-adjusted ROAS is below the floor, or a below-average Quality Score band spends more than 5,000. The description also says it alerts on 'Quality Score activity' from the Google sourcetype only, while the SPL covers seven sourcetypes. The controlTest repeats the same wrong conditions.",
+      "field": "cross_field",
+      "quote": "pages when `spend_micros` > 0, `average_cpc_micros` > 1000, `average_cpc_micros` > 0, or `average_cpc_micros` < 500",
+      "severity": "major",
+      "suggested_fix": "Describe the four real alert conditions with their thresholds and the platforms covered, and rewrite controlTest to inject a CPA spike and a below-average-QS high-spend case."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The walkthrough builds a different detection from the shipped one. It uses another index (`marketing_paid_media` rather than `business`), other sourcetypes (the SPL uses `paid_media:*`), another SPL (a stdev-based `cpa_anomaly_score` >= 2.5, with a final `where moat_score>=70 AND doubleverify_score>=70`, which keeps only clean-traffic rows), another schedule (every 15 minutes over 2 hours, against API data that arrives with daily grain and conversion lag) and a different poll cadence from the 'every four hours' in dataSources.",
+      "field": "detailedImplementation",
+      "quote": "Provision `index=marketing_paid_media` ... `sourcetype=google_ads:campaign_metrics`, `sourcetype=meta:insights`, `sourcetype=linkedin:campaign_analytics`, `sourcetype=tiktok:report`",
+      "severity": "major",
+      "suggested_fix": "Rewrite Steps 1 to 3 around the `spl` field: its index, sourcetypes, 30-day window and alert conditions, a daily schedule, and one poll cadence. Drop the second embedded SPL or label it as an optional anomaly variant."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/business-analytics.md",
+      "explanation": "The grounding guide shows DB Connect inputs defined in `db_inputs.conf`, and Splunk lookup definitions live in `transforms.conf`; I do not know of a `lookup_definitions.conf` or `db_connect_inputs.conf`. Other items are also off: `splunk reload deployment-server` reloads deployment-server configuration, not OAuth tokens, and HEC tokens do not perform HMAC validation. The role grants `srchIndexesAllowed` on `_audit` and `_internal`, which gives a marketing role far more access than it needs.",
+      "field": "detailedImplementation",
+      "quote": "Configure Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) for Salesforce CRM revenue join via `db_connect_inputs.conf` ... extend TTL via `lookup_definitions.conf`",
+      "severity": "major",
+      "suggested_fix": "Use `db_inputs.conf` and `transforms.conf`, describe token rotation through the add-on's credential store, move signature checking to a relay in front of HEC, and limit the role to `marketing_paid_media` (or the real index)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.google.com/google-ads/api/docs/sunset-dates",
+      "explanation": "The pinned API versions (Google Ads v17, Meta v20.0) are old and may already be sunset. The gRPC service name is `google.ads.googleads.vNN.services.GoogleAdsService/Search`. `metrics.search_exact_match_impression_share_lost_eligibility` does not look like a real GAQL metric. LinkedIn is `/rest/adAnalytics` here but `/v2/adAnalyticsV2` in detailedImplementation, and the TikTok `/business/get/` call there is not a reporting endpoint (dataSources uses `/report/integrated/get/`). The MOAT `/v2.4/inventory` and DoubleVerify `/v3/aod-analytics` paths and MOAT's availability are unconfirmed.",
+      "field": "dataSources",
+      "quote": "Google Ads API v17 — GAQL polling (`google.ads.service.GoogleAdsService/Search`) ... Meta Marketing API v20.0 Graph `/act_{ad_account_id}/insights`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check currently supported API versions, the exact GAQL field names, and each vendor endpoint, then use one consistent path per vendor in dataSources and detailedImplementation. Drop MOAT and DoubleVerify if they are not part of the shipped SPL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/business-analytics.md",
+      "explanation": "In the sibling list, UC-23.3.6 is content marketing and resource-center lead conversion, and UC-23.3.7 is email deliverability and authentication, so neither covers influencer, affiliate or programmatic CTV performance. The text also excludes DV360 reconciliation while the SPL matches `dv360` and `dsp` into its DSP platform bucket.",
+      "field": "exclusions",
+      "quote": "Influencer / creator-marketing performance excluded (covered by UC-23.3.6). Affiliate-network performance (CJ Affiliate, Impact, Awin) tracked in UC-23.3.7.",
+      "severity": "major",
+      "suggested_fix": "Point each exclusion at the UC that really covers it, or remove the reference. Align the DV360/DSP statement with the SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `dell_emc` equipment tag has no relation to paid-media analytics, and nothing in the UC mentions Dell EMC.",
+      "field": "equipment",
+      "quote": "\"dell_emc\"",
+      "severity": "major",
+      "suggested_fix": "Remove `dell_emc` and keep only the tags the UC uses (DB Connect, Salesforce)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The cached Splunkbase catalog lists app 4146 as 'Webtools Add-on'. A sibling UC cites the Salesforce add-on as Splunkbase 3549. The deterministic pass recorded this for dataSources, but the same ID is also in `app` and the references.",
+      "field": "app",
+      "quote": "Splunk Add-on for Salesforce ([Splunkbase 4146](https://splunkbase.splunk.com/app/4146))",
+      "severity": "minor",
+      "suggested_fix": "Check the correct Splunkbase ID for the Salesforce add-on and fix it in app and references."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFPs speak of maintenance windows, CMDB change records and monitoring-tagged assets, which do not apply to ad-platform data. Real causes of a false alert are not given: smart-bidding learning phases, conversion-lag backfill, seasonal auction spikes, FX rate gaps and budget changes.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `quality_score_band`, `platform`, `account_id`, `campaign_id`** — Health checks in `business` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "Replace the four items with those paid-media causes and the matching suppression, such as a registered smart-bidding change window."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Besides the self-reference already recorded, the value and the description ('Operations operators treat UC-23.3.5 as the canonical signal') use IT-ops boilerplate for a marketing-economics UC. They name no business benefit such as catching wasted spend or a CPA deterioration early.",
+      "field": "value",
+      "quote": "lowering operational risk and delayed incident response.",
+      "severity": "major",
+      "suggested_fix": "State that the UC highlights campaigns whose cost per acquisition, LTV-adjusted return or quality score is deteriorating, so marketing and finance can rebalance spend."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The evidence field lists SIVT overlays, a SOAR playbook, an `evidence_index` and a saved search `paid_media_cpa_anomaly_v3`, but the shipped SPL uses none of them and the implementation field mentions none either.",
+      "field": "evidence",
+      "quote": "MOAT / DoubleVerify SIVT-overlay reports cross-referenced with auction telemetry; SOAR `paid_media_remediation_v2` execution log archived.",
+      "severity": "minor",
+      "suggested_fix": "List only artifacts the implementation produces."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The Bessemer Cloud Index (public SaaS valuations), Apple App Tracking Transparency and a WordStream blog root are not references for this detection. No reference has a retrieved date.",
+      "field": "references",
+      "quote": "Bessemer Venture Partners — Cloud Index",
+      "severity": "minor",
+      "suggested_fix": "Keep the platform API documentation and Splunk references, and add specific Quality Score and bidding-strategy documentation with retrieved dates."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified`, but the reviewer is an agent identifier, not an SME, and the Quality Score field and several vendor endpoints are unconfirmed or wrong.",
+      "field": "status",
+      "quote": "\"reviewer\": \"agent-handcraft-cat23.3.5-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named paid-media or Splunk SME has validated the fields, endpoints and API versions."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`bin _time span=7d`, `sort campaign_id _time` and `streamstats ... last(channel_cpa_blended) by campaign_id` run after a `stats` that does not keep `_time`. `previous_week_cpa` is therefore the previous row of the same campaign (another quality band), not the previous week, and `cpa_delta_pct > 25` is not a week-over-week change.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Fields used after the big `stats` (`customer_segment`, `monthly_budget_usd`, `account_timezone`) no longer exist, so `segment` is always 'general', `monthly_budget_usd` is always the 250000 default, and `tz_anchor` is always America/New_York. `ltv_adjusted_roas` and `pacing_health` are therefore the same for every campaign, and pacing divides a 30-day sum by a calendar-month budget.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Join keys do not match across systems. Marketo, HubSpot and Salesforce rows are keyed by `utm_campaign`, `campaign_external_id` or CampaignId and renamed to `campaign_id`, while ad-platform rows use the numeric platform `campaign.id`. `qualified_leads`, `won_opportunities` and `cost_per_won_opp` will mostly be 0 or null unless a campaign bridge table is added.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`quality_score_or_relevance` coalesces `qualityImpact` (documented in dataSources as a -2 to 0 scale) with the 1 to 10 Quality Score, so every Microsoft row lands in the 'Below-Avg' band and, with spend above 5,000, in `spend_at_risk`. `channel_roas` and `mer_ratio` use the same formula (MER should use total revenue, not platform-reported revenue). The sourcetype `paid_media:dsp_spend` in the SPL differs from `dbx:dsp_spend` in dataSources, and Microsoft Ads CPC is treated as micros.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0058-UC-23.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The paid-media CPA, pacing and quality design is ambitious and specific, but the Google Quality Score field is not where the text says it is. The detailedImplementation describes a different index, sourcetypes and SPL than the shipped search, the description's alert conditions are unit-conversion checks, and several config file names and cross-references are wrong.",
+  "tier": "triage",
+  "uc_id": "UC-23.3.5",
+  "verdict": "incorrect"
+}

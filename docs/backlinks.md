@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_251 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -1245,6 +1245,10 @@ _No inbound links yet._
 
 _No inbound links yet._
 
+## `docs/superpowers/plans/2026-10-26-uc-text-quality-review.md`
+
+_No inbound links yet._
+
 ## `docs/superpowers/specs/2026-05-17-content-quality-lift-loop-design.md`
 
 - [`docs/content-quality-audit.md`](content-quality-audit.md)
@@ -1264,6 +1268,14 @@ _No inbound links yet._
 ## `docs/uc-quality-mandate.md`
 
 - [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md)
+
+## `docs/uc-review-findings.md`
+
+_No inbound links yet._
+
+## `docs/uc-text-review-rubric.md`
+
+_No inbound links yet._
 
 ## `docs/url-scheme.md`
 

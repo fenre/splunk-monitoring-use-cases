@@ -1,0 +1,123 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "d0176f9512776b01b29e11c4b8944d8541ee70ee1f32552c73d519d1e476ab33",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.27.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunk-supported 'Splunk Add-on for Docker' / `Splunk_TA_docker` exists. Splunkbase lists Splunk Connect for Docker (4496), a logging-driver plugin that ships container stdout/stderr to HEC and does not collect `docker events` or `docker system df`. The referenced docs URL `docs.splunk.com/Documentation/AddOns/released/Docker/` is not a published add-on manual.",
+      "field": "app",
+      "quote": "Splunk Add-on for Docker (Splunk_TA_docker) for modular docker events and docker df style inputs",
+      "severity": "blocker",
+      "suggested_fix": "State the real collection path: a UF scripted input or systemd unit running `docker events --format '{{json .}}'` to a monitored file (as in the integration guide) plus a scripted `docker system df` wrapper. Optionally reference Splunk Connect for Docker (Splunkbase 4496) only for container logs. Remove the non-existent add-on reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/moby/moby/blob/master/daemon/prune.go",
+      "explanation": "Docker event JSON carries `Type` (image, container, volume, network, builder) and `Action` (delete, destroy, remove, prune) as separate fields, so no event has `Action=\"image:delete\"`. Moby also emits a dedicated `Action=prune` event per object type whose `Actor.Attributes.reclaimed` holds the bytes reclaimed. That makes the pre/post `docker system df` pairing unnecessary for reclaim measurement.",
+      "field": "dataSources",
+      "quote": "Action values image:delete, container:destroy, volume:destroy, network:remove, and builder:prune",
+      "severity": "blocker",
+      "suggested_fix": "Describe matching on `Type` + `Action` (for example `Type=image Action=delete`, `Type=container Action=destroy`) and add `Action=prune` events, using `Actor.Attributes.reclaimed` as the authoritative reclaimed-bytes value. Keep `system df` snapshots only as an optional cross-check."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-linux/Configure4/",
+      "explanation": "The Splunk Add-on for Unix and Linux ingests auditd as `linux_audit` (rlog.sh or a monitor on audit.log), and the Splunk Add-on for Linux uses `linux:audit`. Neither produces `auditd:execve`. In raw auditd, argv sits in a separate EXECVE record as `a0=`, `a1=`, ... (sometimes hex-encoded), while `comm=`/`exe=`/`auid=` sit in the SYSCALL record. The single-event `comm=docker AND prune` match therefore fails unless records are merged by audit event ID.",
+      "field": "dataSources",
+      "quote": "sourcetype=auditd:execve from Linux auditd rules on /usr/bin/docker and /usr/local/bin/docker execve lines whose argv contains prune subcommands",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=linux_audit` (or `linux:audit` with `log_format=ENRICHED`). Explain that SYSCALL and EXECVE records must be correlated on the `msg=audit(<ts>:<id>)` serial (or `ausearch -i` / laurel-style merged output) before testing argv for `prune`, `-a`/`--all`, `-f`/`--force` and `--filter until=`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/image/prune/",
+      "explanation": "`docker image prune`, `docker system prune` and `docker builder prune` have no `--dry-run` option; they support only `--all`, `--filter` and `--force` (plus `--volumes` / `--keep-storage`). The validation step fails as written, and the whole `reclaim_predicted_gb` / RECLAIM-MISMATCH concept rests on dry-run output Docker does not produce.",
+      "field": "detailedImplementation",
+      "quote": "then docker image prune --dry-run on a lab host and confirm a single execve line lands in Splunk",
+      "severity": "blocker",
+      "suggested_fix": "Remove the `--dry-run` references. For a pre-prune estimate, use the `Reclaimable` column of `docker system df` taken just before the run, and compare it with the `reclaimed` attribute of the subsequent `prune` event."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL uses `strcat(...)` for `prune_event_id` and `flags_compact`, while the `spl` field uses `.` concatenation, so they are not byte-identical. The closing `table` lists 17 columns, not twelve.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte ... The closing table lists twelve columns for runbook clarity.",
+      "severity": "minor",
+      "suggested_fix": "Sync the fenced copy with the `spl` field (or drop the byte-for-byte claim) and correct the column count."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, yet it depends on a non-existent add-on, a non-existent sourcetype, non-existent action strings and a non-existent CLI flag. It could not have been run successfully end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", \"reviewer\": \"@splunk-monitoring-use-cases\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to unverified until a named SME has run the positive paths in Step 4 against a real Docker host."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory",
+      "explanation": "Inventory (internal name `Compute_Inventory`) only adds host OS context and does not evidence prune activity. Change fits only if the docker events/auditd data is mapped with `tag=change` and the `command`/`user`/`dest` fields, and the UC gives no such mapping.",
+      "field": "cimModels",
+      "quote": "\"Change\", \"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Keep `Change` and document the eventtype/tag and field aliases that map prune events into `All_Changes`. Drop `Inventory`, or label it as optional enrichment."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The detection does not depend on server model, so naming specific SKUs adds noise and implies a hardware validation that has not been done.",
+      "field": "hardware",
+      "quote": "fleet SKUs such as Dell PowerEdge R750, HPE ProLiant DL360 Gen11, Lenovo ThinkSystem SR650 V3, and AWS Graviton m7g instances where auditd, docker events streams, and privileged df exporters behave consistently",
+      "severity": "minor",
+      "suggested_fix": "Say 'Any 64-bit Linux host running Docker Engine with auditd'. Keep the 30-second clock-sync requirement."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "Long filler paragraphs (readiness review, training, FinOps, a 'Closing' recap) bury the actionable collection and validation steps in a very long text.",
+      "field": "detailedImplementation",
+      "quote": "Extended readiness review: before production enablement, walk the docker events API reference with the runtime vendor support contact ... Closing: Step 5 lists twelve numbered troubleshooting cases covering",
+      "severity": "minor",
+      "suggested_fix": "Trim to the prerequisites, the four collection feeds, the saved-search settings, the validation paths and the troubleshooting cases. Remove the recap and generic governance prose."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search has several logic errors. (1) `match(action_lc, \"image:delete|...\")` never matches, because `Action` is 'delete'/'destroy'/'prune' with `Type` separate, so the docker_evt lane is always empty; the `prune` events carrying `reclaimed` are not used. (2) `streamstats window=2 current=t last(reclaim_b)` returns the current row's value, so `reclaim_actual_gb` is always 0 (it needs `current=f` or window=2 with `first()`). (3) `flag_dry` is evaluated on `argv` that holds only the phase string on df rows, so `reclaim_predicted_gb` is always null and RECLAIM-MISMATCH can never fire; Docker prune also has no `--dry-run`. (4) A 24-hour window cannot evaluate the 168 h/192 h cadence: any host without a prune in the last 24 h gets 9999 and is flagged CRON-MISSED. (5) The `\\s-a\\s` / `\\s-f\\s` regexes do not match auditd EXECVE `a2=\"-a\"` formatting, combined `-af`, or trailing flags. (6) `sort - flag_unsafe severity` orders severity alphabetically, not by risk. (7) It uses the wrong sourcetype, `auditd:execve`; it should be `linux_audit`/`linux:audit`.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory",
+      "field": "cimSpl",
+      "issue": "`FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem` is wrong: the data model's internal name is `Compute_Inventory` and the OS dataset is `All_Inventory.OS`. Change fields in tstats are `All_Changes.dest` / `All_Changes.user` / `All_Changes.command`, not `Change.dest`. `appendcols` pastes Inventory rows next to unrelated Change rows instead of joining on host. Evidence: https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-3.1.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The governance idea (who pruned, with which flags, how much came back, whether the schedule held) is well scoped, with good sibling boundaries and grandma text. But the UC rests on several false product facts: a non-existent Splunk_TA_docker, a wrong auditd sourcetype, composite `image:delete` action strings that Docker does not emit, and a `--dry-run` flag that docker prune commands do not have. It also misses that dockerd already emits `prune` events carrying reclaimed bytes. The SPL and cimSpl have logic bugs that stop most severities from ever firing correctly.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.27",
+  "verdict": "incorrect"
+}

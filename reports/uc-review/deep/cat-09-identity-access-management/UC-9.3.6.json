@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d1c7005bb1b864128847bf138137a886ffd1ff03d1a354a7913eb712303606a4",
+  "file": "content/cat-09-identity-access-management/UC-9.3.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `visualization` ('Line chart (phishing-resistant adoption trend)', 'Table (users still on SMS)') promise percentages, a time trend and a user list. The SPL returns one row per factor_type with a count of MFA verification events: no percentage, no `_time`, no user. Event counts also measure usage volume, not how many users have adopted a factor.",
+      "field": "cross_field",
+      "quote": "Report adoption percentages. Set organizational targets for phishing-resistant adoption.",
+      "severity": "major",
+      "suggested_fix": "Either describe the output as 'share of MFA verifications by factor class over the search window', or state that adoption needs `dc(actor.alternateId)` per factor class over time (human SPL change)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/splunk/security_content/blob/develop/detections/application/okta_mismatch_between_source_and_response_for_verify_push_request.yml",
+      "explanation": "The SPL reads Okta System Log `user.authentication.auth_via_mfa` verification events (factor in `debugContext.debugData.factor`), not enrollment logs. Okta System Log is collected by the Splunk Add-on for Okta Identity Cloud (Splunkbase 6553) REST input or Okta Log Streaming, not by a Universal Forwarder.",
+      "field": "dataSources",
+      "quote": "IdP MFA enrollment logs, factor type metadata Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Okta System Log (`sourcetype=OktaIM2:log`, `eventType=user.authentication.auth_via_mfa`, factor in `debugContext.debugData.factor`, e.g. `OKTA_VERIFY_PUSH`, `FIDO_WEBAUTHN`) collected by Splunk Add-on for Okta Identity Cloud (6553) into `index=okta`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Okta FastPass, when configured for phishing resistance, is also phishing-resistant, but it is not FIDO-named and would fall into 'phishable'. Push with number challenge sits between the two classes. The exact factor strings Okta logs for FastPass (believed to be `SIGNED_NONCE`) should be confirmed.",
+      "field": "implementation",
+      "quote": "Classify as phishing-resistant (FIDO2, WebAuthn) vs phishable (SMS, voice, email).",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Okta System Log factor values in your tenant and list the mapping explicitly (e.g. FIDO_WEBAUTHN and FastPass as phishing-resistant; OKTA_VERIFY_PUSH and TOTP as medium; SMS, CALL and EMAIL as phishable)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-okta-identity-cloud/Sourcetypes/",
+      "explanation": "The field contains two full Step 1–4 sequences. The first 'data collection' step restates the implementation summary. The second is generic Universal Forwarder template text (vendor admin UI inventory counts, HTTP 401/429 from 'the vendor endpoint', page routing by severity) that does not explain how to collect Okta logs or validate factor classification.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=OktaIM2:log into okta. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one sequence: install Splunk Add-on for Okta Identity Cloud (6553), configure the System Log input with a read-only API token into `index=okta`; validate by listing `values(debugContext.debugData.factor)` and confirming each value maps to a class; schedule as a weekly report."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is a posture report, not an alert. The listed scenarios (maintenance windows, synthetic probes, batch jobs) do not describe what skews it.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `debugContext.debugData.factor`, `factor_type`** — Health checks in `okta` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real distortions: heavy users with many MFA prompts inflate event share; FastPass or custom authenticators misclassified by name matching; service accounts exempt from MFA are absent; sign-on policies that skip MFA on trusted networks hide factor choice."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-okta-identity-cloud/Sourcetypes/",
+      "explanation": "Splunkbase 6553 (used in `references`) is the Splunk Add-on for Okta Identity Cloud, folder `Splunk_TA_okta_identity_cloud`, not `Splunk_TA_okta`.",
+      "field": "app",
+      "quote": "`Splunk_TA_okta`, IdP MFA enrollment data",
+      "severity": "minor",
+      "suggested_fix": "Use 'Splunk Add-on for Okta Identity Cloud (`Splunk_TA_okta_identity_cloud`, Splunkbase 6553)'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "After `stats count by debugContext.debugData.factor`, the field is named `debugContext.debugData.factor`, but the eval matches on `factor`, which does not exist. Every row therefore falls through to `1=1,\"phishable\"`. Rename first (e.g. `rename debugContext.debugData.factor as factor`).",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://github.com/splunk/security_content/blob/develop/detections/application/okta_mismatch_between_source_and_response_for_verify_push_request.yml",
+      "field": "spl",
+      "issue": "`match()` is case-sensitive and Okta logs factor values in upper case (e.g. `OKTA_VERIFY_PUSH`), so `match(factor,\"push\")` never matches. Use `(?i)push`, or match explicit values. See https://github.com/splunk/security_content/blob/develop/detections/application/okta_mismatch_between_source_and_response_for_verify_push_request.yml",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "`Performance` does not fit an MFA factor-strength posture report.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1621 (MFA Request Generation) is only indirectly related; the UC measures factor posture rather than detecting push-fatigue activity.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0061-UC-9.3.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (classify Okta MFA verifications by factor strength) is sound and the eventType and field are real. But the prose promises per-user adoption percentages, trends and SMS user lists that the SPL cannot produce, and the data source is described as enrollment logs when the SPL reads authentication events. The SPL as written classifies every event as 'phishable' (flagged for human editors).",
+  "tier": "deep",
+  "uc_id": "UC-9.3.6",
+  "verdict": "rewrite"
+}

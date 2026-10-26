@@ -1,0 +1,124 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "361c0c08f1cb486b10698dab8cdd29a6d4fbe0129c7f3602a3c06a7ba5cf95a3",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.3.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/617 returns 404.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual SNMP collector: Splunk Connect for SNMP or the SNMP Modular Input (Splunkbase 1537), polling PowerNet-MIB upsAdvOutputLoad. Drop the Universal Forwarder and the 617 ID."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "SC4SNMP writes polling events as sourcetype sc4snmp:event to index netops by default, but the spl expects sourcetype snmp:apc:ups in index=power with a flat ups_name field. Nothing explains the override. The repository guide uses sourcetype snmp:ups.",
+      "field": "cross_field",
+      "quote": "Splunk Connect for SNMP (SC4SNMP) or SNMP Modular Input",
+      "severity": "major",
+      "suggested_fix": "Document how sourcetype snmp:apc:ups, index=power and ups_name are produced, or align with the guide's snmp:ups sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no count. It returns latest(load_pct) and the last-seen time per UPS for samples above 80% in the last 4 hours.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Say the search lists each UPS whose output load exceeded 80% of rated capacity in the last 4 hours, with the latest over-threshold load and when it was seen."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation describes two severity tiers, but the spl has a single load_pct>80 filter and no severity field. Also, detailedImplementation says to schedule with earliest=-24h@h while the spl uses earliest=-4h.",
+      "field": "cross_field",
+      "quote": "(1) Set warning 80%, critical 90%.",
+      "severity": "major",
+      "suggested_fix": "Either describe the single 80% threshold, or tell the reader to add an eval severity (warning above 80, critical above 90) in a tuned copy. Make the schedule window match the SPL's 4-hour lookback."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic REST/HEC steps that don't apply to SNMP polling of an APC network management card.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token ... unless the vendor API rate-limits lower ... inspect splunkd.log for HTTP 401/429 from the vendor endpoint",
+      "severity": "major",
+      "suggested_fix": "Rewrite for SNMP polling: SNMPv3 credentials, UDP 161 reachability, PowerNet-MIB loading, and checking that upsAdvOutputLoad is populated per ups_name."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios with no real cause of high UPS load. The text is also self-contradictory (it elevates load without crossing the threshold, yet is listed as a false positive).",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `snmp:apc:ups` — Scheduled automation elevates `load_pct` without crossing `load_pct` > 80",
+      "severity": "major",
+      "suggested_fix": "List real causes: a transient inrush during server power-on or the battery self-test, temporary load consolidation when a redundant UPS is in bypass or maintenance (expected but still capacity-relevant), and N+1 pairs where per-unit load is intentionally higher."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "The collection path is wrong and the prose contradicts the SPL, so the sidecar shows no sign of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or unverified until reviewed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "This doesn't name the join key or the PDU UC, so the reader can't act on it.",
+      "field": "implementation",
+      "quote": "(2) Join to PDU data for attribution.",
+      "severity": "minor",
+      "suggested_fix": "Name the PDU UC (for example UC-15.4.4) and a key such as a DCIM lookup mapping PDU inlet to UPS output."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A PDU product page is cited for a UPS load UC, and the SC4SNMP link is a Splunkbase search although SC4SNMP is not distributed there.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Cite the PowerNet-MIB upsAdvOutputLoad definition and the SC4SNMP docs."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "The detection uses polled values, not traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "latest(load_pct) is computed after where load_pct>80, so it reports the last over-threshold sample rather than the current load. A UPS that dropped back below 80% keeps alerting for up to 4 hours. Compute latest(load_pct) first and filter afterwards if current state is intended.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0093-UC-15.4.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The SPL is a simple, workable output-load check (upsAdvOutputLoad / upsOutputPercentLoad above 80%), but the prose misstates its output and time window and contradicts the warning/critical tiers. The collection path names the Universal Forwarder as a Splunkbase SNMP input, which is wrong.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.3",
+  "verdict": "incorrect"
+}

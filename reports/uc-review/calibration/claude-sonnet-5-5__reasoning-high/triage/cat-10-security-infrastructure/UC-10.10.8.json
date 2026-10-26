@@ -1,0 +1,99 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "26efddcc7473a0e43c7ea17d8ad8aa4588e616dee961c0c2c31742e2a6e6997a",
+  "file": "content/cat-10-security-infrastructure/UC-10.10.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Neither sentence applies. The SPL reads the `notable` macro and never touches `detection_metrics`, and YARA scanning is a different UC family (10.10.9-10.10.15). Nothing says how first-owner-assignment times are obtained from Enterprise Security.",
+      "field": "implementation",
+      "quote": "Use summary indexing or ES introspection where `detection_metrics` is not present. For YARA, deploy a scripted input or HEC to ingest scanner JSON.",
+      "severity": "major",
+      "suggested_fix": "Replace with ES-specific guidance: how triage time is derived (for example from the Incident Review audit or status-change data), which ES version it was tested on, and a note on required ES roles. Delete the YARA sentence."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scripted-input example (your_sourcetype, index=main, echo 'metric=value') is a generic placeholder. This UC needs no scripted input, because notable events are already in the ES index. The later text says it 'writes sourcetype=see SPL into index=main', which is also meaningless, and describes a vendor API poll interval with 401/429 errors.",
+      "field": "detailedImplementation",
+      "quote": "This use case relies on a scripted input. In the app's local/inputs.conf add a stanza such as:\n\n```ini\n[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main",
+      "severity": "major",
+      "suggested_fix": "Remove the scripted-input and vendor-API steps. State that the search runs on the ES search head against the `notable` macro and describe the ES prerequisites and Incident Review validation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description and controlTest (`index=target_index` sourcetype='target_sourcetype') use unfilled placeholders. The SPL uses the `notable` macro with no index or sourcetype, so the test fixtures cannot reproduce the detection. It also says 'alert when configured threshold', but the SPL applies no threshold.",
+      "field": "description",
+      "quote": "using `index=target_index` sourcetype `configured sourcetype`, grouped by `rule_name`",
+      "severity": "major",
+      "suggested_fix": "Describe the real input (the ES `notable` macro) and either add a threshold, such as a maximum p95 triage time per rule, or present the search as a report. Rewrite controlTest to create notables with and without an owner assignment."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The detailedImplementation says the metric is time to first owner assignment or close. The SPL has no close time, and for unassigned notables it substitutes now()-_time, which is the current age of a still-open notable and not a triage time. The grandma text says 'how long it takes a human to own' an item. Averaging both values mixes completed and still-open notables.",
+      "field": "cross_field",
+      "quote": "Average time from notable creation to first owner assignment or close by rule.",
+      "severity": "major",
+      "suggested_fix": "Compute triage time only for notables that have an owner assignment, and report open unassigned notables separately as an aging count. Describe exactly which timestamps are used."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The field the metric depends on, `first_owner_assignment_time`, is not named in dataSources or explained. A reader cannot tell which ES version or source supplies it. 'Custom field names may vary' is a disclaimer, not documentation.",
+      "field": "dataSources",
+      "quote": "Notable event fields (custom field names may vary by ES version)",
+      "severity": "major",
+      "suggested_fix": "List the fields used (rule_name, _time, and the assignment-time field), name the ES source of each and the minimum ES version (7.x or 8.x), and note if a lookup or audit search is needed."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "The SPL also returns `p95_triage_sec`, which the description does not mention, and the unit is seconds, which is awkward for a triage-time SLA.",
+      "field": "description",
+      "quote": "Outputs `avg_triage_sec` each `the scheduled window`",
+      "severity": "minor",
+      "suggested_fix": "Mention both average and 95th percentile values and consider converting to minutes in the output."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Own a triaged item' is circular jargon, and the text does not say that the measure is per detection rule or that it applies to security alerts.",
+      "field": "grandmaExplanation",
+      "quote": "We measure how long it takes a human to own a triaged item so we can staff and fix bottlenecks with data.",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We measure how long it takes before a security analyst picks up each kind of alert, so we can see which alerts wait the longest and plan staffing.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`first_owner_assignment_time` is not a field I know on Splunk ES notable events. Owner and status changes are normally tracked through Incident Review (status, owner, and audit records), so the field may not exist and the eval would always use the now()-_time branch. Also, if it is a string timestamp the subtraction yields null. Verify against a real notable in the target ES version.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "The UC measures SOC operational performance (detectionType 'Operational metrics'), but monitoringType is Compliance. The tag does not match the signal.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0080-UC-10.10.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A sensible SOC metric (triage time per correlation rule), but the key timestamp field is unverified, the text carries leftover placeholders and YARA/scripted-input boilerplate from sibling UCs, and the prose describes behaviour the SPL does not implement.",
+  "tier": "triage",
+  "uc_id": "UC-10.10.8",
+  "verdict": "rewrite"
+}

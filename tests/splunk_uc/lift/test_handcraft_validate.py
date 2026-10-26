@@ -96,6 +96,32 @@ def test_validate_handcraft_rejects_remaining_templates() -> None:
     assert any("template provenance" in r for r in reasons)
 
 
+def test_validate_handcraft_rejects_v2_residue_only_in_lifted_fields() -> None:
+    original = _templated_uc()
+    lifted = _handcrafted_lifted(original)
+    lifted["value"] = "Tracking `distance_km` via UC-25.1.1 on `strava:activity` feeds improves response."
+    all_fields = {
+        "knownFalsePositives",
+        "controlTest",
+        "exclusions",
+        "evidence",
+        "detailedImplementation",
+        "description",
+        "value",
+    }
+    reasons = validate_handcraft(original=original, lifted=lifted, lifted_field_names=all_fields)
+    assert any("v2_value_selfref" in r for r in reasons)
+
+    untouched = dict(lifted)
+    untouched["value"] = original["value"] = lifted["value"]
+    reasons = validate_handcraft(
+        original=original,
+        lifted=untouched,
+        lifted_field_names=all_fields - {"value"},
+    )
+    assert not any("v2 template families" in r for r in reasons)
+
+
 def test_validate_handcraft_accepts_domain_specific_lift() -> None:
     original = _templated_uc()
     lifted = _handcrafted_lifted(original)

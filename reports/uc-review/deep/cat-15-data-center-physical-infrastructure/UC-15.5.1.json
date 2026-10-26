@@ -1,0 +1,93 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7f3e03e917db790fb3ff486ef52d2362ecb9b155fc4f0e721602a82a1c5f5f78",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.1.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and Splunkbase /app/617 returns 404. The repository CCTV guide also describes other paths: Genetec sends `genetec:event` through its Splunk plugin over HEC, and Milestone XProtect forwards syslog as `milestone:event`. Neither path produces `nvr:recording_health`, and 'Milestone connector' and 'Hikvision ISAPI HEC' name nothing a reader can install.",
+      "field": "app",
+      "quote": "Milestone connector mapped to listed sourcetypes — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Remove 'Universal Forwarder (Splunkbase 617)'. Say plainly that `nvr:recording_health` is a custom sourcetype produced by a site-built REST poller or script, or rebase the UC on a documented VMS feed (Genetec `genetec:event`, Milestone `milestone:event`) and its recording or archiving events."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The repository guide uses `index=physical_security` and lists no `nvr:*` sourcetype. The UC never documents the fields it depends on (`camera_id`/`channel`, `gap_seconds`/`recording_gap_s`, `recording_state` with value `continuous_ok`), so a reader cannot build the custom input to match.",
+      "field": "dataSources",
+      "quote": "`index=physical` · `sourcetype=\"nvr:recording_health\"`",
+      "severity": "major",
+      "suggested_fix": "Either align with the guide's index and sourcetypes, or add the expected event schema: one event per camera per poll, with field names, units, the allowed `recording_state` values and an example JSON payload."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "`implementation` says to poll every minute, while `detailedImplementation` says 'Default poll interval 300–900 seconds' and schedules `earliest=-24h@h`. The SPL hard-codes `earliest=-48h`. If each one-minute health snapshot reports the current gap length, `sum(gap_s)` adds the same gap up once per poll and inflates `total_gap_s`.",
+      "field": "cross_field",
+      "quote": "(1) Ingest NVR health JSON every minute.",
+      "severity": "major",
+      "suggested_fix": "Choose one poll interval and one search window. State whether `gap_seconds` is a per-interval delta or the length of an ongoing gap: if it is a snapshot, aggregate with `max` per gap or `dedup` on a gap ID rather than `sum`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "No cumulative threshold is given, and the SPL has none: any camera with one gap row is returned. An NVR or camera that stops sending health events entirely, the worst recording gap, produces no rows and goes undetected.",
+      "field": "implementation",
+      "quote": "(3) Alert on cumulative gap.",
+      "severity": "major",
+      "suggested_fix": "State the cumulative alert threshold (seconds per camera per window). Add a companion check for cameras or NVRs whose health feed is missing, for example by comparing against a camera inventory lookup."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The steps are a generic template, with placeholder SPL, 'vendor API rate-limits', HTTP 401/429 and `list_inputs`. Nothing tells the reader how to get recording-gap data out of any NVR or VMS.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Name the VMS or NVR API or log that exposes recording gaps (for example Milestone or Genetec recording and archiving events), how it is polled, and how to validate a gap against the VMS timeline for one camera."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although its sourcetype and fields are undocumented and its app reference points to a non-existent Splunkbase listing.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until an SME has validated it against a real NVR or VMS feed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Rows that pass only because `recording_state!=\"continuous_ok\"`, with `gap_s` null, contribute nothing to `sum(gap_s)`, so a camera can alert with an empty `total_gap_s`. If health events are snapshots of an ongoing gap, `sum` counts the same gap many times; use `max` or `dedup` per gap. There is no cumulative threshold after `stats`.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'for Splunk CCTV Pipelines' is template wording. The UC detects NVR or camera recording gaps; it does not monitor a Splunk pipeline.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0100-UC-15.5.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC's goal, detecting per-camera recording gaps, is valid, but it rests on an invented `nvr:recording_health` schema that is never documented as custom. It also cites a non-existent Splunkbase app and disagrees with the repository guide's CCTV sourcetypes and index. The schedule and polling text contradict each other.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.1",
+  "verdict": "incorrect"
+}

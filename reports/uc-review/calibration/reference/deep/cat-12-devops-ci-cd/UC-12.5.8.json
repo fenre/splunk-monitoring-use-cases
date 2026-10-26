@@ -1,0 +1,102 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "aab6f2e449dcf703050087321de8d201595db29fcdf5eac88e3de7cda160d8a5",
+  "file": "content/cat-12-devops-ci-cd/UC-12.5.8.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://helm.sh/docs/v3/helm/helm_list/",
+      "explanation": "In Helm 3, `helm list` by default returns only releases that are deployed or failed, and only in the current namespace. A job running the command as written never emits `pending-install`, `pending-upgrade` or `pending-rollback` releases, so the stuck-release half of the detection is silently blind. Helm 4 changed the default to all statuses, but Helm 3 is still the common install base.",
+      "field": "implementation",
+      "quote": "Ingest Helm release status from `helm list -o json` jobs",
+      "severity": "blocker",
+      "suggested_fix": "Specify `helm list --all --all-namespaces -o json` (or `-a -A`), run on a schedule by a scripted input with a kubeconfig that can read release secrets in every namespace. Note that Helm 4 lists all statuses by default."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "evidence_url": "https://fluxcd.io/flux/components/helm/helmreleases/",
+      "explanation": "Flux helm-controller does not report Helm status strings. HelmRelease health is shown through `.status.conditions`, for example `type: Ready`, `status: \"False\"`, `reason: InstallFailed | UpgradeFailed | RollbackFailed | TestFailed`. The UC does not say how to turn these conditions into the `status` values (`failed`, `pending-upgrade` and so on) the search expects.",
+      "field": "implementation",
+      "quote": "Map statuses to deployed/failed/pending.",
+      "severity": "major",
+      "suggested_fix": "Document the mapping explicitly: Ready=False with an InstallFailed, UpgradeFailed, RollbackFailed, UninstallFailed or TestFailed reason maps to `failed`, and Reconciling=True for more than N minutes maps to `pending`. Say whether the mapping is done at ingest (props/transforms) or in the search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_url": "https://github.com/helm/helm/blob/release-3.16/cmd/helm/list.go",
+      "explanation": "Neither sourcetype is produced by a named add-on, and the UC does not describe their shape. `helm list -o json` emits a JSON array with keys `name`, `namespace`, `revision`, `updated`, `status`, `chart`, `app_version`. It has no `release` or `message` key, so a reader cannot match fields to the grouping in the search. Flux controller logs come from the Kubernetes container log pipeline (for example the Splunk OpenTelemetry Collector), not a Universal Forwarder modular input.",
+      "field": "dataSources",
+      "quote": "`sourcetype=helm:release`, `sourcetype=fluxcd:controller` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Describe each feed: (1) a scripted input that runs `helm list -a -A -o json` and splits the array into one event per release as `helm:release`, renaming `name` to `release` if the search keeps that field. (2) Flux helm-controller container logs collected by the Splunk OpenTelemetry Collector for Kubernetes and assigned `fluxcd:controller`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "There is no threshold in the SPL. Any release in a failed or pending state is returned. The description never states what an unhealthy release is.",
+      "field": "description",
+      "quote": "Outputs `values` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say: lists every Helm release, from Helm CLI polls or Flux HelmRelease logs, whose latest status is failed, pending-install, pending-upgrade or pending-rollback. Show one row per release, namespace, chart and status with the last event time and messages."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Template text with no real Helm causes. Real benign hits include pending states seen during an in-progress `helm upgrade --wait` or `--atomic` run, a failed revision that a later successful upgrade has already replaced (if old events stay in the search window), and releases being deliberately uninstalled.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Helm Release Health Monitoring' shifts `values` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "List those causes. Recommend evaluating only the latest event per release and namespace, and requiring a pending state to persist across at least two polls before alerting."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The search uses no cluster metrics, so the collector is listed for a capability this UC does not use.",
+      "field": "app",
+      "quote": "`splunk-otel-collector` for cluster metrics",
+      "severity": "minor",
+      "suggested_fix": "List the OpenTelemetry Collector only as the carrier of Flux controller logs, or remove it."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is vague and never says the UC flags software installs or upgrades that failed or got stuck halfway.",
+      "field": "grandmaExplanation",
+      "quote": "We watch Kubernetes release tooling so manifest or chart problems surface before users do.",
+      "severity": "minor",
+      "suggested_fix": "For example: 'When an install or upgrade of an application on our clusters fails or gets stuck halfway, we flag it so the team can fix or roll it back.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The Flux branch `kind=\"HelmRelease\"` is unlikely to match. Flux controller logs carry `controllerKind` and `HelmRelease.name`/`namespace` fields, and have no `status`, `release` or `chart` values. Because `stats ... by release, namespace, chart, status` drops rows with any null by-field, Flux events can never produce results. Check against real helm-controller log events.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The status filter omits `pending-install` and `uninstalling`. Results are also grouped by status rather than by latest state per release, so a release that failed and was later upgraded successfully still appears.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0076-UC-12.5.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation line is the only UC-specific text, and it has a Helm 3 behaviour gap: plain `helm list` hides pending releases. It also never explains how Flux HelmRelease conditions map to the Helm status strings the SPL filters on. The remaining prose fields are template text.",
+  "tier": "deep",
+  "uc_id": "UC-12.5.8",
+  "verdict": "incorrect"
+}

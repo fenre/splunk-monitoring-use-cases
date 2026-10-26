@@ -1,0 +1,172 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f00dd43ca779b423ee73a792792d8a96f25f2eb1205f41d40e9b83902f84bee0",
+  "file": "content/cat-23-business-analytics/UC-23.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The tenure and quota values are ramp buckets that scale quota, not alert thresholds. The SPL has no `where` filter on attainment or coverage, so it outputs every rep for the quarter. The description names a nonexistent 'scheduled window' and never says what a row means.",
+      "field": "description",
+      "quote": "Alerts on Capacity Analysis anomalies for UC-23.2.6 with window `the scheduled window` ... compares against `tenure_days` <= 90, `tenure_days` <= 180, `tenure_days` <= 270, or `quota_in_effect` > 0.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is one rep and territory for the current quarter, with quota-adjusted attainment, pacing and weighted pipeline coverage against a 3.5x reference. State what triggers an alert (for example coverage_gap or pacing_pct) once that filter exists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation and the evidence field describe alerting and `notable` events, but the SPL contains no alert condition, notable action or `quota_metric_scope` filter. There are also three different schedules: hourly (implementation), `0 */6 * * *` (evidence) and hourly Monday to Thursday with 15 minutes at quarter end (detailedImplementation).",
+      "field": "cross_field",
+      "quote": "Gate downstream alerting using `coverage_gap<-1` plus `quota_metric_scope=\"Net_New\"` filters",
+      "severity": "major",
+      "suggested_fix": "Pick one schedule and one alert rule, add them to the search, and describe a notable only if Enterprise Security is actually used."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `salesforce:opportunity` and `dbx:crm_opportunities`. Quotas come from the `rep_quota_targets.csv` lookup, so the sourcetypes `salesforce:quota_snapshot`, `dbx:anaplan_quota`, `dbx:xactly_quota`, `sap:ccloud_quota` and `wd_adaptive:quota_slice` are never searched. The paragraph also admits the engagement feeds do not change attainment numbers.",
+      "field": "dataSources",
+      "quote": "Territory and fiscal quota targets arrive from Anaplan Lists API ... Xactly Connect exposes REST `/v2/quotas` ... SAP Sales Cloud commissions OData ... Workday Adaptive Planning REST ... HubSpot ... ZoomInfo ... Outreach ... SalesLoft",
+      "severity": "major",
+      "suggested_fix": "List the sources the search really uses and the columns of the quota lookup. Describe the other systems as optional upstream sources for building that lookup."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These vendor API paths and entity names are stated as fact without documentation links. The Dynamics 365 'quota_targets' entity and the SAP Sales Cloud and Xactly paths look guessed. The Salesforce 'Quota' object with `OwnerId` and `Type` fields may really be `ForecastingQuota` with `QuotaOwnerId`. The Anaplan 'OAuth2 client_credentials' claim also needs checking.",
+      "field": "dataSources",
+      "quote": "Xactly Connect exposes REST `/v2/quotas`, `/v2/payees`, and `/v2/credit-rules` ... `/odata/v2/quota_assignments` ... `/api/data/v9.2/quota_targets`, goalmetric linkage",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each path and object name against the vendor API documentation and add real links, or remove the ones that cannot be verified."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for Salesforce (Splunkbase 3549) is believed to use its own sourcetypes (the `sfdc:` family), not `salesforce:opportunity`. The sibling UC-23.2.1 describes `salesforce:opportunity` as the output of a custom modular input. Presenting both paths as equivalent may mislead.",
+      "field": "app",
+      "quote": "landed as `sourcetype=salesforce:opportunity` and `salesforce:quota_snapshot` via your HEC modular worker or Splunk Add-on for Salesforce pulls",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetypes the add-on really produces and document the mapping or the custom input, but do not imply the add-on emits `salesforce:opportunity`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Asterisk (PBX), Dell EMC, SNMP and an SNMP UPS model have no connection to a sales quota analysis, and nothing in the UC mentions ServiceNow.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [ \"asterisk\", \"db_connect\", \"dell_emc\", \"itsi\", \"salesforce\", \"servicenow\", \"snmp\", \"snowflake\" ], \"equipmentModels\": [ \"snmp_ups\" ]",
+      "severity": "major",
+      "suggested_fix": "Keep only the relevant tags (Salesforce, DB Connect, Snowflake, optional ITSI) and remove equipmentModels."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The evidence cites a specific run time and a count of 104, as if it had run in production. `status` is 'verified' but the reviewer is 'agent-handcraft-2026-04-28', which is not SME sign-off.",
+      "field": "cross_field",
+      "quote": "Saved search `revops_uc2326_quota_pipeline_coverage` (cron `0 */6 * * *`, last_run=2026-05-12T08:00:00Z, count=104) ... written to `notable`.",
+      "severity": "major",
+      "suggested_fix": "Describe the evidence artifact generically, with no run statistics. Lower the status unless an SME review can be cited."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "`anchor_q` is an eval field in the SPL, not a macro, and no macro is used. The text also says to 'paste the canonical SPL exactly' and then to wrap parts in macros. It describes the quarter as 'fiscal' even though the SPL uses calendar quarters from `strftime`.",
+      "field": "detailedImplementation",
+      "quote": "wrap recurring predicates (`anchor_q`, territory filters) inside macros (`macros.conf`) named `spm_anchor_quarter`",
+      "severity": "major",
+      "suggested_fix": "Say that `anchor_q` and `FiscalQuarter` are calendar-quarter evals. Give the macro definition if a macro is intended, and explain how to use the company fiscal calendar."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL ends with `where FiscalQuarter=anchor_q`, so only one quarter is returned and a multi-quarter heatmap or cumulative trend cannot be built from it. No stage-transition data is emitted for the Sankey either.",
+      "field": "visualization",
+      "quote": "Heatmap panel with attainment_pct rows per rep ... across FiscalQuarter columns; ... Sankey visualization tracing Opportunity StageName transitions",
+      "severity": "major",
+      "suggested_fix": "Describe panels that the output supports (current-quarter table, pacing and coverage per rep), or document the separate searches needed for trends and stage conversion."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "'Incident response' is template wording that does not fit sales analytics. It says nothing about what a revenue operations team does with the output.",
+      "field": "value",
+      "quote": "reduces operational risk and delayed incident response by surfacing `won_qtd`, `weighted_pipeline` early",
+      "severity": "major",
+      "suggested_fix": "State the business value: finding reps and territories behind quota pace or with insufficient pipeline coverage while there is time to act."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "UC-23.2.7 is 'Average Deal Size and Deal-Mix Trend', not a partner-sourced opportunity UC. The role allow-list exclusion is not implemented in the SPL either.",
+      "field": "exclusions",
+      "quote": "partner-sourced opportunities (use UC-23.2.7)",
+      "severity": "minor",
+      "suggested_fix": "Correct the cross-reference and implement or remove the role exclusion."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "'Maintenance window', 'synthetic probe' and 'span=1h' do not apply to a quota search with no hourly span or assets. The genuine causes (ramp policy, territory carve-outs, stale quota files, FX, split credit, duplicate snapshots) are in the Step 5 troubleshooting text but not here.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `business` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "minor",
+      "suggested_fix": "Move the real causes into knownFalsePositives and delete the template items."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "grandma_fidelity",
+      "explanation": "Sales jargon ('pipe', 'weighted realistically', 'stack high enough') and a judgemental tone. It also does not mention that the check compares against a pipeline coverage target.",
+      "field": "grandmaExplanation",
+      "quote": "who is pacing safely versus who merely hoards stale pipe",
+      "severity": "minor",
+      "suggested_fix": "Use plain wording about comparing sales so far with the target and checking whether open deals are enough to close the gap."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "The URL is only the Anaplan home page, so the title and the link do not match. The Aberdeen reference is a general commentary article that does not support any statement in the UC.",
+      "field": "references",
+      "quote": "Anaplan Developer — Authenticating REST integrations",
+      "severity": "minor",
+      "suggested_fix": "Link the real Anaplan authentication documentation or remove it. Drop the Aberdeen link unless it supports a specific claim."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Opportunity data is described as repeated HEC snapshots (full-snapshot polling every 30 minutes in the guide). The search sums `Amount` across all snapshots in 120 days with no `dedup` or latest-per-Id step, so won and open amounts are multiplied by the snapshot count. The detailed text mentions dedup but the SPL has none.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`rep_id=coalesce(OwnerId,owner_id,xactly_external_payee,dynamics_owner_guid)` mixes identifier spaces from different systems, so the lookup on `rep_quota_targets.csv` will not match across sources. Missing `hire_epoch` defaults to 400 days of tenure silently.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Performance, Reliability' and splunkPillar 'Platform' do not fit a sales quota analysis. Consider a business-analytics classification.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' for a sales attainment analysis is questionable; check the criteria for the critical tier.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0036-UC-23.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A substantive, domain-aware quota-attainment search, but the description is template residue, the prose describes sources, alerts, macros and panels the SPL does not implement, and several vendor API facts are asserted without support. The run evidence, equipment tags and verified status are not credible.",
+  "tier": "triage",
+  "uc_id": "UC-23.2.6",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,133 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "4f9d1acfe2c2cf0e1cfde66c181dfa9a4e8401520f0e8e4a7a6c735f6dbb57ca",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "ITSI writes itsi_summary, itsi_tracked_alerts and itsi_grouped_alerts itself on the search tier, so no Universal Forwarder input is involved. The ITSI Splunkbase listing is app 1841, not 617.",
+      "field": "app",
+      "quote": "Splunk IT Service Intelligence (ITSI) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk IT Service Intelligence (Splunkbase 1841), premium licence required; no forwarder-side add-on is needed for these indexes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-itsi.md",
+      "explanation": "This boilerplate tail contradicts the rest of the field and the ITSI guide. These indexes are populated by ITSI KPI searches and the rules engine, not by a forwarder modular input or a scripted poll.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Drop the tail. State that the indexes are written natively by ITSI and that itsi_service_inventory.csv is a customer-maintained lookup."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-13-observability-monitoring-stack/UC-13.2.10.json",
+      "explanation": "UC-13.2.10 is 'Fluentd / Fluent Bit Buffer Overflow'. KPI base-search performance and skip coverage is UC-13.2.5. The same wrong reference appears in detailedImplementation ('UC-13.2.10 focuses on KPI base search skip rate') and in prerequisiteUseCases, so readers are sent to an unrelated UC.",
+      "field": "cross_field",
+      "quote": "Does not replace UC-13.2.2 KPI degradation alerting ..., UC-13.2.10 KPI base search skip rate surveillance in isolation",
+      "severity": "blocker",
+      "suggested_fix": "Replace UC-13.2.10 with UC-13.2.5 in exclusions, in the detailedImplementation scope paragraph and in prerequisiteUseCases."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/splunk-itsi.md",
+      "explanation": "The description and controlTest place itsi_searchlog in itsi_summary, but it is an _internal sourcetype (itsi_summary carries itsi_kpi and itsi_health_monitor rows). They also list 'health_score_latest >= 44' as a standalone alert condition. In the SPL, 44–56 is only the band for severity_blind_floor, and paging is driven by health_score_avg_60m <= 40/50/60.",
+      "field": "cross_field",
+      "quote": "using `index=itsi_summary` sourcetype `itsi_searchlog` ... alert when `hs15` <= 60, `low_window_streak` >= 3, `health_score_latest` <= 56, or `health_score_latest` >= 44",
+      "severity": "major",
+      "suggested_fix": "Describe the health lane as index=itsi_summary (source itsi_health_monitor / ServiceHealthScore) and the skip lane as index=_internal sourcetype=itsi_searchlog. State the real alert tiers: page when the 60-minute average is <= 40, or <= 50 with three low windows; warn when it is <= 60 or when the score sits in the 44–56 floor with no episodes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "ITSI summary, episode and tracked-alert data is not CIM-mapped. Application_State was deprecated in CIM 4.12.0 in favour of Endpoint, and it describes process, service and port inventory, not service health scores. Host CPU/memory in Performance is not the signal this UC detects.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to an empty list (schema: none / ITSI-native indexes), or keep Performance only as an optional enrichment that is explicitly described as such."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified status, with a generic team handle as reviewer, conflicts with SPL that cannot execute (multisearch with stats/inputlookup) and with wrong sibling references. There is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until an ITSI SME runs the search against a live itsi_summary index and records the sign-off."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Items 2–4 are generated filler: an aggregation function 'elevating _time', 'synthetic probes' populating service_id, and an onboarding burst on itsi_searchlog are not real false-positive causes for a health-score regression.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `avg` on `itsi_searchlog`** — Scheduled automation elevates `_time` without crossing `hs15` <= 60",
+      "severity": "major",
+      "suggested_fix": "Name real causes: ITSI maintenance windows (is_service_in_maintenance=1), adaptive-threshold retraining shifting severities, KPI base-search gaps producing N/A health, and service-template re-links changing KPI weights."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Read access to ITSI service objects is normally granted through read capabilities that the default itoa_user/itoa_analyst roles already hold. Requiring itoa_admin for read-only inventory looks overstated.",
+      "field": "detailedImplementation",
+      "quote": "REST polling of /services/itoa_interface/service and /services/itoa_interface/notable_event_group typically requires itoa_admin on many estates",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ITSI 'Configure users and roles' capability matrix, then state the minimum role and capability needed to read services and notable_event_group."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "ITSI writes these indexes internally as stash-style summary events. Operators do not control their indexing format, and TIMESTAMP_FIELDS only applies to INDEXED_EXTRACTIONS structured inputs.",
+      "field": "detailedImplementation",
+      "quote": "If your NEAP emits nested JSON, flatten group_id and severity before indexing ... verify TIMESTAMP_FIELDS on itsi_summary and itsi_grouped_alerts",
+      "severity": "minor",
+      "suggested_fix": "Remove the ingest-time advice and say that field names should be validated at search time (for example itsi_group_id and itsi_group_severity in itsi_grouped_alerts)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Every multisearch subsearch contains stats (transforming), and one starts with inputlookup (generating). multisearch allows only streaming operations, so the search errors before returning rows. See https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch. Use append or union, or restructure with eventstats after a streaming multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "sort 0 service_id - _time puts the newest bin first, so streamstats windows on the newest row only see that row. Because stats latest() then picks the newest row, health_score_avg_60m equals one bin and low_window_streak can never reach 3, which means prolonged_low_dwell never fires. Sort ascending by _time before streamstats.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The window names do not match the spans: health_score_avg_5m is a single 15-minute bin, and health_score_avg_15m is a 3-bin (45-minute) average. The episode lane groups by service_id and severity, while the guide documents itsi_group_severity and episodes do not carry a scalar service_id, so neap_episode_pressure is likely always null.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Application_State has no 'state' or 'info' fields and is deprecated. Performance.cpu_load_percent and Performance.mem_used live in the CPU and Memory child datasets (nodename=All_Performance.CPU / .Memory), not at the root. The search does not relate to ITSI health scores.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0080-UC-13.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation prose gives a coherent account of ITSI health-score regression, but the short fields are template residue. The UC names the wrong collection app, points to the wrong sibling UC, maps ITSI-native data to a deprecated, unrelated CIM model, and its SPL cannot run as written because multisearch only accepts streaming subsearches.",
+  "tier": "deep",
+  "uc_id": "UC-13.2.1",
+  "verdict": "incorrect"
+}

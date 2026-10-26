@@ -1,0 +1,145 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "d173a13a14facd7f76bc861b0ba9cd4da00f191acde2cf3825dc174e36822ed2",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.7.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide lists Splunk Connect for Kubernetes as Splunkbase 3743, and 5167 is not in the cached catalog. The same field already names the REST API Modular Input (1546) and the Splunk OpenTelemetry Collector as the collectors, so the trailing SCK reference also contradicts the rest of the field.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the stray Splunk Connect for Kubernetes reference. If SCK is kept, use Splunkbase 3743. The app field should list only the REST API Modular Input (1546) and the Splunk OpenTelemetry Collector for Kubernetes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Splunk Connect for Kubernetes is a log and metrics forwarding chart, not a modular input that polls Harbor REST endpoints. The sentence also conflicts with the implementation, which says to poll Harbor with the Splunk REST API Modular Input (rest_ta, 1546).",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "needs_verification",
+      "suggested_fix": "State that harbor:repositories and harbor:gc come from the REST API Modular Input or a scripted poll. State that kube:container:logs and the Prometheus metrics come from the Splunk OpenTelemetry Collector for Kubernetes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "In the SPL, last_pull_days and age_days are per-artifact fields and not output columns. CRITICAL needs tag_count > 200 AND orphan_pct > 50, not OR. WARN is tag_count > 100 OR orphan_pct > 30, and the description never mentions it. The description therefore suggests a different alert condition from the one implemented.",
+      "field": "description",
+      "quote": "compares against `last_pull_days` > 90, `age_days` > 90, `tag_count` > 200, or `orphan_pct` > 50",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: an artifact is orphaned if never pulled or last pulled more than 90 days ago. A repository is CRITICAL with more than 200 artifacts and more than 50% orphaned, and WARN with more than 100 artifacts or more than 30% orphaned."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Only harbor:repositories and harbor:gc are used by the SPL, and the implementation tells the reader to collect only those two. harbor:audit, harbor:metrics and kube:container:logs are never searched, so 'requiring five' sends readers to build ingestion for data the detection does not use.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes",
+      "severity": "major",
+      "suggested_fix": "List harbor:repositories and harbor:gc as required. Mark harbor:audit, harbor:metrics and kube:container:logs as optional enrichment, or remove them."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Harbor GC history list (/api/v2.0/system/gc) is documented with job_name, job_kind, schedule, job_status, job_parameters, creation_time and update_time. Freed space and deleted-blob counts are, as far as I know, only in the per-job GC log. If so, freed_space and deleted_blobs_count never populate and the GC effectiveness search returns zeros.",
+      "field": "detailedImplementation",
+      "quote": "returns GC execution records including status, freed space, deleted blob counts, and duration",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the GET /system/gc and GET /system/gc/{id}/log responses on Harbor 2.5+. Adjust the field list, or collect the GC job log and parse freed space from it."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "A single rest_ta input cannot iterate over {project} and {repo} placeholders, so this URL would need one input per repository or a scripted enumerator. The artifact payload also carries project_id and repository_id, not repository_name or project_name, which the SPL coalesces. Repository names that contain slashes must be double URL-encoded in this path.",
+      "field": "detailedImplementation",
+      "quote": "URL**: `https://<harbor-host>/api/v2.0/projects/{project}/repositories/{repo}/artifacts?page_size=100&with_tag=true&with_scan_overview=true`",
+      "severity": "needs_verification",
+      "suggested_fix": "Describe a scripted input or custom response handler that lists projects and repositories first and adds repository_name and project_name to each artifact event. Alternatively use /api/v2.0/search or /api/v2.0/repositories for the enumeration. Confirm against the Harbor v2.0 OpenAPI spec."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Harbor project roles (Project Admin, Maintainer, Developer, Guest, Limited Guest) apply per project. Harbor does not offer custom roles. Reading every project needs a system administrator or a system-level robot account with the right permissions. The audit actions named elsewhere (DELETE_ARTIFACT, CREATE_TAG) also look like webhook event types rather than audit-log operations.",
+      "field": "detailedImplementation",
+      "quote": "the API user needs the **ProjectAdmin** role for listing artifacts across all projects, or a custom **read-only** role scoped to repository listing",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Harbor RBAC documentation. Recommend a dedicated system-level robot account with list and read permissions on repositories and artifacts. Verify the audit-log operation and resource_type values against Harbor's /audit-logs output."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "In Harbor, orphan usually means unreferenced blobs or untagged artifacts that garbage collection removes, and the same text uses 'orphan blobs' that way in the GC section. Using 'orphan' for unpulled tags makes the two meanings collide. The inventory is also per artifact, which may carry several tags, yet it is labelled tag_count.",
+      "field": "detailedImplementation",
+      "quote": "**Orphan tags**: never pulled OR last pulled > 90 days ago.",
+      "severity": "minor",
+      "suggested_fix": "Rename the metric to 'unused' or 'stale-pull' tags and keep 'orphan' for GC-reclaimable blobs. Note that one artifact can carry several tags."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The signal is a daily Harbor artifact snapshot plus GC job history, in custom JSON sourcetypes. The CIM Inventory model describes host and endpoint inventory. Change fits only the harbor:audit delete events, which the SPL does not use. No cimSpl is provided to show that any dataset is populated.",
+      "field": "cimModels",
+      "quote": "\"Inventory\",\n    \"Change\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm that field aliases and tags map harbor:* events into these datamodels. If not, leave cimModels empty or keep Change only for audit events."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The titles do not match the URLs. 'Tag Retention Rules' points to the generic administration index. 'Artifact Management API' points to the build/customize/contribute section, not the API reference.",
+      "field": "references",
+      "quote": "\"title\": \"Harbor — Artifact Management API\",\n      \"url\": \"https://goharbor.io/docs/latest/build-customize-contribute/\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Open each URL and replace it with the page that documents the named topic, for example the Harbor tag-retention page under working-with-projects and the v2.0 Swagger/OpenAPI reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The spl field contains three searches, including a tag age histogram, and implementation mentions two. The detailedImplementation also tells readers to use a Splunk HEC token, but the data is polled with rest_ta, which does not use HEC.",
+      "field": "implementation",
+      "quote": "Build two search variants: tag inventory with orphan/stale classification and retention flags, and garbage collection effectiveness trend with 7-day SMA.",
+      "severity": "minor",
+      "suggested_fix": "Say three searches, or remove the histogram. Drop the HEC token prerequisite unless an HEC path is actually used."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated 'agent-handcraft' identity, so there is no SME sign-off. The Splunkbase ID, Harbor GC fields and RBAC statements above are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a named Harbor and Splunk SME confirms the endpoints, fields and roles on a live Harbor instance."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The field holds three independent searches separated only by comment macros. As written it is not one runnable saved search, and the alert in the implementation applies to only the first two. The orphan definition also counts never-pulled artifacts as orphans, which conflicts with Harbor's usage of the term.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Compliance is listed, but nothing in the SPL or implementation maps retention to a compliance control, and retention of unused tags is a storage-hygiene signal.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0042-UC-3.4.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The Harbor-specific implementation walkthrough is detailed and mostly usable, but the app and dataSources cite the wrong Splunkbase ID for Splunk Connect for Kubernetes and a collection method it does not offer. The description thresholds do not match the SPL, the dataSources list five sourcetypes that the SPL never uses, and several Harbor field and event names need checking.",
+  "tier": "triage",
+  "uc_id": "UC-3.4.7",
+  "verdict": "incorrect"
+}

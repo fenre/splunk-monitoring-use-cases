@@ -1,0 +1,144 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "4a6298a19994987920208308ee0f8db02e3ee0addf82ff02dfe77fda4427586a",
+  "file": "content/cat-22-regulatory-compliance/UC-22.2.20.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL starts from `inputlookup nis2_governance_evidence.csv` and left-joins training data on `person_id` and ServiceNow approvals on `policy_name`. It does not join training to ITSM, and `lms:enrollment` is a training sourcetype, not an `index=itsm` one. The following time-zone paragraph also refers to a `where _time > last_training_date_epoch` comparison that does not exist in the SPL.",
+      "field": "detailedImplementation",
+      "quote": "This search correlates `index=training` (sourcetype=`lms:completion`) on the outer side with `index=itsm` (sourcetype=`lms:enrollment`) on the inner side, joined on `person_id` across the last 800 days.",
+      "severity": "major",
+      "suggested_fix": "Describe the real flow: evidence-register lookup, roster lookup, left join to LMS completions by person_id, left join to GRC approvals by policy_name. Remove the nonexistent `_time` comparison."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources says LMS completions arrive via HEC or an O365-connected export, and only the GRC records come from the ServiceNow add-on. This step says the ServiceNow add-on produces the LMS sourcetypes and the `training` index. The sample inputs.conf (`url`, `table`) and the listed key fields (`number, state, priority, assignment_group, caller_id`) are generic incident-table fields, not the governance fields the detection uses (`policy_name`, `approval_date`, `approved_by`).",
+      "field": "detailedImplementation",
+      "quote": "Data collection is performed by the Splunk Add-on for ServiceNow (Splunkbase app ID 1928), landing events in `training`, `itsm` under `lms:completion`, `lms:enrollment`, `snow:sn_grc_policy`, `snow:task`.",
+      "severity": "major",
+      "suggested_fix": "Split collection into LMS (HEC or scripted export into `training`) and ServiceNow GRC (add-on 1928 into `itsm`). List the governance fields. Check the stanza options against the add-on's inputs.conf spec."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Microsoft Office 365 add-on collects Microsoft 365 management activity, not LMS course exports. The same claim is repeated in `app` ('for LMS-to-cloud identity correlation'). Nothing in the grounding supports LMS ingestion through this add-on.",
+      "field": "dataSources",
+      "quote": "Splunk Add-on for Microsoft Office 365 (Splunkbase 4055) for Azure AD–connected LMS exports",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the add-on can carry LMS data at all. Otherwise state that LMS completions come from HEC, a scripted input or a CSV export, and remove 4055 from this UC."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Residue from a generic template. The retention rules listed belong to other regulations, not NIS2 Art.20, and no NIS2 retention is given. The same applies to 'BA/BAA-style governance applies', the audit-sampling and BAA/DPA scenarios in the KFPs, and the Art.23 24/7 reporting and supply-chain caveats in Step 5, which have nothing to do with management-body accountability.",
+      "field": "detailedImplementation",
+      "quote": "retention matching the regulation's minimum (PCI: 1y, HIPAA: 6y, NIST 800-53: 1-3y per FIPS 199, SOX: 7y)",
+      "severity": "major",
+      "suggested_fix": "State the retention period actually needed for governance evidence and remove the other frameworks' rules. Replace the Step 5 caveats with ones about roster drift, courses recorded under a different identity, and approvals recorded outside ServiceNow GRC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Step 4 turns each field name into a 'panel' with no content. Panels 1 to 7 are a column list of the table, and the 'Hint 2/4/5' paragraphs repeat the same generic cadence sentence. A reader cannot build a dashboard from this.",
+      "field": "detailedImplementation",
+      "quote": "**Panel 2 — `Name` (the key fields):** Configure according to standard Splunk visualization patterns for this panel type.",
+      "severity": "major",
+      "suggested_fix": "Replace Step 4 with the dashboard rows listed in `visualization` (count of OVERDUE and MISSING, table, bar chart, timeline), and remove the generic hint text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation says to schedule the saved search weekly, while the savedsearches.conf stanza runs every 6 hours. The implementation says to alert on OVERDUE or MISSING, but the SPL also returns DUE_SOON rows. The calibration advice in Step 3(d) says the 365-day threshold should sit between the 90th and 99th percentile of `days_since`, which makes no sense for an internal training-currency rule.",
+      "field": "cross_field",
+      "quote": "cron_schedule = 0 */6 * * *\ndispatch.earliest_time = -800d",
+      "severity": "major",
+      "suggested_fix": "Choose one cadence and one alert condition, and say whether DUE_SOON rows alert or only report. Drop the percentile calibration, or explain that 365 and 270 days are policy values."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "`fieldsummary` only lists fields that appear in events, so `count=0` never returns rows. Step 3(b) then expects `approval_chain`, `board_member`, `days_since`, `evidence_id` and `governance_flag` in LMS events, but these are computed by the SPL and are not LMS fields.",
+      "field": "detailedImplementation",
+      "quote": "index=training sourcetype=lms:completion earliest=-1h\n| fieldsummary\n| where count=0",
+      "severity": "minor",
+      "suggested_fix": "Check the LMS fields (`person_id`, `completion_date`, `course_code`) and GRC fields (`policy_name`, `approval_date`) separately, using `fieldsummary` and a null-count `stats`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFPs reuse the compliance pack's scenarios nearly verbatim, including the PCI term 'QSA', the HIPAA-style 'BAA/DPA-covered vendor' and the placeholder `configured sourcetype`. None names a real cause for a false MISSING or OVERDUE flag on this UC. The deterministic pass did not record this.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=training` `configured sourcetype` without crossing `days_since` > 365.",
+      "severity": "major",
+      "suggested_fix": "Use real causes: a director's training recorded under another person_id, a roster change not yet reflected, a course taken before the LMS migration, an approval recorded outside GRC, or an unresolved policy_name spelling mismatch."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The description and controlTest carry unresolved placeholders (`configured sourcetype`, `target_sourcetype`, and a stray `]` as a group-by field). The SPL does not group by any of these.",
+      "field": "description",
+      "quote": "using `index=training` sourcetype `configured sourcetype`, grouped by `person_id`, `]`, `policy_name`",
+      "severity": "major",
+      "suggested_fix": "Replace the placeholders with `lms:completion`/`lms:enrollment` and `snow:sn_grc_policy`/`snow:task`, and describe the real output (one row per evidence item whose latest evidence is missing, older than 270 days or older than 365 days)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The SPL needs no ES features, and the `app` field already calls ES optional. Listing it as a premium app implies a requirement.",
+      "field": "premiumApps",
+      "quote": "\"Splunk Enterprise Security\"",
+      "severity": "minor",
+      "suggested_fix": "Remove ES from premiumApps or mark it as optional."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "overclaiming",
+      "explanation": "The `verified` status rests on a maintainer group, not a named SME. The collection path and sourcetype claims above are unconfirmed.",
+      "field": "status",
+      "quote": "\"reviewer\": \"@nis2-evidence-pack-maintainers\"",
+      "severity": "minor",
+      "suggested_fix": "Record a named reviewer, or lower the status until the data path is confirmed."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Member-state law names look wrong or outdated. The German NIS2 transposition is not called 'IT-SiG 3', the Dutch act is not 'CWV', and the French LPM predates NIS2. The `Settings > Data Inputs > ServiceNow Service Account` navigation path also looks unlikely.",
+      "field": "detailedImplementation",
+      "quote": "A detection correct for German IT-SiG 3 (BSI) may be misaligned with Dutch CWV or French LPM.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the national transposition acts on EUR-Lex and the add-on's UI, or remove the member-state examples."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`evidence_epoch` is `coalesce(indexed_training_epoch, indexed_approval_epoch, roster_training_epoch, ...)`. Any person with a training completion hides stale policy approvals and board briefings for the same row. Staleness is also measured against the most recent course of any kind, not the required executive course. `course_code` is in the table but only exists if the lookup has it, because the LMS `stats` drops it.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "The controlObjective says the UC 'Proves management and supervisory bodies approve cyber risk measures', including 'risk acceptance'. The SPL only checks date freshness of rows in an evidence register, and nothing reads risk-acceptance data. Art.20 sets no fixed period such as 365 days; that is an internal policy value.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0054-UC-22.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The short fields give a sensible Art.20 evidence design, but the detailedImplementation is largely generic template text (other regulations' retention, HIPAA/PCI wording, placeholder dashboard panels). It also describes a different search and data path from the shipped SPL, and the KFPs are pack scenarios copied verbatim.",
+  "tier": "triage",
+  "uc_id": "UC-22.2.20",
+  "verdict": "rewrite"
+}

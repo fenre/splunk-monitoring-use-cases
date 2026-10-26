@@ -71,3 +71,34 @@ def test_audit_paths_empty_flags_not_listed(tmp_path: Path) -> None:
     payload = template_provenance.audit_paths([path])
     assert payload["summary"]["clean"] == 1
     assert payload["ucs"] == []
+
+
+def test_audit_paths_reports_v2_families_separately(tmp_path: Path) -> None:
+    sidecar = {
+        "id": "99.1.2",
+        "description": "Detects UC-99.1.2 — Foo, Bar, Baz — using index=main.",
+        "value": "Tracking `x` via UC-99.1.2 on `y` feeds improves response.",
+        "evidence": "Saved search `ops_foo` (UC-99.1.2), SOC dashboard panel \"Ops\".",
+    }
+    path = tmp_path / "UC-99.1.2.json"
+    path.write_text(json.dumps(sidecar))
+    payload = template_provenance.audit_paths([path])
+    summary = payload["summary"]
+    assert summary["any_template"] == 0
+    assert summary["any_template_v2_families"] == 1
+    assert summary["by_flag_v2_families"] == {
+        "v2_description_selfref": 1,
+        "v2_description_title_salad": 1,
+        "v2_evidence_skeleton": 1,
+        "v2_value_selfref": 1,
+    }
+
+
+def test_max_any_v2_cap(tmp_path: Path, monkeypatch) -> None:
+    sidecar = {"id": "99.1.3", "value": "UC-99.1.3 operationalises 'x' against `y` feeds."}
+    path = tmp_path / "UC-99.1.3.json"
+    path.write_text(json.dumps(sidecar))
+    monkeypatch.setattr(template_provenance, "REPORT_PATH", tmp_path / "report.json")
+    monkeypatch.setattr(template_provenance, "REPO_ROOT", tmp_path)
+    assert template_provenance.main(["--files", str(path), "--check", "--max-any-v2", "0"]) == 1
+    assert template_provenance.main(["--files", str(path), "--check", "--max-any-v2", "1"]) == 0

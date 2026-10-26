@@ -1,0 +1,110 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "81ad5dba5cb78f536dfeb2e5b923c7125e992d12876ab2e669cebe2c44a171cd",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.1.25.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` describes a threshold alert scoped to DLQ queues, but the SPL returns every SQS queue's ApproximateNumberOfMessagesVisible datapoint. It has no DLQ filter, no `> 0` condition and no queue name in the output, even though `visualization` expects a 'Table (queue, count)'.",
+      "field": "cross_field",
+      "quote": "Alert when ApproximateNumberOfMessagesVisible > 0 for any DLQ.",
+      "severity": "major",
+      "suggested_fix": "Describe how DLQs are selected (naming convention matched against the queue dimension in `metric_dimensions`, or a lookup of DLQ names) and state the alert condition explicitly, so that the prose and a corrected SPL agree."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "CloudWatch metric datapoints have no actor, and 'change validation' does not apply to queue depth. The description is copied from a CloudTrail template.",
+      "field": "description",
+      "quote": "returns actor, resource, and region context for fault review and change validation",
+      "severity": "major",
+      "suggested_fix": "Say that the search reports the number of visible messages per dead-letter queue over time and fires when any DLQ is non-empty."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk-apps/splunk-aws-addon/blob/2e73c0e0/default/props.conf",
+      "explanation": "The CIM Performance model covers host CPU, memory, storage and network. The add-on only derives Performance fields from specific CloudWatch metrics (for example cpu_load_percent from CPUUtilization), and nothing comes from SQS queue depth. Mapping a DLQ count to Performance does not fit the signal.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\"]",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to none and state that there is no CIM path; use the raw `aws:cloudwatch` search, or mstats if the metrics go to a metrics index."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A DLQ message count has nothing to do with identity or change-management controls. The real value is that messages in a DLQ are failed work (orders, events, jobs) that no consumer will process unless someone acts before the retention period expires.",
+      "field": "value",
+      "quote": "produces defensible audit evidence for identity and change-management controls",
+      "severity": "major",
+      "suggested_fix": "Explain that a non-empty DLQ means messages failed processing maxReceiveCount times and will be lost when the queue's message retention period expires unless they are investigated and redriven."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generic metric boilerplate and mentions CPU, which this UC does not measure. It does not name DLQ-specific causes.",
+      "field": "knownFalsePositives",
+      "quote": "Planned deploys, game-day tests, and vendor maintenance that you expect to move CPU, error, or lag metrics",
+      "severity": "major",
+      "suggested_fix": "List the DLQ-specific cases: test or poison-pill messages sent on purpose, messages already triaged but not yet purged (the count stays above 0 and re-alerts until the DLQ is drained), and redrive operations in progress."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-amazon-web-services/CloudWatch/",
+      "explanation": "Actor fields, break-glass principals and a CloudTrail baseline prerequisite (UC-4.1.78) do not apply to a CloudWatch metric UC. The steps a reader actually needs are missing: configuring the CloudWatch input for namespace AWS/SQS with the QueueName dimension and the Maximum statistic.",
+      "field": "detailedImplementation",
+      "quote": "Confirm field extractions in `props.conf` for `metric_name` and related actor fields. ... exclude break-glass principals and sandbox accounts via a lookup. ... Prerequisite crawl UC(s): UC-4.1.78.",
+      "severity": "major",
+      "suggested_fix": "Describe the CloudWatch input settings (metric namespace AWS/SQS, metric name ApproximateNumberOfMessagesVisible, QueueName dimension regex matching the DLQs, Maximum statistic, a 300 s period), drop the actor and break-glass text, and reference a CloudWatch ingestion prerequisite instead of the CloudTrail baseline."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the generic template with the title pasted in lower case. It uses unexplained jargon ('sqs dead-letter queue'), and the data is metrics, not logs.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of sqs dead-letter queue message count so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "For example: 'When a piece of work keeps failing, AWS parks it in a separate \"failed\" pile. We raise an alarm as soon as anything lands in that pile, so the team can fix and retry it before it is thrown away.'"
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference is the AWS documentation home page, which does not help the reader.",
+      "field": "references",
+      "quote": "\"title\": \"Vendor cloud documentation\", \"url\": \"https://docs.aws.amazon.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Amazon SQS dead-letter queue page and the Amazon SQS CloudWatch metrics page in the SQS Developer Guide."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Tables `average maximum` in lower case. The add-on's aws:cloudwatch events use capitalised statistic fields (Average, Maximum), and Splunk field names are case-sensitive, so these columns come back empty (see the add-on props.conf EVAL-Average/EVAL-Maximum). There is also no DLQ filter, no `> 0` condition, no queue name (metric_dimensions) in the output, and the `eval uc_marker` template residue. Also check that a `namespace` field exists in aws:cloudwatch events; the namespace usually appears in `source`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Searches Performance.cpu_load_percent, which the add-on only populates for CPUUtilization. It cannot return SQS DLQ depth.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0021-UC-4.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (alert when a dead-letter queue holds messages) is sound and uses the right SQS metric. The search, CIM mapping, false positives and implementation text, however, are copied from CloudTrail or CPU templates and do not describe a DLQ depth alert.",
+  "tier": "deep",
+  "uc_id": "UC-4.1.25",
+  "verdict": "incorrect"
+}

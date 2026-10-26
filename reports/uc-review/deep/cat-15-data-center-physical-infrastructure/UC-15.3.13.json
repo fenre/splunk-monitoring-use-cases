@@ -1,0 +1,93 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "62332437143c79ef09a833e7bd4ea9c80c81789cd4a8708ad7f1579a193538ec",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not a Splunkbase app. https://splunkbase.splunk.com/app/617 returns 404 and the ID is absent from data/splunkbase-catalog.json. The UF also does not provide an SNMP 'modular input'. The `app` field repeats the ID and is already flagged.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual collector: an SNMP poller such as the guide's Splunk Add-on for SNMP (https://splunkbase.splunk.com/app/3252 per the guide), or a scripted or REST input against the sensor vendor's management API (for example NetBotz). Remove 'Splunkbase 617'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` says the search groups a count by `entity`. The `spl` does no aggregation and returns one row per poll event per sensor, keyed on `sensor_id`, with battery level and hours since last report.",
+      "field": "cross_field",
+      "quote": "Groups `count` by `entity` each `the scheduled window`.",
+      "severity": "major",
+      "suggested_fix": "Describe one row per sensor reading whose battery is below 20% or whose last report is more than 24 hours old, showing sensor_id, zone, sensor_type and both values."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `host`, `count`, batch automation and synthetic probes, none of which apply to wireless sensor battery telemetry. No real cause is named.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `sensor:battery_status`** — Scheduled automation elevates `hours_since_report` without crossing `battery_level_pct` < 20",
+      "severity": "major",
+      "suggested_fix": "List real causes: sensors removed or decommissioned but still in the management console; sensors that report only on change or at long intervals, so 24h silence is normal; battery percentage readings that dip temporarily in cold aisles or during radio retransmission bursts; and a gateway or receiver outage that makes many sensors look silent at once (alert on the gateway instead)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The text does not name the sourcetype, index or the other fields the SPL uses (`sensor_id`, `zone`, `sensor_type`). It does not say `last_report_time` must be epoch seconds for the `now()-last_report_time` arithmetic. The guide uses `index=dc_environmental` for environmental sensors, while this UC uses `index=environment`.",
+      "field": "dataSources",
+      "quote": "Sensor management interface (battery_level_pct, last_report_time)",
+      "severity": "minor",
+      "suggested_fix": "State `index=environment` (or `dc_environmental` per the guide) with custom sourcetype `sensor:battery_status`. List all five fields and say that `last_report_time` must be numeric epoch, or be parsed with strptime in props or the search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The heading is repeated four times. Step 3 ('Compare with the BMS console') is generic, while the data comes from the sensor management interface.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "minor",
+      "suggested_fix": "Keep one Step 4 heading. In Step 3, compare battery levels and last-seen times for a few sensors against the sensor vendor's management console."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The implementation polls the sensor management interface every 6 to 24 hours; it does not receive SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Tag an SNMP polling or environmental-sensor model (for example a NetBotz or wireless sensor slug) instead of snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search does not reduce to the latest reading per sensor, for example `stats latest(battery_level_pct) latest(last_report_time) by sensor_id`. With 6-hourly polling over a day, each low-battery sensor appears several times, and a sensor whose battery was replaced still shows its earlier low rows.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`now()-last_report_time` gives null when `last_report_time` is a string timestamp, which silently disables the stale-sensor half of the condition.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0052-UC-15.3.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The SPL and implementation text agree on a simple, sensible check: battery below 20% or no report for more than 24 hours. The collection text cites a non-existent Splunkbase ID, and the description and false positives are template text that does not match the search grain or name real causes.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.13",
+  "verdict": "incorrect"
+}

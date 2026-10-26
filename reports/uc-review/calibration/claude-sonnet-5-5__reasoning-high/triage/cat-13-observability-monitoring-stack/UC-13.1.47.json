@@ -1,0 +1,83 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "5a212470552238f8d81d59f307266acb313725de5ffa0327757edfee4c9dc64c",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.1.47.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/2890",
+      "explanation": "The Splunk Machine Learning Toolkit is Splunkbase app 2890, not 617, and is installed on the search head, not delivered through a Universal Forwarder. Splunkbase 617 is not in the repository catalog.",
+      "field": "app",
+      "quote": "Splunk Machine Learning Toolkit (MLTK) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite the Splunk Machine Learning Toolkit as Splunkbase 2890, installed on the search head that runs fit, and remove the Splunkbase 617 and Universal Forwarder wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-platform-health.md",
+      "explanation": "The SPL reads license_usage.log (type=Usage) from index _internal. According to the repository's platform health guide, splunk_resource_usage belongs to the _introspection index and records per-process CPU, memory and disk usage, not license volume.",
+      "field": "dataSources",
+      "quote": "`index=_internal sourcetype=splunk_resource_usage` OR License Usage Report view",
+      "severity": "blocker",
+      "suggested_fix": "Name the real source: `index=_internal source=*license_usage.log type=Usage` (field b for bytes), collected on the license manager."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation says to alert on the upper confidence bound, but the SPL compares the point forecast `predicted(gb_used)` to `license_limit_gb`. It never uses upper95. Visualization also promises 'days until projected overage', which the SPL does not calculate.",
+      "field": "cross_field",
+      "quote": "Alert when the upper confidence bound crosses the licensed capacity threshold.",
+      "severity": "major",
+      "suggested_fix": "Make the SPL compare `upper95(predicted(gb_used))` with the licence limit, or change the text to say the point forecast is used. Add a days-until-overage calculation or remove it from visualization."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The text never says where the licensed capacity value comes from or how to define `license_limit_gb`, which the SPL needs. Splunk's license size is not in license_usage.log Usage events.",
+      "field": "implementation",
+      "quote": "Alert when the upper confidence bound crosses the licensed capacity threshold.",
+      "severity": "major",
+      "suggested_fix": "Document the licence limit input, for example a lookup or macro with the daily quota in GB, and show how to add it to each row."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a wrong forecast. Real ones are a short history that cannot support seasonality, onboarding of a large new source, one-off backfills or re-indexing, and a licence change.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `_internal` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: less than a few weeks of usage history, bulk onboarding or re-ingestion spikes, licence size changes, and month-end batch peaks."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`license_limit_gb` is never defined in the search, so `'predicted(gb_used)' > license_limit_gb` compares with null and `over_license` is always 0. The alert can never fire as written.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The title promises 'with Seasonality', but the fit command sets no explicit period (for example a 7-day period for weekly cycles). Check whether StateSpaceForecast detects the seasonality on its own, and whether the 365-day history needed for monthly patterns is searched.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0019-UC-13.1.46",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A sensible license-forecast idea whose app ID and data source description are wrong, and whose SPL compares the forecast with a field that is never defined. The alert rule in the implementation (upper confidence bound) does not match the SPL (point forecast).",
+  "tier": "triage",
+  "uc_id": "UC-13.1.47",
+  "verdict": "incorrect"
+}

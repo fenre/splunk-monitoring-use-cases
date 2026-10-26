@@ -1,0 +1,107 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "58a4d9d3868ed511466b339b250a3985d4af47e53a60dde9558a11e046981878",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Abouttimezones",
+      "explanation": "`_time` is stored as UNIX epoch and cannot \"reflect\" a wall clock; `TZ`/`TIME_FORMAT` in props.conf only make the epoch correct. `strftime(_time,\"%H\")` renders the hour in the time zone of the user that owns the scheduled search (or the search head default), so a correctly parsed feed still yields the wrong hour for sites in other time zones.",
+      "field": "detailedImplementation",
+      "quote": "Validate time zones: `_time` must reflect facility local wall clock because hour buckets (`strftime`) gate after-hours logic.",
+      "severity": "blocker",
+      "suggested_fix": "Say: set `TZ` in props.conf so `_time` is the correct instant, then make sure the saved search runs as an owner whose user time zone equals the facility's local zone, or (for multi-site) compute local hour per site from a `site_tz_offset` lookup instead of relying on the owner's zone."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL tests `hour < 6 OR hour > 22`, so grants between 22:00 and 22:59 are not alerted; the effective quiet window is 23:00–05:59, not 22:00–06:00.",
+      "field": "implementation",
+      "quote": "Publish per-site quiet hours (for example 22:00–06:00 local)",
+      "severity": "major",
+      "suggested_fix": "State the window the SPL actually enforces (23:00–05:59) or ask the SPL owner to change the predicate to `hour >= 22`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The lookup is invoked on `door`, but the CSV as specified has no `door` column, so the enrichment step returns nothing.",
+      "field": "detailedImplementation",
+      "quote": "Maintain `facility_hours.csv` (columns: `site_id`, `quiet_start_hour`, `quiet_end_hour`) ... `lookup facility_hours.csv door OUTPUTNEW site_id quiet_start_hour`",
+      "severity": "major",
+      "suggested_fix": "Add a `door` column (or a separate door-to-site lookup) to the CSV definition, and output `quiet_end_hour` as well so both bounds are available."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description and knownFalsePositives (`count` over `span=1h`, keyed on `host`) describe an aggregation the SPL does not perform; the SPL lists one row per granted swipe in the quiet window by a badge holder not matching the allowlist.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: each after-hours granted badge swipe with time, badge holder, door and badge ID, excluding NOC, Security and Facilities."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic templates that do not apply to badge swipes. detailedImplementation already names the real causes (daylight-saving shifts, controller fail-over backlog replay) and others are obvious: approved overnight contractors or change work, staff on night shifts whose badge_holder name does not contain NOC/Security/Facilities, and late events replayed after a panel reconnects.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and point suppression at `after_hours_approved.csv` keyed on `badge_id` or ticket ID, as detailedImplementation describes, instead of a `host`-keyed exception register."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "There is no `activity` field in the SPL or data sources.",
+      "field": "value",
+      "quote": "by tracking `activity` on `access_control` feeds",
+      "severity": "minor",
+      "suggested_fix": "Refer to granted badge swipes (`result=\"granted\"`) during quiet hours."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`hour > 22` excludes the 22:00 hour, contradicting the 22:00–06:00 window in implementation. Also `strftime` returns a string (\"05\"); confirm numeric comparison works or wrap with `tonumber()`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`NOT match(badge_holder, \"NOC|Security|Facilities\")` matches on the cardholder name, which rarely contains a team name; the allowlist should use a role/department field or a lookup, as implementation describes.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "After-hours physical access is a security detection, not `Performance`; `splunkPillar: Observability` is likewise inconsistent with the SOC routing described in detailedImplementation.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://www.tsa.gov/sd02c",
+      "field": "compliance",
+      "issue": "SWIFT CSP CSCF 6.4 appears twice (regulation `swift-csp` and `SWIFT CSP`) with the same obligationRef. The TSA SD02C III.A (cybersecurity implementation plan) mapping for a badge-time rule is tenuous and the `https://www.tsa.gov/sd02c` clauseUrl should be checked. `detects-violation-of` overstates what an after-hours badge list proves for a logging-and-monitoring control.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Authentication tstats has no filter for physical-access events (for example a tag or `Authentication.app`) and no hour logic, so it returns all authentications rather than after-hours badge grants.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0057-UC-15.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Implementation and detailedImplementation are substantive and mostly accurate (SC4S app ID is correct), but the time-zone guidance misstates how `strftime(_time)` works, the stated quiet hours do not match the SPL, an enrichment lookup cannot work as written, and description, false positives and compliance mappings are templated or overclaimed.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.2",
+  "verdict": "incorrect"
+}

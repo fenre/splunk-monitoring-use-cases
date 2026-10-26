@@ -1,0 +1,88 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "ffafdef6147d0384268466483afd779e34a37173ca52e1bb30725738ed88530a",
+  "file": "content/cat-16-service-management-itsm/UC-16.2.24.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "This is the entire implementation text and the whole of detailedImplementation Step 1. It does not say how webhook delivery results get into Splunk, which fields are needed, or what schedule to use. The WAF correlation is an optional enrichment and not a collection step.",
+      "field": "implementation",
+      "quote": "Correlate with Cloudflare/AWS WAF logs if available.",
+      "severity": "major",
+      "suggested_fix": "Explain where delivery outcomes come from (for example, the receiving endpoint's access or proxy logs, or PagerDuty webhook delivery records if available), how they are normalised to pagerduty:webhook_delivery with subscription_id, endpoint_host, http_status and delivery_status, and what the schedule is. Present the WAF correlation as optional."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "PagerDuty Event Orchestration routes inbound events and is not known to produce outbound webhook delivery logs. Webhook responses are seen by the receiving endpoint, by proxies, or in PagerDuty's webhook subscription settings. Check whether any PagerDuty log source records delivery status codes, and whether the fields subscription_id and endpoint_host exist anywhere in practice.",
+      "field": "app",
+      "quote": "Custom log forwarder from PagerDuty Event Orchestration debug logs or proxy logs",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm in PagerDuty's webhook v3 documentation what delivery data is available. If none is, say that the data must come from the receiving side (proxy or server logs) and name the fields that are available there."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The title says 'Non-200', the description says 'alert when http_status >= 400', and the SPL also matches delivery_status=\"failed\". Non-200 would include 3xx redirects and 2xx successes such as 202/204, which the SPL does not flag. The SPL also reads sourcetype pagerduty:audit, which the dataSources field does not mention. 'Clustering' in the title is not done: the SPL only counts per subscription and endpoint.",
+      "field": "cross_field",
+      "quote": "where http_status>=400 OR delivery_status=\"failed\"",
+      "severity": "major",
+      "suggested_fix": "Align the title and prose with the SPL: failures are HTTP status 400 or above, or delivery_status=failed, counted per subscription_id and endpoint_host. Add pagerduty:audit to dataSources (or drop it from the SPL) and note that 202/204 are treated as success."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "PagerDuty webhooks are posted from PagerDuty to a receiving endpoint, so the 'bad answers' come from the receiver. The grandma text says 'the place we post events', which reads as posting to PagerDuty and reverses the direction. 'the pipe that feeds the on-call system' is also inaccurate, since webhooks carry notifications out of it. The SPL is a plain count, not a burst detection.",
+      "field": "grandmaExplanation",
+      "quote": "We look for a burst of bad answers from the place we post events",
+      "severity": "major",
+      "suggested_fix": "Say something like: 'When the on-call tool tries to send a message to another system and that system keeps refusing it, we notice, so alerts do not quietly stop reaching the people who need them.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The validation step describes checking incidents and acknowledgements, which is not the signal here (webhook HTTP responses). It is boilerplate from other PagerDuty UCs. The second Step 3 compares tstats counts against a vendor admin UI inventory, which does not apply either.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PagerDuty incident timeline and service view for the same window. Reconcile a few incident numbers, state changes, and acknowledgement times.",
+      "severity": "major",
+      "suggested_fix": "Validate by sending a test webhook to an endpoint that returns 500, or by temporarily breaking the receiver, and confirming one row appears for that subscription_id and endpoint_host."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "An Opsgenie app is cited for a PagerDuty-only detection. Splunkbase 3759 is not in the cached catalog. The remaining references are generic Splunk docs, and there is no PagerDuty webhook documentation.",
+      "field": "references",
+      "quote": "\"title\": \"Opsgenie for Splunk\", \"url\": \"https://splunkbase.splunk.com/app/3759\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with the PagerDuty webhooks v3 documentation and drop the Opsgenie link. Verify that 3759 is what the title says."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The UC sits in 16.2 Configuration Management (CMDB), but it monitors an alert-delivery pipeline. Cloudflare is listed as equipment only because of the one-line WAF hint.",
+      "field": "cross_field",
+      "quote": "\"equipment\": [\"cloudflare\", \"pagerduty\"]",
+      "severity": "minor",
+      "suggested_fix": "Consider whether the UC belongs in an incident-tooling subcategory, and remove cloudflare from equipment unless the WAF correlation is documented properly."
+    }
+  ],
+  "firewalled_field_flags": [],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0073-UC-16.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The aim of spotting failing PagerDuty webhook deliveries is useful, but the implementation is one irrelevant sentence and the data source is invented and vaguely described. The title, prose and SPL disagree on what counts as a failure, and the grandma text reverses the direction of the traffic.",
+  "tier": "triage",
+  "uc_id": "UC-16.2.24",
+  "verdict": "rewrite"
+}

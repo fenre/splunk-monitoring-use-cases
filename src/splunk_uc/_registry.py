@@ -415,6 +415,14 @@ register(
 )
 register(
     Verb(
+        name="audit-text-quality",
+        module="audits.text_quality",
+        help="Deterministic UC text-quality pre-pass: template families, skeleton clusters, CIM/Splunkbase/premium-app mismatches, spelling.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-baseline-clause-grammar-free",
         module="audits.baseline_clause_grammar_free",
         help="Phase F drift guard: refuse `clause-grammar` fingerprints in audit-baseline.json.",
@@ -1061,5 +1069,36 @@ register(
         module="tools.lift.batch",
         help="Pick N UCs from a category sorted by depth for the lift loop.",
         category="lift",
+    )
+)
+
+# ----------------------------------------------------------------------
+# UC text-quality review -- tiered review of every UC's text (deterministic
+# pre-pass, fast-model triage, heavy-model deep review, cross-model
+# adjudication). See docs/uc-text-review-rubric.md and
+# docs/superpowers/plans/2026-10-26-uc-text-quality-review.md.
+# ----------------------------------------------------------------------
+register(
+    Verb(
+        name="review-prompt",
+        module="review.prompt",
+        help="Emit the UC review prompt for one tier (triage batch / deep / adjudication).",
+        category="review",
+    )
+)
+register(
+    Verb(
+        name="generate-uc-review-report",
+        module="review.report",
+        help="Roll the UC review ledger up into summary.json, fix-queue.json and docs/uc-review-findings.md.",
+        category="review",
+    )
+)
+register(
+    Verb(
+        name="review-fix-scripted",
+        module="review.fix_scripted",
+        help="Mechanical fixes for UC review families (controltest-variant, purpose-built, premium-app-mismatch); dry run by default.",
+        category="review",
     )
 )

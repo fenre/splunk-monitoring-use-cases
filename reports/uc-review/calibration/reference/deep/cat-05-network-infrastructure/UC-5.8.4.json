@@ -1,0 +1,83 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "33687d8653e8f841febbbdde42601e118856364ba4f2628420c2161baca8fef4",
+  "file": "content/cat-05-network-infrastructure/UC-5.8.4.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/sd-wan-network-management.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling capability. SNMP sysDescr/sysLocation polling needs Splunk Connect for SNMP (SC4SNMP), an SNMP modular input or a custom scripted poller. detailedImplementation itself names SC4SNMP.",
+      "field": "dataSources",
+      "quote": "SNMP polling sysDescr/location and NMS export; `snmp:system` or equivalent Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Say: 'SNMP system-group polling (sysDescr, sysName, sysLocation) via Splunk Connect for SNMP or a scripted poller into index=network, sourcetype=snmp:system; optional Catalyst Center (Cisco Catalyst Add-on, Splunkbase 7538) and Meraki (Splunk_TA_cisco_meraki, Splunkbase 5580) device inventory inputs.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation uses `index=snmp sourcetype=snmp:device` for SNMP data, while the saved SPL, dataSources and controlTest use `index=network sourcetype=snmp:system`. A reader cannot tell which SNMP sourcetype or index to provision.",
+      "field": "detailedImplementation",
+      "quote": "(index=catalyst sourcetype=\"cisco:dnac:device\") OR (index=meraki sourcetype=\"meraki:devices\") OR (index=snmp sourcetype=\"snmp:device\")",
+      "severity": "major",
+      "suggested_fix": "Use one SNMP index/sourcetype pair throughout (match the saved SPL: index=network, snmp:system), or state explicitly that both naming conventions are site-specific placeholders."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The saved SPL outputs only host, latest sysDescr and latest sysLocation. There is no model, version or vendor field, so the pie chart and the version column cannot be built from it. The implementation field also asks for sysName, which the SPL does not use.",
+      "field": "visualization",
+      "quote": "Table (device, model, location, version), Pie chart (by model/vendor).",
+      "severity": "major",
+      "suggested_fix": "Describe the visualization the SPL supports (a table of host, sysDescr, sysLocation). Alternatively, state that model, vendor and version must be parsed from sysDescr or taken from the Catalyst Center/Meraki inventory searches in detailedImplementation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "A device missing from `master_device_inventory.csv` is just as often a stale lookup, an RMA serial swap or an SNMP serial gap (which the troubleshooting section itself mentions) as genuine shadow IT. Calling every miss 'shadow IT' and making it a High alert overstates the signal.",
+      "field": "detailedImplementation",
+      "quote": "The CMDB lookup validation (`in_cmdb`) identifies shadow IT — devices discovered by monitoring but not tracked in the asset management system.",
+      "severity": "minor",
+      "suggested_fix": "Call these 'devices not in the inventory lookup (possible shadow IT or stale CMDB)' and add RMA replacements and missing SNMP serials as known false positives."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The inventory is built from SNMP polling and platform APIs, not traps, and 'snmp_trap' is a protocol rather than an equipment model.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"snmp_trap\"]",
+      "severity": "minor",
+      "suggested_fix": "Drop 'snmp_trap'. If equipment tagging is needed, use platform slugs such as cisco_catalyst_center and cisco_meraki that match the detailedImplementation sources."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL has no threshold or alert condition, although description and controlTest refer to 'detection threshold'. It does not return sysName, model or version, which the implementation and visualization require, and it ignores the Catalyst Center/Meraki sources that detailedImplementation treats as primary.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "The pillar is Security, but monitoringType is Configuration and the UC is an asset inventory report. Observability/IT Ops is the more natural pillar.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0031-UC-5.8.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "detailedImplementation has a solid multi-source inventory design (Catalyst Center, Meraki, SNMP, CMDB lookup, warranty). The saved SPL is a three-column SNMP table on a different sourcetype and index, so the visualization and implementation promise output the search does not produce. The data-collection wording names a Universal Forwarder 'Splunkbase' app that cannot poll SNMP.",
+  "tier": "deep",
+  "uc_id": "UC-5.8.4",
+  "verdict": "rewrite"
+}

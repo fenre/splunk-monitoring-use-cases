@@ -1,0 +1,116 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "90f2076eee3d351bfd9300a7adaa50341449f590bf2dc81c48bad60bd3715803",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' and 5380 is 'Mattermost Alerts'. The cached catalogue lists the Nutanix add-on as 'TA for Nutanix Prism' (3103, TA-nutanix) and VMware collection as 'Splunk Add-on for VMware' (3215), 'Splunk Add-on for VMware Metrics' (5089) or 'Splunk Add-on for VMware ESXi Logs' (5603). There is no product called 'Splunk Add-on for VMware vSphere Forwarder'. The same IDs appear in references and detailedImplementation.",
+      "field": "app",
+      "quote": "`Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076)) ... `Splunk Add-on for VMware vSphere` ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 5076 with TA for Nutanix Prism (3103) and 5380 with the appropriate VMware add-on (3215 or 5089), or state plainly that the vSAN proactive feed comes from a custom PowerCLI export with no Splunkbase add-on."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.nutanix.dev/api_reference/apis/prism_v2.html",
+      "explanation": "I could not find any of these endpoints in the public Prism v2.0 or HX Connect API references. Curator scan progress is normally read from the Curator service page on a CVM (port 2010), not from a v2.0 REST resource. Splunk_TA_nutanix is also said to 'provide nutanix:curator', which the Nutanix TA does not appear to ship.",
+      "field": "dataSources",
+      "quote": "/PrismGateway/services/rest/v2.0/cluster/curator/scans and /v2.0/cluster/curator/jobs/{job_id} ... HX Connect REST /rest/clusters/{cid}/rebalance/state and /rest/clusters/{cid}/rebalance/progress",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path in the Prism REST API Explorer and the HX Connect API docs. If they don't exist, describe how Curator and HX rebalance status are actually obtained (CLI scraping, the Curator 2010 page, Intersight HyperFlex objects) and mark the sourcetypes as customer-defined."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Since vSAN 6.7 U3, manual proactive rebalance has been replaced by 'Automatic Rebalance' with a configurable rebalancing threshold (default 30%). I could not confirm the PowerCLI property names ProactiveRebalanceRunning / ProactiveRebalanceMaxIOPS on Get-VsanRuntimeInfo, or a threshold property on Get-VsanClusterConfiguration.",
+      "field": "dataSources",
+      "quote": "scheduled PowerCLI export vmware:vsan:proactive_rebalance with ProactiveRebalanceRunning and ProactiveRebalanceMaxIOPS, and vmware:vsan:cluster_config with proactive rebalance threshold default near thirty percent",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the PowerCLI cmdlet reference for the vSAN version in scope, and use the real property names (or the vSAN health 'rebalance' API) for the running flag and threshold."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In Storage Spaces Direct, Optimize-StoragePool is the rebalance operation. Optimize-Volume runs defrag, retrim or slab consolidation, not capacity rebalance, so counting it as a 'proactive rebalance job' mixes in unrelated jobs. Get-PhysicalDisk exposes Size and AllocatedSize, not a used-percent property.",
+      "field": "dataSources",
+      "quote": "Get-StorageJob on Optimize-StoragePool and Optimize-Volume",
+      "severity": "minor",
+      "suggested_fix": "Limit the S2D lane to Optimize-StoragePool / Rebalance storage jobs, and derive disk_used_pct as AllocatedSize/Size in the exporter."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "More than 35 boilerplate paragraphs (IPv6, licensing, SOAR, naming drift, tabletop scripts and so on) fit any UC. They bury the implementation steps, and some are self-contradictory, such as 'no raw lookup command'.",
+      "field": "detailedImplementation",
+      "quote": "Supplement A — Capacity planning exports ... Supplement Z — Closure ... Appendix AA — Long-form staging plan ... Appendix AJ — Executive brevity",
+      "severity": "major",
+      "suggested_fix": "Delete the Supplement and Appendix lists. Keep only the vendor-specific collection, validation and troubleshooting content."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The list names no real benign driver of rebalance skew or stalls. Examples would be node or shelf additions that trigger expected long rebalances, rolling upgrades pausing Curator, S2D jobs lingering at 99% during the trim phase (mentioned in detailedImplementation), or vSAN rebalance throttled by resync priority.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `min` on `nutanix:curator`** — Scheduled automation elevates `job_id` without crossing `pr_run` > 0",
+      "severity": "major",
+      "suggested_fix": "List those platform-specific causes with how to suppress each (change freeze row, capacity-add ticket, job-type filter)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The title promises a specific article but the URL is the generic Windows Server storage landing page. The two Splunkbase references point to unrelated apps.",
+      "field": "references",
+      "quote": "\"title\": \"Microsoft Learn — Run Storage Maintenance Tasks (Optimize-StoragePool, Optimize-Volume)\",\n      \"url\": \"https://learn.microsoft.com/en-us/windows-server/storage/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Optimize-StoragePool cmdlet page and the S2D 'Adding servers or drives / rebalance' article, plus the correct Splunkbase listings."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though both cited Splunkbase IDs are unrelated apps and the SPL does not parse (see the firewalled flags).",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the collection paths and SPL are validated against at least one platform."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Every multisearch arm ends in `stats`, which is non-streaming, so Splunk rejects the search ('Multisearch subsearches may only contain purely streaming operations').",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Even if the search ran, each arm collapses to one row per cluster_id/job_id via `stats latest(...)`. The later streamstats-based slope, ETA and stall detection therefore sees a single sample per job, so slope stays null and the stall indicator never fires. Synthetic defaults (`rebalance_pct=50` when vSAN is running; job_started_ts = now-25h/-6h/-2h) fabricate progress and age values.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The proactive_disabled_with_skew indicator for vSAN can never be true, because the disk-skew join only covers nutanix and azure_stack_hci sourcetypes, so rebalance_disk_skew_pct is 0 for vSAN rows.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0114-UC-19.2.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Both Splunkbase apps the UC names are wrong: 5076 is a hostname-fixing app and 5380 is Mattermost Alerts. The vendor API paths and cmdlet properties it builds on look invented, and the detailedImplementation is padded with dozens of generic 'Supplement' and 'Appendix' paragraphs. The SPL cannot run as written.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.15",
+  "verdict": "incorrect"
+}

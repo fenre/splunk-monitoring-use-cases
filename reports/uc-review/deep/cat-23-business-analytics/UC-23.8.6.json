@@ -1,0 +1,162 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "122e41af8d036e7712759420ab3114e28f4e543dec72d027f609f18ded0b6361",
+  "file": "content/cat-23-business-analytics/UC-23.8.6.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "specificity",
+      "explanation": "A second, generic Step 1–5 block is appended after the hand-written one. It talks about modular inputs, HEC tokens, vendor API rate limits, `earliest=-24h@h` and per-entity throttling. None of that applies to a DB Connect batch extract, and it contradicts the SPL's `-1d@d`/`-30d@d` windows and single-row output.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=dbx:sap_mbew_wc, dbx:sap_bsid_open, dbx:sap_bsik_open into business. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs`",
+      "severity": "major",
+      "suggested_fix": "Delete the second 'Step 1 — Configure data collection' through 'Step 5 — Troubleshooting' block and keep only the SAP-specific steps above it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Both `implementation` and `detailedImplementation` ('CCC minus a twenty-event moving average of CCC exceeds five days') describe a baseline-deviation alert. The SPL computes one point-in-time snapshot with no history, baseline or threshold, so following the text gives a search that never fires on the stated condition.",
+      "field": "cross_field",
+      "quote": "Alert when **CCC** moves more than five days versus a twenty-day moving baseline **and** the gap reproduces in the **ERP** aging reports.",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as a daily KPI snapshot (to be written to a summary index and alerted on separately), or document the summary-index plus streamstats/trendline step that the five-day-versus-twenty-day rule needs, and have the SPL owner add it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.erplingo.com/sap-transaction-code/en/MB03",
+      "explanation": "SAP transaction MB03 is 'Display Material Document', which shows a single goods movement. It does not show stock valuation, so it cannot be used to reconcile the SALK3-based inventory value.",
+      "field": "detailedImplementation",
+      "quote": "Tie **inventory_value** to **MB03** display material valuation",
+      "severity": "blocker",
+      "suggested_fix": "Reconcile against a stock-value report such as MB52 (warehouse stocks with values) or MB5L (list of stock values / balances), or against the material master accounting view (MM03), for the same plant and material pairs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL sums SALK3 over every event since `-1d@d`, not over the latest snapshot. If the extract runs more than once a day, inventory value is double-counted, and the prose hides that.",
+      "field": "detailedImplementation",
+      "quote": "the first **stats** builds **inventory_value** from the latest **MBEW** snapshot",
+      "severity": "minor",
+      "suggested_fix": "State that the input must load exactly one MBEW snapshot per day, or describe the dedup step (for example, keep only the latest extract timestamp) that the SPL needs."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`dataSources` names the policy lookup `ccc_policy.csv`, but `detailedImplementation` calls it `ccc_racct_policy.csv`. The SPL hardcodes `days_in_period=30` and the RACCT regexes and does not use either lookup.",
+      "field": "cross_field",
+      "quote": "Secondary: `ccc_policy.csv` (optional) with `days_in_period`",
+      "severity": "minor",
+      "suggested_fix": "Use one lookup name in every field, and say clearly that the shipped SPL does not read it yet."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "MBEW is keyed by MATNR, BWKEY (valuation area) and BWTAR. As far as I know it has no WERKS column; plant comes from mapping BWKEY to plant through T001W when valuation is at plant level.",
+      "field": "dataSources",
+      "quote": "**MBEW** (plant–material valuation — `SALK3` value, `LBKUM` qty, `VPRSV` price control, `BWKEY`/`WERKS`/`MATNR`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the MBEW field list in SE11 or the SAP data dictionary. If WERKS is absent, list BWKEY (valuation area) and BWTAR, and explain how to derive WERKS for the plant trellis in `visualization`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The arithmetic is wrong. Dividing by 30 instead of 31 changes daily COGS and sales by about 3.3% (1/30), which moves DIO/DSO/DPO by about 3% of their value. That is not a fixed one-ninth of a day.",
+      "field": "detailedImplementation",
+      "quote": "a **thirty**-day **convention** in a **thirty**-one-**day** month understates day metrics by roughly **one**-**ninth** of a day each time",
+      "severity": "minor",
+      "suggested_fix": "Say that a fixed 30-day denominator skews the day metrics by roughly 3% in 31-day months, and that actual days should come from the lookup."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the reviewer is an automated agent, and the SPL has sign and document-type errors (see the firewalled flags) that a finance SME would have caught.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until a finance or SAP SME has run the search against real ACDOCA/BSID/BSIK data and signed off."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "No field compares against last quarter or a finance expectation. The technical text describes a rolling 30-day window against a twenty-day moving baseline.",
+      "field": "grandmaExplanation",
+      "quote": "so we notice when the full cash round-trip stretches longer than finance expected last quarter",
+      "severity": "minor",
+      "suggested_fix": "Say 'longer than its recent normal' or 'past the limit treasury sets', to match whatever alert rule is finally documented."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The primary path is DB Connect over SAP HANA (S/4HANA), but the only equipment model listed is Oracle DB, which is just one alternate path.",
+      "field": "equipmentModels",
+      "quote": "\"oracle_oracle_db\"",
+      "severity": "minor",
+      "suggested_fix": "Add the SAP S/4HANA or HANA equipment model if one exists in the taxonomy, or drop the Oracle-only model."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SAP reference points at the root of the help portal, not at the ACDOCA, BSID/BSIK or MBEW documentation that the UC depends on.",
+      "field": "references",
+      "quote": "\"url\": \"https://help.sap.com/docs\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific SAP Help pages for the universal journal (ACDOCA) and the open-item compatibility views."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://irvineanalytics.ai/catalog/sap-s4hana/general-ledger/gl-account-line-items.html",
+      "field": "spl",
+      "issue": "Net sales sign: in ACDOCA, credit postings such as revenue are stored with a negative HSL, so sum(HSL) over revenue accounts is negative. `if(net_sales_30d_lc>0, ...)` then returns null, which makes DSO and CCC null on every run. Negate the sum, or use abs() on the credit side (evidence: https://irvineanalytics.ai/catalog/sap-s4hana/general-ledger/gl-account-line-items.html, https://userapps.support.sap.com/sap/support/knowledge/en/2543121).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`BLART IN (\"RV\",\"RE\",\"DZ\")` picks the wrong document types for net sales. RV is SD billing, but RE is a logistics vendor invoice and DZ is a customer payment, and neither is a sales document. Use RV plus your credit-memo types, or rely only on the revenue account range.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Open AR/AP sums DMBTR/WRBTR without applying the debit/credit indicator (SHKZG). BSID/BSIK amounts are unsigned, so credit memos, partial payments and down payments are added instead of subtracted.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The RACCT regexes `^5[0-9]{5,7}$` and `^4[0-9]{5,7}$` assume unpadded account numbers. RACCT is CHAR(10) and is normally stored with leading zeros at the database level (for example 0041000000), so the filters may match nothing. Check this against real extracts or use the lookup-driven ranges.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no RLDNR (ledger) filter on ACDOCA, so parallel ledgers double-count COGS and sales. There is also no RBUKRS/BUKRS split, so all company codes and currencies are summed into one row. MBEW is summed across every extract since -1d@d, which double-counts when the extract runs more than once a day.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "coalesce(DMBTR, WRBTR) and coalesce(HSL, KSL) fall back to document or group currency, mixing currencies in one sum. This contradicts the guidance to align on DMBTR/HSL.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The SPL has no threshold or baseline comparison, so the 'CCC moves more than five days versus a twenty-day moving baseline' alert described in implementation is not implemented.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0140-UC-23.8.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The hand-written SAP guidance (MBEW/BSID/BSIK/ACDOCA, FBL5N/FBL1N reconciliation, troubleshooting) is detailed and mostly accurate, but a generic template is pasted underneath it. The alerting logic described in the prose is not in the SPL, there is a wrong SAP transaction code, and the SPL has sign and document-type errors that would leave DSO and CCC empty.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.6",
+  "verdict": "incorrect"
+}

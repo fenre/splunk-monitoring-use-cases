@@ -1,0 +1,101 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "a30239603c3389410e179f03bbf730f821a4bfe25bccf0d75d8062481b560baf",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.6.42.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.sas.com/api/docsets/calaudit/v_001/content/calaudit.pdf?locale=en",
+      "explanation": "SAS Viya audit records are written by the Audit service to the SAS Infrastructure Data Server and read through the Audit REST endpoint `/audit/entries` or the `sas-viya audit list` CLI. They are not a log stream from a 'SAS Logging service', so the described path gives no audit data.",
+      "field": "app",
+      "quote": "SAS Viya audit and job-execution logs via the SAS Logging service to HEC.",
+      "severity": "blocker",
+      "suggested_fix": "Describe a scripted or modular input that polls `/audit/entries` (filtered with after/before timestamps), or exports from `sas-viya audit list`, and sends JSON records to HEC as `sas:viya:audit`. Name the fields used (user, action, state, application, timeStamp)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`dataSources` says a Universal Forwarder modular input, while `app` says the Logging service to HEC. A reader cannot tell which collector to build, and neither matches the REST- or CLI-based audit access SAS documents.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Pick one documented collection path (an `/audit/entries` poller to HEC) and state it the same way in both fields."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://documentation.sas.com/api/docsets/calaudit/v_001/content/calaudit.pdf?locale=en",
+      "explanation": "SAS Viya keeps audit records in the Audit service for only seven days by default before archiving. Unless records are polled continuously into Splunk, a monthly job cannot rebuild 60 days of last-seen history. The text also leaves out that only logon, create/update/delete and read-failure actions are audited by default.",
+      "field": "implementation",
+      "quote": "Ingest SAS Viya activity events; schedule monthly",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to poll audit entries at least daily into Splunk, keep at least 90 days in the index, and rely on security logon records for last-seen. Add an identity inventory (SAS Identities service or the IdP group) so accounts with no events still show up."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "With a 24-hour window every user's `max(_time)` is under a day old, so `days_idle>60` never matches. The rest of the field is the generic template (`list_inputs`, inventory count comparison, splunkd 401/429) with no SAS Viya content.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "blocker",
+      "suggested_fix": "Specify a search window longer than the idle threshold (for example -180d) or a last-seen summary lookup. Replace the template steps with SAS Viya specifics: the audit poller, service accounts to exclude, and validation against the SAS Environment Manager User Activity report."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "SAS Viya is commonly licensed by capacity (cores) rather than by named user, so idle accounts may not free any licences. Check the licence model of the SAS Viya offering before promising licence savings.",
+      "field": "grandmaExplanation",
+      "quote": "so their licences can be freed",
+      "severity": "needs_verification",
+      "suggested_fix": "If the licence is capacity-based, say the goal is removing unused access. Mention licence reclamation only for offerings that are licensed per named user."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The only equipment tag is 'splunk', which says nothing about the monitored platform (SAS Viya).",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use a SAS Viya equipment slug if one exists in the taxonomy, or leave the field empty."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Labelled 'Monitoring', but the link points at the general administration title page. No reference covers the Audit REST API or the `sas-viya audit` CLI.",
+      "field": "references",
+      "quote": "SAS Viya — Monitoring",
+      "severity": "minor",
+      "suggested_fix": "Link the SAS Viya Auditing guide sections 'List Audit Records' and 'Configure the Archiving of Audit Records'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats max(_time) by user` only sees accounts that produced an audit record inside the search window. Never-active or long-idle accounts outside the window are missed, so join an identity inventory. Audit `user` values also include services and applications, which need excluding.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Cost' assumes per-user licence reclamation, which may not apply to capacity-licensed SAS Viya.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0144-UC-24.6.42",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "This is a templated idle-account UC. The collection path is wrong: SAS Viya audit records live in the Audit service (SAS Infrastructure Data Server) and are read through /audit/entries or `sas-viya audit list`, not from a 'Logging service to HEC'. App and dataSources disagree on UF versus HEC, and the generic 24-hour scheduling guidance makes the more-than-60-days-idle condition impossible.",
+  "tier": "deep",
+  "uc_id": "UC-24.6.42",
+  "verdict": "incorrect"
+}

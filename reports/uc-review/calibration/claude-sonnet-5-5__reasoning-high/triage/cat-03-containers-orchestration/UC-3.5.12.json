@@ -1,0 +1,115 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "dbb544c11b1279e361c5e9e5b04816c05ab4d22da9a087b1c8c1f8e0e243e336",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.12.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide lists Splunk Connect for Kubernetes as Splunkbase 3743, and 5167 is not in the cached catalog. The text also pairs SCK with the Splunk OpenTelemetry Collector, which the same guide presents as the current collector. Pointing readers to a wrong Splunkbase ID sends them to the wrong app.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunkbase 3743 if SCK is meant. Preferably drop SCK and name only the Splunk OpenTelemetry Collector for Kubernetes (filelog receiver for access logs, k8s_events receiver for events, Prometheus receiver for metrics)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "SCK is a Helm-deployed log and metrics collector, not a modular input, and nothing here is polled by a scripted input. The implementation says the data arrives through the OTel Collector. The same data sources paragraph also lists sourcetype=istio:telemetry for 'authorization policy denials and peer authentication failures', which the Istio Telemetry API does not generate.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "needs_verification",
+      "suggested_fix": "Describe collection as OTel Collector filelog, k8s_events and Prometheus receivers sending to HEC. Verify what produces istio:telemetry, or remove it."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL searches only envoy:accesslog and otel:metrics. kube:container:logs, istio:telemetry and kube:events are never used, and the implementation mentions only access logs and metrics. Readers are told to onboard three sourcetypes the detection does not need.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes",
+      "severity": "major",
+      "suggested_fix": "List envoy:accesslog (required), otel:metrics (required for the service-health search) and the remaining sourcetypes as optional context."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The envoyproxy/ratelimit service documents per-descriptor counters total_hits, over_limit, near_limit and within_limit, exposed in Prometheus as names such as ratelimit_service_rate_limit_total_hits and ratelimit_service_rate_limit_over_limit. A metric ratelimit_service_rate_limit_total with a rate_limited label, and ratelimit_service_total_hits, look invented. Istio does not expose envoy_http_local_rate_limit_* stats by default either, since proxyStatsMatcher or an inclusion annotation is needed.",
+      "field": "detailedImplementation",
+      "quote": "`ratelimit_service_rate_limit_total` (labeled by domain, key, and `rate_limited=true/false`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the metric names against the ratelimit service /metrics or statsd mapping output. Add the Istio proxyStatsMatcher step that exposes http_local_rate_limit stats."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/tasks/policy-enforcement/rate-limit/",
+      "explanation": "The Istio rate-limit task configures global rate limiting by applying EnvoyFilter resources that point Envoy at the ratelimit service. I do not know of an Istio 'RateLimitService' resource or integration.",
+      "field": "detailedImplementation",
+      "quote": "configured via **Istio**'s **RateLimitService** integration with an external **rate limit service**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Istio rate-limit task and describe global limiting as EnvoyFilter configuration plus a deployed envoyproxy/ratelimit service."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The signal is HTTP 429 and RL response flags from L7 access logs. Authentication describes login events and does not fit rate limiting. Network_Traffic is questionable for HTTP access logs, since the Web model is the usual home for http status and URL fields. No cimSpl is supplied to show a mapping.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Authentication\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether envoy:accesslog is mapped to a CIM model. Likely use Web, and remove Authentication unless rate limiting of login endpoints is the explicit scope."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "No search checks for absent throttling during high traffic. NO_THROTTLE is only a label in the first search, and the drift search alerts on abs(drift) > 10 or hourly_limited > 100. The text also mentions two variants, while the SPL has three.",
+      "field": "implementation",
+      "quote": "Alert when expected throttling is absent during high traffic or when drift exceeds 10%.",
+      "severity": "minor",
+      "suggested_fix": "Describe the alert that exists, which is drift greater than 10 points or a route without policy, and mention the service-health search. Or add the missing-throttling condition to the search through the SPL owners."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated 'agent-handcraft' identity, so there is no SME sign-off. Several metric names, the Istio integration claim and the Splunkbase ID above are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until an Istio and Envoy SME confirms the metrics and configuration on a live mesh."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "match(response_flags, \"RL\") also matches RLSE (rate limit service error). Requests that were not rate limited, only affected by a ratelimit-service outage, are counted as rate limited. The same applies to the response_flags=\"*RL*\" validation search. A word-boundary match is needed.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In the third search, match(metric, \"rate_limited\") does not match ratelimit_service_rate_limit_total, so that metric is counted as neither limited nor allowed. The search sums cumulative Prometheus counters over 5-minute bins instead of rates or deltas. It is titled 'Global RLS Availability' but computes only an enforcement percentage and has no availability signal.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Traffic Policy Compliance' overstates what is detected. The SPL measures the share of 429 or RL responses and its drift from an expected percentage in a user-maintained lookup. It does not check that configured limits or EnvoyFilter policies are actually applied.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0043-UC-3.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The Envoy rate-limit walkthrough is specific and mostly understandable, but it cites the wrong Splunkbase ID for Splunk Connect for Kubernetes and lists several unverified metric names and Istio integration claims. The dataSources require five sourcetypes where the SPL uses two, the CIM choice is weak, and the implementation promises alerting the SPL does not provide.",
+  "tier": "triage",
+  "uc_id": "UC-3.5.12",
+  "verdict": "incorrect"
+}

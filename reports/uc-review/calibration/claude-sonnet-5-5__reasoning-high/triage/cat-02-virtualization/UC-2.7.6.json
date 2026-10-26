@@ -1,0 +1,117 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a5635424c34845e551f52164e4414ec3a5e645c3960d78514bb4461f8b5d6310",
+  "file": "content/cat-02-virtualization/UC-2.7.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "'-24h' is the search time range, not a threshold. `uniq_src` is a computed metric rather than a grouping field, 'the scheduled window' is an unresolved placeholder and 'Centered on and Rule indicators' is a fragment of the title. A reader cannot tell what makes a row appear.",
+      "field": "description",
+      "quote": "with thresholds -24h. Groups `uniq_src` by `vmid`, `rk`, `dst` each `the scheduled window`. Centered on and Rule indicators.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is a guest (vmid), firewall chain or rule label and destination with DROP or REJECT hits and distinct source addresses in the last 24 hours, listing the top 50 by hits."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no hourly roll-up, no scanner lookup, no 30-day baseline and no alert condition. It returns the top 50 combinations from the last 24 hours.",
+      "field": "cross_field",
+      "quote": "Roll up hourly. Maintain a lookup of approved scanners. Alert when new vmid/rule combinations spike above a 30-day baseline.",
+      "severity": "major",
+      "suggested_fix": "Align the implementation with the search, or add the lookup and baseline comparison to the SPL."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Proxmox VE firewall writes its own log (pve-firewall) with a chain, vmid and the action as a prefix, so user-defined nft/iptables LOG rules are a different path. The text never names the native log file or shows a sample line. The Proxmox log also records the chain, not the individual rule, so 'by rule' may not be achievable.",
+      "field": "app",
+      "quote": "UF with `nft`/`iptables` LOG rules or consolidated `pve-firewall` log sink",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the Proxmox firewall log file and give a sample event with the extracted fields. Check whether rule-level detail is available and adjust 'by rule' accordingly."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The same generic scaffolding as other sibling UCs. A forwarder tailing logs has no modular input, poll interval or vendor API. The text contains nothing about turning on firewall logging per rule, log rate limits, or field extraction.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=proxmox:firewall into pve. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with steps for enabling logging on specific rules or chains, forwarding the log file, defining the sourcetype and extracting vmid, chain, action, src, dst and dport."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Capacity-template scenarios that do not explain firewall denies. Real causes are approved vulnerability scanners, broadcast and multicast noise, DHCP or discovery traffic, newly provisioned guests, and misconfigured services.",
+      "field": "knownFalsePositives",
+      "quote": "Patch Tuesday on `pve` — Package managers spike `vmid` metrics ... Nightly backup I/O on `vmid` — Predictable `dc` burst",
+      "severity": "major",
+      "suggested_fix": "List firewall-specific causes and tie them to the approved-scanner lookup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "A security detection about blocked traffic is justified with capacity and patching outcomes. The value should be catching scans, misconfigured rules and lateral movement attempts.",
+      "field": "value",
+      "quote": "reduces capacity incidents, patch regressions, and service outages",
+      "severity": "minor",
+      "suggested_fix": "Describe the security and misconfiguration value."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Hyper-V is not part of this UC.",
+      "field": "equipment",
+      "quote": "\"equipment\": [ \"hyperv\", \"proxmox\" ]",
+      "severity": "minor",
+      "suggested_fix": "Remove hyperv."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Verified status without any documented SME validation, and the field names and actions have not been tied to a real Proxmox log sample.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", \"lastReviewed\": \"2025-06-01\", \"reviewer\": \"catalog-team\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status unless an SME review can be cited."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search counts denied packets by guest, but does not say whether the block is inbound or outbound. 'Blocked from talking to others' implies outbound only.",
+      "field": "grandmaExplanation",
+      "quote": "which virtual machines are being blocked from talking to others",
+      "severity": "minor",
+      "suggested_fix": "Say that the check shows which guests the firewall refuses traffic for, and which rule did it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "'by Guest and Rule' may overstate the data. The SPL uses `coalesce(chain, rule, ruleid, log_prefix)`, so the label can be a chain name rather than a rule. Verify what the Proxmox firewall log records.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "No threshold or baseline: the search lists the top 50 by hits for 24 hours. A permanently noisy rule will always lead the list and new spikes are not distinguished.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0039-UC-2.7.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The search is a plain top-50 list of firewall DROP/REJECT counts, but the description, implementation and visuals promise hourly roll-ups, an approved-scanner lookup and a 30-day baseline spike alert. Setup instructions and false positives are Linux capacity boilerplate.",
+  "tier": "triage",
+  "uc_id": "UC-2.7.6",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,111 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d4d7f67c3e74c91644b52a7c2b05d80da6df4f9cc1528a0a9e87f3259b7ea386",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2.2",
+      "explanation": "There is no separate AirIR-MIB and no objects with these names; InRow RC unit temperatures live in APC PowerNet-MIB under airIRRCUnitStatus as airIRRCUnitStatusSupplyAirTempUS/Metric (.2.2.2.8/.9) and airIRRCUnitStatusReturnAirTempUS/Metric (.2.2.2.10/.11). A reader configuring an SNMP poll from this text would request objects that do not exist.",
+      "field": "dataSources",
+      "quote": "APC AirIR-MIB (airIRSupplyAirTemperature, airIRReturnAirTemperature)",
+      "severity": "blocker",
+      "suggested_fix": "Reference PowerNet-MIB airIRRCUnitStatusSupplyAirTempUS (1.3.6.1.4.1.318.1.1.13.3.2.2.2.8) and airIRRCUnitStatusReturnAirTempUS (1.3.6.1.4.1.318.1.1.13.3.2.2.2.10) (or the Metric variants), and note that airIRRP/airIRSC units use their own subtrees."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2.2",
+      "explanation": "The APC supply and return air temperature objects are reported in tenths of degrees Fahrenheit (or Celsius for the Metric variants), so a raw subtraction yields e.g. 150 for a 15 °F delta; without dividing by 10 the >25 threshold fires on every healthy unit.",
+      "field": "implementation",
+      "quote": "Calculate delta-T (return minus supply). Typical effective range 10–20°F. Alert on delta-T <5°F (ineffective cooling) or >25°F",
+      "severity": "blocker",
+      "suggested_fix": "State that the polled values must be divided by 10 (and which unit variant, US or Metric, is polled) before computing delta_t and comparing against the 5 °F / 25 °F thresholds."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is distributed from splunk.com downloads, not Splunkbase; app 617 returns 404 and is absent from the cached catalogue, and the UF provides no SNMP modular input.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the SNMP collector actually used, e.g. SNMP Modular Input (Splunkbase 1537) or Splunk Connect for SNMP (Splunkbase 6266), polling the PowerNet-MIB objects into index=cooling."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation calls high delta-T a sign of effective heat removal, while implementation and the SPL treat delta-T >25 °F as an alert condition (\"possible airflow restriction\"). A reader cannot tell whether high delta-T is good or bad.",
+      "field": "cross_field",
+      "quote": "high delta-T indicates effective heat removal.",
+      "severity": "major",
+      "suggested_fix": "Use one interpretation consistently: delta-T within roughly 10–20 °F is normal; below 5 °F indicates bypass/recirculation or low load; above 25 °F indicates restricted airflow (low fan speed, blocked filter) and is alerted."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL does not aggregate or count; it emits one row per polled reading whose delta_t is outside the range, with unit_name and zone.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Say: returns each InRow/CRAC reading where return-minus-supply delta-T is below 5 °F or above 25 °F, listing unit_name, zone, supply/return temperature and delta_t, sorted by largest delta."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Validation points to a PDU UI for a cooling-unit UC, and the Step 4 heading is repeated four times; the validation step should reference the InRow unit display or NetBotz/EcoStruxure console.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate delta_t against the InRow unit's front-panel/network management card web UI readings for supply and return air; remove the duplicated Step 4 headings."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text and reference `count`, `span=1h` and `host` grouping not in the SPL. Real delta-T false positives include units in standby or low-load (low delta-T), fan-speed tests, failed return-air sensors, and containment doors left open.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `count` on `snmp:apc:inrow`** — Scheduled automation elevates `delta_t`",
+      "severity": "major",
+      "suggested_fix": "List cooling-specific causes: standby/idle units, low IT load in the row, sensor faults, open containment during maintenance; suggest filtering on airIRRCUnitStatusOperateMode."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The UC polls status objects every 5 minutes; nothing in the detection uses SNMP traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Drop snmp_trap unless a trap-based variant is documented."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "SPL subtracts non-existent fields airIRReturnAirTemperature/airIRSupplyAirTemperature and applies 5/25 thresholds to raw values; the real PowerNet-MIB objects (airIRRCUnitStatusReturnAirTempUS/SupplyAirTempUS) are in tenths of °F, so delta_t needs /10. Also `table ... as` renaming is not valid in `table` (use `rename`).",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "Title says 'APC InRow / CRAC' but the data source is APC InRow RC objects only; generic CRAC units from other vendors are not covered by this SPL.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0045-UC-15.2.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (alert when InRow return-minus-supply delta-T falls outside 5–25 °F) is sound, but the SNMP object names are invented, the real APC objects report tenths of degrees so the thresholds would misfire, and the collection path names a non-existent Splunkbase app.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.7",
+  "verdict": "incorrect"
+}

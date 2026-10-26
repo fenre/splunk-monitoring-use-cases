@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3931272f37ae59829bda06e39e74fabc8c03009537a1567aaa238f33004ec1ec",
+  "file": "content/cat-06-storage-backup/UC-6.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.netapp.com/us-en/ontap-ems/callhome-hainterconnect-events.html",
+      "explanation": "ONTAP has no `ha.interconnect` EMS family. HA interconnect loss is reported as `ic.HAInterconnectDown` and `callhome.hainterconnect.down`. The `cf.takeover.*` family covers only takeover problems (aborted, disabled, denied). Actual takeovers are logged as `cf.fsm.takeover.*` (for example `cf.fsm.takeover.noHeartbeat`) and `callhome.sfo.takeover` / `callhome.sfo.giveback`.",
+      "field": "implementation",
+      "quote": "Key EMS message families: `cf.takeover`, `cf.giveback`, `ha.interconnect`.",
+      "severity": "blocker",
+      "suggested_fix": "List the real families: `cf.fsm.takeover.*` and `callhome.sfo.takeover*` (takeover started/completed), `cf.giveback.*` and `callhome.sfo.giveback` (giveback and giveback failures), `cf.takeover.*` (takeover disabled/denied), and `ic.HAInterconnectDown` / `callhome.hainterconnect.down` (interconnect)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no change-window lookup and no interconnect terms. It does not separate giveback failures from successful givebacks, and it outputs only `node`, `event` and `message`, with no `cluster` or `partner`. A reader following implementation would expect behaviour the search does not have.",
+      "field": "cross_field",
+      "quote": "Alert on any takeover outside a scheduled change window, or any giveback failure. Include `cluster`, `node`, and `partner` fields in the alert",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it is (a raw list of takeover/giveback/failover EMS events), or document the missing pieces: a change-window lookup, interconnect events, and cluster/partner extraction."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/storage-backup.md",
+      "explanation": "Implementation names `TA-netapp_ontap` (Splunkbase 1664 in the storage guide) for REST EMS collection, but app and dataSources name only a Universal Forwarder 'modular input or scripted poll'. A UF does not collect ONTAP EMS. dataSources ('Array event logs, cluster status') also never names EMS or the sourcetype.",
+      "field": "cross_field",
+      "quote": "\"app\": \"Vendor TA, syslog — Universal Forwarder (Splunkbase 617)\"",
+      "severity": "major",
+      "suggested_fix": "Set app to the NetApp ONTAP add-on (TA-netapp_ontap, Splunkbase 1664) plus SC4S for EMS syslog. Make dataSources say 'ONTAP EMS events (HA takeover/giveback/interconnect) via TA-netapp_ontap REST/ONTAPI or EMS syslog forwarding'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/storage-backup.md",
+      "explanation": "The description, controlTest and SPL use `netapp:ontap:ems`. The storage guide documents failover/hardware EMS as `netapp:ontap:syslog`, and the sibling UC-6.1.39 uses the TA's `ontap:*` naming (`ontap:vserver`), which suggests the TA emits `ontap:ems`.",
+      "field": "dataSources",
+      "quote": "sourcetype `netapp:ontap:ems`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetype TA-netapp_ontap (Splunkbase 1664) assigns to EMS events, and the one SC4S assigns to ONTAP EMS syslog. Document that sourcetype consistently."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.netapp.com/us-en/ontap-ems/cf-fsm-events.html",
+      "explanation": "The main real false positive is never named. Operator-initiated takeovers and givebacks during ONTAP nondisruptive upgrades (`storage failover takeover`, logged as `cf.fsm.takeover.nfo` / `cf.fsm.takeover.ndu`) look exactly like failovers. Automatic takeovers (`cf.fsm.takeover.noHeartbeat`, `.on.panic`) are the ones that matter.",
+      "field": "knownFalsePositives",
+      "quote": "1. **Maintenance window on `storage` (UC-6.1.6)** — Planned work for 'Controller Failover Events' shifts `count` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "Describe NDU/maintenance takeovers by their EMS names and suggest splitting operator-initiated (`*.nfo`, `*.ndu`, `*.normal` with 'Operator initiated') from automatic takeover events, or correlating with the change calendar."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The validation step is about volumes and SnapMirror, not HA failover. The document then repeats Steps 1-5 as generic API-polling boilerplate (poll intervals, HEC tokens, spot-check `host, user, action`, vendor HTTP 401/429) unrelated to EMS failover events.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare volume, aggregate, or SnapMirror state with NetApp ONTAP System Manager",
+      "severity": "major",
+      "suggested_fix": "Validate with `storage failover show` / `storage failover show-takeover` / `event log show -message-name cf.fsm.*` against the Splunk results after a planned takeover in a lab or maintenance window. Delete the duplicated generic block."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is generic and would fit any storage UC. It never says that a storage system has two brains, and that this check tells you when one has had to take over for the other or failed to hand the work back.",
+      "field": "grandmaExplanation",
+      "quote": "We help you see how your arrays and related gear are doing before small issues turn into full outages or restore surprises.",
+      "severity": "major",
+      "suggested_fix": "For example: 'Big storage boxes have two controllers that back each other up. This tells you whenever one controller has had to take over for its partner, or couldn't hand the work back, so someone can find out why.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.netapp.com/us-en/ontap-ems/cf-takeover-events.html",
+      "field": "spl",
+      "issue": "`\"cf.takeover*\"` matches only the `cf.takeover.*` family (takeover aborted/disabled/denied), not the `cf.fsm.takeover.*` or `callhome.sfo.takeover` events that record actual takeovers. Those are caught only incidentally if the raw text contains 'Failover monitor'. The interconnect events (`ic.HAInterconnectDown`, `callhome.hainterconnect.down`) are not searched at all (https://docs.netapp.com/us-en/ontap-ems/cf-takeover-events.html).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The bare term `failover` also matches unrelated LIF/network failover-group and SnapMirror messages. The `node`, `event` and `message` fields are assumed and depend on the TA's extractions. Filter on EMS message names instead and verify the field names.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0041-UC-6.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation sentence has the right idea: alert on unplanned ONTAP takeovers and on giveback failures. However, it names an EMS family (`ha.interconnect`) that does not exist and misses the main takeover events (`cf.fsm.takeover.*`, `callhome.sfo.*`). It promises fields and change-window logic the SPL lacks, and most of the remaining text is generic template.",
+  "tier": "deep",
+  "uc_id": "UC-6.1.6",
+  "verdict": "incorrect"
+}

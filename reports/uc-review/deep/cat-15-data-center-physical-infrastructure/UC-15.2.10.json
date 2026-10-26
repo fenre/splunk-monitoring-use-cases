@@ -1,0 +1,92 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "f543c6530872f4f986e722193b18de793eed1dc32276d89e58920eb231b0f2b2",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.10.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.ashrae.org/file%20library/technical%20resources/bookstore/supplemental%20files/therm-gdlns-5th-r-e-refcard.pdf",
+      "explanation": "The title presents this as an ASHRAE exceedance, but the ASHRAE TC 9.9 recommended envelope (A1–A4) is −9°C dew point to 15°C dew point and 60–70% RH max, and A1 allowable is 8–80% RH; 40% RH is an obsolete pre-2008 lower limit. Readings of 30–40% RH are within ASHRAE guidance yet would be reported as ASHRAE exceedances.",
+      "field": "cross_field",
+      "quote": "Use sliding windows to alert only if out of 40–60% RH for >15 minutes.",
+      "severity": "blocker",
+      "suggested_fix": "Base the low limit on dew point (−9°C DP) and the high limit on 15°C DP plus 60% RH (or 70%/50% RH per the 2021 pollution note), or keep 40–60% RH but describe it as a site policy band rather than ASHRAE. The grounding guide's '8-80% RH' is the A1 allowable range, not the recommended one."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/9.3.1/Forwarding/Typesofforwarders",
+      "explanation": "The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it has no bundled Python for SNMP modular inputs.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk Connect for SNMP (Splunkbase 6266) or the SNMP Modular Input (Splunkbase 1537) on a heavy forwarder, and list the fields the SPL needs: zone, humidity_pct (and dew point / temperature if the ASHRAE logic is adopted)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "implementation requires an excursion lasting more than 15 minutes, detailedImplementation says the UC targets short excursions, and the SPL does neither: it counts individual out-of-band samples per zone with no duration logic; visualization promises 'max excursion minutes', which the SPL never computes.",
+      "field": "cross_field",
+      "quote": "Stricter alerting for short excursions supports tape media and corrosion-sensitive gear beyond static high/low limits.",
+      "severity": "major",
+      "suggested_fix": "Pick one intent (sustained >15-minute excursion is the common choice), describe how duration is measured (e.g. consecutive samples or streamstats over time), and remove the contradicting sentence."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic and name no real cause of misleading humidity readings.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `zone`, `duration_bucket`** — Health checks in `environment` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: humidifier/dehumidifier cycling or CRAC fighting, outside-air economizer mode on dry or humid days, sensor drift or uncalibrated probes, sensors placed in hot aisles where RH reads low, and door-open events."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "A 300–900 s poll cannot support a >15-minute persistence rule reliably (one to three samples), and 'earliest=-24h@h' counts the whole day; Steps 1–4 are duplicated with 'Step 4 — Operationalize' repeated four times.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Poll every 60 s, schedule the search every 5–15 minutes over a short window, and deduplicate the steps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC uses polled humidity values, not traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use the polled SNMP environmental sensor model instead of snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "'(ASHRAE)' asserts that 40–60% RH is the ASHRAE threshold; current ASHRAE TC 9.9 humidity limits are dew-point based with no 40% RH floor (see ASHRAE 2021 reference card). Either change the thresholds or drop ASHRAE from the title.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`duration_bucket` holds only 'high'/'low' and measures no duration; `stats count by zone, duration_bucket` counts samples, so a single sample out of band alerts, contradicting the >15-minute rule. The 40% floor is not ASHRAE-based.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-15.2.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC labels a 40–60% RH band as an ASHRAE threshold although current ASHRAE TC 9.9 guidance defines humidity by dew point and has no 40% RH floor; the promised 15-minute persistence is not implemented, and the collection path names a non-existent Splunkbase Universal Forwarder app.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.10",
+  "verdict": "incorrect"
+}

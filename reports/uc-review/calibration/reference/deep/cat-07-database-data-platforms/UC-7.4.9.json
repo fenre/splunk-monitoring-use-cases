@@ -1,0 +1,112 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "08e376aeacb45817274becce333e818052a7cd94336dc0e488187bb312e35752",
+  "file": "content/cat-07-database-data-platforms/UC-7.4.9.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/617",
+      "explanation": "Splunkbase app 617 does not exist (404), and the Universal Forwarder is not a Splunkbase app; the field also mixes two collection paths. Pulling ACCOUNT_USAGE views via SQL is done with Splunk DB Connect plus the Snowflake JDBC driver add-on.",
+      "field": "app",
+      "quote": "Snowflake SQL via DB Connect, `ACCOUNT_USAGE` export — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk DB Connect (Splunkbase 2686) with Splunk DBX Add-on for Snowflake JDBC (Splunkbase 6153), polling SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY; or a custom REST/HEC input. Drop the Universal Forwarder / 617 reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.snowflake.com/en/sql-reference/account-usage/query_history",
+      "explanation": "QUERY_HISTORY only exposes CREDITS_USED_CLOUD_SERVICES, not warehouse compute credits, and the SPL never reads it; the warehouse credit figure comes from WAREHOUSE_METERING_HISTORY.CREDITS_USED. The 617/Universal Forwarder collection sentence is also wrong (see app).",
+      "field": "dataSources",
+      "quote": "`WAREHOUSE_METERING_HISTORY`, `QUERY_HISTORY` (credits) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "SNOWFLAKE.ACCOUNT_USAGE.WAREHOUSE_METERING_HISTORY (hourly CREDITS_USED, CREDITS_USED_COMPUTE, CREDITS_USED_CLOUD_SERVICES by WAREHOUSE_NAME), ingested via DB Connect as sourcetype snowflake:warehouse_metering. Note the up-to-3-hour ACCOUNT_USAGE latency."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "PostgreSQL tooling has nothing to do with Snowflake; the same section also tells the reader to enable Data Model Acceleration for tstats/mstats although the UC uses no data model, and repeats Steps 1-4 twice.",
+      "field": "detailedImplementation",
+      "quote": "In operations we confirm in pgAdmin, psql, and `pg_stat*` views, or the managed PostgreSQL console.",
+      "severity": "major",
+      "suggested_fix": "Prerequisite: a Snowflake role with access to SNOWFLAKE.ACCOUNT_USAGE (e.g. IMPORTED PRIVILEGES on the SNOWFLAKE database); validate in Snowsight against WAREHOUSE_METERING_HISTORY. Remove the acceleration paragraph and the duplicated step block."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL bins to 1 day and computes avg/stdev per warehouse across bins; over a 24-hour window there are only one or two bins, so the 3-sigma test can never fire meaningfully. The baseline needs weeks of history.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity",
+      "severity": "major",
+      "suggested_fix": "Run daily over e.g. earliest=-30d@d latest=@d (allowing for the 3-hour ACCOUNT_USAGE lag) and alert only on the most recent day's row."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.snowflake.com/en/sql-reference/account-usage/warehouse_metering_history",
+      "explanation": "WAREHOUSE_METERING_HISTORY has no role column and the SPL groups only by warehouse_name; per-role attribution needs QUERY_ATTRIBUTION_HISTORY or query-level joins.",
+      "field": "detailedImplementation",
+      "quote": "Credits consumed per warehouse and role drive chargeback and right-sizing.",
+      "severity": "minor",
+      "suggested_fix": "Credits consumed per warehouse drive chargeback and right-sizing."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generated filler (synthetic probes, batch 'elevating _time') that do not describe real causes of a credit spike.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `warehouse_name`, `_time` — Health checks in `datawarehouse` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Name real benign causes: month-end/quarter-end batch loads, planned backfills or reprocessing, a warehouse deliberately resized or multi-cluster max raised, new workloads onboarded to the warehouse, and the first weeks after a warehouse is created (thin baseline)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "Generic; it does not say what is detected (a day where a warehouse spends far more credits than usual) or why that matters (cost).",
+      "field": "grandmaExplanation",
+      "quote": "We watch Snowflake Warehouse Credit Usage so we can keep this part of the data platform within the capacity and quality targets our teams expect.",
+      "severity": "major",
+      "suggested_fix": "Snowflake bills us in credits for each compute warehouse. Every day we add up what each warehouse spent and flag any warehouse whose spend jumps far above its normal level, so runaway jobs or oversized warehouses are caught before the bill arrives."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Nothing in the detection uses ServiceNow data.",
+      "field": "equipment",
+      "quote": "\"servicenow\"",
+      "severity": "minor",
+      "suggested_fix": "Remove servicenow; keep snowflake and db_connect."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Snowflake returns unquoted column names in upper case (CREDITS_USED, WAREHOUSE_NAME), and the repository guide's SPL uses those upper-case names; DB Connect preserves them, so `sum(credits_used) ... by warehouse_name` may return nothing. Confirm the ingested field case or add rename/FIELDALIAS.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "No time range in the SPL, and eventstats includes the day under test in its own mean/stdev, damping the spike; consider excluding the latest bin from the baseline and alerting only on the latest day.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-7.4.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL idea (daily per-warehouse credits versus a 3-sigma baseline from WAREHOUSE_METERING_HISTORY) is sound, but the surrounding text cites a non-existent Splunkbase app, lists QUERY_HISTORY as a credit source, carries PostgreSQL and data-model boilerplate, and schedules the search over a window too short for the baseline to work.",
+  "tier": "deep",
+  "uc_id": "UC-7.4.9",
+  "verdict": "incorrect"
+}

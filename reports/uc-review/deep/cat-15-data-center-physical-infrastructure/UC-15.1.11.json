@@ -1,0 +1,110 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "8e271101a41465bee8661e30c0ad53252f177f6305acc1ac69a1b4c085d6e39d",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.11.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP runs as a containerized service (Docker Compose or microk8s) and sends to Splunk over HEC. It is not a Heavy Forwarder add-on. Its default output is sc4snmp:metric in the netmetrics metrics index and sc4snmp:event in netops, not `sourcetype=snmp:pdu:outlet` events in index=power.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Connect for SNMP (Splunkbase app ID 6266) **or** SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder with UDP/161 reachability",
+      "severity": "blocker",
+      "suggested_fix": "Limit the Heavy Forwarder instructions to SNMP Modular Input (1537). Add a separate SC4SNMP path covering the container deploy, HEC token, a profile for the vendor outlet table, and the index and sourcetype overrides (or mstats against the metrics index) this SPL needs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`rated_amps_outlet > 0` is the guard inside the eval that avoids dividing by zero, not an alert condition. Listing it as an OR threshold suggests any outlet with a rating would alert.",
+      "field": "description",
+      "quote": "with thresholds `rated_amps_outlet` > 0, `pct_outlet` > 85, or `current_amps` > 12",
+      "severity": "major",
+      "suggested_fix": "Describe the rule as: alert when outlet draw exceeds 85% of the outlet's rated amps (when a rating is known) or exceeds 12 A absolute."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "dataSources says rated_amps_outlet comes from MIB tables, implementation uses the DCIM lookup only for labels, and detailedImplementation Step 4 says to 'refresh the lookup' for rated_amps_outlet. Per-outlet nameplate ratings are not commonly exposed in outlet metering tables. If the field is missing, pct_outlet is null and only the 12 A rule ever fires.",
+      "field": "cross_field",
+      "quote": "rated_amps_outlet when mapped from MIB tables",
+      "severity": "major",
+      "suggested_fix": "Pick one source and say it in every field. For example, source rated_amps_outlet from a DCIM or receptacle-type lookup keyed by pdu_id and outlet_index (C13 is 10 A, C19 is 16 A), or name the specific vendor OID if one is used."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/mib/PDU-MIB/",
+      "explanation": "PDU-MIB is Raritan's legacy vendor MIB (enterprise 1.3.6.1.4.1.13742; outletCurrent is reported in milliamps), not a generic standard. I could not find any standard 'ENCLOSURE-MIB' that exposes PDU outlet current. Readers with APC, Server Technology or Eaton PDUs need other MIBs.",
+      "field": "dataSources",
+      "quote": "aligned with SNMP TA (PDU-MIB, ENCLOSURE-MIB)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether ENCLOSURE-MIB exists for this purpose and remove it if not. Name the per-vendor outlet objects (for example APC PowerNet-MIB rPDU2OutletMeteredStatusCurrent in tenths of amps, Raritan PDU-MIB/PDU2-MIB outlet current in milliamps, Server Technology Sentry outlet load), along with their unit scaling."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic templates (batch count, synthetic probe, onboarding burst) that do not fit outlet amp readings. Real benign triggers are missing: server power-on inrush after maintenance, a dual-corded server's PSU failing over so its whole load moves to one outlet, burn-in or load testing, and unit-scaling errors (mA or tenths read as amps).",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `pct_outlet` without crossing `rated_amps_outlet` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace the four scenarios with outlet-specific causes. Explain how to tell them apart, for example by checking the partner outlet on the redundant feed, change tickets for rack work, and comparing against the PDU web UI reading."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "This URL returned HTTP 404 when fetched. SC4SNMP documentation is published at splunk.github.io.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/SC4SNMP/latest/SC4SNMP/Introduction",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace it with https://splunk.github.io/splunk-connect-for-snmp/main/ after confirming it resolves."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The fixed 12 A threshold is never explained. It matches 80% of a 15 A North American circuit but is above the 10 A rating of an IEC C13 outlet, so its meaning depends on receptacle type.",
+      "field": "detailedImplementation",
+      "quote": "where pct_outlet > 85 OR current_amps > 12",
+      "severity": "minor",
+      "suggested_fix": "Explain the basis of the 12 A threshold and tell readers to tune it to their receptacle and branch ratings."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The UC uses only polled outlet current. No trap input is described.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap, or document outlet overload traps as an extra data source."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "splunkPillar",
+      "issue": "PDU outlet power capacity is a facilities observability signal, not a Security use case. Sibling power UCs use Observability.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no per-outlet aggregation (latest by pdu_id, outlet_id), so the result depends on the dispatch window matching exactly one poll. Overlapping windows produce duplicate rows.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0003-UC-15.1.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation has useful touches (vendor scaling, DCIM labels), but the collector deployment for Splunk Connect for SNMP is wrong, the MIB naming is vague or unverifiable, and it never says where the per-outlet rating comes from. The description treats a divide-by-zero guard as an alert threshold.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.11",
+  "verdict": "incorrect"
+}

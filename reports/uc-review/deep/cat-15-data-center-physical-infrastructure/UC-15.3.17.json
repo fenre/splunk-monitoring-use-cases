@@ -1,0 +1,129 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "5c2d41b24fb94e7c6426904d7f21a4db4ec4c369d9aa65f218c955a2607e6c7b",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.17.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase app 1747 is the Splunk Add-on for Cisco WSA (Splunk_TA_cisco-wsa); REST API Modular Input is Splunkbase app 1546 (rest_ta). The same wrong ID is repeated in detailedImplementation Prerequisites and in the first references entry title and URL.",
+      "field": "dataSources",
+      "quote": "Use the Splunk **REST API Modular Input** ([Splunkbase app ID 1747](https://splunkbase.splunk.com/app/1747))",
+      "severity": "blocker",
+      "suggested_fix": "Replace every 1747 link and label with REST API Modular Input, https://splunkbase.splunk.com/app/1546, in dataSources, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "The Authentication data model describes login attempts (action, user, src, dest of an authentication event). A polled visitor-badge record with an expiry date and status is an inventory/state record, not an authentication attempt, so the mapping and the dataModelAcceleration advice to accelerate Authentication for `vms:visitor` rows would mislead implementers.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Authentication\"]",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to an empty list (no CIM model fits a visitor-credential inventory) and rewrite dataModelAcceleration to say the search runs on raw `index=physical` events; only badge-reader access attempts (not this feed) would be candidates for Authentication."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Authorizeconf",
+      "explanation": "`indexes_search` is not a Splunk capability; index access is granted with `srchIndexesAllowed` in authorize.conf (or the role's Indexes tab). `dispatch_rest_to_indexers` is unrelated to running this search, and mapping an analyst role to `sc_admin` grants full Splunk Cloud admin rights.",
+      "field": "detailedImplementation",
+      "quote": "RBAC: grant `indexes_search` on `physical` and `dispatch_rest_to_indexers` only to the `physical_security_analyst` role (map to `sc_admin` patterns on Splunk Cloud).",
+      "severity": "blocker",
+      "suggested_fix": "Say: create or reuse a role with `srchIndexesAllowed = physical` (Settings > Roles > Indexes) and no admin capabilities; on Splunk Cloud inherit from `user`, not `sc_admin`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "description (and knownFalsePositives, which keys on `host`, `count` and `span=1h`) describe an aggregation that is not in the SPL; the SPL is a per-row filter on `status=\"active\"` and `days_to_exp < 1` with a `table` of `visitor_id`, `host_employee`, `badge_expiry`, `days_to_exp`.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output: one row per active visitor badge whose `badge_expiry` date is today or in the past, listing visitor, sponsoring employee and days past expiry. Rewrite false positives around the same fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios names a real cause of a false expired-but-active row; they are generic metric-alert templates. Real causes for this search include visitor management API sync lag after checkout, the `badge_expiry` date being in UTC versus local time (round() moves badges expiring later today into the result), multi-day visitors whose expiry was extended in the PACS but not the visitor system, and older polled snapshots still showing `status=active`.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `vms:visitor`** — Scheduled automation elevates `days_to_exp` without crossing `days_to_exp` < 0",
+      "severity": "major",
+      "suggested_fix": "Replace with those concrete causes and a suppression keyed on `visitor_id` (for example a short-lived lookup of extended visits) rather than a `host`-keyed exception register."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "props.conf sourcetype overrides do not change the string format of an extracted field, so this step cannot make `strptime` work. If the API returns ISO-8601 timestamps (with time and zone), `strptime(badge_expiry,\"%Y-%m-%d\")` will not parse and the rows silently drop out of the `where` clause.",
+      "field": "dataSources",
+      "quote": "Forwarders should tag `meta` sourcetype overrides in `props.conf` so search-time `strptime(badge_expiry,\"%Y-%m-%d\")` aligns with the API’s date format.",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to confirm the exact `badge_expiry` format in a sample event and, if it is not `YYYY-MM-DD`, normalise it at ingest (for example with an INGEST_EVAL or a calculated field) or note that the SPL format string must match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The time range bounds when poll events were indexed, not when badges expired. With a one- to five-minute poll, 24 hours of events contains hundreds of snapshots per visitor, so the table repeats each visitor and still lists visitors whose older snapshots said `active` even after they were deactivated.",
+      "field": "detailedImplementation",
+      "quote": "save as an alert with `dispatch.earliest_time=-24h` and `dispatch.latest_time=now` to catch badges that expired within the last day while still marked active.",
+      "severity": "major",
+      "suggested_fix": "Explain that the alert should evaluate only the latest snapshot per `visitor_id` (window equal to the poll interval, or latest-per-visitor logic) and that the 24h window is not an expiry window. Flag the SPL change to the human owner."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The app field names the data source, not the Splunk component the reader installs.",
+      "field": "app",
+      "quote": "\"app\": \"Visitor management system API\"",
+      "severity": "minor",
+      "suggested_fix": "Name the collection component, for example \"REST API Modular Input (Splunkbase 1546) or HTTP Event Collector, polling the visitor management system API\"."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Splunk Enterprise has no native REST polling input, and this documentation page name does not match a known Getting Data In topic; the link may 404 or redirect.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorRESTfulAPIs",
+      "severity": "needs_verification",
+      "suggested_fix": "Open the URL; if it does not resolve to a real page, replace it with the REST API Modular Input Splunkbase page or the HTTP Event Collector documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Notables are a Splunk Enterprise Security concept; the UC lists no premium app and is otherwise a plain scheduled alert.",
+      "field": "detailedImplementation",
+      "quote": "attach a runbook link in the notable description",
+      "severity": "minor",
+      "suggested_fix": "Say \"in the alert description\" or state that ES is optional."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`days_to_exp < 0 OR days_to_exp < 1` is redundant (equivalent to `days_to_exp < 1`), and the search has no `dedup visitor_id` / `stats latest(*) by visitor_id`, so repeated polls duplicate rows and stale `status=active` snapshots produce false positives.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Authentication tstats by user/action/src has no relationship to visitor badge expiry and returns nothing derived from `vms:visitor`; it should be removed with the Authentication mapping.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0055-UC-15.3.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL idea (active visitor badges past their expiry date) is sound, but the add-on ID points to the Cisco WSA add-on, the CIM mapping to Authentication does not fit a badge-status inventory, the RBAC guidance names a capability that does not exist, and description and false-positive text describe fields (`entity`, `count`, `host`) the search never uses.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.17",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,111 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5a212470552238f8d81d59f307266acb313725de5ffa0327757edfee4c9dc64c",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.1.47.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/splunk-platform-health.md",
+      "explanation": "License consumption is recorded in `license_usage.log` (`index=_internal source=*license_usage.log type=Usage`, field `b`), which is exactly what the SPL reads. `splunk_resource_usage` is the `_introspection` sourcetype for per-process CPU, memory and I/O, and it holds no license volume. A reader following dataSources would look in the wrong index and sourcetype.",
+      "field": "dataSources",
+      "quote": "`index=_internal sourcetype=splunk_resource_usage` OR License Usage Report view",
+      "severity": "blocker",
+      "suggested_fix": "Change to: '`index=_internal source=*license_usage.log type=Usage` (field `b` = bytes per index, sourcetype, host and pool), written on the license manager. The license manager's `_internal` must be searchable from the search head running the forecast.'"
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Aboutlicenseviolations",
+      "explanation": "Splunk Enterprise keeps indexing during a license violation. What gets blocked is search, including scheduled reports and alerts, and only for license stacks under 100 GB/day after 45 warnings in a rolling 60 days. Stacks of 100 GB/day or more receive warnings but search is not disabled. Telling readers indexing stops misstates the risk being forecast.",
+      "field": "detailedImplementation",
+      "quote": "Splunk license overages trigger warnings and eventually block indexing.",
+      "severity": "blocker",
+      "suggested_fix": "Say: 'Exceeding daily licensed volume generates license warnings. On stacks under 100 GB/day, 45 warnings in a rolling 60-day window put the stack in violation and block search (indexing continues). Larger stacks get warnings only, which still have contractual and true-up implications.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` says to alert on the upper 95% bound, but the SPL sets `over_license` from `predicted(gb_used)` (the point forecast). It compares that against `license_limit_gb`, a field nothing in the search creates. No step tells the reader where the licensed capacity comes from.",
+      "field": "cross_field",
+      "quote": "Alert when the upper confidence bound crosses the licensed capacity threshold.",
+      "severity": "major",
+      "suggested_fix": "State the alert rule once and explain how the limit is obtained, for example `| eval license_limit_gb=<quota>`, a lookup, or `| rest /services/licenser/pools` (`effective_quota`). Say whether the alert fires on the upper bound or the point forecast."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The UC never states how much history to search. Learning a monthly pattern from daily points needs several months of `license_usage.log`, which is often longer than default `_internal` retention (30 days). It also does not say whether to set `period=7` or let the algorithm infer the period. The 'Retrain monthly' advice conflicts with an SPL that calls `fit ... into` on every run.",
+      "field": "implementation",
+      "quote": "train a StateSpaceForecast model that captures weekly cycles (lower weekend volumes) and monthly trends (end-of-month batch jobs). Forecast 30 days ahead",
+      "severity": "major",
+      "suggested_fix": "Specify a minimum training range (for example 90+ days), note that `_internal` retention or a summary index of daily license totals may be needed, and say whether to pass `period=7`. Split into a monthly `fit` search and a daily `apply` search, or state that the forecast is refit on each run."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Template text that misses the real forecast distortions: one-off onboarding of a new large source permanently shifts the level, and a temporary spike (log storm, replayed backfill) inflates the trend. Partial current-day totals pull the last point down. Summing `type=Usage` lines can differ slightly from the authoritative `type=RolloverSummary` daily total. License resets or pool changes alter the limit.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'License Usage Forecast with Seasonality (MLTK)' shifts `bytes_used` over `span=1d`",
+      "severity": "major",
+      "suggested_fix": "List those causes, and recommend excluding the current partial day, flagging known one-off spikes, and reconciling against `type=RolloverSummary`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "StateSpaceForecast ships in the toolkit now titled 'Splunk AI Toolkit' (Splunkbase 2890), which also requires the Python for Scientific Computing add-on (for example Splunkbase 2882 for Linux). Neither ID nor the dependency is named.",
+      "field": "app",
+      "quote": "Splunk Machine Learning Toolkit (MLTK)",
+      "severity": "minor",
+      "suggested_fix": "List 'Splunk AI Toolkit (formerly MLTK, Splunkbase 2890)' and 'Python for Scientific Computing (Splunkbase 2882/2883)' on the search head."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Splunk Cloud stacks on workload (SVC) pricing have no daily ingest GB quota to forecast against. Ingest-priced Cloud stacks are usually monitored through the Cloud Monitoring Console license views. The UC does not say which Cloud licensing model it applies to.",
+      "field": "splunkVersions",
+      "quote": "\"Cloud\"",
+      "severity": "minor",
+      "suggested_fix": "Qualify the scope: 'Splunk Enterprise and ingest-priced Splunk Cloud; not meaningful for workload/SVC-priced stacks.'"
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is broadly right but leaves out the forecasting element: predicting the next 30 days and warning before the daily allowance is likely to be exceeded.",
+      "field": "grandmaExplanation",
+      "quote": "We track how license and data use move over time so we can plan and avoid a hard stop to visibility.",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We use past daily data volumes, including weekly and monthly patterns, to predict the next 30 days and warn early if we are likely to go over our daily data allowance.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`license_limit_gb` is never defined, so `over_license` is always 0. The alert uses `predicted(gb_used)` rather than the upper bound described in `implementation`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no `stats ... by pool` or stack filter. In multi-pool or multi-stack license managers, the total is compared against a single limit. Also, `fit ... into` on every run retrains the model each time.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0079-UC-13.1.47",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation describes a sensible StateSpaceForecast license forecast, but dataSources names the wrong sourcetype. The 'why it matters' text misstates what a Splunk license violation does, and the implementation's alert rule (upper bound) differs from the SPL (point prediction against an undefined limit field).",
+  "tier": "deep",
+  "uc_id": "UC-13.1.47",
+  "verdict": "incorrect"
+}

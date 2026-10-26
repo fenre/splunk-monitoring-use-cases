@@ -1,0 +1,106 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "46e7b914cb3d79e17b9fc5d9e9c02026826655cde00a667a65c841170a1731d9",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.4.9.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/librenms/librenms/blob/master/mibs/netbotz/NETBOTZV2-MIB",
+      "explanation": "NetBotz rack monitors expose temperature sensors in NETBOTZV2-MIB (`tempSensorTable` under .1.3.6.1.4.1.5528.100.4.1.1), not PowerNet-MIB, and 'AirIR-MIB' is not a MIB module. A reader who loads the APC PowerNet MIB and polls its objects gets no NetBotz temperature data. SC4SNMP also does not emit `snmp:apc:envmon`: by default it writes to `netops`/`netmetrics` with `sc4snmp:*` sourcetypes.",
+      "field": "app",
+      "quote": "APC PowerNet-MIB / AirIR-MIB field extractions",
+      "severity": "blocker",
+      "suggested_fix": "Name NETBOTZV2-MIB with `tempSensorValueInt` (whole °C) or `tempSensorValue` (tenths of °C) and `tempSensorLabel` for the probe name. Say which collector produces `sourcetype=snmp:apc:envmon` in `index=environment`, or describe the SC4SNMP metrics path."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and has no SNMP input, and Splunkbase /app/617 returns 404. The index list `power|cooling|environment` also disagrees with the SPL's `index=environment`.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual SNMP collector (SC4SNMP, or SNMP Modular Input, Splunkbase 1537, on a heavy forwarder) and state `index=environment`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The `description` and `controlTest` fields say the result is a `count` grouped by `entity`, and `knownFalsePositives` keys suppression on `host`. The SPL instead returns one raw row per reading (`table _time rack probe temp`), with no count, no entity and no host. The reader cannot tell what one alert row represents.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Describe the real grain: one row per probe reading above 30 °C or below 10 °C in the last 4 hours, identified by `probe` (and `rack` once a mapping exists). Key any suppression on `probe`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This contradicts the SPL's `earliest=-4h`. The rest is REST-API template text (vendor API rate limits, HTTP 401/429, 'vendor admin UI inventory count') with nothing about SNMP on a NetBotz appliance. Nor does it say that the NetBotz can raise its own threshold alerts and send them as SNMP traps, which `equipmentModels` implies by listing `snmp_trap`.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Give SNMP-specific steps: enable SNMP v2c/v3 on the NetBotz, poll `tempSensorTable`, map `tempSensorLabel` to `probe`, and choose a schedule and window that match the SPL. Optionally ingest NetBotz threshold traps as a second path."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The SPL outputs a `rack` field, but nothing says where it comes from. The mapping step names no lookup or field.",
+      "field": "implementation",
+      "quote": "(2) Map probes to U positions.",
+      "severity": "minor",
+      "suggested_fix": "Name the lookup (probe label to rack and U position) and the `lookup` step that adds `rack` before the `table`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The thresholds come with no unit, no probe placement and no rationale. 30 °C is above the ASHRAE recommended inlet range of 18–27 °C, and the threshold only makes sense for an inlet probe.",
+      "field": "description",
+      "quote": "alert when `temp` > 30, or `temp` < 10",
+      "severity": "minor",
+      "suggested_fix": "State that the thresholds are °C at the rack inlet and how they relate to the site's ASHRAE class or SLA, and make them tunable."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified although it names the wrong MIB family for NetBotz, a non-existent Splunkbase app and non-existent sensor objects.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until an SME has validated it against a real NetBotz SNMP feed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The reference is a PDU category page; there is nothing on NetBotz or NETBOTZV2-MIB.",
+      "field": "references",
+      "quote": "https://www.se.com/ww/en/product-category/3100-2000-pdu/",
+      "severity": "minor",
+      "suggested_fix": "Cite NetBotz SNMP/MIB documentation and ASHRAE TC 9.9 thermal guidelines."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/librenms/librenms/blob/master/mibs/netbotz/NETBOTZV2-MIB",
+      "field": "spl",
+      "issue": "`tempSensorTemperature` and `probeName` are not NETBOTZV2-MIB objects; the real ones are `tempSensorValueInt` (°C), `tempSensorValue` (tenths of °C) and `tempSensorLabel`. If `tempSensorValue` is mapped to `temp`, 22.0 °C reads as 220 and every probe breaches `temp>30`. `rack` is output but never derived. Evidence: https://github.com/librenms/librenms/blob/master/mibs/netbotz/NETBOTZV2-MIB",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0099-UC-15.4.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC aims at a simple, useful rack-temperature threshold, but it points readers to the wrong MIB. NetBotz appliances publish NETBOTZV2-MIB (enterprise 5528), not PowerNet-MIB/AirIR-MIB. The collector and Splunkbase facts are wrong, and the prose grain (`entity`, `count`, `host`) does not match the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-15.4.9",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,131 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "1f358447e3f46203db041fc5b4f37f129f1f1ea55b8abaf42c5f7636913fb018",
+  "file": "content/cat-22-regulatory-compliance/UC-22.7.32.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "This detection fires on a low ratio (`ratio` < 0.2), so a sensible threshold sits in the low tail of the distribution, not between p90 and p99. Following this advice would set the threshold far above the intended value.",
+      "field": "cross_field",
+      "quote": "The current threshold `0.2` should sit between p90 and p99 for a balanced signal-to-noise ratio.",
+      "severity": "major",
+      "suggested_fix": "Say to inspect the low percentiles (for example p1 to p10) of `ratio` over 30 days, and place the threshold below normal troughs such as nights and weekends."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`h` and `ratio` are fields computed inside the search, not fields in CloudTrail events, so this check returns nulls and would wrongly suggest extraction problems. `requiredFields` lists the same two computed fields. The real source fields (`eventName`, `eventSource`) are not used by the SPL.",
+      "field": "detailedImplementation",
+      "quote": "This detection specifically needs: `h`, `ratio`. Run:\n\n```spl\nindex=aws sourcetype=aws:cloudtrail earliest=-1h\n| head 100\n| table h, ratio",
+      "severity": "major",
+      "suggested_fix": "Check for fields the SPL really depends on (`_time`, `eventSource`, `eventName`, `eventCategory` or `managementEvent`). Remove the derived fields from requiredFields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The text describes per-group, per-peer baselines. The SPL's `eventstats median(count) as med` has no `by` clause, so it is one global median over 14 days of hourly counts. The explanation of peer-group divergence and the memory warning about >1M events do not apply, because the data is already reduced to one row per hour.",
+      "field": "detailedImplementation",
+      "quote": "The grouping `by h` is the analytical unit — the aggregate is computed within each distinct combination. ... a row can be compared to its group's median",
+      "severity": "major",
+      "suggested_fix": "Explain what the search does: hourly event counts compared with the 14-day median across all hours."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "Fragmentary notes rather than implementation steps. It never says how to ingest CloudTrail, what is scheduled, how often, or what 'account suspensions' has to do with a logging drop. The weekly cron in the detailed text (`0 2 * * 1`) would not catch a logging stop in time.",
+      "field": "implementation",
+      "quote": "(1) Seasonal adjust for holidays; (2) exclude account suspensions; (3) incident response if confirmed.",
+      "severity": "major",
+      "suggested_fix": "Give actual steps: ingest CloudTrail, schedule the search at a short interval (hourly), and set up the alert. Describe how to exclude known quiet periods and what to do when a drop is confirmed (check the trail, delivery and IAM changes)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Cross-regulation boilerplate in a NIST CSF UC. The Prerequisites also require an accelerated CIM data model although the primary SPL is raw, and Step 4 repeats PCI/HIPAA review cadence. Hints 1 to 3 repeat the generic implementation text.",
+      "field": "detailedImplementation",
+      "quote": "`aws` must exist on all indexers with retention matching the regulation's minimum (PCI: 1y, HIPAA: 6y, NIST 800-53: 1-3y per FIPS 199, SOX: 7y).",
+      "severity": "major",
+      "suggested_fix": "Keep only what applies here: the CloudTrail index and its retention, and the acceleration of the Change model only if the CIM variant is used."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The cimSpl, presented as an 'accelerated variant' of the detection, only counts changes by action, category and user. It has no hourly bucketing, baseline or ratio, so it is not the same detection and cannot raise the same alert. `cimModels` of Change is also questionable for a pure volume-of-logs signal.",
+      "field": "cross_field",
+      "quote": "| tstats summariesonly=t count from datamodel=Change.All_Changes by All_Changes.action, All_Changes.object_category, All_Changes.user | sort - count",
+      "severity": "major",
+      "suggested_fix": "Either make the tstats variant do the same hourly count and median comparison, or remove the claim that it is an equivalent faster variant."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SPL uses only CloudTrail. The supplemental sources are boilerplate (shared with many sibling UCs), and no field or index is named.",
+      "field": "dataSources",
+      "quote": "`aws:cloudtrail` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
+      "severity": "major",
+      "suggested_fix": "List `index=aws` `sourcetype=aws:cloudtrail` and the fields used (`_time`, `eventSource`, `eventName`). Remove the unused sources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "'QSA' is a PCI term, and BAA/DPA processors are not relevant to a CloudTrail volume drop. The scenarios are copied from a generic compliance pack. They omit the real causes of a low ratio: a partial current hour, CloudTrail delivery delay, a new or decommissioned account or region, or quiet weekends.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=aws` `aws:cloudtrail` without crossing `ratio` < 0.2.",
+      "severity": "major",
+      "suggested_fix": "List the actual causes: the incomplete current hour, delivery lag, trail or account changes, and normal low-activity periods."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It never says what is watched. The detection looks for a sudden fall in the number of activity records an AWS account produces, which could mean logging has been switched off or broken. The text repeats the title and talks only about keeping evidence.",
+      "field": "grandmaExplanation",
+      "quote": "We keep evidence for Administrative API Logging Volume Drop vs Baseline. The NIST Cybersecurity Framework tells us what good practice looks like, and we keep evidence we match it.",
+      "severity": "major",
+      "suggested_fix": "Say that the check notices when the activity log of the cloud accounts suddenly goes much quieter than usual, which can mean logging stopped or someone tampered with it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "'verified' is set although the compliance entries say 'Auto-drafted — SME review required', and one entry has `requires_sme_review: false`. No evidence of sign-off is given.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"Compliance SME Panel\"",
+      "severity": "major",
+      "suggested_fix": "Use a lower status unless sign-off can be cited, and keep the SME-review flags consistent."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "DE.CM-02 in NIST CSF 2.0 is 'The physical environment is monitored', which does not apply to administrative API logging volume. The entry uses mode 'satisfies', the evidenceArtifact says 'Auto-drafted — SME review required' and the entry has requires_sme_review false. See https://www.nist.gov/cyberframework.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "PR.PS-04 is listed twice, as 'nist-csf' with assurance 'full' ('fully evidencing') and as 'NIST CSF' with assurance 'partial'. The two entries conflict. A volume-drop heuristic cannot fully evidence log generation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Title says 'Administrative API' but the search counts every CloudTrail event with no management-event or eventName filter. Hours with zero events produce no row in `stats count by h`, so a complete logging stop is invisible. The current incomplete hour can produce a low ratio falsely.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0033-UC-22.7.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The idea (a CloudTrail volume drop against a median baseline) is sound, but the text is mostly boilerplate. The long guidance on field checks, calibration and the CIM variant does not match the actual search, and some of it points the wrong way. The compliance mapping and the 'verified' status claim more than the detection shows.",
+  "tier": "triage",
+  "uc_id": "UC-22.7.32",
+  "verdict": "rewrite"
+}

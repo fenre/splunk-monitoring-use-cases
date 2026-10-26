@@ -1,0 +1,109 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "fb5984ca6c0e2b2cc7621d3c17b847aa06f5d0e6ccac5f272e01950b8d396f07",
+  "file": "content/cat-06-storage-backup/UC-6.3.24.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is a generic storage-capacity sentence about snapshots and old data. It says nothing about tape libraries, empty slots or tapes reaching their expiry date, which are what this UC checks.",
+      "field": "grandmaExplanation",
+      "quote": "We watch how full your storage is getting and give you time to add space or clean up snapshots and old data before an application or job suddenly stops working.",
+      "severity": "major",
+      "suggested_fix": "For example: 'We check how many of the tape library's slots are already holding tapes, and which tapes are close to expiring, so backups do not stop because there is nowhere to put the next tape.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The data-source text does not name the sourcetype `tape_library:capacity`, nor any of the fields the SPL requires (library_name, slots_used, total_slots, media_expiration_days). The SPL depends on a custom sourcetype whose schema is undocumented. The boilerplate in detailedImplementation even says to update the documentation if the sourcetype is not mentioned in Data sources.",
+      "field": "dataSources",
+      "quote": "Tape library management interface (SNMP/API)",
+      "severity": "major",
+      "suggested_fix": "Document the sourcetype and an example event with the required fields, and say which tape-library product or API produces them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The scripted-input example is generic placeholder text. It sets interval=300, sourcetype=your_sourcetype and index=main, which contradict the earlier '1-4 hours' polling advice and the SPL (index=backup, sourcetype=tape_library:capacity). The example script prints 'metric=value', which would not produce the required fields.",
+      "field": "detailedImplementation",
+      "quote": "[script://$SPLUNK_HOME/etc/apps/YourApp/bin/collect.sh]\ninterval = 300\nsourcetype = your_sourcetype\nindex = main",
+      "severity": "major",
+      "suggested_fix": "Give a stanza that matches the UC: interval=3600 to 14400, sourcetype=tape_library:capacity, index=backup. Show a script that emits library_name, slots_used, total_slots and media_expiration_days key=value pairs."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "MIB-II carries general interface and system data, and I do not know of any slot-count objects in it. Slot and media inventory normally comes from vendor MIBs or REST/CLI interfaces. Media expiration dates are usually held by the backup application catalog, not by the library, so the 'optional' expiry field may not be obtainable from the library at all.",
+      "field": "implementation",
+      "quote": "Poll tape library via SNMP (MIB-II, vendor-specific MIBs for slot counts)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the actual MIB or API for one or two libraries (for example, the vendor's library MIB or REST API) and drop MIB-II. State that expiry dates should come from the backup software catalog if the library does not report them."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance model's Storage dataset describes filesystem or volume usage (storage_used_percent). Tape library slot occupancy is not a filesystem metric, and the SPL does not alias to CIM. The dataModelAcceleration note admits the tstats variant may return nothing.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\"]",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the Performance model is a fit. If slot data is not mapped to Performance.Storage, set cimModels to an empty list and remove the CIM claim."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The Windows add-on has no role in monitoring a tape library over SNMP or a vendor API. The other references are generic Splunk docs, and none covers SNMP polling or any tape library vendor.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Microsoft Windows\", \"url\": \"https://splunkbase.splunk.com/app/742\"",
+      "severity": "minor",
+      "suggested_fix": "Replace with the vendor's library API or MIB documentation and the Splunk docs for scripted or SNMP inputs."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The implementation describes scheduled polling every 1-4 hours, not trap reception.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\"snmp_trap\"]",
+      "severity": "minor",
+      "suggested_fix": "Use a polling-oriented tag, or note that traps are an optional complement."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Boilerplate validation text for arrays and object stores. It does not say how to check slot counts against the library's web UI or front panel.",
+      "field": "detailedImplementation",
+      "quote": "Compare the same metric, object name, and interval in the vendor or cloud console (array, backup, or object store) that is the source of truth for this feed.",
+      "severity": "minor",
+      "suggested_fix": "Compare slots_used and total_slots with the library management UI, and compare one cartridge's expiry with the backup catalog."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum(media_expiring_30d)` adds up every polled event in the search window, so a single tape polled every hour is counted many times. `pct_used` correctly uses `latest`. The OR condition `expiring_soon > 0` also fires whenever any one tape is within 30 days of expiry, which is routine in rotation, so the alert fires constantly. Slot utilization and media expiry are distinct conditions under a title that only names slots.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search applies an 80% filter to Performance.storage_used_percent, while the main SPL uses 85% on slot utilization and also checks expiry. It will not reproduce the detection and depends on tape slot data being aliased to a storage dataset.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0077-UC-6.3.24",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The implementation sentence gives a usable idea (poll the library for slot counts and optionally media expiry), but the grandma text, CIM mapping, scripted-input example and references come from generic storage-capacity templates and do not fit a tape library. Slot utilization and media expiry are also bundled into one alert without a defined data source.",
+  "tier": "triage",
+  "uc_id": "UC-6.3.24",
+  "verdict": "rewrite"
+}

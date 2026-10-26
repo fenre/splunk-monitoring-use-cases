@@ -1,0 +1,141 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d173a13a14facd7f76bc861b0ba9cd4da00f191acde2cf3825dc174e36822ed2",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/goharbor/harbor/blob/main/api/v2.0/swagger.yaml",
+      "explanation": "In the Harbor v2.0 API, GET /system/gc returns GCHistory objects with id, job_name, job_kind, job_parameters, schedule, job_status, a boolean 'deleted', creation_time and update_time. There is no freed_space, deleted_blobs_count or duration. detailedImplementation Step 1(2) lists 'freed_space' and 'deleted_blobs_count' as GC record fields, so the GC-effectiveness lane and its LOW alert would always see zero.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=harbor:gc`** (Harbor garbage collection execution records from `/api/v2.0/system/gc` — includes job status, freed space, deleted blobs count, duration, and schedule information)",
+      "severity": "blocker",
+      "suggested_fix": "State that freed space and deleted blob counts are only in the per-run GC log (GET /api/v2.0/system/gc/{gc_id}/log), which must be fetched and parsed separately. Compute duration from update_time minus creation_time."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The UC uses 'orphan' for two different things. detailedImplementation and the SPL define it as a tag not pulled for 90 days, while the GC sections (dataSources, Step 1 'number of orphan blobs removed', title 'Orphan Cleanup') mean unreferenced blobs that GC reclaims. Harbor itself treats untagged artifacts and unreferenced blobs as the cleanup targets, so readers cannot tell what the alert measures.",
+      "field": "cross_field",
+      "quote": "**Orphan tags**: never pulled OR last pulled > 90 days ago.",
+      "severity": "major",
+      "suggested_fix": "Rename the pull-based class to 'unused' or 'cold' tags. Reserve 'orphan' for untagged artifacts and unreferenced blobs, and add an untagged-artifact count (artifacts with an empty tags[] array) if orphan cleanup is in scope."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/goharbor/harbor/blob/main/api/v2.0/swagger.yaml",
+      "explanation": "A Harbor artifact is a digest that can carry zero, one or many tags in its tags[] array. Treating one artifact as one tag undercounts multi-tag artifacts and counts untagged artifacts as tags, so tag_count and the 100/200-tag retention thresholds measure artifacts, not tags.",
+      "field": "detailedImplementation",
+      "quote": "**Response handler**: JSON array — each element represents one artifact (tag) and becomes one Splunk event",
+      "severity": "major",
+      "suggested_fix": "Say the count is per artifact (digest), or tell readers to mvexpand tags{}.name when counting tags and to treat artifacts with no tags as untagged orphans."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes is a Fluentd-based Helm deployment that reached end of support on 1 January 2024. It is not a modular input and does not poll Harbor REST endpoints, yet app and dataSources ('Collected via Splunk Connect for Kubernetes ... modular input') present it as the collection path. The described pipeline is rest_ta polling plus the Splunk OTel Collector.",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "major",
+      "suggested_fix": "Remove Splunk Connect for Kubernetes from app and dataSources. Name rest_ta (Splunkbase 1546) or a scripted input for the Harbor API, and the Splunk OpenTelemetry Collector for Kubernetes for Harbor container logs and /metrics."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Harbor project roles (Project Admin, Maintainer, Developer, Guest) apply per project, so ProjectAdmin does not grant cross-project listing. The /system/gc history endpoint is a system-level API, normally restricted to system administrators or a system-level robot account.",
+      "field": "detailedImplementation",
+      "quote": "the API user needs the **ProjectAdmin** role for listing artifacts across all projects",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Harbor permission matrix and recommend a system-level robot account with read/list on repositories and artifacts across projects (plus GC read permission), instead of per-project ProjectAdmin."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/goharbor/harbor/blob/main/api/v2.0/swagger.yaml",
+      "explanation": "Harbor audit-log entries carry operation values (for example create, delete, pull) with resource and resource_type. DELETE_ARTIFACT is a webhook event type, and the webhook catalogue has no CREATE_TAG. Retention-driven deletions are reported by the TAG_RETENTION webhook.",
+      "field": "dataSources",
+      "quote": "Harbor audit log events capturing DELETE_ARTIFACT and CREATE_TAG actions",
+      "severity": "minor",
+      "suggested_fix": "Describe audit-log fields as operation/resource_type/resource/username/op_time, and name the PUSH_ARTIFACT, DELETE_ARTIFACT and TAG_RETENTION webhook events if webhooks are the source."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Inventory",
+      "explanation": "The CIM Inventory model describes host infrastructure (CPU, memory, network, storage, OS, users, virtual OS) and has no dataset for registry repositories or image tags. No cimSpl uses either model, and the primary SPL is raw Harbor JSON. Change could fit audit deletions only if those events were CIM-mapped, which the UC never describes.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Inventory\", \"Change\"]",
+      "severity": "major",
+      "suggested_fix": "Drop Inventory. Keep Change only if the Harbor audit or delete events are tagged and mapped to Change.All_Changes; otherwise leave cimModels empty."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Summing artifact size over cold tags is not reclaimable storage, because layers are shared across artifacts. detailedImplementation's own troubleshooting note says GC can free nothing when layers are still referenced.",
+      "field": "visualization",
+      "quote": "single-value tiles (total orphan tags, total reclaimable GB, worst repo)",
+      "severity": "minor",
+      "suggested_fix": "Label the tile 'logical size of unused artifacts (upper bound)' and point to GC-log freed bytes for actual reclaimed storage."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation names two variants, but the SPL contains three (including the tag-age histogram). It alerts on a single LOW day, while detailedImplementation Step 2 alerts only on LOW sustained for 3 or more days. detailedImplementation also prescribes HEC tokens for sourcetypes that rest_ta polls directly.",
+      "field": "cross_field",
+      "quote": "Build two search variants: tag inventory with orphan/stale classification and retention flags, and garbage collection effectiveness trend with 7-day SMA. Alert when any repository enters CRITICAL retention status or when GC effectiveness drops to LOW.",
+      "severity": "minor",
+      "suggested_fix": "List all three searches, use the 3-day sustained LOW rule in both places, and drop the HEC-token prerequisite unless a webhook or HEC path is actually used."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated handle (agent-handcraft-2026-04-30), and the GC lane depends on API fields Harbor does not return, so the UC cannot have been validated against a live Harbor instance.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the GC lane is rebuilt on GC log data and Step 3 validation has been recorded against a real registry."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The GC search reads freed_space, deleted_size, deleted_blobs_count and duration. None exist in Harbor GCHistory, so the values are always 0, and the fallback coalesce(..., deleted, 0) sums a boolean 'deleted' flag as a blob count. gc_effectiveness is therefore meaningless.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The spl field concatenates three independent searches (tag inventory, GC trend, age histogram) with no separator command, so it cannot run as one saved search. Split it into separate saved searches.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "With no time bound and daily polling, every artifact is counted once per day in the search window, inflating tag_count and orphan_tags. Dedup by digest (latest snapshot only) before stats.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Harbor returns a zero date-time (0001-01-01T00:00:00Z) rather than null for never-pulled artifacts, as observed in practice; verify how strptime handles it. strptime format %Y-%m-%dT%H:%M:%S also ignores the fractional seconds and Z suffix in Harbor timestamps.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0017-UC-3.4.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation gives a usable Harbor tag-inventory approach, but the garbage-collection lane is built on fields the Harbor GC history API does not return. 'Orphan' is used for two different things, artifacts are conflated with tags, and the collection path names Splunk Connect for Kubernetes as a modular input. Description, value, controlTest, evidence, exclusions and knownFalsePositives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.7",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,117 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "a027fc116c02fc78cd872b1add4f4a046b339eb076077a5ebcd328e6447c5958",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL computes `days_since_test` from the latest test event in the search window. With a 24-hour window, a generator untested for more than 30 days has no events, so it produces no row and the `days_since_test > 30` condition can never fire. A reader following this step builds a search that silently misses overdue tests.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "blocker",
+      "suggested_fix": "Run the search over a window longer than the test interval (for example earliest=-45d), or better, drive it from a generator inventory lookup so units with no recent test record still appear. Say that the failed-test branch can run on a shorter cadence."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description omits the SPL's other trigger, `last_result!=\"pass\"` (a failed most-recent test), and says it outputs `count`. The SPL outputs `last_result`, `last_test` and `days_since_test` per `generator_id`.",
+      "field": "cross_field",
+      "quote": "Outputs `count` each `the scheduled window`; alert when `days_since_test` > 30.",
+      "severity": "major",
+      "suggested_fix": "Say the search returns one row per generator whose most recent test did not pass or whose last recorded test is more than 30 days old, with last result, last test time and days since the test."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "This UC is about generator test records, not PDUs. Validation should compare against the generator controller's or BMS's test log, or the facilities test sheet.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by matching the latest `result` and test timestamp per `generator_id` against the generator controller event log, BMS history, or signed test records for the same period."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The field contains two concatenated templates. Steps 1–4 appear twice, one heading is repeated four times, the text calls the SPL 'below' although it is above, and the generic advice (HEC token ACLs, vendor API 401/429, 300–900 s poll interval, tstats inventory ±5%) does not apply to manually logged or BMS-exported test results.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Collapse to one sequence: how test results are recorded (BMS export, controller log, or manual form via HEC/lookup), the required fields (`generator_id`, `result`, timestamp), the scheduled search window, validation against test records, and routing to facilities."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This does not name the sourcetype (`generator:test`), the fields the SPL needs (`generator_id`, and `result` with a literal value `pass`), or how test outcomes are produced. A Universal Forwarder has no generator 'modular input'.",
+      "field": "dataSources",
+      "quote": "Generator controller logs, BMS events Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State that test outcomes land in `index=power sourcetype=generator:test` with one event per test carrying `generator_id`, `result` (pass/fail) and the test timestamp. Name the actual source: a BMS export, a controller log file monitored by a UF, or a manual entry via HEC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Fuel-level monitoring is not part of this search. It belongs to sibling UCs (UC-15.1.8, UC-15.1.12).",
+      "field": "implementation",
+      "quote": "Monitor fuel levels. Report on generator readiness for management.",
+      "severity": "minor",
+      "suggested_fix": "Remove the fuel-level sentence or point to the fuel-level sibling UC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`days_since_test` is calculated by the SPL's eval and is not an event field. The field to check in raw events is `result`.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`days_since_test, generator_id`).",
+      "severity": "minor",
+      "suggested_fix": "Spot-check that raw events carry `generator_id` and `result`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The exclusions field names `operational_exceptions.csv` while knownFalsePositives and controlTest name `ops_exception_register.csv`, and the SPL uses neither lookup.",
+      "field": "cross_field",
+      "quote": "Entities listed in `operational_exceptions.csv` during approved tests are excluded.",
+      "severity": "minor",
+      "suggested_fix": "Use one named suppression mechanism that the SPL actually applies, or remove the references."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk configuration pages. Nothing supports the 30-day test interval or covers generator testing practice.",
+      "field": "references",
+      "quote": "Splunk inputs.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Cite the applicable generator test standard or vendor test procedure (for example NFPA 110 monthly exercise requirements, after checking the edition) and the BMS or controller documentation for the test log."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Missed-test detection depends on the search window: a generator with no `generator:test` events in range never appears, so the 'days_since_test > 30' branch only catches units with a test event older than 30 days but still inside the window. Seed rows from a generator inventory lookup (for example `| inputlookup generators.csv` combined with the latest test) to catch untested units.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`last_result!=\"pass\"` is case-sensitive and drops rows where `result` is null, so 'PASS', 'Passed' or missing values behave unexpectedly. Normalize with lower() and decide how null results should be treated.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0026-UC-15.1.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 1
+  },
+  "summary": "The SPL idea (last result not 'pass', or more than 30 days since the last test) is sound, but the surrounding text is almost entirely template residue. The detailedImplementation tells the reader to schedule the search over 24 hours, which makes the missed-test half of the detection impossible, and it validates against a 'PDU UI' instead of the generator controller.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.4",
+  "verdict": "incorrect"
+}

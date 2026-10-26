@@ -1,0 +1,89 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "cad1f616b4a0ece72bb0662aec3328e0328d0377bdcc39355b0aee2fcff2d826",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.17.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://community.splunk.com/t5/All-Apps-and-Add-ons/Trying-to-get-SNMP-data-into-Splunk/m-p/251354",
+      "explanation": "app, dataSources ('field mappings shipped with UPS SNMP (upsTestResultsSummary)') and detailedImplementation all treat this as an installable package that provides the snmp:ups:selftest sourcetype and extractions. No such Splunkbase add-on exists. SNMP Modular Input (1537) defaults to sourcetype snmp_ta and ships no UPS-MIB field mappings, so the reader has to create the sourcetype and extractions themselves.",
+      "field": "cross_field",
+      "quote": "Deploy **UPS SNMP (upsTestResultsSummary)** so MIB-derived UPS diagnostics land with the sourcetype aliases referenced below",
+      "severity": "blocker",
+      "suggested_fix": "Replace the package name with the real path: SNMP Modular Input (1537) or Splunk Connect for SNMP polling UPS-MIB upsTest objects (upsTestResultsSummary .1.3.6.1.2.1.33.1.7.3, upsTestStartTime, upsTestResultsDetail), with a custom sourcetype snmp:ups:selftest and props/transforms that you write to extract the fields and translate the enum."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc1628.txt",
+      "explanation": "The scenarios are generic templates keyed on host, count and span=1h, none of which the SPL uses. They miss the real causes. upsTestResultsSummary returns inProgress(5) while a test runs, noTestsInitiated(6) after a management-card reboot and aborted(4) when an operator cancels a test, and all of these match != \"donePass\". Because the object holds the last test result, every poll repeats the same failure until the next test.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Document inProgress, noTestsInitiated (for example after NMC reboot or firmware upgrade) and operator-aborted tests as expected non-failures. Note that untranslated integer values (1 instead of donePass) make every row match, and that repeated polls of one old result should be deduplicated by ups_name and test start time."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL neither groups by entity nor counts. It lists every event where test_result is not 'passed' or upsTestResultsSummary is not 'donePass', with ups_name, test_type and the two result fields, and it has no threshold.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output: one row per polled self-test result where the UPS reports anything other than a passed or donePass outcome, showing UPS name, test type and result."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1537",
+      "explanation": "Splunkbase app 1537, SNMP Modular Input, is built and supported by BaboonBones Ltd, not Splunk.",
+      "field": "dataSources",
+      "quote": "Splunk SNMP Modular Input (**Splunkbase app ID 1537**)",
+      "severity": "minor",
+      "suggested_fix": "Call it 'SNMP Modular Input (BaboonBones, Splunkbase app 1537)'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "SNMP Modular Input is a Python modular input. The Universal Forwarder does not include a Python runtime, so the input normally runs on a heavy forwarder or another full Splunk instance.",
+      "field": "detailedImplementation",
+      "quote": "Validate SNMP reachability from the Universal Forwarder tier using timed polls every 300 seconds",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the SNMP Modular Input documentation for supported forwarder types and, if confirmed, replace 'Universal Forwarder tier' with 'heavy forwarder'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL has no threshold: it returns every non-passing row, so there is nothing to tune as described.",
+      "field": "implementation",
+      "quote": "fires whenever failures breach your maintenance thresholds",
+      "severity": "minor",
+      "suggested_fix": "Say that the alert fires on any non-passing self-test result, and describe the dedup or throttle on ups_name that stops repeat alerts for the same test."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "upsTestResultsSummary!=\"donePass\" also matches inProgress(5), noTestsInitiated(6) and aborted(4), and matches every event if the enum is ingested as an integer. The object reports the last test result, so each poll re-emits the same failure. Consider filtering to doneWarning or doneError and deduplicating by ups_name plus upsTestStartTime.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0009-UC-15.1.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC correctly anchors on UPS-MIB upsTestResultsSummary, but it names a non-existent 'UPS SNMP (upsTestResultsSummary)' package as the app that ships field mappings and calls SNMP Modular Input a Splunk add-on. Its description and false positives are templated and ignore the real non-failure enum states (inProgress, noTestsInitiated, aborted) that this search will match.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.17",
+  "verdict": "incorrect"
+}

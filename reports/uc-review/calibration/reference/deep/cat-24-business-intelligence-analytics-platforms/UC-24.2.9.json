@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "bf0dbf7bd2ac84f026f67b2ae506ed5688b349030c9dd7717c974efa1111b0d3",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The `o365:management:activity` sourcetype is collected from the Office 365 Management Activity API by the Splunk Add-on for Microsoft Office 365 (Splunkbase 4055). The Microsoft Cloud Services add-on (Splunkbase 3110, `Splunk_TA_microsoft-cloudservices`) covers Azure Event Hubs, Azure APIs and storage, so the field merges two different add-ons into one.",
+      "field": "app",
+      "quote": "Splunk Add-on for Microsoft Cloud Services / Microsoft 365 (`Splunk_TA_microsoft-cloudservices`) for the Power BI activity log",
+      "severity": "blocker",
+      "suggested_fix": "Name only 'Splunk Add-on for Microsoft Office 365 (Splunkbase 4055)' with its Management Activity input, and mention the Power BI REST API scripted input separately if it is used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4054 does not appear in the catalogue. The Splunk Add-on for Microsoft Office 365 is Splunkbase 4055.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Microsoft Office 365 (Splunkbase 4054)",
+      "severity": "blocker",
+      "suggested_fix": "Change the ID to Splunkbase 4055."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://learn.microsoft.com/en-us/fabric/admin/operation-list",
+      "explanation": "Dataset refreshes, gateway Mashup logs and capacity metrics have nothing to do with deployment pipelines. This is the subcategory boilerplate, and it hides which events the detection actually needs.",
+      "field": "dataSources",
+      "quote": "Power BI REST Admin API (`/admin/groups`, `/datasets/refreshes`, `/capacities/refreshables`), on-prem data gateway `Mashup`/`GatewayInfo` logs, Premium capacity metrics.",
+      "severity": "major",
+      "suggested_fix": "List the Power BI audit operations for deployment pipelines (for example DeployAlmPipeline, 'Deployed to a pipeline stage') in `o365:management:activity` with Workload=PowerBI. Optionally add the Power BI REST API Pipelines 'Get Pipeline Operations' endpoint, which returns per-deployment status including Failed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://learn.microsoft.com/en-us/fabric/admin/operation-list",
+      "explanation": "The text does not say which operation names mark a deployment, which field carries success or failure, or whether the audit log records failed deployments at all, so a reader cannot check the detection.",
+      "field": "implementation",
+      "quote": "Ingest the activity log; schedule hourly; alert on failed deployments.",
+      "severity": "major",
+      "suggested_fix": "Name the audit operation (DeployAlmPipeline) and the success field to test, after checking a real event (the Power BI audit schema normally uses IsSuccess, not Result). Suggest the Pipelines 'Get Pipeline Operations' REST call as the authoritative source for Failed status if audit events lack it."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The whole field is the generic five-step template: modular input or HEC token, `list_inputs`, inventory count comparison. It says nothing about Power BI deployment pipelines, the O365 Management Activity input, or how to validate against the pipeline deployment history in the Power BI service.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Replace it with steps to enable the Management Activity input (Audit.General content type) in the Office 365 add-on, confirm PowerBI pipeline events arrive, validate against the deployment history in the pipeline UI, and route alerts to the BI release owner."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the references cover deployment pipelines or the operation names the SPL relies on.",
+      "field": "references",
+      "quote": "Power BI — Track user activities (audit log)",
+      "severity": "minor",
+      "suggested_fix": "Add the Fabric/Power BI operation list (https://learn.microsoft.com/en-us/fabric/admin/operation-list) and the deployment pipelines documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/fabric/admin/operation-list",
+      "field": "spl",
+      "issue": "Microsoft's operation list names the audit operations DeployAlmPipeline ('Deployed to a pipeline stage') and CreateAlmPipeline ('Created deployment pipeline'), not DeployedToPipelineStage / CreatedPipeline, so the filter matches no events (https://learn.microsoft.com/en-us/fabric/admin/operation-list).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`Result=\"Failed\"` probably does not exist in Power BI audit records, which typically carry IsSuccess (true/false). Check this against a real event.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Check that a `PipelineName` field exists in DeployAlmPipeline audit records. The pipeline name or ID field may be named differently.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Including pipeline creation (CreateAlmPipeline) in a 'stage failures' detection mixes configuration events with deployments.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0142-UC-24.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The intent (flag failed Power BI deployment pipeline promotions) is clear, but the add-on identity and Splunkbase ID are wrong, and the data sources are copied subcategory boilerplate. The SPL filters on audit operation names that Microsoft does not use for deployment pipelines, so as written it would return nothing.",
+  "tier": "deep",
+  "uc_id": "UC-24.2.9",
+  "verdict": "incorrect"
+}

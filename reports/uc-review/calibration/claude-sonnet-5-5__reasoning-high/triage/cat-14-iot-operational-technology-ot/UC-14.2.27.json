@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "936ab56054ac703e751cc68c261a41f0e585c182205eaaa20be4c883bbc36d1d",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.2.27.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text describes plant control systems and field data, but the UC detects late or missing EDI functional acknowledgements from trading partners. The second sentence is a title-word fragment.",
+      "field": "grandmaExplanation",
+      "quote": "We watch your plant control systems and field data. We help you know if something is off with this area: edi acknowledgement before harm, damage, or wasted effort piles up.",
+      "severity": "major",
+      "suggested_fix": "Rewrite in plain language, for example: 'When we send a purchase order or shipping notice to a business partner, they are supposed to confirm they received it. This checks that those confirmations arrive on time and flags the ones that are late or missing.' Use no SPL or CIM terms."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The Step 3 validation text is inherited from the subcategory boilerplate for PLC/SCADA UCs. It cannot be applied to EDI interchange acknowledgements and contradicts the B2B gateway data source.",
+      "field": "detailedImplementation",
+      "quote": "Compare key fields and alarm states to the SCADA or DCS HMI and, where relevant, the engineering tool for the PLC.",
+      "severity": "major",
+      "suggested_fix": "Validate against the B2B gateway or VAN console: pick a few interchange IDs, confirm that ack timestamps and 997/999/CONTRL status match what the gateway shows, and check that a known unacknowledged interchange appears in the results."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The implementation text is a one-line fragment that does not say how edi:control or as2:mdn events get into Splunk. It also does not say which event carries ack_time, or how the sent and ack events are correlated by interchange_id. The same Step 1-4 headings are then repeated with generic text.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\nSLA per trading partner; auto-retry and partner escalation on NAK codes.",
+      "severity": "major",
+      "suggested_fix": "State how the B2B gateway or VAN logs are ingested (file monitor, HEC or a scripted export). Show an example edi:control event with interchange_id, doc_type, partner_id and ack_time. Say how the SLA is set per partner, and drop the duplicated generic Steps 1-4."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "This is a fragment of operational policy, not implementation guidance. It says nothing about collecting data, scheduling the search or setting the 3600 s threshold. The prose mentions NAK codes, but the SPL has no NAK or status field.",
+      "field": "implementation",
+      "quote": "SLA per trading partner; auto-retry and partner escalation on NAK codes.",
+      "severity": "major",
+      "suggested_fix": "Describe the ingestion, the schedule and the per-partner SLA threshold. If NAK handling is intended, add the ack status field to the SPL or remove the NAK reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "as2:mdn is listed as a data source but the SPL only searches edi:control. The reader cannot tell whether the MDN receipts feed the ack_time field or are unused.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"edi:control\"`, `sourcetype=\"as2:mdn\"`",
+      "severity": "minor",
+      "suggested_fix": "Either extend the SPL to use as2:mdn or note that ack_time is extracted from edi:control and as2:mdn is optional."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Universal Forwarder is not a Splunkbase add-on. Splunkbase 617 is not in the cached catalog, so it is unclear what it refers to. This is the same boilerplate attached to every 14.2 sibling UC, including ones that are not forwarder-based. No add-on is named for parsing EDI, AS2 or MDN data.",
+      "field": "app",
+      "quote": "B2B gateway (IBM/Seeburger), VAN logs — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check what Splunkbase app 617 is. Name the actual ingestion method (UF file monitor or HEC) separately from any parsing add-on, and drop the Splunkbase ID if it does not correspond to a real add-on for this data."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The UC sits in 14.2 Industrial Control Systems (ICS/SCADA) and is tagged industry Manufacturing, but it monitors an IT/B2B supply-chain process (EDI) with no OT data source. A reader browsing ICS use cases will not expect it. The category fit should be confirmed.",
+      "field": "cross_field",
+      "quote": "\"cimModels\": [] ... \"splunkPillar\": \"Observability\"",
+      "severity": "minor",
+      "suggested_fix": "Consider moving it to a supply-chain or B2B/manufacturing subcategory, or state in the description why EDI acks are in scope for ICS. Compare 14.2.24 and 14.2.25, which at least use OPC-UA/MES data."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "This is generic add-on boilerplate (modular input, poll interval, HTTP 401/429 vendor API errors). There is no vendor API here, so the advice does not fit an EDI/AS2 log feed.",
+      "field": "detailedImplementation",
+      "quote": "Grant the ingestion role `list_inputs` and `search` on the target index.",
+      "severity": "minor",
+      "suggested_fix": "Replace the generic troubleshooting step with EDI-specific checks, such as missing MDN or ack events, clock skew between sender and gateway, and partners that ack in batches."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`latest(ack_time)` returns the raw ack_time field, and the SPL then subtracts `sent` (epoch from _time) from it. This only works if ack_time is an epoch number, which is not stated. Also, `isnull(ack)` is tested after `eval`, so a missing ack gives a null ack_latency_sec and is kept only through the isnull branch. A missing ack therefore cannot be told apart from a late one in the output. Check that ack_time is epoch and consider strptime or a status column.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "The UC title is about EDI acknowledgements but it is filed under 14.2 Industrial Control Systems (ICS/SCADA). The subcategory fit is questionable.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0071-UC-14.2.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "An EDI/B2B acknowledgement-latency detection filed under ICS/SCADA, with text that is mostly generated template. The grandma text and validation steps describe plant control systems, PLCs and HMIs, which has nothing to do with EDI.",
+  "tier": "triage",
+  "uc_id": "UC-14.2.27",
+  "verdict": "rewrite"
+}

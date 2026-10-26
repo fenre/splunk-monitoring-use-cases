@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a0cd5d636e19cecaca795fdcc2d0bb6861f77b643fe4a2b4c65e9bd1c2c4855c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.28.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/upsHighPrecOutputLoad",
+      "explanation": "The PowerNet-MIB object is upsHighPrecOutputLoad (.1.3.6.1.4.1.318.1.1.1.4.3.3); no object named upsHighPrecOutputLoadPercent exists. It reports tenths of a percent, so merging it into load_pct without dividing by 10 inflates load tenfold, and every high-precision UPS would breach the 80/90 thresholds. The same wrong name appears in detailedImplementation.",
+      "field": "implementation",
+      "quote": "high-precision APC models contribute either `upsAdvOutputLoad` or `upsHighPrecOutputLoadPercent` through a single normalized field",
+      "severity": "blocker",
+      "suggested_fix": "Rename the object to upsHighPrecOutputLoad and state that it must be divided by 10 before being coalesced with upsAdvOutputLoad."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/snmp-data-format/",
+      "explanation": "SC4SNMP classifies Gauge varbinds such as upsAdvOutputLoad as metrics. They go to the metrics index (default netmetrics) with sourcetype sc4snmp:metric and the metric name sc4snmp.PowerNet-MIB.upsAdvOutputLoad. No snmp:apc:ups event with an upsAdvOutputLoad field is produced, so the event SPL returns nothing on the SC4SNMP path.",
+      "field": "dataSources",
+      "quote": "ingest with Splunk Connect for SNMP (Splunkbase #6266) or the SNMP Modular Input (Splunkbase #1537) so events normalize to `sourcetype=snmp:apc:ups` with a parsed numeric `upsAdvOutputLoad` column",
+      "severity": "blocker",
+      "suggested_fix": "State that SC4SNMP data must be queried with mstats against the metrics index, or scope the snmp:apc:ups event sourcetype to SNMP Modular Input (1537) collection only."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "SC4SNMP is not a Splunk add-on that installs on a heavy forwarder. It runs as a standalone microk8s/Helm or docker compose deployment on a Linux host and sends to Splunk over HEC.",
+      "field": "detailedImplementation",
+      "quote": "Install Splunk Connect for SNMP (Splunkbase app 6266) on a Docker host or heavy forwarder",
+      "severity": "minor",
+      "suggested_fix": "Replace the sentence with: 'Deploy Splunk Connect for SNMP (microk8s/Helm or docker compose) and point it at a HEC token'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation gives a -15m window, then its Step 2 says to schedule with earliest=-24h@h. Neither window fits the 30-minute bins: a -15m window always yields a partial bin, and -24h re-alerts on a whole day of bins. The implementation also requires 'avg_load > 80 for two successive 30-minute buckets', which the SPL does not enforce.",
+      "field": "cross_field",
+      "quote": "align scheduled alert `dispatch.earliest_time` to `-15m` when polls run every five minutes",
+      "severity": "major",
+      "suggested_fix": "Pick one schedule, for example every 30 minutes over -60m@m to @m, and either describe the SPL as single-bucket or explicitly mark the two-bucket persistence as an extension."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "This appended boilerplate in dataSources (repeated in detailedImplementation Step 1) contradicts the SNMP collector design described in the same field. Neither SC4SNMP nor SNMP Modular Input is a Universal Forwarder modular input.",
+      "field": "cross_field",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the Universal Forwarder sentence from dataSources and Step 1."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 2–5 are generic template text: vendor REST API rate limits, 'joins/lookups enrich owner', and inventory counts within ±5%. None of it applies to SNMP polling of an NMC.",
+      "field": "detailedImplementation",
+      "quote": "API errors: inspect splunkd.log for HTTP 401/429 from the vendor endpoint configured in inputs.conf.",
+      "severity": "major",
+      "suggested_fix": "Replace these steps with SNMP-specific troubleshooting: SNMP timeouts or authentication failures in the poller logs, and comparison of the NMC load reading against the polled value."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The URL path looks invented. /Forms/login2 would be a login form, not a load pane, and NMC firmware generations use different paths.",
+      "field": "detailedImplementation",
+      "quote": "validate against the NMC web UI `/Forms/login2` measured load pane",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the APC NMC user guide for the actual UPS status page, or describe it by menu (for example UPS > Status) without a URL path."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/SendSNMPeventstoSplunk",
+      "explanation": "This URL returns 404. The Splunk Getting Data In page on SNMP is 'Send SNMP events to your Splunk deployment'.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/WorkingwithSNMPdata",
+      "severity": "minor",
+      "suggested_fix": "Replace it with https://docs.splunk.com/Documentation/Splunk/latest/Data/SendSNMPeventstoSplunk."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Redis has nothing to do with APC UPS output load, and snmp_trap in equipmentModels is unused by this poll-only UC.",
+      "field": "equipment",
+      "quote": "\"redis\"",
+      "severity": "minor",
+      "suggested_fix": "Remove redis from equipment and snmp_trap from equipmentModels."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "These are site-specific custom roles presented as if they were established names.",
+      "field": "detailedImplementation",
+      "quote": "RBAC role `power_ops_admin` for edits and `snmp_inventory_read` for analysts",
+      "severity": "minor",
+      "suggested_fix": "Prefix them with 'for example' or describe the needed capabilities instead."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "load_pct is taken only from upsAdvOutputLoad, so the high-precision path the implementation describes (upsHighPrecOutputLoad / 10) never feeds the thresholds. On SC4SNMP the event search returns nothing because the values are metrics.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0021-UC-15.1.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The core signal is right: upsAdvOutputLoad at OID .4.2.3 is a percentage of rated capacity. But the high-precision alternative is misnamed and its tenths-of-percent scaling is never mentioned, the SC4SNMP sourcetype claim is wrong, and the schedule guidance contradicts itself across fields.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.28",
+  "verdict": "incorrect"
+}

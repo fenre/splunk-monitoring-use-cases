@@ -1,0 +1,88 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "fc6a3fdf20f01546bc10547d61a17a0ff5925f3f584098de9f19d57417263c1e",
+  "file": "content/cat-02-virtualization/UC-2.6.5.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/",
+      "explanation": "Since Splunk Add-on for Microsoft Windows 6.0.0, System-channel events are indexed as `sourcetype=WinEventLog` (or `XmlWinEventLog` when XML is rendered), with the channel carried in `source=WinEventLog:System`. A current deployment following this text would get zero events. The input is the native `[WinEventLog://System]` event-log input, not a modular input or scripted poll. The repository windows guide's front-matter still lists the legacy name, which compounds the confusion.",
+      "field": "dataSources",
+      "quote": "`index=xd_winevents` `sourcetype=\"WinEventLog:System\"` fields `EventCode`, `service_name`, `service_state`, `host` Collected via Splunk Add-on for Microsoft Windows (Splunkbase 742) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "State `source=\"WinEventLog:System\" sourcetype=WinEventLog` (or `source=\"XmlWinEventLog:System\" sourcetype=XmlWinEventLog` with renderXml), collected by a `[WinEventLog://System]` input on each Delivery Controller's Universal Forwarder. Confirm the extracted service-name and state field names on a real 7036 event."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL filters `EventCode=7036` only and reports per host/service, with no cross-controller correlation. Crashes logged as 7031/7034 are therefore missed, and the P1 escalation logic does not exist. A reader would believe crash coverage and site-wide escalation are in place.",
+      "field": "implementation",
+      "quote": "Correlate across controllers — if the Broker Service stops on all controllers simultaneously, escalate as P1. Also monitor Event IDs 7031 (service crash) and 7034 (unexpected termination).",
+      "severity": "major",
+      "suggested_fix": "Either describe the implemented scope (7036 stopped-state per controller) or document a search that adds 7031/7034 and a `dc(host)` per service versus the expected controller count for the P1 condition."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios (apt/yum, nightly backup I/O, Nagios load probes, 48h baseline) are Linux capacity residue. None explains a spurious Citrix service-stopped row. `linux_capacity_exceptions.csv` is unrelated.",
+      "field": "knownFalsePositives",
+      "quote": "**Patch Tuesday on `xd_winevents`** — Package managers spike `host` metrics for 'Citrix Delivery Controller Service Health'. Correlate with apt/yum logs",
+      "severity": "major",
+      "suggested_fix": "List real causes. Examples: planned controller patching/reboot (services stop then start, and the latest state should clear on restart); CVAD in-place upgrade stopping services; intentionally disabled optional services on some controllers; decommissioned controllers whose last event is a stop; 7036 messages in a non-English locale not matching \"running\"."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Steps 1–4 are duplicated, and the second copy is generic template text. Windows Event Log collection uses a WinEventLog input on the forwarder, not HEC or an API poll. The \"vendor API 401/429\" troubleshooting and \"admin UI inventory count\" validation do not apply.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=WinEventLog:System into xd_winevents. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Give the actual `[WinEventLog://System]` stanza with `index=xd_winevents`, and validate by stopping a non-production Citrix service and confirming the 7036 event and result row."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is generated filler with odd capitalisation. It does not say that the alert fires when a key Citrix service on a controller server stops, which is what prevents users from launching desktops.",
+      "field": "grandmaExplanation",
+      "quote": "We keep an eye on delivery Controller Service Health and raise the alarm before it drags down real work or real outages start.",
+      "severity": "major",
+      "suggested_fix": "For example: \"We watch the servers that hand out Citrix desktops and apps, and warn the team as soon as one of their essential background services stops, because users may no longer be able to connect.\""
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/",
+      "field": "spl",
+      "issue": "Uses `sourcetype=\"WinEventLog:System\"`, which add-on 6.0.0+ no longer assigns (now `sourcetype=WinEventLog source=WinEventLog:System`), so the search returns nothing on current add-on versions (evidence: https://splunk.github.io/splunk-add-on-for-microsoft-windows/SourcetypeAndCIM/).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Event 7036 messages use the service display name. `CitrixMachineCreationService` looks like the short service name; the display name is likely \"Citrix Machine Creation Service\". `Citrix Storefront*` matches no Delivery Controller service, since StoreFront normally runs on separate servers with differently named services. Also verify that the add-on extracts a field literally named `service_name` for 7036.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`if(match(Message,\"running\"),\"Running\",\"Stopped\")` classifies every non-English message, and any paused/other state, as Stopped. It also has no time bound or expected-service inventory, so a service that never logs 7036 is never checked.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0007-UC-2.6.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The core idea (Event 7036 stop events for Citrix controller services) is sound. However, the entry is largely template residue: Linux capacity false positives, HEC/poll-interval steps, and a filler grandma text. It relies on the pre-6.0.0 `WinEventLog:System` sourcetype. The implementation promises 7031/7034 and cross-controller P1 logic that the SPL does not contain.",
+  "tier": "deep",
+  "uc_id": "UC-2.6.5",
+  "verdict": "incorrect"
+}

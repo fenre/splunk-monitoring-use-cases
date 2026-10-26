@@ -1,0 +1,100 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a8d7424bf046b636aa331dec1835fa3b5222045ae3212c629ec6f98a97feb5b7",
+  "file": "content/cat-16-service-management-itsm/UC-16.3.8.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has no 20% threshold, no prior-week comparison (it compares each day to a 7-row rolling mean that includes the current day) and no category split, so a reader expecting the described alert and segmentation will not get it from the search.",
+      "field": "implementation",
+      "quote": "Track 7-day rolling average; alert when ratio drops >20% vs prior week. Segment by category: compare KB views for \"password reset\" vs ticket volume for same category.",
+      "severity": "major",
+      "suggested_fix": "Either describe what the SPL returns (daily views, tickets, ratio and an improving/declining flag against the 7-day rolling mean) or document the additional SPL needed: a `category` field common to both feeds and a `where` clause comparing the ratio with the prior-week value."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL output is one row per day with no category or article field, so the category bar chart and article table cannot be built from it.",
+      "field": "visualization",
+      "quote": "Bar chart (ratio by category), Table (top-deflecting articles).",
+      "severity": "minor",
+      "suggested_fix": "Limit visualization to the line chart and single value, or note that category/article panels need separate searches split by `category` / article number."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/service-management-itsm.md",
+      "explanation": "Half of the SPL reads `sourcetype=snow:incident`, which the ITSM guide attributes to the Splunk Add-on for ServiceNow (Splunk_TA_snow, Splunkbase 1928), not to a custom input on a Universal Forwarder; the app field omits it entirely.",
+      "field": "app",
+      "quote": "Custom (ITSM API, KB platform analytics) — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "List Splunk Add-on for ServiceNow (Splunkbase 1928) for `snow:incident`, and describe the KB view feed separately (ServiceNow Knowledge usage table via an additional add-on table input, or Confluence/SharePoint analytics exported via HEC as `kb:views`)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The text does not name the sourcetypes the SPL reads (`kb:views`, `snow:incident`) or the `views` field the SPL sums, and does not say whether a `kb:views` event is one view or a pre-aggregated count; the SPL silently treats a missing `views` as one view, which double-counts if the feed mixes both shapes.",
+      "field": "dataSources",
+      "quote": "KB article view counts, ticket creation rates",
+      "severity": "major",
+      "suggested_fix": "State: `index=itsm sourcetype=kb:views` (custom; either one event per article view, or periodic per-article counts in a `views` field — pick one) and `sourcetype=snow:incident` from Splunk_TA_snow. If using ServiceNow Knowledge, verify the table that records article views (Knowledge Use, `kb_use`) and ingest it as a custom table input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The search uses no data model, `tstats` or `mstats`, and the sidecar sets `dataModelAcceleration` to 'Not applicable'. The duplicated generic Steps 1–5 add further mismatches: `earliest=-24h@h` (too short for a 7-day rolling average), per-entity throttling, 'critical severity' routing and a 'vendor admin UI inventory count' check that do not apply to a daily trend report.",
+      "field": "detailedImplementation",
+      "quote": "Enable Data Model Acceleration (and metric indexes for `mstats`) for the models or datasets referenced above; otherwise `tstats`/`mstats` may return no results from summaries.",
+      "severity": "major",
+      "suggested_fix": "Remove the acceleration paragraph and the duplicated template steps; schedule the report daily over at least the last 14 days so the 7-day rolling average is populated."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a misleading deflection ratio; grouping 'on `_time`' is not an entity that can be excluded. Real distortions include search-engine crawlers or portal health checks inflating KB views, bulk incident imports or monitoring-generated incidents inflating ticket counts, major-incident days, and weekends/holidays with low volume on both sides.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`** — Health checks in `itsm` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with those concrete causes and how to filter them (exclude bot user agents / service accounts from `kb:views`, exclude event-management-generated incidents by `contact_type` or caller, annotate major-incident days)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "A daily views-to-tickets ratio is a correlation; it does not show that a view prevented a ticket, and without a category split it cannot reveal content gaps.",
+      "field": "detailedImplementation",
+      "quote": "Correlating article views with ticket creation reveals deflection ROI and content gaps.",
+      "severity": "minor",
+      "suggested_fix": "Say the ratio is a proxy for self-service uptake and that content-gap analysis needs per-category comparison."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`ticket_count` counts every `snow:incident` event. Splunk_TA_snow collects records incrementally on update, so one incident can produce many events; tickets should be counted by distinct `number` with `sys_created_on`/`opened_at` falling in the day, otherwise the ratio tracks update activity rather than ticket creation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Division by zero on days with no tickets yields null ratios; `streamstats window=7` includes the current day in its own baseline; and no threshold is applied although the implementation promises a >20% drop alert.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0100-UC-16.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation paragraph describes a sensible deflection-ratio report, but the SPL delivers only an un-segmented daily ratio versus a 7-row rolling mean, so the promised >20% week-over-week alert, category segmentation and per-article table do not exist; data sources and app omit the ServiceNow add-on that produces `snow:incident` and never define the custom `kb:views` feed.",
+  "tier": "deep",
+  "uc_id": "UC-16.3.8",
+  "verdict": "rewrite"
+}

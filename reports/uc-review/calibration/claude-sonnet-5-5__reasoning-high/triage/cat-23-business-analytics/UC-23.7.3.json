@@ -1,0 +1,128 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c13a5809c85cd25667cca62ff755de876f515e5530e420ecd96ef417d50a5d2c",
+  "file": "content/cat-23-business-analytics/UC-23.7.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are not alert conditions. `ces_num` between 1 and 5 is part of a scale-detection branch in an `eval`, `channels_used` >= 2 and `reopen_safe` >= 1 just set flags, and the SPL has no `where` at all. It ends in an aggregate table by `channel_canon` and `issue_category`, but description and controlTest say it groups by `case_key_norm`, which is gone after the final `stats`. The 'alert' is only a separate suggestion in the walkthrough (`where avg_effort>=7`, 30-day window, weekly digest), while the implementation says 'daily `effort_index` exception alerts' and 'monthly leadership trends'.",
+      "field": "cross_field",
+      "quote": "before applying `ces_num` <= 5, `ces_num` >= 1, `channels_used` >= 2, or `reopen_safe` >= 1",
+      "severity": "major",
+      "suggested_fix": "Describe this UC as an analytic with an optional alert, giving the real output (average effort by channel and issue category) and one threshold (for example avg_effort >= 7) with one schedule. Update the controlTest to match."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The SPL computes `8 - ces_num` for a 1 to 7 scale and `6 - ces_num` for 1 to 5, so a raw 7 (easiest, if higher means easier as in the Path B example) becomes 1, and higher `ces_normalized` means more effort. The text and the visualization subtitle say higher normalized means easier, and the column is named `avg_ces_good`. The SPL also assumes one direction for every vendor, and the fallback applies `8 - x` to any value, giving negatives above 7.",
+      "field": "detailedImplementation",
+      "quote": "**`ces_normalized`** implements documented inversion so dashboards align on **higher = easier**",
+      "severity": "major",
+      "suggested_fix": "State the raw direction assumed per vendor and the direction after normalization, and make names agree (for example `ces_effort_normalized`, higher means harder). Handle unknown scales explicitly instead of defaulting to a 7-point scale."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL's final `stats` groups only by `channel_canon` and `issue_category` with no time bucket, and `customer_segment` is dropped by the earlier `fields` command. A monthly trend, a 30-day versus prior-month comparison, segment bands from `effort_index_thresholds.csv` and a drilldown to the incident `number` and Qualtrics response ID cannot come from this output. The SPL also hard-codes the effort weights, so `effort_index_weights.csv` and `effort_index_thresholds.csv` are never read.",
+      "field": "visualization",
+      "quote": "(5) Executive **`splunk.line`** monthly **`avg_effort`** trendlines segmented by **`customer_segment`** lookup.",
+      "severity": "major",
+      "suggested_fix": "Add a time bucket and segment to the search (or supply separate searches) and read the weights and thresholds from the lookups, or reduce the visualization to the heatmap and table the SPL supports."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "`max=0` allows multiple matching subsearch rows per main event (the default keeps one). It does not protect against the subsearch result limit (50,000 rows by default), which is the usual silent truncation with a 90-day `snow:incident` subsearch. The steps never mention that limit.",
+      "field": "detailedImplementation",
+      "quote": "`join type=left max=0` mirrors **UC-23.7.1** join hygiene — prevents Splunk from silently truncating ties when CRM duplicates slip through.",
+      "severity": "minor",
+      "suggested_fix": "Explain `max=0` correctly and warn about the subsearch row and time limits, or replace the join with a `stats`-based merge on `case_key_norm`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Authoring-process commentary leaked into the published prerequisites, and it is not about the UC. The text also says the ServiceNow add-on is a 'prerequisite' set up 'per UC-23.7.1' and references UC-23.7.2 conventions, while `prerequisiteUseCases` is empty.",
+      "field": "detailedImplementation",
+      "quote": "Bold markup kept intentionally sparse inside procedural prose — roughly two emphasized clauses per thousand characters — mirroring **UC-23.7.1** discipline.",
+      "severity": "minor",
+      "suggested_fix": "Delete the sentence and either list UC-23.7.1 in `prerequisiteUseCases` or make the ServiceNow setup self-contained."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "I could not confirm the input name `servicenow_record_input` for the Splunk Add-on for ServiceNow (its inputs use a `snow://` style stanza as far as I know). Also unconfirmed: the Qualtrics claim that `export-responses` can be called with 'cursor pagination parameters' (the export is an asynchronous start, progress and download flow), the 'sn_survey' ServiceNow survey source, and the incident-number normalisation, since `INC` plus digits drops leading zeros (INC0012345 vs 12345).",
+      "field": "detailedImplementation",
+      "quote": "Heavy Forwarder **`servicenow_record_input`** against **`incident`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the add-on's inputs documentation, the Qualtrics export workflow and the ServiceNow survey tables, and describe the real input names, steps and ID padding."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFPs describe maintenance windows, CMDB change records and monitoring-tagged assets, which do not apply to survey and ticket data. The real distorting causes are in Step 5 (email respondents' compressed scores, INC prefix mismatches starving the join, stale effort-index weights) but are absent from this field.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `case_key_norm`, `channel_canon`, `issue_category`** — Health checks in `business` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "Replace the four items with the Step 5 causes and name the matching suppression."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Besides the self-reference already recorded, the value uses IT-operations boilerplate for a customer-support analytics UC. It names no benefit such as finding which issue types and channels create the most customer effort.",
+      "field": "value",
+      "quote": "reduces operational risk and delayed incident response.",
+      "severity": "major",
+      "suggested_fix": "State that the UC ranks support channels and issue categories by customer effort so support leaders can fix the worst friction first."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `checkpoint` equipment tag has no relation to customer-effort analytics; the UC uses ServiceNow and survey tools, and nothing mentions Check Point.",
+      "field": "equipment",
+      "quote": "\"checkpoint\"",
+      "severity": "major",
+      "suggested_fix": "Remove `checkpoint` and keep only the tags the UC uses (ServiceNow, and the survey platform if a slug exists)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified`, but the reviewer is an agent identifier, not an SME. The inversion logic, input names and vendor API details above are not confirmed.",
+      "field": "status",
+      "quote": "\"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named support-analytics or ServiceNow SME has reviewed the normalisation and collection steps."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`channels_used` is a running `streamstats dc(channel_canon)` per case over survey rows, and the channel comes only from the survey. A case normally has a single survey response, so channel switching is almost always 0 and the `channel_switch_signal` term of `effort_index` (and the 'channel effectiveness' in the title) is not measured. `contact_type` is joined from ServiceNow but never used. The running count also gives earlier rows of the same case a lower value than later ones.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Labels do not match their logic: `repeat_within_7d` is true for any non-zero lifetime `reopen_count`, `handle_time_minutes` is open-to-resolved elapsed time and not handle time, the weights (1.0, 0.5, 1.0, 0.7, 0.5) are hard-coded although the text says they are governed in `effort_index_weights.csv`, and the join covers only `snow:incident`, so CSM cases (`sn_customerservice_case`, listed in a sibling UC) never match.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0059-UC-23.7.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The effort-index idea and the survey-specific troubleshooting are thoughtful, but the short fields describe alert conditions and groupings the SPL does not have. The CES inversion explanation contradicts the code, the visualization needs data the aggregated output lacks, and the walkthrough contains leaked authoring commentary and promised lookups that the SPL never reads.",
+  "tier": "triage",
+  "uc_id": "UC-23.7.3",
+  "verdict": "rewrite"
+}

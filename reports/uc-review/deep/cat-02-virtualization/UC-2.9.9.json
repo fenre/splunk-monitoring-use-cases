@@ -1,0 +1,115 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "2ab1cab104b60bc1ff2570245ea8ff41229563335990aca7cb9872aa48b81e31",
+  "file": "content/cat-02-virtualization/UC-2.9.9.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/python-novaclient/latest/cli/nova.html",
+      "explanation": "The `nova` CLI has been deprecated since python-novaclient 17.8.0 in favour of the unified `openstack` client, and `nova list --fields` prints a table, not JSON. A reader following this will not get machine-parseable state snapshots.",
+      "field": "app",
+      "quote": "Nova state audit from `nova list --fields` JSON or notifications",
+      "severity": "blocker",
+      "suggested_fix": "Use `openstack server list --all-projects --long -f json` (or `GET /servers/detail?all_tenants=1` on the Compute API) on a schedule, which returns `OS-EXT-STS:vm_state`, `OS-EXT-STS:task_state`, `OS-EXT-SRV-ATTR:host` and `updated`. Alternatively, consume Nova versioned notifications (`instance.update`, `instance.create.error`) from the message bus."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/nova/latest/reference/vm-states.html",
+      "explanation": "These names match neither common Nova source verbatim. The server API returns `id` plus `OS-EXT-STS:vm_state` / `OS-EXT-STS:task_state` / `OS-EXT-STS:power_state` / `OS-EXT-SRV-ATTR:host`, and versioned notifications use `uuid`, `state`, `task_state`, `power_state`, `host`. No source supplies the state-change timestamp the detection needs.",
+      "field": "dataSources",
+      "quote": "`instance_uuid`, `vm_state`, `task_state`, `power_state`, `host`",
+      "severity": "major",
+      "suggested_fix": "Name the actual source and its field names, give the FIELDALIAS mapping to `instance_uuid`/`vm_state`/`task_state`/`host`, and name the timestamp field used for age (for example the server `updated` field, or the notification event time)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "This describes an entire OpenStack monitoring suite (networks, disks, logins). It does not describe this UC, which flags virtual machines that have sat in a 'being built' or 'error' state for too long.",
+      "field": "grandmaExplanation",
+      "quote": "We monitor the building blocks of your private cloud—computers, networks, disks, and logins—so new systems come up reliably and people are not locked out",
+      "severity": "major",
+      "suggested_fix": "For example: 'We watch for new virtual servers that get stuck while being created, or that fail, and still have not recovered after 15 minutes, so someone can fix them before the person who asked for the server is left waiting.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is Linux capacity boilerplate. None of it explains why a Nova instance would appear stuck in building/error without a real fault.",
+      "field": "knownFalsePositives",
+      "quote": "Package managers spike `instance_uuid` metrics ... Nightly backup I/O on `instance_uuid` ... mimics sustained load",
+      "severity": "major",
+      "suggested_fix": "List real causes. Large images or boot-from-volume builds legitimately take longer than 15 minutes in `block_device_mapping`/`spawning`. ERROR instances are deliberately retained for forensics or awaiting tenant deletion. Stale snapshots still show the old state after the instance recovered or was deleted. Test/CI projects create and fail instances on purpose."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`exclusions`, `evidence` ('Linux —' panel, `csv:linux_controls`) and the `knownFalsePositives` suppression note recast an OpenStack instance-lifecycle fault detection as a Linux capacity control, which is the wrong domain.",
+      "field": "cross_field",
+      "quote": "Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+      "severity": "major",
+      "suggested_fix": "Use an OpenStack-specific exception list (for example project IDs of CI/test tenants, or instance UUIDs kept in ERROR on purpose) and drop the Linux naming."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generic boilerplate. It conflicts with the SPL's `earliest=-6h` window, and a 900 s poll interval is too coarse for a 15-minute stuck threshold. It gives no OpenStack-specific collection, credentials (admin or reader role with all-projects scope) or validation steps.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=openstack:nova into openstack. Default poll interval 300–900 seconds ... Schedule the SPL with earliest=-24h@h",
+      "severity": "major",
+      "suggested_fix": "Describe a scripted input that runs `openstack server list --all-projects --long -f json` every 2 to 5 minutes with a reader/admin application credential, the sourcetype and field aliases, validation against `openstack server list --status BUILD/ERROR`, and routing to the cloud operations queue."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic team, yet the SPL's state values and timestamp field cannot match real Nova data. That is not evidence of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", \"reviewer\": \"catalog-team\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to unverified until a named reviewer has run the search against real Nova snapshots or notifications."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs only `instance_uuid`, `host`, `vs` and `max_age`. No image ID is collected or returned.",
+      "field": "implementation",
+      "quote": "Auto-open tickets with hypervisor and image id.",
+      "severity": "minor",
+      "suggested_fix": "Add the image field to the data source and the output columns, or drop the image ID from the ticket description."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Hyper-V is not part of this OpenStack Nova detection.",
+      "field": "equipment",
+      "quote": "\"hyperv\", \"openstack\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `hyperv`, unless Hyper-V compute drivers are explicitly in scope."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.openstack.org/nova/latest/reference/vm-states.html",
+      "field": "spl",
+      "issue": "The search tests `vs=\"build\"`, but Nova's `vm_state` value is `building` (`BUILD` is only the API `status`), so with `coalesce(vm_state, state)` building instances are missed. `state_changed_epoch` is not a Nova field, so `age_sec` is null and `where age_sec>900` drops every row. `stats max(age_sec)` over 6 hours of snapshots also keeps instances that have since recovered; it should take `latest(vm_state)` per `instance_uuid` first. Evidence: https://docs.openstack.org/nova/latest/reference/vm-states.html and nova/objects/fields.py InstanceState (BUILDING='building').",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-2.9.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Detecting Nova instances stuck in building/error past 15 minutes is a valuable, well-scoped idea. The collection method, however, names a deprecated CLI with no JSON output. The SPL compares against Nova state strings and a timestamp field that do not exist, the grandma text describes a different, generic UC, and the remaining fields are Linux-capacity boilerplate under a 'verified' status.",
+  "tier": "deep",
+  "uc_id": "UC-2.9.9",
+  "verdict": "incorrect"
+}

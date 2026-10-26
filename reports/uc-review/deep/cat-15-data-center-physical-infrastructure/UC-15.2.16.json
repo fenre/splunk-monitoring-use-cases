@@ -1,0 +1,100 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "dce5a6c88936d874507372c01721790d6dd8d5ed6f5a4ccfea4e23f817ada1ff",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.16.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description says the detection counts events by `entity` against a configured threshold. The SPL has no stats, no count and no `entity` field: it returns every reading where `surface_temp_c <= dew_point_c + 1`.",
+      "field": "cross_field",
+      "quote": "Combines `count` by `entity` and compares against configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real logic: each sensor reading at a `location` whose surface temperature is at or below the dew point plus 1 °C produces a row, and `rh_pct` is shown for context."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation and `dataSources` disagree with the SPL. The implementation says dew point may be computed from RH and air temperature, but no air-temperature field is listed and no step says where the computation happens. The SPL expects `dew_point_c` to already exist. `dataSources` lists only `surface_temp_c` and `dew_point_c`, while the SPL also reads `location` and `rh_pct`. A reader who ingests only RH and air temperature gets zero rows.",
+      "field": "cross_field",
+      "quote": "Compute dew point from RH and air temp or ingest BMS dew point.",
+      "severity": "major",
+      "suggested_fix": "List every field the SPL needs (`location`, `surface_temp_c`, `dew_point_c`, `rh_pct`) plus the ambient air-temperature field. State whether `dew_point_c` is supplied by the BMS or calculated at index or search time (for example with a Magnus-formula eval or a props.conf EVAL), and give that calculation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "The text has two concatenated copies of Steps 1 to 4, and the Step 4 heading appears four times in a row. The second copy is generic boilerplate that does not apply to sensor telemetry: a spot-check of `host, user, action`, granting `list_inputs`, `vendor API ... HTTP 401/429`, and `throttle per entity` when the SPL has no entity. It also suggests `earliest=-24h@h` for a critical alert, which would page on day-old readings that have already cleared.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps. Use a short scheduled window (for example the last 15 minutes) with `latest` per `location`, throttle on `location`, and validate a few sensors against the BMS dew-point readout. Remove the `host/user/action` and vendor-API troubleshooting text."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "None of the listed false positives is a real cause of a false condensation alert. The fields they cite (`count`, `src`, `host`) are not used by the detection.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `sensor:condensation`** — Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: a surface probe mounted on a chilled-water pipe or CRAH coil where condensation is expected; RH sensors drifting or saturating near 100% RH; a stale BMS dew-point value after a polling failure; °F/°C unit mismatches between the surface and dew-point feeds; and probes temporarily removed or disturbed during maintenance."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The subcategory guide puts environmental sensor telemetry in `index=dc_environmental` with sourcetype `snmp:envmon` (or BMS sourcetypes). This UC uses an unexplained custom sourcetype and `index=environment`, which appear nowhere in the guide.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"sensor:condensation\"` (surface_temp_c, dew_point_c)",
+      "severity": "minor",
+      "suggested_fix": "Either align with the guide's `dc_environmental` index and envmon/BMS sourcetypes, or state plainly that `sensor:condensation` and `index=environment` are site-defined names the reader must create."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The monitored equipment is environmental sensors or the BMS, not Splunk. Tagging it as `splunk` puts the UC in the wrong equipment filter.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"splunk\"]",
+      "severity": "minor",
+      "suggested_fix": "Tag it with the environmental-sensor / BMS equipment slug the catalogue uses for subcategory 15.2."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk configuration pages. None supports the dew-point method or the condensation margin.",
+      "field": "references",
+      "quote": "Splunk savedsearches.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add a reference for the dew-point calculation or the ASHRAE TC 9.9 humidity and dew-point guidance, and the vendor documentation for the sensor or BMS that supplies the values."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search has no time bound and no per-location reduction, so every historical reading in the search window becomes its own row. It also relies on a precomputed `dew_point_c` that the implementation says may need to be calculated. Consider `| stats latest(surface_temp_c) latest(dew_point_c) latest(rh_pct) by location` before the `where`, or an eval that computes the dew point.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`index=environment sourcetype=\"sensor:condensation\"` differs from the guide's `dc_environmental` / `snmp:envmon` convention for environmental sensors.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0092-UC-15.2.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The core idea (alert when a surface is within 1 °C of the dew point) shows up in the SPL and the implementation, but most of the prose is template text. That text describes a count-by-entity threshold the SPL does not have, and the detailed implementation is a duplicated, generic skeleton that never says where `dew_point_c` comes from.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.16",
+  "verdict": "rewrite"
+}

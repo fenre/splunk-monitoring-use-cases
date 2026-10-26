@@ -1,0 +1,122 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4a6759055339471bd4136547a813d4e47dd540ea0291d8e0de87f42cecf44a0c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL ends in `timechart ... by feed_id`, which pivots each feed into its own column, so no feed_id field exists in the results. Per-feed suppression (detailedImplementation), the visualization's table of 'breached feed_id, latest kw, kvar', and the description's per-feed alert therefore cannot work on this output. thd_pct, kw and kvar are also dropped by the timechart.",
+      "field": "cross_field",
+      "quote": "**`alert.suppress.fields=feed_id`** set to **`30m`** minimum",
+      "severity": "major",
+      "suggested_fix": "Describe the output as a 15-minute average-PF chart per feed and say that per-feed alerting needs a stats-based search (for example stats avg(pf) min(pf) max(thd_pct) latest(kw) latest(kvar) by feed_id). Flag the SPL for human update."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/administer/manage-users-and-security/10.6/manage-splunk-platform-users-and-roles/define-roles-on-the-splunk-platform-with-capabilities",
+      "explanation": "indexes_edit lets a user change index settings. It does not grant search access to an index, which is controlled by the role's srchIndexesAllowed setting in authorize.conf. Following this advice would hand out an index-admin capability and still not fix scheduled-search visibility.",
+      "field": "detailedImplementation",
+      "quote": "grant `indexes_edit` viewers read-only clones instead of sharing admin passwords",
+      "severity": "blocker",
+      "suggested_fix": "Tell readers to add `power` to srchIndexesAllowed (and srchIndexesDefault if wanted) for the power_ops role and for the owner of the scheduled search. Do not grant indexes_edit."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "TRANSFORMS- class settings belong in props.conf and reference stanzas in transforms.conf. inputs.conf does not hold them.",
+      "field": "detailedImplementation",
+      "quote": "capture props/transform notes in **`inputs.conf`** alongside any **`TRANSFORMS-`** stanza",
+      "severity": "minor",
+      "suggested_fix": "Say to keep TRANSFORMS-/EVAL-/FIELDALIAS- settings for power_meter:pq in props.conf, with the referenced stanzas in transforms.conf."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "implementation says 0.92 applies to both leading and lagging PF, but the SPL uses a single `pf < 0.92` test. Many PQ meters report leading PF as negative or with a separate quadrant flag, so a healthy leading value such as -0.98 would breach while a leading 0.90 might not. The text never says which convention `pf` uses.",
+      "field": "cross_field",
+      "quote": "Align **`pf`** alert thresholds with the utility reactive-demand rider or internal PF guarantee (often 0.92 leading/lagging)",
+      "severity": "major",
+      "suggested_fix": "Document the meter's PF sign convention and require normalising pf to an absolute value plus a separate leading/lagging flag before the threshold is applied."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Voltage THD and current THD are not distinguished. The 8% limit matches typical low-voltage voltage-THD limits (for example IEEE 519), but current THD on IT loads routinely exceeds 8%, so mapping current THD here would flood alerts. No PQ meter family, MIB or Modbus register is named either, so the mapping cannot be reproduced.",
+      "field": "dataSources",
+      "quote": "harmonic proxies mapped as **`thd`** / **`thd_pct`**",
+      "severity": "major",
+      "suggested_fix": "State that thd_pct is voltage THD at the metered bus (or give a separate current-TDD limit). Name the meter families in scope and the objects or registers that supply pf, kw, kvar and THD, including scaling."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The template scenarios (batch count, `src`, synthetic probe) do not apply to power-quality telemetry. The real benign causes are missing: PF sags at light load (nights, decommissioned halls), capacitor-bank step switching, generator testing or transfer periods, and UPS rectifier behaviour during battery recharge.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `pf` < 0.92",
+      "severity": "major",
+      "suggested_fix": "Replace them with PQ-specific causes and tell readers to pair PF breaches with kw (ignore below a minimum load), capacitor-bank state, and the generator or ATS event timeline."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "With latest=now the newest 15-minute bucket is always partial, so the claim that every bucket completes is false. The suppression line also leaves out the separate alert.suppress.period setting that actually holds the 30m value.",
+      "field": "detailedImplementation",
+      "quote": "**`dispatch.earliest_time=-35m@m`** pairs cleanly with **`cron_schedule=*/15 * * * *`** so each fifteen-minute **`span=15m`** bucket completes before evaluation",
+      "severity": "minor",
+      "suggested_fix": "Use dispatch.latest_time=@15m (for example earliest=-30m@15m) so only complete buckets are evaluated. Show suppression as alert.suppress=1, alert.suppress.fields=feed_id, alert.suppress.period=30m."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Harmonic limits for a data center are normally set at the point of common coupling with the serving utility or distribution operator, not the transmission operator.",
+      "field": "detailedImplementation",
+      "quote": "harmonic ceilings aligned with **`thd_pct`** distortion budgets negotiated with the transmission operator",
+      "severity": "minor",
+      "suggested_fix": "Refer to the serving utility's interconnection or tariff requirements (or internal IEEE 519-based targets)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "This URL returned HTTP 404 when fetched.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/MonitorNetworks",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace it with https://docs.splunk.com/Documentation/Splunk/latest/Data/SendSNMPeventstoSplunk and add the PQ meter vendor's SNMP/Modbus register documentation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The UC polls PQ meter values. It does not use traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the polled power-meter equipment model used in the catalogue."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Filtering to breaching rows before `timechart avg(pf)` averages only the bad samples and hides normal ones, so avg_pf is not the feed's real average. The timechart also drops thd_pct, kw and kvar and removes feed_id as a field, so per-feed alerting and suppression cannot work. A plain `pf < 0.92` test ignores leading/lagging sign conventions.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-15.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC states a reasonable utility PF floor, but the timechart output cannot support the per-feed alerting, suppression and tables the prose describes. Leading and lagging PF and voltage versus current THD are left ambiguous, and the troubleshooting text contains Splunk configuration errors (indexes_edit for search access, TRANSFORMS in inputs.conf).",
+  "tier": "deep",
+  "uc_id": "UC-15.1.14",
+  "verdict": "incorrect"
+}

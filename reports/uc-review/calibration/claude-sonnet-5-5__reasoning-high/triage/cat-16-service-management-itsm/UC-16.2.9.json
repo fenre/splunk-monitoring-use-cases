@@ -1,0 +1,86 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "9ec158f0e43a56ca962f64357abd8fd414f180c66de36a5d5f838c63339a4804",
+  "file": "content/cat-16-service-management-itsm/UC-16.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConversionFunctions",
+      "explanation": "The SPL pasted into Step 2 uses `to_string`, but the Splunk eval conversion function is `tostring`. The spl field correctly uses `tostring`. A reader copying the documented search will get an unknown-function error.",
+      "field": "detailedImplementation",
+      "quote": "| eval ok=if(match(lower(to_string(check_passed)),\"(?i)true|1|pass|ok\"),1,0)",
+      "severity": "blocker",
+      "suggested_fix": "Replace `to_string(check_passed)` with `tostring(check_passed)` so the embedded SPL matches the spl field exactly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation and detailedImplementation (Step 1) promise a per-class and per-region pass rate and a monthly trend. The SPL groups by ci_class only, has no region field, and looks back seven days (earliest=-7d) with no timechart. The implementation field describes a different output.",
+      "field": "cross_field",
+      "quote": "Aggregate pass rate per class and region. Trend monthly for governance scorecards.",
+      "severity": "major",
+      "suggested_fix": "Either add region to the stats clause and a timechart or monthly summary, or reword the text to say it scores the last 7 days per ci_class."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `cmdb:validation`, with a `check_passed` field that is never documented. snow:cmdb_ci is listed but unused. Nothing says what produces cmdb:validation or how it is keyed to ci_class, so the detection cannot be reproduced. The validation job (IP matches DNS, agent responds, owner replied) is described only as examples.",
+      "field": "dataSources",
+      "quote": "`snow:cmdb_ci`, validation job results (`cmdb:validation`)",
+      "severity": "major",
+      "suggested_fix": "Document the cmdb:validation schema (ci_class, ci_sys_id, check_name, check_passed, _time) and how it is produced and joined to Splunk_TA_snow CI data. Remove snow:cmdb_ci if it is not used."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL has no alert threshold, as it just lists every class sorted by accuracy_pct. The test scenarios talk about an alertable row and a value 'below -7d', which is the time window and not a threshold.",
+      "field": "controlTest",
+      "quote": "where `accuracy_ratio` grouped by `ci_class` satisfies -7d",
+      "severity": "minor",
+      "suggested_fix": "Define the threshold the test uses, for example accuracy_pct below 95 for a class, and add the matching where clause or say the search is a report."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The second block of Steps 1 to 5 is generic add-on boilerplate (poll intervals, HEC ACLs, 401/429 from a vendor endpoint). It sits next to a first block that talks about the ServiceNow CI view. The 'Step 3 - confirm discovery dates if we measure freshness' line is also leftover from a different UC.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "minor",
+      "suggested_fix": "Keep one set of steps. Validation should sample a few CIs per class, re-run the check by hand (ping, DNS lookup, owner reply), and confirm the pass/fail matches the cmdb:validation event."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Splunk_TA_snow (Splunkbase 1928) is correctly named. 'discovery/network' is not an add-on, and the validation checks are custom, so the real producer of cmdb:validation is not named.",
+      "field": "app",
+      "quote": "`Splunk_TA_snow` + discovery/network",
+      "severity": "minor",
+      "suggested_fix": "Name the job or tool that writes cmdb:validation (a scheduled script, ServiceNow Discovery, or a SOAR playbook) and keep Splunk_TA_snow only for CI inventory."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The unanchored regex `(?i)true|1|pass|ok` is permissive: it matches any value that contains 'ok' or '1' (for example 'broken', 'token', '10', 'not ok'), so those would be scored as passes. Use an anchored list such as ^(true|1|pass|passed|ok)$.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0073-UC-16.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The idea is clear (pass-rate score per CI class from validation results), and the SPL is sensible. The embedded SPL in detailedImplementation uses an eval function that does not exist, the prose names a region split and a monthly trend that the SPL does not do, and the validation job feed is an undefined custom sourcetype.",
+  "tier": "triage",
+  "uc_id": "UC-16.2.9",
+  "verdict": "incorrect"
+}

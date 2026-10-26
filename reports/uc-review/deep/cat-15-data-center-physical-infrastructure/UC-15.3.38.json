@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "45d832d1a2b698f5fea4595ac6b47927c2224f5e4a78f3f34b7a0ef59e481fdd",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.38.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is the \"App for Cisco Network Data\" (cisco_ios), a set of IOS and NX-OS dashboards. It is not a Cisco Security add-on, and it has no role in Cisco Spaces path analytics.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Cisco Security (Splunkbase 1352)\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove this reference. Replace it, the generic \"Cisco Security documentation\" link and the unused HEC link with the Spaces Add-On (Splunkbase 8485) page and the Cisco Spaces Firehose DEVICE_LOCATION_UPDATE documentation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "The `checkpoint` slug (Check Point firewalls) was extracted from the phrase \"adjust security checkpoint locations\". This UC has nothing to do with Check Point products.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"checkpoint\", \"cisco\"]",
+      "severity": "major",
+      "suggested_fix": "Remove `checkpoint` from `equipment`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL reads only Cisco Spaces location events. The Meraki and IOS add-ons do not supply zone-transition data, because the APs report location to Cisco Spaces, not to Splunk. Listing them, along with `cisco_ios`/`cisco_meraki` in `equipmentModels`, makes readers install add-ons the UC does not need.",
+      "field": "app",
+      "quote": "`Cisco Meraki Add-on for Splunk` (Splunkbase 5580), `TA-cisco_ios` (Catalyst), Cisco Spaces API",
+      "severity": "major",
+      "suggested_fix": "List only the Spaces Add-On for Splunk (Splunkbase 8485). Describe Meraki MR and Catalyst 9100 APs as the location sources feeding Cisco Spaces in `hardware`, not as Splunk add-ons."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/http-streaming/",
+      "explanation": "`cisco:spaces:path_analytics` is listed but never used by the SPL. `prev_zone`, `transit_sec` and `transition` are computed by streamstats and eval, not ingested. The index `spaces` and field `device_mac` also differ from the sibling Spaces UCs (UC-15.3.34–36 use `cisco_spaces` and `macAddress`), so one deployment cannot satisfy them all. In Firehose JSON the MAC and location are nested (`deviceLocationUpdate.device.macAddress`, `deviceLocationUpdate.location.name`).",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:spaces:location`, `sourcetype=cisco:spaces:path_analytics` Indexes: spaces. ... Key fields: _time, device_mac, prev_zone, transit_sec, transition, zone_name.",
+      "severity": "major",
+      "suggested_fix": "List only the feed the SPL reads, and use the same index name as the sibling Spaces UCs. Give the Firehose JSON paths for device_mac and zone_name, and mark prev_zone, transit_sec and transition as search-time derived fields."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/event-types/",
+      "explanation": "Per-device path tracking depends on a stable MAC. Probing clients on modern operating systems randomise their MAC addresses, and Cisco's Firehose documentation describes DEVICE_LOCATION_UPDATE as produced while the device is connected to the network. Paths built from probe data will therefore fragment into many short-lived \"devices\".",
+      "field": "implementation",
+      "quote": "Cisco Spaces uses Wi-Fi probe requests and connected client location data from Meraki or Catalyst APs to track device movement across defined zones",
+      "severity": "major",
+      "suggested_fix": "Say that path analytics is reliable only for associated (connected) clients. Note that MAC randomisation undercounts unique_visitors and breaks path continuity for probing-only devices."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Wi-Fi path analytics cannot be validated against a camera NVR; the source of truth is the Cisco Spaces location and path views. The text also says to \"Enable Data Model Acceleration ... for `mstats`\" although the UC uses no data model or tstats, repeats the Step 4 heading four times, and truncates the implementation (\"Aggregate…\").",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the video NVR or camera management system for the same cameras and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by comparing the top transitions and visitor counts for one hour with the Cisco Spaces location analytics dashboard for the same building. Remove the acceleration paragraph and the duplicated headings."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "On Splunkbase, the current Spaces Add-On (2.0.20) supports Splunk 9.4 through 10.6.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "Change the value to 9.4+ (and Cloud)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats current=f last(_time) as prev_time by device_mac` takes the time of the device's previous event, which is usually the last location ping in the old zone. `transit_sec` is therefore the ping interval at the moment of the zone change, not the time taken to move between zones, so `avg_transit_min` mostly reflects update cadence. To measure dwell or transit time, track the first-seen time per zone, for example with streamstats reset_on_change or by grouping consecutive same-zone runs.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "field": "spl",
+      "issue": "`index=spaces sourcetype=\"cisco:spaces:location\"`: check that this sourcetype exists. A published ta_cisco_spaces setup guide lists only cisco:spaces:firehose, cisco:spaces:firehose:health and cisco:spaces:log, with a default index of `cisco_spaces` (https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup). The sibling Spaces UCs also use index=cisco_spaces.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0077-UC-15.3.38",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The implementation narrative explains path analytics well, but the surrounding metadata is unreliable. References cite Splunkbase 1352 under the wrong name, the equipment tags include Check Point (from the phrase \"security checkpoint\"), the Meraki and IOS TAs are listed without contributing data, and the validation step points to an NVR. The SPL's \"transit time\" measures the gap between location pings, not walking time between zones.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.38",
+  "verdict": "incorrect"
+}

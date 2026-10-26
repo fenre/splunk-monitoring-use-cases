@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7dd74b35cb4658a71f4c4ff14854ea25852a388c74b733a4698f6c65be825508",
+  "file": "content/cat-22-regulatory-compliance/UC-22.7.51.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`dataSources`, `implementation`, `exclusions` ('excluded via the monitored-segment inventory') and the time-chart-per-segment `visualization` all depend on `monitored_segments.csv` and a segment field. The SPL never reads the lookup, never filters out test or lab segments, and outputs no segment.",
+      "field": "cross_field",
+      "quote": "The monitored-segment inventory lookup `monitored_segments.csv` defines in-scope networks.",
+      "severity": "major",
+      "suggested_fix": "Either describe the detection as estate-wide per-source anomaly scoring with no segment scoping, or document how `monitored_segments.csv` (CIDR column, `match_type=CIDR`) is applied to `src`/`dest` and which segment field the dashboard uses."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The search only returns sources that are already anomalous. `coverage_status` is the constant string 'analysed', and nothing checks for silent segments or missing feeds, so the output cannot show the absence of monitoring gaps.",
+      "field": "evidence",
+      "quote": "demonstrates the network is being monitored and analysed without gaps",
+      "severity": "major",
+      "suggested_fix": "Say the evidence shows scored anomalous sources over the window. If gap-free coverage is needed, point to a separate feed-coverage check (for example `tstats count by sourcetype, segment` against the segment inventory) instead of claiming it here."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "A second generic template is appended after the real Steps 1–5, with 'sourcetype=see SPL', `index=main`, vendor API polling and HTTP 401/429 troubleshooting. None of this applies to firewall or flow telemetry in Network_Traffic, and it contradicts the earlier steps (schedule `earliest=-24h@h`, a different validation approach). The 'Ecosystem integration' paragraph is also boilerplate.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Delete the duplicated Step 1–5 block and the ecosystem boilerplate. Keep the UC-specific steps and add vendor TA names (for example Splunk Add-on for Palo Alto Networks, Splunk Add-on for Cisco ASA, Splunk Add-on for AWS) for the listed sourcetypes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Running every 15 minutes over a rolling 24 hours and summary-indexing each run writes the same anomalous source up to 96 times a day. The 'adverse events analysed (24h)' single value and the per-segment trend would therefore heavily over-count.",
+      "field": "detailedImplementation",
+      "quote": "cron_schedule = */15 * * * *\ndispatch.earliest_time = -24h\n...\nactions = summary_index",
+      "severity": "major",
+      "suggested_fix": "Either run hourly over the last completed hour, using the 24-hour data only for the baseline, or deduplicate by `src` and hour before summary-indexing. Describe the chosen approach."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios with placeholder index and sourcetype values. They do not name the real causes of per-source traffic spikes.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=network_traffic` `configured sourcetype` without crossing `zscore` > 3. ... BAA/DPA-covered vendor generates expected rows grouped by `All_Traffic.src`",
+      "severity": "major",
+      "suggested_fix": "List the real causes: backup and replication jobs, patch and software distribution servers, vulnerability scanners, NAT gateways or proxies that aggregate many clients behind one `src`, and month-end batch transfers. Mention the allowlist in `monitored_segments.csv` as the suppression path if it is implemented."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The baseline is only the same 24 hourly buckets, mixed across every destination for that source. It is not a longer-term per-source baseline, while `implementation` speaks of a 30-day baseline.",
+      "field": "detailedImplementation",
+      "quote": "`eventstats` baselines each source and a deviation `zscore` plus a volume ceiling identify adverse events",
+      "severity": "minor",
+      "suggested_fix": "State that the z-score compares each src/dest/hour count with that source's mean and standard deviation within the 24-hour window, and that the 30-day profile is used only for threshold calibration."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "The SPL runs on Splunk core with the CIM Network_Traffic model, and `app` calls ES only 'recommended'. Listing ES as a premium app implies a requirement.",
+      "field": "premiumApps",
+      "quote": "\"premiumApps\": [\n    \"Splunk Enterprise Security\"\n  ]",
+      "severity": "minor",
+      "suggested_fix": "Remove ES from `premiumApps`, or mark it as optional for notable and risk integration."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "No ISO 27001 mapping exists in the UC, and the reference adds nothing for implementers. A Splunk CIM Network_Traffic reference is missing.",
+      "field": "references",
+      "quote": "\"title\": \"ISO/IEC 27001 Information Security\"",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the Splunk CIM Network_Traffic data model documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "Both mappings claim 'full' assurance and call a SIEM the 'sole-sufficient technical control' or 'analytic engine'. DE.CM-01 coverage depends on segment instrumentation that the SPL does not verify, and the evidenceArtifact claims 'per-segment monitoring confirmation' that the search does not produce. 'Partial' or 'contributing' fits better.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`monitored_segments.csv` is never applied. `coverage_status` is hardcoded 'analysed'. The z-score baseline uses only the same 24-hour window, mixed across destinations, and adds a fudge term `sd_count+1`. `summariesonly=f` contradicts the 'accelerated, low-cost' framing.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1071 (Application Layer Protocol) is not specifically detected by a per-source connection-count z-score. The mapping is loose.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0130-UC-22.7.51",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The hand-written core (prerequisites, the two-part monitor/analyse explanation, troubleshooting) is reasonable. However, the text repeatedly promises segment-scoped, gap-free coverage that the SPL never implements, a second generic template is appended to `detailedImplementation`, and `knownFalsePositives` is template residue.",
+  "tier": "deep",
+  "uc_id": "UC-22.7.51",
+  "verdict": "rewrite"
+}

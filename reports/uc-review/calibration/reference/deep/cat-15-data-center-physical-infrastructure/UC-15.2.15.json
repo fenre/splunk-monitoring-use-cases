@@ -1,0 +1,91 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c1f33440fabc048b3df277fa3c848bad371534238400a48dd52815a2f2856018",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/617/",
+      "explanation": "Splunkbase app 617 does not exist (the Splunkbase API returns 'App was not found'), and the Universal Forwarder is not a Splunkbase app, so the stated collection component cannot be installed.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real path for BMS economizer points: BACnet through an edge gateway or Splunk Edge Hub, a BMS historian export or REST API through a scripted input or HEC, or SNMP where the AHU controller supports it. State that bms:economizer is a site-defined sourcetype."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `visualization` ('OA temp vs mode') describe weather-conditioned analysis, and `dataSources` lists oa_temp_f and enthalpy_ok. The SPL uses neither, so it flags every AHU on every hot or humid day, when economizer lockout is correct behaviour.",
+      "field": "cross_field",
+      "quote": "Compare economizer hours to weather bin data. Investigate AHU with low free-cooling in mild weather.",
+      "severity": "major",
+      "suggested_fix": "State plainly that the search counts economizer-mode samples per AHU per day with no weather filter. Say that comparing against outdoor temperature or enthalpy_ok (counting only periods when free cooling was available) needs an additional condition."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`econ_hours` is the number of events with mode=\"economizer\" per day, which equals hours only at one sample per hour. At the 300–900 s polling this text recommends, the count is 4–12 per hour, so the '< 4 hours' threshold really means under 20–60 minutes.",
+      "field": "detailedImplementation",
+      "quote": "Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "State the polling interval the threshold assumes, or describe economizer time as samples multiplied by the poll interval in hours. Keep the prose threshold in hours only if the computation is in hours."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The Step 4 heading repeats four times, followed by a second generic Step 1–5 block (vendor API rate limits, inventory counts, role grants). 'Step 1 — Configure data collection' holds analysis advice rather than collection steps.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicates and generic block. Step 1 should say which BMS points to collect (AHU mode, outside-air damper position, outside-air temperature and enthalpy, the economizer enable/lockout flag) and how."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real reason an AHU would show low economizer use without a fault.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `ahu_id` — Health checks in `cooling` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: hot or humid days when the high-limit or enthalpy lockout correctly disables the economizer, AHUs that are off or in maintenance, partial polling days, and BMS mode labels that differ from the literal 'economizer' (for example 'free_cooling' or 'econ')."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "No `activity` field exists in the SPL or the data source.",
+      "field": "value",
+      "quote": "by surfacing `activity` early",
+      "severity": "minor",
+      "suggested_fix": "State the value: underused free cooling means chillers or compressors run when outside air could do the job, raising energy cost and PUE."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... by ahu_id` turns each AHU into its own column, so no field named econ_hours exists afterwards and `where econ_hours < 4` returns nothing. Use `bin _time span=1d | stats ... by _time ahu_id` instead.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "econ_hours counts samples rather than hours, and the search ignores oa_temp_f and enthalpy_ok, so it fires on every day when economizer lockout is correct.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0091-UC-15.2.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The intent (find air handlers that use free cooling less than the weather allows, which suggests stuck dampers or bad enthalpy logic) is valuable and stated once. The rest of the text is template residue. It gives the wrong collection path (Universal Forwarder and a non-existent Splunkbase ID), calls a sample count 'hours', and implies weather-aware detection the SPL does not do.",
+  "tier": "deep",
+  "uc_id": "UC-15.2.15",
+  "verdict": "incorrect"
+}

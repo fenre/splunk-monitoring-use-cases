@@ -1,0 +1,106 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c349b69f867ad577990334826426cec79a10f3c7bbccbf7637ba7faa6fa5c77c",
+  "file": "content/cat-20-cost-capacity-management/UC-20.3.13.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://assets.cdn.sap.com/agreements/product-use-and-support-terms/sur/sap-software-use-rights-english-v4-2026.pdf",
+      "explanation": "SAP requires a Named User licence for every individual authorised to use the software, regardless of how many are logged on at once, so concurrent peaks cannot exceed or validate a named-user entitlement. Indirect (Digital Access) use is licensed by counting documents created through non-SAP intermediaries, which SM20 dialog-session counts do not measure. A reader would draw false compliance conclusions.",
+      "field": "detailedImplementation",
+      "quote": "SAP named-user contracts are priced on authorized humans while technical users and peak dialog sessions can exceed design points. Comparing entitled named users to measured concurrent dialog peaks highlights indirect access risk",
+      "severity": "blocker",
+      "suggested_fix": "Reframe as capacity/utilisation: compare peak hourly distinct dialog users per system to the number of named users licensed, to spot over-licensing (shelfware) and dormant accounts. Point to USMM/SLAW2 measurement results for named-user compliance and to SAP's Digital Access evaluation (report RSUVM_DAC / SAP Passport) for indirect access; drop the claim that this UC detects indirect-access risk."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` refreshes the entitlement weekly, but the SPL's join subsearch reads `sap:license_position` with `earliest=-1d`. On six days out of seven `entitled` is null, `peak_to_entitled_pct` is null and the alert silently returns nothing. A reader following both would build an alert that rarely runs against data.",
+      "field": "cross_field",
+      "quote": "(2) Refresh `named_users_entitled` from LAW or contract system weekly.",
+      "severity": "blocker",
+      "suggested_fix": "Either state a daily refresh of `sap:license_position`, or (in a reviewed SPL revision) widen the subsearch window to cover the refresh interval, e.g. earliest=-8d, and say so in the implementation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "SM20 is the transaction that displays the SAP Security Audit Log; the log records audit events (logons, transaction starts, RFC calls), not hourly session snapshots. `dc(user)` per hour therefore counts users who generated any audited event, including RFC/background and technical users, not concurrent dialog sessions as `named_dialog_users` implies. 'Gateway session logs' and SAProuter logs (in `app`) record network connections, not users.",
+      "field": "implementation",
+      "quote": "(1) Ingest SM20 or gateway session logs with one-hour granularity.",
+      "severity": "major",
+      "suggested_fix": "Specify the Security Audit Log logon events and filter to dialog logons (e.g. successful logon message AU1 with dialog logon type), exclude technical/system users, or use a session snapshot source (SM04/AL08 user lists via an export) if true concurrency is required. Document the field mapping to `sap_user` and `system_id`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No concrete collection path is named. Security Audit Log files can be monitored with a Universal Forwarder on the application server, but the `sap:sm20` sourcetype is custom and SAProuter does not produce user-session data.",
+      "field": "app",
+      "quote": "SAProuter or SAP Security Audit Log forwarder, SAP Solution Manager export — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify and name the actual path: Universal Forwarder monitor of the Security Audit Log directory (DIR_AUDIT / rsau files) with a custom `sap:sm20` sourcetype and field extractions, or a third-party SAP connector from Splunkbase (confirm app name and ID). Drop SAProuter."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://support.sap.com/en/my-support/systems-installations.html",
+      "explanation": "Validation against a cloud billing console, and the paragraph 'Enable Data Model Acceleration ... otherwise tstats/mstats may return no results', do not apply: the SPL uses neither tstats nor mstats and SAP licences are not in a cloud bill.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\ncompare with the cloud billing console for the same scope, accounts, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by comparing one system's hourly user count with AL08/SM04 at the same time and the entitlement figure with the latest USMM/SLAW2 result; remove the DMA paragraph."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios contain a parsing artefact (`]` as a grouping field) and generic causes; none names a real SAP cause of an inflated user count.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `_time`, `system_id`, `]`** — Health checks in `sap` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List SAP-specific causes: RFC and background/technical users counted as people, month-end or year-end close peaks, go-live or training waves, and users logged on to several clients of the same SID counted per system. Remove the `]` artefact (it also appears in `description` and `controlTest`)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Generic Splunk references only; nothing on SAP licence measurement or the Security Audit Log.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Add SAP system measurement (USMM/SLAW2): https://support.sap.com/en/my-support/systems-installations.html and SAP Security Audit Log documentation on help.sap.com."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`where peak_to_entitled_pct>25 AND peak_concurrent>entitled*0.9`: the second condition implies the first, so the 25% clause is dead logic; the join subsearch `earliest=-1d` conflicts with a weekly entitlement refresh; and there is no dialog-logon or technical-user filter.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' is high for a capacity/utilisation report that cannot demonstrate a licence breach.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Compliance' overstates what the UC measures; named-user compliance comes from USMM/SLAW2, not session peaks.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0121-UC-20.3.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC misframes SAP licensing: named-user licences are counted per authorised individual (measured with USMM/SLAW2), not by concurrent sessions, and indirect/digital access is measured by documents created through non-SAP systems, so hourly distinct users in the Security Audit Log can neither show a named-user breach nor indirect-access risk. The entitlement refresh cadence also conflicts with the SPL's one-day lookup window, and the collection and validation text is generic or wrong for SAP.",
+  "tier": "deep",
+  "uc_id": "UC-20.3.13",
+  "verdict": "incorrect"
+}

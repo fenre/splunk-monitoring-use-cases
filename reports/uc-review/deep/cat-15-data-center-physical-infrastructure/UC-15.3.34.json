@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "273f1b4fb7181bd4c1a18a05ac92b3519e8d680199bfd5c1f7db16879c18212c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.34.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is the \"App for Cisco Network Data\" (cisco_ios), an app for Cisco IOS, NX-OS and WLC dashboards. It is not a \"Splunk Add-on for Cisco Security\", and it has nothing to do with Cisco Spaces asset tracking.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Cisco Security (Splunkbase 1352)\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove this reference. If you need a second source, use Cisco Spaces IoT Explorer or Firehose API documentation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is the generic Cisco security product support index, which does not cover Cisco Spaces, BLE tags or geofencing. The HEC reference is also unrelated, because the Spaces add-on uses a modular Firehose input, not HEC.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco Security documentation\", \"url\": \"https://www.cisco.com/c/en/us/support/security/index.html\"",
+      "severity": "major",
+      "suggested_fix": "Replace these with Cisco Spaces documentation for IoT Explorer asset tracking and the Firehose API (event types DEVICE_LOCATION_UPDATE and IOT_TELEMETRY)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "In `implementation`, the assignment lookup, the asset_value tiers, the 30-minute dwell outside the zone and the business-hours restriction all describe logic that is absent from `spl`. The SPL never calls a lookup, reads `assignedZone` straight from the event, alerts at once on any mismatch, and applies the 3600-second check at all hours.",
+      "field": "cross_field",
+      "quote": "Maintain a lookup table of asset assignments (asset_tag, assigned_zone, asset_category, asset_value). Alert immediately on high-value assets leaving their zone. For lower-value assets, alert after 30 minutes outside zone. Track \"last seen\" timestamps and flag assets not seen for >1 hour during business hours.",
+      "severity": "major",
+      "suggested_fix": "Either rewrite the implementation to describe exactly what the SPL does, or record that the SPL needs a `lookup` on assetTag for assigned_zone and asset_value, plus duration and business-hours logic. A human must make that SPL change."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The data sources name neither the index nor the sourcetype the SPL uses (`cisco_spaces` / `cisco:spaces:assets`). They also do not explain how the nested Firehose JSON becomes the flat fields `assetName`, `assetTag`, `assetCategory`, `currentZone`, `assignedZone` and `lastSeenTime`. As written, a reader cannot tell whether those fields come from the add-on, from custom props.conf work, or from a lookup.",
+      "field": "dataSources",
+      "quote": "Cisco Spaces Firehose API (IOT_TELEMETRY, DEVICE_LOCATION_UPDATE events for BLE tags)",
+      "severity": "major",
+      "suggested_fix": "State the index and sourcetype the Spaces add-on writes. Name the Firehose JSON paths each SPL field is derived from, and say which fields (assignedZone, asset category) come from a customer-maintained lookup."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/cisco-spaces-firehose/sample-events/",
+      "explanation": "The Cisco Spaces Firehose has a dedicated ASSET_LOCATION_UPDATE event type for asset locator devices (BLE, RFID, UWB). It carries assetInfo.id, category, department and position.lastLocatedTime. DEVICE_LOCATION_UPDATE covers Wi-Fi client devices, and IOT_TELEMETRY covers sensor readings such as temperature and battery.",
+      "field": "dataSources",
+      "quote": "IOT_TELEMETRY, DEVICE_LOCATION_UPDATE events for BLE tags",
+      "severity": "minor",
+      "suggested_fix": "Name ASSET_LOCATION_UPDATE as the primary event type for tracking tagged assets, and map assetName/assetTag/assetCategory/lastSeenTime to the assetLocationUpdate.assetInfo.* and position.lastLocatedTime JSON paths."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The validation step points to a building management system (BMS) console. The source of truth for BLE tag location and geofences is Cisco Spaces IoT Explorer. The step also truncates the implementation text mid-sentence (\"Generate weekly…\") and repeats \"Step 4 — Operationalize\" four times.",
+      "field": "detailedImplementation",
+      "quote": "Step 3 — Validate\nCompare with the BMS console for the same equipment, sensors, and time range.",
+      "severity": "major",
+      "suggested_fix": "Validate by comparing a flagged asset's zone and last-seen time with its entry in Cisco Spaces IoT Explorer for the same window. Remove the duplicated Step 4 headings and the truncation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/8485",
+      "explanation": "On Splunkbase, the current Spaces Add-On release (2.0.20) lists Splunk platform compatibility as 9.4 through 10.6, not 9.2.",
+      "field": "splunkVersions",
+      "quote": "\"9.2+\"",
+      "severity": "minor",
+      "suggested_fix": "Change the value to 9.4+ (and Cloud), matching the add-on compatibility on Splunkbase."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The per-event fields `zone_violation` and `missing` are not carried through `stats ... by assetName, assetTag, assetCategory`, because stats drops any field that is not aggregated or in the by-clause. As a result, the later `eval status=case(isnotnull(zone_violation), ..., isnotnull(missing), ..., 1==1, \"Unknown\")` labels every row \"Unknown\", and the GEOFENCE ALERT / MISSING split never works. Aggregate the flags inside stats, for example `values(zone_violation) as zone_violation, values(missing) as missing`.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "field": "spl",
+      "issue": "`sourcetype=\"cisco:spaces:assets\"` does not appear to be a sourcetype that the Spaces Add-On for Splunk (ta_cisco_spaces, Splunkbase 8485) produces. A published setup skill that inspected the package lists only `cisco:spaces:firehose`, `cisco:spaces:firehose:health` and `cisco:spaces:log`, with all Firehose event types under `cisco:spaces:firehose`. Check props.conf in the add-on; if it confirms this, rescope the search to `sourcetype=cisco:spaces:firehose` filtered on the Firehose event type, and map the nested JSON paths to the fields used. Evidence: https://www.skillsdirectory.com/skills/chambear2809-cisco-spaces-setup",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The missing-asset branch (`_time-lastSeenTime>3600`) only fires when an event arrives for an asset whose own lastSeenTime is stale. An asset that has stopped reporting produces no new Firehose events, so a search over streamed location updates will not detect it. Detecting absence needs a comparison of latest(_time) per assetTag against an asset inventory lookup.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0073-UC-15.3.34",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The implementation prose describes a plausible BLE asset-tracking workflow, but it does not match the SPL. The SPL has a logic bug that makes every row come out as \"Unknown\", it relies on a sourcetype and flat fields that the Spaces add-on does not appear to produce, and the references cite an unrelated Splunkbase app under the wrong name.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.34",
+  "verdict": "incorrect"
+}

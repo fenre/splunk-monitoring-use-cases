@@ -1,0 +1,83 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "c4236a6ce47c4560581a7dbdb03d3b3b72af45e7be36f5bfb8f88fb34a54f76a",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.19.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL fires when feed_a_ok=0 OR feed_b_ok=0 OR load_on_loss_of_one_pct > 100, and it tables raw rows per pdu_id without grouping or counting. The description leaves out the feed-down condition, which is the main redundancy-loss signal.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `load_on_loss_of_one_pct` > 100.",
+      "severity": "major",
+      "suggested_fix": "State that a row is returned for any PDU that has lost its A or B feed, or whose modeled load after losing one feed would exceed 100% of the surviving path's capacity."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/",
+      "explanation": "Splunk Connect for SNMP does not run on a heavy forwarder and is not configured with inputs.conf. It is a containerized, edge-deployed collector that sends to Splunk over HEC. Only SNMP Modular Input (1537) uses inputs.conf on a forwarder.",
+      "field": "detailedImplementation",
+      "quote": "Heavy Forwarders running **SNMP Modular Input (Splunkbase app ID 1537)** or **Splunk Connect for SNMP (Splunkbase app ID 6266)** must reach PDU/ATS management interfaces on UDP/161–162 ... capture stanza names inside **`inputs.conf`**",
+      "severity": "blocker",
+      "suggested_fix": "Describe SNMP Modular Input as [snmp://...] stanzas on a heavy forwarder, and SC4SNMP as a separate container deployment, configured through its inventory and profiles, that forwards over HEC to index=power."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation tells the reader to supply load_on_loss_of_one_pct through a lookup and then to 'paste the immutable catalog SPL', which has no lookup command. Unless the lookup is configured as an automatic lookup on power:redundancy, the > 100 branch never evaluates.",
+      "field": "cross_field",
+      "quote": "Merge DCIM-derived **`load_on_loss_of_one_pct`** (from your capacity workbook or nightly CSV KV refresh) onto SNMP-enriched rows using **`lookup`** or indexed fields",
+      "severity": "minor",
+      "suggested_fix": "Say explicitly that the lookup must be an automatic lookup (LOOKUP- in props.conf for sourcetype power:redundancy) keyed on pdu_id, or that the value must arrive on the event itself."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL tests feed_a_ok=0, so the fields must be numeric 0/1. If a vendor or DCIM export emits true/false or ok/fail strings, the feed-loss condition never matches. detailedImplementation says 'numeric booleans', but dataSources does not.",
+      "field": "dataSources",
+      "quote": "Splunk-extracted booleans **`feed_a_ok`** and **`feed_b_ok`**",
+      "severity": "minor",
+      "suggested_fix": "Specify that feed_a_ok and feed_b_ok must be normalized to integer 1 (feed healthy) or 0 (feed lost), and give an EVAL example for string-valued sources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templates keyed on host, src, count and span=1h, which the SPL does not use. They do not describe why a PDU would falsely appear to lose redundancy.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `power` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List redundancy-specific causes: one feed deliberately de-energized for concurrent maintenance; single-corded equipment on the PDU, which makes the loss-of-one model exceed 100% by design; stale DCIM capacity models after rack adds or moves; a poll landing mid-ATS transfer; and a management-card SNMP timeout reported as feed_x_ok=0."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The SPL checks A/B dual-feed availability and loss-of-one-path headroom, which is 2N (A+B) distribution redundancy rather than N+1 component redundancy as the guide's Uptime tier table uses the terms. Consider whether 'N+1' in the title is the intended framing.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "No dedup or latest() per pdu_id, so a 5-minute search over several polls returns repeated rows per PDU. Rows with null feed fields (failed polls) silently drop out instead of surfacing as unknown posture.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0011-UC-15.1.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The field contract (feed_a_ok, feed_b_ok, load_on_loss_of_one_pct, pdu_id) is clear and is used the same way in SPL, dataSources, evidence and visualization. However, the description drops the feed-loss half of the logic, the implementation treats Splunk Connect for SNMP as a heavy-forwarder inputs.conf add-on and describes a lookup the SPL never runs, and the false positives are generic.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.19",
+  "verdict": "incorrect"
+}

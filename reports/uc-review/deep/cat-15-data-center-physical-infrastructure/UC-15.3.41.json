@@ -1,0 +1,100 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "834edd4ada7a77968a66c9b2c8d257f7a2464cc74b2df727af7e66c41cc2024c",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.41.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc2326#section-7.1.1",
+      "explanation": "The SPL also reads `sourcetype=hikvision:isapi`, which dataSources omits, and it filters on `RTSP|Stream|teardown|Disconnect|454`, not on 401/404. RTSP 454 is 'Session Not Found', while 401/404 are auth/URL errors the search never matches.",
+      "field": "dataSources",
+      "quote": "`sourcetype=onvif:events` or `sourcetype=nvr:rtsp` containing `Stream`, `Teardown`, `401`, `404` tokens",
+      "severity": "major",
+      "suggested_fix": "List all three sourcetypes and name the tokens the search actually matches (RTSP TEARDOWN, disconnect messages, RTSP 454 Session Not Found). If 401/404 should count, say so and have the SPL owner add them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The detection is a 5-minute burst (`bin _time span=5m ... drops > 30`). Scheduling it over a 24-hour lookback re-reports every burst from the past day on each run. The rest of the step text (poll intervals of 300–900 s, comparing event counts to a 'vendor admin UI inventory count +/-5%', HTTP 401/429 from the vendor API) is generic template text that does not apply to syslog/file-forwarded NVR logs.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Recommend a schedule such as every 5 minutes over earliest=-10m@m with throttling on host+camera_id. Replace the generic validation with a concrete test: reboot or unplug a test camera and confirm the NVR log lines and the drops count."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Two separate Step 1–4 sequences are concatenated, so the numbering restarts and the reader cannot tell which procedure to follow.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Retention per legal hold policy.\n\nStep 1 — Configure data collection",
+      "severity": "minor",
+      "suggested_fix": "Merge the camera-specific notes (sample logs during reboot, exclude VMS upgrades, tamper correlation) into a single numbered procedure."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The threshold counts matching log lines per camera per 5 minutes. Bitrate and keyframe interval affect stream quality, not how many disconnect/teardown messages the NVR logs, so this tuning advice does not connect to the metric.",
+      "field": "implementation",
+      "quote": "Tune `drops > 30` to camera bitrate and keyframe interval.",
+      "severity": "minor",
+      "suggested_fix": "Advise tuning the threshold to the NVR's reconnect/retry behaviour (how many log lines one disconnect-and-reconnect cycle produces) and to a baseline of normal per-camera counts."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Axis AVHS is Axis's hosted video service. It is not clear that it forwards RTSP session diagnostics as syslog, or that Milestone XProtect emits RTSP teardown events to syslog natively, rather than only to its own log files or Event Server.",
+      "field": "app",
+      "quote": "Milestone XProtect / Genetec / Axis AVHS forwarded syslog",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each VMS's logging and export options, and name the real mechanism (for example a UF monitoring the XProtect Recording Server log directory, or Genetec's Splunk plugin/HEC) instead of 'forwarded syslog'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The detection reads VMS/NVR log text, not SNMP traps. PoE switch SNMP is mentioned only as optional correlation.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use camera/NVR equipment models (for example Axis, Hikvision, Milestone) or leave equipmentModels empty."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The Search Reference URL contains a stray apostrophe; the canonical path is WhatsInThisManual. The SC4S reference is not mentioned anywhere in app or implementation.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual and either explain SC4S as the syslog path in app/implementation or drop it. Add the RTSP RFC as a reference for status codes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`search RTSP OR rtsp OR Stream OR teardown OR Disconnect OR 454` matches any log line that mentions RTSP or Stream, including successful session setup, so `drops` counts all RTSP chatter rather than disconnects. Search terms are also case-insensitive, so `RTSP OR rtsp` is redundant. Events without camera_id are silently dropped by the `stats ... by camera_id`.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "Camera stream availability is an operational/observability signal; 'Security' pillar fits only if the tamper hypothesis is the primary purpose. Confirm with the SME.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0080-UC-15.3.41",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The short implementation note has useful hints such as camera_id normalisation and PoE correlation. However, dataSources and the SPL disagree on sourcetypes and RTSP status tokens, the SPL counts any RTSP/Stream log line as a 'drop', and detailedImplementation is a duplicated generic template that would not help validate a 5-minute burst detection.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.41",
+  "verdict": "rewrite"
+}

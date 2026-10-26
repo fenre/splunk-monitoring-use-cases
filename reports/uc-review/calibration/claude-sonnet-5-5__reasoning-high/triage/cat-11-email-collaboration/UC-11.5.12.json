@@ -1,0 +1,131 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "e774d045583760e1827c91b032cf28530cc1eca87bfda3a92625c3001eb39a13",
+  "file": "content/cat-11-email-collaboration/UC-11.5.12.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/email-collaboration.md",
+      "explanation": "The grounding guide identifies the Cisco Webex TA (ta_cisco_webex_add_on_for_splunk) as Splunkbase 5050, not 5781. Splunkbase 617 is also not in the cached catalog and is a Universal Forwarder is not an add-on ID, so the app string combines unverified IDs.",
+      "field": "app",
+      "quote": "`Cisco Webex Add-on` (Splunkbase #5781) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Name the Cisco Webex TA (`ta_cisco_webex_add_on_for_splunk`) with Splunkbase 5050 as in the guide, and drop the unexplained 'Universal Forwarder (Splunkbase 617)' suffix unless it can be verified."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The guide's sourcetype list for the Webex TA contains cisco:webex:meeting, cisco:webex:audit and cisco:webex:calling:cdr, not webex:device or webex:room_analytics. Webex cloud data is API-polled by the TA (typically on a heavy forwarder), not collected by a Universal Forwarder modular input. The fields mode, product, connection_status, health_state and firmware_version are also unconfirmed.",
+      "field": "dataSources",
+      "quote": "`sourcetype=webex:device` (device status), `sourcetype=webex:room_analytics` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Webex TA documentation for the sourcetype and fields that carry device status for Room Navigator and signage devices. If webex:device is a custom or scripted sourcetype, say so. Correct the collection method wording."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL only searches webex:device; webex:room_analytics is listed as a data source but never used.",
+      "field": "dataSources",
+      "quote": "`sourcetype=webex:room_analytics`",
+      "severity": "minor",
+      "suggested_fix": "Remove webex:room_analytics from dataSources or explain what it adds."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no 30-minute offline threshold and no business-hours filter. It alerts on any non-Connected status and on a 4-hour stale check-in. The prose, the SPL and the controlTest (hours_since_checkin > 4) describe different detections.",
+      "field": "implementation",
+      "quote": "Alert when any device goes offline for more than 30 minutes during business hours.",
+      "severity": "major",
+      "suggested_fix": "Align the prose with the SPL (offline status, more than 4 hours since last check-in, health not ok), or change the SPL owner-side to implement the 30-minute and business-hours logic."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The title is split into comma-separated words, and the text refers to a `count` output and a `the scheduled window` that do not exist in the SPL. The SPL outputs alert, status, health, hours_since_checkin and firmware per device. A reader cannot tell what produces a result row.",
+      "field": "description",
+      "quote": "Monitors UC-11.5.12 — Digital, Signage, and, Room, Scheduler — ... Outputs `count` each `the scheduled window`",
+      "severity": "major",
+      "suggested_fix": "Say that each row is one Webex Room Navigator or signage device that is offline, has not checked in for more than 4 hours, or reports a health state other than ok, with building, room and firmware."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The sentence repeats the word-salad title and cites a field `activity` that does not exist in the SPL or data source. It never states a concrete benefit such as blank room panels or frozen lobby screens.",
+      "field": "value",
+      "quote": "Alerting on Digital, Signage, and, Room, Scheduler through UC-11.5.12 reduces operational risk and delayed incident response by surfacing `activity` early.",
+      "severity": "major",
+      "suggested_fix": "Explain the real benefit: finding blank or offline Room Navigator panels and lobby signage before visitors or meeting attendees notice."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text is generic for the 11.5 subcategory. This UC does not look at bookings or licences. It looks at the health and check-in of room scheduler panels and signage screens.",
+      "field": "grandmaExplanation",
+      "quote": "We watch meeting rooms and devices, so empty bookings, bad gear, and license waste are visible before a big event fails.",
+      "severity": "major",
+      "suggested_fix": "Say in plain language that we check the touch panels outside meeting rooms and the lobby screens are still online and healthy, so a dead screen is fixed quickly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The references include Cisco Security docs and the Splunk HEC and inputs.conf pages. None concern Webex devices, Room Navigator or the Webex add-on, so the reader has no source for the device fields or sourcetype.",
+      "field": "references",
+      "quote": "Cisco Security documentation",
+      "severity": "major",
+      "suggested_fix": "Replace with Cisco Webex Control Hub / Room Navigator device documentation and the Webex add-on documentation on Splunkbase."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SPL has no `count` field or `span=1h`. None of the four scenarios names a real cause such as a device in standby, a decommissioned panel, or a Control Hub outage.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `count` over `span=1h`",
+      "severity": "minor",
+      "suggested_fix": "Describe real causes: rooms or buildings closed for refurbishment, devices in standby or powered off after hours, and Webex cloud or API polling gaps."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The scenario describes a `count` aggregation that the SPL does not compute, and it only tests the stale rule, not the offline or health-warning branches.",
+      "field": "controlTest",
+      "quote": "where `count` grouped by `device_id`, `device_type`, `room_name`, `building` satisfies `hours_since_checkin` > 4",
+      "severity": "minor",
+      "suggested_fix": "Test each alert branch: a device with status Disconnected, one with last check-in more than 4 hours ago, and one with a health_state other than ok."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The validation step is generic across the subcategory and mentions Zoom and Microsoft, which are irrelevant to this Webex-only detection.",
+      "field": "detailedImplementation",
+      "quote": "Compare with each vendor’s admin portal (Zoom, Webex, Microsoft) for the same service or device and time range.",
+      "severity": "minor",
+      "suggested_fix": "Compare the offline and unhealthy devices with Webex Control Hub, Devices, for the same time range."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `healthy` field is computed but never used. A null connection_status is treated as Offline. The fields mode, product, connection_status and health_state could not be verified against the add-on. Check them against real events.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0081-UC-11.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The technical idea (stale or offline Room Navigator and signage devices) is reasonable, but the prose is template-generated word salad, the add-on ID conflicts with the grounding guide, and the 30-minute/business-hours text does not match the 4-hour SPL threshold. The grandma text describes other UCs.",
+  "tier": "triage",
+  "uc_id": "UC-11.5.12",
+  "verdict": "incorrect"
+}

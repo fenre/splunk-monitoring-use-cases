@@ -1,0 +1,106 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "80d69e1b5443d4b496730f3a1e59264424cd8d6208dea236d3185277f47389c7",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL returns a row for every transfer_to_gen, retransfer_to_utility or test event regardless of duration, OR for any event with duration_ms > 500. Readers would expect pages only for slow transfers, but every scheduled ATS exercise and utility transfer also pages.",
+      "field": "description",
+      "quote": "pages when `duration_ms` > 500",
+      "severity": "major",
+      "suggested_fix": "State that the search lists every transfer, retransfer and test event plus any other ATS event longer than 500 ms. Say whether test events are meant to page or only to be logged."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "duration_ms is the only numeric threshold, but nothing says what it measures (transfer time, outage gap, time on generator). A 500 ms limit is far below normal open-transition generator transfers, which include generator start time of up to about 10 seconds, so every real transfer_to_gen would exceed it anyway.",
+      "field": "dataSources",
+      "quote": "duration_ms, and the relay or trap source field referenced in props",
+      "severity": "major",
+      "suggested_fix": "Define duration_ms (for example the dead-time between source disconnect and reconnect reported by the ATS controller) and explain the 500 ms basis, such as the IT load ride-through limit for closed or fast open transitions. Note that the threshold differs by ATS transition type."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP receives traps in its own containerized trap service (Docker Compose or microk8s) and sends them over HEC as sourcetype sc4snmp:traps to the netops index by default. It does not use Heavy Forwarder inputs.conf stanzas. Only SNMP Modular Input (1537) is configured through inputs.conf.",
+      "field": "detailedImplementation",
+      "quote": "prefer Splunk Connect for SNMP (Splunkbase app ID 6266) or SNMP Modular Input (Splunkbase app ID 1537) on a Heavy Forwarder that owns UDP/162 trap listeners declared in inputs.conf",
+      "severity": "blocker",
+      "suggested_fix": "Keep the inputs.conf trap stanza for SNMP Modular Input (1537) only. For SC4SNMP, describe the trap service configuration and the index and sourcetype overrides (or props rewrites) needed to produce index=power sourcetype=ats:events."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The reference is circular (App only says 'ATS SNMP/BMS, relay contacts'), and no ATS vendor, MIB, trap OID or BMS point is named. The reader cannot tell which trap or OID becomes event, source_side or duration_ms.",
+      "field": "dataSources",
+      "quote": "SNMP traps or polled OIDs from the ATS SNMP/BMS integration described in App",
+      "severity": "major",
+      "suggested_fix": "Name the ATS families in scope and their SNMP objects or traps (for example the vendor ATS MIB's source-selected and transfer-event objects), or the BMS points, and map each one to the extracted fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The template scenarios do not fit ATS events. The expected, non-incident triggers are missing: scheduled monthly ATS and generator exercise runs, short utility disturbances that cause legitimate transfer and retransfer pairs, and dry-contact relay bounce producing duplicate events.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `duration_ms` > 500",
+      "severity": "major",
+      "suggested_fix": "List these ATS-specific causes. Explain how to separate them from real problems, for example a test-schedule lookup, pairing transfer with retransfer within N minutes, and de-duplicating contact closures within a few seconds."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/SendSNMPeventstoSplunk",
+      "explanation": "This URL and https://docs.splunk.com/Documentation/Splunk/latest/Data/ManagingSNMPdata both returned HTTP 404 when fetched. The current Getting Data In page is 'Send SNMP events to your Splunk deployment' (Data/SendSNMPeventstoSplunk).",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/ConfigureSNMPTraps",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace both with https://docs.splunk.com/Documentation/Splunk/latest/Data/SendSNMPeventstoSplunk and the SC4SNMP trap documentation, and add the ATS vendor's SNMP/MIB documentation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "With latest=now and no lag allowance, traps or relay events that are indexed after their switch-action _time will fall between windows and never be evaluated.",
+      "field": "detailedImplementation",
+      "quote": "cron_schedule `*/5 * * * *` paired to dispatch.earliest_time `-5m` so oscillations surface quickly without overlapping windows",
+      "severity": "minor",
+      "suggested_fix": "Use a lagged window such as earliest=-10m@m latest=-5m@m, or a slightly overlapping window with alert throttling on ats_id plus _time."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This names no add-on or integration product.",
+      "field": "app",
+      "quote": "ATS SNMP/BMS, relay contacts",
+      "severity": "minor",
+      "suggested_fix": "List the actual collectors, for example 'SNMP Modular Input (Splunkbase 1537) or Splunk Connect for SNMP (Splunkbase 6266); BMS export via HEC'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Including event=\"test\" unconditionally pages on every scheduled ATS exercise. There is no de-duplication of relay bounce or pairing of transfer with retransfer.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-15.1.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The description misstates what pages (the SPL alerts on every transfer, retransfer and test event, not only on slow transfers), duration_ms is never defined, and the SC4SNMP trap path is described as an inputs.conf listener on a Heavy Forwarder. Both Splunk documentation references return 404.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.13",
+  "verdict": "incorrect"
+}

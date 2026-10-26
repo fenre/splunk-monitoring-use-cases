@@ -1,0 +1,130 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "6be5d6101feef32564ae63d998e283b1bd1dde36f28936c8c895145ec3f0a83d",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.3.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The description's alert condition is satisfied by nearly every advisory (>= 3.1), while Step 4 says daily notifications are reserved for cvss_high_water >= 9 and everything else goes to a weekly CAB extract. The SPL has no alert filter, only `urgency_lane` labels. The knownFalsePositives also cite `span=1h` and a '48h baseline', neither of which exists in this weekly, 30-day advisory search.",
+      "field": "cross_field",
+      "quote": "alert when `cvss_val` >= 3.1, `cvss_high_water` >= 9.0, or `cvss_high_water` >= 7.0",
+      "severity": "major",
+      "suggested_fix": "State the real rule: weekly report of all advisories by urgency_lane, plus a daily alert only for urgency_lane=cab_review_same_week. Rewrite the KFPs around real causes such as advisory republication, the weekly bug-database refresh, CMDB lag and retired serials."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide shows PSIRT and bug matches as `eventType IN (\"psirt\",\"bug\")` inside `cisco:ndi:anomaly`. It lists `cisco:ndi:psirt` and `cisco:ndi:bug` as sourcetypes but never `cisco:ndi:advisory`. The UC's claim that NDI streams advisory data under three separate sourcetypes is not confirmed.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:ndi:psirt`** / **`sourcetype=cisco:ndi:bug`** / **`sourcetype=cisco:ndi:advisory`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check how NDI External Streaming labels advisory events and which sourcetypes the Cisco DC Networking app or HEC token assign. Drop `cisco:ndi:advisory` if it does not exist."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/support-apis/",
+      "explanation": "I cannot confirm that these two endpoints exist. As far as I know, the Cisco EoX API is served from the Cisco Support APIs under a `supporttools/eox` path, not `software/eol/v2/lifecycle/products`. The Field Notice endpoint looks equally guessed. Only the openVuln path and the OAuth token URL look standard.",
+      "field": "dataSources",
+      "quote": "`https://api.cisco.com/field-notices/v1/all`**, **`sourcetype=cisco:eol:bulletin`** from **`https://api.cisco.com/software/eol/v2/lifecycle/products`",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the Field Notice and EoX endpoint paths in the Cisco Support APIs documentation on developer.cisco.com and correct the URLs here and in the detailedImplementation prerequisites."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The field names for the NDI webhook are asserted as 'cited in Cisco documentation' with no citation. The Cisco openVuln API uses different names (as far as I know `cves`, `sir`, `firstPublished`, `lastUpdated`, `firstFixed`), and the SPL only guesses through long coalesce lists. `firstSeenInSite` is not used by the SPL.",
+      "field": "detailedImplementation",
+      "quote": "verify JSON carries **`advisoryId`**, **`cveId`**, **`cvssBaseScore`**, **`severity`**, **`affectedSites[]`**, **`firstSeenInSite`**, **`publicationUrl`**, and **`lastModified`** fields cited in Cisco documentation",
+      "severity": "needs_verification",
+      "suggested_fix": "Check real sample payloads from NDI and openVuln, then list the actual field names and align the SPL coalesce lists. Remove the 'cited in Cisco documentation' claim unless a document is linked."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The grounding describes Splunkbase 7777 only as the fabric-wide dashboard app. Nothing confirms those three dashboards or the `cisco:dc_networking_app:dashboard` sourcetype. The visualization and quarterly-screenshot steps depend on them.",
+      "field": "app",
+      "quote": "ships **PSIRT Match Trend**, **Field Notice Trend**, **Compliance Rule Violation Trend** dashboards atop **`cisco:ndi:*`** advisory sourcetypes",
+      "severity": "needs_verification",
+      "suggested_fix": "Open the 7777 app package and check its dashboards and sourcetypes. Describe only what is there, and drop `cisco:dc_networking_app:dashboard` if it is not real."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "'Site Manager' and 'Approver' as Nexus Dashboard RBAC roles, 'Weekly Tuesday bug-database refreshes inside NDI' and 'NDI 6.4+ per-site customization guidance' are specific vendor facts with no source. The `hardware` field has the same issue with the part numbers 'NDA-K9' and 'NDA1100'.",
+      "field": "detailedImplementation",
+      "quote": "Align **LDAP**/**SAML** **Site Manager** versus **Approver** boundaries with Splunk roles",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify against the Nexus Dashboard and NDI release documentation, or remove the unverifiable details."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Vulnerabilities",
+      "explanation": "Vulnerabilities in CIM models per-host scanner findings and Updates models patch or update status per host. This UC tracks vendor advisory metadata with no per-host match, unless the CMDB join is built. No cimSpl backs either model.",
+      "field": "cimModels",
+      "quote": "\"Vulnerabilities\",\n    \"Updates\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the fit against the CIM Vulnerabilities and Updates datasets, or leave cimModels empty and say that advisory-feed data has no CIM mapping."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The markdown is corrupted in many places: unbalanced `**` markers, for example 'Spot-check `adv_key`** rows', 'Weekly** **CAB-ready' and 'Validate `FN-72366`**/**`FN-72088`'. This breaks rendering and makes the stage rationale hard to read.",
+      "field": "detailedImplementation",
+      "quote": "`adv_key`** merges **`advisoryId`** values with **`FN-#####` tokens",
+      "severity": "minor",
+      "suggested_fix": "Clean up the bold markers and re-render the stage rationale and troubleshooting bullets."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The NDI User Guide 'Release 6.4' reference points at the generic cisco.com root, and the HEC reference points at the generic help.splunk.com get-data-in root. Neither is a specific document. No entry has a retrieved date.",
+      "field": "references",
+      "quote": "https://www.cisco.com/c/en/us/",
+      "severity": "minor",
+      "suggested_fix": "Replace them with the exact NDI 6.4 guide page and HEC documentation page, with retrieved dates."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified` while the reviewer is 'agent-handcraft-2026-04-29', which is not an SME sign-off. The endpoints, field names and dashboard claims above are unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named Cisco DC SME has checked the endpoints, payload fields and app dashboards."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`fn_marker` and `eox_marker` are computed before `stats ... by adv_key, sev_lc` and are not carried through it. In the later `urgency_lane` case they are null, so the field_notice_hardware_track and eos_ldos_calendar_watch lanes can never fire. `nx_os_product_strings` also holds a multivalue field passed to `lower()`/`match`, which is fragile. The `csc` extraction is never used.",
+      "severity": "major"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "The UC tracks vendor PSIRT, field-notice and lifecycle exposure for governance and risk, with monitoringType Compliance/Risk/Vulnerability. A pillar of 'Observability' may be a poor fit and 'Security' may be intended.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0053-UC-18.4.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The advisory, field-notice and EoX tracking concept is coherent and the walkthrough is detailed. However, the prose thresholds and KFPs do not describe the SPL, several API endpoints, field names, dashboard claims and sourcetypes cannot be confirmed from the grounding, and the text carries markdown corruption and a generic references list.",
+  "tier": "triage",
+  "uc_id": "UC-18.4.3",
+  "verdict": "rewrite"
+}

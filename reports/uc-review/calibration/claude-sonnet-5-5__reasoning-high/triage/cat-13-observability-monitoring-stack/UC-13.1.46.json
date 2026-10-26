@@ -1,0 +1,101 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "237486099f9c886bda599330baada24f74f7b05891b593fdff6ca51a3dee608b",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.1.46.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/2890",
+      "explanation": "The Splunk Machine Learning Toolkit is Splunkbase app 2890, not 617, and it is a search head app installed from Splunkbase, not delivered through a Universal Forwarder. Splunkbase 617 is not in the repository catalog.",
+      "field": "app",
+      "quote": "Splunk Machine Learning Toolkit (MLTK) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite the Splunk Machine Learning Toolkit as Splunkbase 2890, installed on the search head that runs the fit command, and remove the 'Universal Forwarder (Splunkbase 617)' wording."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The text describes error-rate detection (in the title and the Understanding section), forwarder host enrichment and a maintenance-window KV lookup. The SPL only counts events by sourcetype and models that count. It has no error measure, no host dimension and no lookup.",
+      "field": "cross_field",
+      "quote": "Volume spikes or dips that deviate from the learned distribution trigger volume anomaly alerts. Enrich with forwarder host metadata to pinpoint the broken pipeline segment.",
+      "severity": "major",
+      "suggested_fix": "Describe only volume and silent-sourcetype detection, or add the error-rate series, host enrichment and maintenance lookup to the SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/splunk-platform-health.md",
+      "explanation": "The SPL does not read _internal metrics. It runs tstats over `index=*` and counts events per sourcetype across all searchable indexes. The data source text names the wrong data, and it lists the same source twice.",
+      "field": "dataSources",
+      "quote": "`index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics)",
+      "severity": "major",
+      "suggested_fix": "State that the search counts events per sourcetype across indexes with tstats, or change the SPL to use metrics.log group=per_sourcetype_thruput if throughput data is wanted."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "The SPL uses `fit DensityFunction ... into sourcetype_volume_model` on each run. That refits the model every 15 minutes, including the window being judged, and does not apply a saved model. A separate weekly retrain search does not exist in the UC and would require `apply` in the alert search.",
+      "field": "implementation",
+      "quote": "Schedule every 15 minutes against a 30-day trained DensityFunction model per sourcetype. ... Retrain the model weekly via a separate scheduled search.",
+      "severity": "major",
+      "suggested_fix": "Use `fit` only in a scheduled training search over the 30-day history and `apply sourcetype_volume_model` in the 15-minute alert search, and document both searches."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The tstats search counts indexed events by sourcetype and does not reference a data model, so there is nothing to accelerate. The text is also cut off mid-word in Step 1 ('KV sto…').",
+      "field": "detailedImplementation",
+      "quote": "Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated.",
+      "severity": "minor",
+      "suggested_fix": "Remove the acceleration advice for this search, note that tstats over index=* is a heavy search that should be limited to the indexes of interest, and restore the truncated sentence."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of volume anomalies. Real ones are planned source decommissions, batch jobs that run weekly or monthly, holiday traffic dips, and a newly onboarded sourcetype with no history.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `target_index` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: decommissioned or paused data sources, weekly or month-end batch bursts, holiday volume dips, and new sourcetypes without 30 days of history."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "It is a generic platform-health line. It does not say the UC looks for a kind of data suddenly arriving much more or much less than normal, or stopping completely.",
+      "field": "grandmaExplanation",
+      "quote": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first.",
+      "severity": "major",
+      "suggested_fix": "Say: 'We learn how much of each kind of data normally arrives and alert when it suddenly jumps, drops, or stops, because that often means something upstream broke.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title says 'Log Volume and Error Rate Anomaly per Sourcetype', but the SPL has no error-rate series. Only the volume part is implemented.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`tstats count WHERE index=*` scans all indexes every 15 minutes and does not include internal indexes, so the cost is high and the scope is undocumented. The where clause `count=0` only identifies silent sourcetypes that appear elsewhere in the time range, since sourcetypes with no events at all are absent from the data.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0019-UC-13.1.46",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC promises volume and error-rate anomaly detection from _internal metrics, but the SPL only models event counts per sourcetype from tstats over all indexes. The MLTK add-on is cited with a wrong Splunkbase ID, and the implementation text describes enrichment, maintenance exclusions and model training that the SPL does not do.",
+  "tier": "triage",
+  "uc_id": "UC-13.1.46",
+  "verdict": "incorrect"
+}

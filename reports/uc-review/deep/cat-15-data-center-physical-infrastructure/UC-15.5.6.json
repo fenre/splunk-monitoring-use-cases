@@ -1,0 +1,91 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "140601603df3fecb70310dbcd231dfca73beefcfd72e34c37d0b4a349a712cfe",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Splunk Universal Forwarder is not a Splunkbase app; it is downloaded from splunk.com, and splunkbase.splunk.com/app/617 returns 404. The same false attribution is repeated in `app` and `detailedImplementation` Step 1, and it contradicts the HEC path named in `app`.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 'Splunkbase 617' reference. Describe the real path: RTP/RTCP statistics exported by the VMS or a stream probe and sent to an HTTP Event Collector token or a forwarder input, writing sourcetype=nvr:rtsp into index=physical."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "`implementation` promises alerting on sustained loss, but the SPL keeps any single sample with loss>1 OR jitter>40 over 4 hours and then averages only those failing samples, so one bad sample alerts and avg_loss is biased upward.",
+      "field": "cross_field",
+      "quote": "(3) Alert sustained >1% loss.",
+      "severity": "major",
+      "suggested_fix": "Describe the SPL as it is, or document a sustained rule (e.g., share of samples above 1% loss in the window, or average over all samples) and request the matching SPL change."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic template: the SPL hard-codes earliest=-4h (a -24h@h schedule is overridden), contains no macros or lookups (yet Step 4 routes 'from the lookup' and `implementation` asks to map stream_id to camera), Step 3 compares an event count to a device inventory count, and Step 1 grants capabilities 'on the target index' although capabilities are not index-scoped.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Rewrite for this UC: where RTP loss/jitter is measured (VMS receiver stats or RTCP receiver reports from a probe), the stream_id-to-camera lookup, the 1% loss and 40 ms jitter thresholds, and validation by inducing loss on a test stream."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of transient loss or jitter on a video stream.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `stream_id`, `encoder_ip`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: backup or replication jobs saturating uplinks, wireless bridges to outdoor cameras, camera reboots or stream renegotiation producing a burst of loss, and bitrate spikes on high-motion scenes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by 'catalog-team' while its prose is unedited template output and its collection path is wrong, so no SME review is evident.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until an SME reviews the content."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "References are generic portal links shared by the whole subcategory; none documents RTP loss/jitter measurement (e.g., RFC 3550 RTCP receiver reports) or the VMS export used.",
+      "field": "references",
+      "quote": "ONVIF — Open Network Video Interface Forum",
+      "severity": "minor",
+      "suggested_fix": "Cite RFC 3550 for RTP jitter/loss definitions and the VMS or probe documentation that exports these fields."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Filtering loss>1 OR jitter>40 before `stats avg()` averages only failing samples (and jitter-only failures pull null/low loss values into avg_loss), so the output overstates severity and fires on a single bad sample. Average over all samples, or count bad samples, then apply thresholds.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "Packet loss and jitter are RTP/RTCP media-transport metrics (the SPL reads rtp_packet_loss_pct and rtp_jitter_ms); RTSP is only the session-control protocol. 'RTP Stream' would be more accurate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0108-UC-15.5.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "Prose fields are cross-UC template residue; only the implementation line is about stream health. The collection path attributes the Universal Forwarder to a non-existent Splunkbase app, and the 'sustained loss' claim does not match an SPL that averages only the failing samples.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.6",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,141 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "7aa7cb01f0fc4a70e0cf8349431c6fe5a014135c4d7b5b13c557f506e4bdb5dc",
+  "file": "content/cat-22-regulatory-compliance/UC-22.61.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `| inputlookup cn_mlps_register_lookup`. There is no index, sourcetype, `count` or `entity`. The description gives no idea of what produces a row: missing MPS filing for L2+, overdue or near-due assessment for L3+, or expired assessor accreditation.",
+      "field": "description",
+      "quote": "on `index=target_index` sourcetype `configured sourcetype`. Combines `count` by `entity`",
+      "severity": "major",
+      "suggested_fix": "Describe the register check: for each system in `cn_mlps_register_lookup`, flag L2+ systems without `mps_filing_receipt` and L3/L4/L5 systems whose `last_assessment_date` is past or near the grade's assessment interval. Also flag systems whose assessor accreditation has expired, ranked by `risk_score`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is title-token salad with a placeholder field (`activity`). It does not say what value the register check gives, such as avoiding MPS inspection findings for unfiled or unassessed systems.",
+      "field": "value",
+      "quote": "Alerting on MLPS, 2.0, (GB, 22239, 2019) through UC-22.61.1 reduces audit findings ... by surfacing `activity` early.",
+      "severity": "major",
+      "suggested_fix": "State the concrete value: catch unfiled L2+ systems and L3+ systems drifting past their assessment interval before an MPS inspection or sectoral audit."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "A second, generic Steps 1-5 block follows the UC-specific steps. It tells the reader to ingest into index=main and validate with tstats and timechart, none of which applies to a KV Store register search. It also duplicates the step numbering.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds ... Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count",
+      "severity": "major",
+      "suggested_fix": "Delete the generic block. Add real validation steps instead: check the KV Store record count against the compliance team's MPS filing register, and spot-check one L3 system's dates against its latest assessment report. Also add the transforms.conf lookup definition that `inputlookup cn_mlps_register_lookup` requires."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are domain-pack boilerplate. QSA and BAA are PCI and HIPAA concepts, and none of the scenarios can create a row in a lookup-only search. The real false-positive causes are not listed: assessment closed but the KV Store not yet updated, grade stored as '3' instead of 'L3', decommissioned systems still in the register, or a filing receipt held on paper and not yet transcribed.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=audit_evidence` `configured sourcetype` ... Third-party processor under contract — BAA/DPA-covered vendor",
+      "severity": "major",
+      "suggested_fix": "Replace with register-hygiene false positives and their remedies: an update SLA for `last_assessment_date`, normalising `mlps_grade`, and filtering on `project_status`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The search is a lookup-driven governance register with no event data, and it uses no CIM datamodel. Change does not fit an MLPS grading register at all.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Change\", \"Inventory\"]",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to [] (or document why Inventory applies if the CMDB feed is actually joined)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Level 1 is the lowest MLPS grade, so 'below Level 1' is not a defined category. Grading criteria come from GB/T 22240 (grading guide), not GB/T 22239 §6.1.",
+      "field": "exclusions",
+      "quote": "Excludes private personal-use systems falling below the MLPS Level 1 threshold defined by GB/T 22239-2019 §6.1.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check GB/T 22240-2020 and the CSL scope for personal-use exclusions and cite the correct standard and section, or drop the clause."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://en.wikipedia.org/wiki/National_Financial_Regulatory_Administration",
+      "explanation": "The CBIRC was replaced by the National Financial Regulatory Administration (NFRA) in 2023.",
+      "field": "detailedImplementation",
+      "quote": "CBIRC for finance",
+      "severity": "minor",
+      "suggested_fix": "Use NFRA (and PBoC where applicable) for the finance sector."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunk Cloud Platform does not appear to offer a mainland-China region. If so, this suggests a deployment option that does not exist for data that must stay in the PRC.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Enterprise >= 9.2 or Splunk Cloud (PRC region deployment for in-PRC data).",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Cloud Platform available regions list. If no PRC region exists, state that in-PRC data needs Splunk Enterprise hosted in the PRC."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The `$mlps_grade$` token is not a result token (`$result.mlps_grade$`), and a per-alert marker cannot vary by row anyway. alert.severity 5 (critical) applies to every row, while the implementation splits routing into P1/P2 by risk_score.",
+      "field": "detailedImplementation",
+      "quote": "action.summary_index.marker = uc=22.61.1,reg=CN-CSL,clause=CSL-Art-21,mlps_grade=$mlps_grade$\nalert.severity = 5",
+      "severity": "minor",
+      "suggested_fix": "Drop the per-row token (mlps_grade is already a result column), and describe how the P1/P2 split by risk_score is implemented."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The link goes to the MPS homepage, not the cited notice. The document title and year cannot be confirmed from this reference.",
+      "field": "references",
+      "quote": "\"title\": \"MPS Notice on Implementing the Multi-Level Protection Scheme (2018)\", \"url\": \"https://www.mps.gov.cn/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific MPS instrument (for example the MLPS administrative measures or the 2020 MPS guidance on MLPS and CII protection) with its document number."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The status is verified while every compliance entry has requires_sme_review: true and large parts of the text are unedited template output. The evidence does not support an SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"PRC Cybersecurity SME Panel + CISO + PRC Compliance Lead\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a named reviewer signs off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Systems with null `last_assessment_date` (never assessed) produce null `days_since_assessment`, so `assessment_overdue` and `assessment_at_risk` are 0 and an L3+ system that was never assessed is not flagged. Also, `project_status` is not filtered, so decommissioned systems can alert.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "The assessment intervals (L4 semi-annual, L5 quarterly) and assurance 'full' for CSL Art. 21 are asserted without a cited clause. CSL Art. 21 also covers logging retention and technical measures that this register search does not test. Check against the MPS MLPS administrative measures and downgrade assurance to partial.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Thresholds L4=183 days and L5=92 days depend on the unverified compliance intervals above.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0135-UC-22.61.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL, KV Store schema and PRC-specific runbook notes describe a coherent lookup-driven MLPS register tracker. But description, value, knownFalsePositives and half of detailedImplementation are template residue that describe an index/sourcetype event search that does not exist. Several regulatory facts and the verified status are overstated.",
+  "tier": "deep",
+  "uc_id": "UC-22.61.1",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,157 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f00dd43ca779b423ee73a792792d8a96f25f2eb1205f41d40e9b83902f84bee0",
+  "file": "content/cat-23-business-analytics/UC-23.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_forecastingquota.htm",
+      "explanation": "Salesforce has no standard `Quota` object. Collaborative Forecasts quotas live in `ForecastingQuota`, with `QuotaOwnerId` (not OwnerId), `QuotaAmount`, `StartDate` (quota month), `ForecastingTypeId` and `Territory2Id`. There is no `Type` field. The same object and fields are repeated in detailedImplementation Step 1 and implementation.",
+      "field": "dataSources",
+      "quote": "returning `User`, `Opportunity`, and `Quota` rows—each CSV row retains API names (`OwnerId`, `QuotaAmount`, `StartDate`, `Type`)",
+      "severity": "blocker",
+      "suggested_fix": "Use `SELECT QuotaOwnerId, QuotaAmount, StartDate, ForecastingTypeId, Territory2Id, CurrencyIsoCode FROM ForecastingQuota`. Note that querying it needs View All Forecasts or Allow Forecasting permission, and that StartDate is monthly, so quarterly quota means summing three rows."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "None of these endpoint paths could be confirmed and several look invented. Dynamics 365 models targets with the `goal` and `metric` entities, and no `quota_targets` entity set is known.",
+      "field": "dataSources",
+      "quote": "Microsoft Dynamics 365 Sales Web API (`/api/data/v9.2/quota_targets`, goalmetric linkage) ... SAP Sales Cloud commissions OData (`/odata/v2/quota_assignments`, `/odata/v2/Payee`) ... Xactly Connect exposes REST `/v2/quotas`, `/v2/payees`, and `/v2/credit-rules`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path against the vendor's API reference (Dynamics 365 Web API entity reference, SAP Sales Cloud/SuccessFactors Incentive Management OData, Xactly Connect documentation). Replace any that are not real with a generic 'export quota assignments via <vendor> API or warehouse table'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-23-business-analytics/UC-23.2.7.json",
+      "explanation": "UC-23.2.7 is 'Average Deal Size and Deal-Mix Trend' and does not cover partner-sourced deals. Sibling UC-23.2.8 ('Pipeline Coverage Ratio (3x/4x Rule), Quota Attainment Forecasting...') overlaps this UC almost entirely, and that overlap is not acknowledged.",
+      "field": "exclusions",
+      "quote": "partner-sourced opportunities (use UC-23.2.7)",
+      "severity": "major",
+      "suggested_fix": "Remove or correct the cross-reference, and state how this UC differs from UC-23.2.8 (for example, ramp-adjusted quota versus tier distribution)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Asterisk PBX, Dell EMC, SNMP and an SNMP UPS model have nothing to do with sales quota analytics. These tags will surface the UC in unrelated equipment pickers.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"asterisk\", \"db_connect\", \"dell_emc\", \"itsi\", \"salesforce\", \"servicenow\", \"snmp\", \"snowflake\"], \"equipmentModels\": [\"snmp_ups\"]",
+      "severity": "major",
+      "suggested_fix": "Keep salesforce, db_connect, snowflake (and itsi only if used). Remove asterisk, dell_emc, snmp, servicenow and the snmp_ups model."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The tenure buckets only set the ramp-adjusted quota; they are not alert conditions. The SPL has no `where` threshold and simply lists every rep for the current quarter with attainment, pacing and coverage against a 3.5× guide.",
+      "field": "description",
+      "quote": "compares against `tenure_days` <= 90, `tenure_days` <= 180, `tenure_days` <= 270, or `quota_in_effect` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe it as a per-rep current-quarter report: ramp-adjusted attainment %, linear pacing %, and weighted-pipeline coverage of remaining quota versus 3.5×. Say that alerting requires an added filter such as `coverage_gap<-1` (as Step 2 suggests)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The run statistics look made up. Writing to `notable` needs Enterprise Security, which is not in `app`. The cron also contradicts implementation (hourly) and detailedImplementation (hourly Monday-Thursday, 15-minute at quarter end).",
+      "field": "evidence",
+      "quote": "(cron `0 */6 * * *`, last_run=2026-05-12T08:00:00Z, count=104) ... emits per-rep/region quota-attainment + pipeline-coverage findings written to `notable`",
+      "severity": "major",
+      "suggested_fix": "Describe the evidence as the scheduled report output (summary index or outputcsv extract) with one schedule used consistently, and drop the fabricated run counts and the `notable` destination."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios (maintenance window, synthetic probes, batch sums, CMDB CHG) do not apply to CRM quota data. The real causes are already listed in detailedImplementation Step 5: mid-quarter territory carve-outs, Deal Desk lag, credit splits, FX mismatch, missing quotas after acquisitions, leave without tenure overrides.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `rep_id`, `territory_id`, `FiscalQuarter`, `rep_tier` — Health checks in `business` populate the same fields",
+      "severity": "major",
+      "suggested_fix": "Move the top five or six Step 5 causes into knownFalsePositives, each with its mitigation."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Data/UsetheHTTPEventCollector",
+      "explanation": "Splunk Cloud Platform HEC is normally reached on port 443 at the http-inputs-<stack> host; 8088 applies to Splunk Enterprise and trial stacks.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Cloud HEC ingress on port 8088 with ACK-capable tokens",
+      "severity": "minor",
+      "suggested_fix": "Say: HEC on 8088 (Enterprise) or https://http-inputs-<stack>.splunkcloud.com:443 (Splunk Cloud Platform)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The text acknowledges duplicate-snapshot risk, but the canonical SPL has no dedup. With 120 days of snapshots every opportunity is summed once per snapshot. `_dedup` is not a Splunk construct.",
+      "field": "detailedImplementation",
+      "quote": "duplicate ingestion paths multiply Opportunity rows unless `_dedup` logic selects authoritative snapshots",
+      "severity": "minor",
+      "suggested_fix": "Say: dedup to the latest snapshot per Opportunity Id (e.g. `| dedup Id sortby -_time`) before stats. The SPL owner should add this."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The link goes to the Anaplan marketing homepage, not the authentication or integration API documentation named in the title.",
+      "field": "references",
+      "quote": "\"title\": \"Anaplan Developer — Authenticating REST integrations\", \"url\": \"https://anaplan.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Anaplan Integration API v2 / authentication documentation page."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Pipe' is sales jargon, and the sentence implies the tool judges hoarding, which the search does not measure (it has no deal-age filter).",
+      "field": "grandmaExplanation",
+      "quote": "who merely hoards stale pipe",
+      "severity": "minor",
+      "suggested_fix": "e.g. 'and shows who is on track and who is relying on deals that may not close.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an authoring agent, and the non-existent Quota object and unverified API paths show no SME validation happened.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a RevOps or Salesforce SME signs off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "There is no dedup of opportunity snapshots over `earliest=-120d@d`, so `won_qtd` and `weighted_pipeline` count every snapshot of the same Opportunity. Attainment and coverage are badly inflated.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Calendar quarters (`@q`, month/3) are used despite the fiscal-calendar caveat. `expected_linear_pct` assumes a 90-day quarter. `Probability` defaults to 50 when missing. There is no alert `where` clause.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Performance' and 'Reliability' describe IT monitoring; this is a Business analytics report.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' is high for a sales-capacity analytics report with no operational or security impact.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0137-UC-23.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The troubleshooting notes on ramp, crediting, FX and territory carve-outs are useful. But the UC names a Salesforce quota object and fields that do not exist and lists many unverified vendor API paths. Its equipment tags are unrelated, the cross-reference is wrong, and the description, evidence and templated false positives misstate what the search does. The search is a per-rep report with no alert condition.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.6",
+  "verdict": "incorrect"
+}

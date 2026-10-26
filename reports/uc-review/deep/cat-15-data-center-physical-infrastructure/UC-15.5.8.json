@@ -1,0 +1,114 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3e2066dd196546edfedd17c9ad93e6e7b1b43a7b697047bf330f4c921ad26ad1",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.5.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Forwarder/latest/Forwarder/Abouttheuniversalforwarder",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and splunkbase.splunk.com/app/617 returns 404. The forwarder ships no modular input that polls switch PoE counters or NVR APIs, so following this text produces no data.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collector: SNMP polling of the access switches (for example, an SNMP modular input or SC4SNMP) or the NVR's own PoE status API. Note that the forwarder or HEC is only the transport. Remove 'Splunkbase 617'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "`implementation` and the SPL's `switch_name` and `ifDescr` fields describe SNMP data polled from network switches. `dataSources` and the SPL read `sourcetype=nvr:diagnostic`, which in sibling UCs is the NVR health feed. Switch SNMP polls would not land in that sourcetype unless the reader builds a custom mapping, and no field explains one.",
+      "field": "cross_field",
+      "quote": "(1) SNMP or VMS-supplied PoE telemetry.",
+      "severity": "major",
+      "suggested_fix": "Decide on one source. Either document an SNMP switch-polling sourcetype with the per-port power OID, or explain that this feed covers NVRs with built-in PoE ports and remove the switch_name and ifDescr wording."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "`implementation` promises a comparison against each port's PoE class budget, but `description` and the SPL use a flat `poe_w > 25`. IEEE 802.3af ports are capped at about 15.4 W at the switch (PSE) and 802.3at at about 30 W, so a single 25 W threshold never fires for af cameras and misses af/at ports near their limit. It also fires all the time on 802.3bt PTZ or heater cameras running normally.",
+      "field": "cross_field",
+      "quote": "(2) Compare to class budget.",
+      "severity": "major",
+      "suggested_fix": "Describe a per-port or per-class budget lookup (for example, switch_name, port, poe_class and budget_w) and alert on a percentage of budget. Alternatively, state that 25 W is a fixed heuristic for PoE+ ports only."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text. `switch_name` is a string, and synthetic probes do not draw PoE power. The real reasons a camera port legitimately draws high power are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `switch_name` without crossing `poe_w` > 25",
+      "severity": "major",
+      "suggested_fix": "List real causes: housing heaters and blowers in cold weather; IR illuminators switching on at night; PTZ motor movement or patrol tours; inrush during boot or after a power cycle; and 802.3bt cameras whose normal draw is above 25 W."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The steps are generic boilerplate. They never say where per-port PoE power comes from, which SNMP table or OID, or what unit it uses. Many vendor MIBs report port consumption in milliwatts, so a reader who maps the raw value straight into `poe_w` would be off by a factor of 1000.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=nvr:diagnostic into physical. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Name the source table: POWER-ETHERNET-MIB (RFC 3621) for port class and status, plus the vendor extension that reports per-port consumption. For Cisco, look up CISCO-POWER-ETHERNET-EXT-MIB cpeExtPsePortPwrConsumption and confirm its unit. Document the conversion to watts and the poll interval."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Power draw is polled with SNMP GET or walk, not sent as traps. Only threshold or over-budget notifications from some vendors arrive as traps.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use the equipment-model slug for SNMP polling, or the specific switch or NVR models, instead of snmp_trap."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL drops every sample at or below 25 W before charting, so the chart shows only exceedances, not a power trend against a threshold line. Stacking per-port maxima also gives a meaningless total.",
+      "field": "visualization",
+      "quote": "Stacked area power; threshold line.",
+      "severity": "minor",
+      "suggested_fix": "Describe a line chart per port, or a table of exceeding ports. If a trend chart is wanted, note that it needs an unfiltered series."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL fails to parse and its text is template residue. No subject-matter expert (SME) could have run it.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or unverified until a corrected search has been tested against real PoE data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart span=1h max(poe_w) by port switch_name` gives timechart two split-by fields. Timechart allows only one because _time is already the other axis, so the search errors out. Combine the two into one field first, for example `eval port_id=switch_name.\":\".port`, or use `bin _time` with `stats max(poe_w) by _time switch_name port`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "A single fixed `poe_w>25` ignores the PoE class (af/at/bt) budget that `implementation` asks for. Because it is applied before `timechart`, under-threshold history is discarded. The default limit=10 then folds extra ports into OTHER.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(switch_port, ifDescr, \"\")` puts every event without a port name into one empty-string series. `switch_name` is never coalesced, and the SPL does not convert units for sources that report milliwatts.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0110-UC-15.5.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 1
+  },
+  "summary": "The UC is templated throughout. The SPL will not run as written because `timechart` accepts only one split-by field. The text pulls switch-port PoE telemetry from an NVR diagnostic sourcetype and contradicts itself on a fixed 25 W threshold versus a per-class power budget.",
+  "tier": "deep",
+  "uc_id": "UC-15.5.8",
+  "verdict": "incorrect"
+}

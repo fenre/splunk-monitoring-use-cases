@@ -10,7 +10,9 @@ from splunk_uc.audits._template_fingerprints import (
     check_domain_token_binding,
     check_minimum_substantive_delta,
     detect_template_flags,
+    detect_template_flags_v2,
     narrative_similarity,
+    v2_flags_in_fields,
 )
 from splunk_uc.tools.lift._common import load_sidecar, resolve_sidecar_path
 
@@ -34,6 +36,15 @@ def validate_handcraft(
         reasons.append(
             "template provenance: enricher fingerprints remain: "
             + ", ".join(remaining_flags)
+        )
+
+    # v2 families are only refused in fields this diff rewrites; untouched
+    # fields keep their residue until their own lift.
+    remaining_v2 = v2_flags_in_fields(detect_template_flags_v2(lifted), lifted_field_names)
+    if remaining_v2:
+        reasons.append(
+            "template provenance: v2 template families remain in lifted fields: "
+            + ", ".join(remaining_v2)
         )
 
     reasons.extend(check_domain_token_binding(lifted))

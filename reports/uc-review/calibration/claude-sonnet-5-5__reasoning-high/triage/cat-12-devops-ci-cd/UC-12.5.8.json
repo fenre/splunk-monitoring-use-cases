@@ -1,0 +1,100 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "aab6f2e449dcf703050087321de8d201595db29fcdf5eac88e3de7cda160d8a5",
+  "file": "content/cat-12-devops-ci-cd/UC-12.5.8.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Three different sources are offered with no instructions: no scheduled job or CronJob that runs `helm list`, no HEC or scripted input, no Flux notification or log path. The reader cannot create `helm:release` events. The `app` field adds `splunk-otel-collector` for 'cluster metrics', which does not provide Helm release status.",
+      "field": "implementation",
+      "quote": "Ingest Helm release status from `helm list -o json` jobs, Flux HelmRelease conditions, or controller logs.",
+      "severity": "major",
+      "suggested_fix": "Pick one primary path (for example a scheduled `helm list --all-namespaces -o json` job sending to HEC as `helm:release`) and describe it in steps. Mention Flux HelmRelease status or logs as a second source, with its own field mapping."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The Universal Forwarder is not a Splunkbase app and ID 617 is not in the cached catalog. The sourcetypes `helm:release` and `fluxcd:controller` are not in the guide's sourcetype list (it lists `flux:event` and `argocd:*`), so check which collector creates them.",
+      "field": "app",
+      "quote": "Helm CLI / Flux helm-controller logs, `splunk-otel-collector` for cluster metrics — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collector and confirm the sourcetype names against it, or say that they are custom."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs `last_event` and `notes`, not `values`, and has no threshold. It lists releases whose status is not healthy.",
+      "field": "description",
+      "quote": "Outputs `values` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is a Helm release in a failed, pending-upgrade or pending-rollback state, with the namespace, chart and last event time."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search has no duration or steady-state test, so a normal upgrade that is briefly in `pending-upgrade` will alert. `helm list -o json` returns the chart as one `name-version` string and no values hash, and the SPL does not use either.",
+      "field": "implementation",
+      "quote": "Alert on non-deployed steady states. Include chart version and values hash for change correlation.",
+      "severity": "major",
+      "suggested_fix": "Add a minimum time in the non-deployed state to the search, or drop 'steady states'. Say how a values hash would be produced (for example `helm get values` in the job) or remove it."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Check the field names the sources produce. `helm list -o json` uses `name` (not `release`), `namespace`, `status`, `chart` and `app_version`. The SPL also uses `info_status` and `kind`, whose origin is not described. Flux HelmRelease events do not carry the Helm CLI fields.",
+      "field": "dataSources",
+      "quote": "`sourcetype=helm:release`, `sourcetype=fluxcd:controller`",
+      "severity": "needs_verification",
+      "suggested_fix": "List the fields each source provides and how they are normalised to `release`, `namespace`, `chart` and `status`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Besides the Lantern root, the references are generic Splunk HEC and conf-file pages. None documents Helm release statuses, `helm list` output or Flux HelmRelease conditions.",
+      "field": "references",
+      "quote": "Splunk inputs.conf reference",
+      "severity": "major",
+      "suggested_fix": "Add the Helm CLI reference for `helm list` and release statuses, and the Flux HelmRelease documentation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "'Release tooling', 'manifest' and 'chart' are jargon. It does not say the search lists software packages in a cluster that failed to install or update.",
+      "field": "grandmaExplanation",
+      "quote": "We watch Kubernetes release tooling so manifest or chart problems surface before users do.",
+      "severity": "minor",
+      "suggested_fix": "Say that it lists application installs or updates inside the cluster that failed or got stuck, so they are fixed before users notice."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `where` runs before `stats latest(...)`, so a release that failed earlier and is now `deployed` still appears. The latest state per release should be taken first and then filtered. `pending-install` and `uninstalling` are also not in the status list.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats ... by release, namespace, chart, status` drops events where any of those fields is missing. Flux `fluxcd:controller` events that lack the Helm CLI field names are silently excluded, and `info_status!=\"deployed\"` is never true when `info_status` is absent.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0070-UC-12.5.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The goal (find Helm releases stuck in failed or pending states) is clear and the Helm status values are mostly right. The collection path is not actually described, the text promises chart-version and values-hash correlation that the data and SPL do not carry, and the description cites outputs and thresholds the SPL does not have.",
+  "tier": "triage",
+  "uc_id": "UC-12.5.8",
+  "verdict": "rewrite"
+}

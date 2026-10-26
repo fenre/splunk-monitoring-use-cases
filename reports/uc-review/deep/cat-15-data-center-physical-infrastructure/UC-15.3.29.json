@@ -1,0 +1,112 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "5a1b29bc7d6a1d1939f6fa09ba8734f8d59a07f1130ff1a69bee2c47b7bbbfd2",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.29.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/api-v1/get-organization-webhooks-logs/",
+      "explanation": "`meraki:webhooklogs:api` comes from getOrganizationWebhooksLogs. That endpoint returns delivery metadata only: alertType, networkId, organizationId, url, sentAt, loggedAt, responseCode and responseDuration. It carries no deviceName and no alertTypeId, so `device_name` is null and `stats ... by device_name` drops every row. The polled path is not a real alternative to the HEC webhook.",
+      "field": "dataSources",
+      "quote": "`index=meraki sourcetype=meraki:webhook` (HEC) or `meraki:webhooklogs:api` (polled)",
+      "severity": "blocker",
+      "suggested_fix": "Name `meraki:webhook` (the HEC receiver, which carries the full alert payload with deviceName, deviceSerial and alertTypeId=motion_alert) as the only working source for this proxy. Describe `meraki:webhooklogs:api` only as a webhook delivery-health log."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `detailedImplementation` promise a peer comparison, but the SPL only counts motion alerts per device and period. It never computes a peer baseline, a ratio or a threshold, so it never flags an anomalous camera. `visualization` ('Night mode quality gauge') also implies a quality score that no field provides.",
+      "field": "cross_field",
+      "quote": "bucket motion alerts by hour-of-day to spot cameras whose night-mode behaviour is anomalous (e.g. far more or far fewer motion alerts than peers during 22:00-06:00)",
+      "severity": "major",
+      "suggested_fix": "Describe the output as it is: a per-camera table of motion-alert counts by day period for manual review. Alternatively, document the extra step the reader must add, for example a night-to-day ratio per camera compared with the median of peers on the same network, and state the cut-off. Replace the 'quality gauge' visualization with a per-camera bar chart of night versus day motion alerts."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The hour comes from `strftime(_time, \"%H\")`, which renders in the timezone of the user running the search, not the camera site's local time. For multi-site organisations, or a search head in another timezone, the 'Night (22-06)' bucket covers the wrong hours. Webhook `_time` may also be the HEC receive time unless timestamp extraction is set to `occurredAt`.",
+      "field": "implementation",
+      "quote": "bucket motion alerts by hour-of-day",
+      "severity": "major",
+      "suggested_fix": "Tell the reader to set timestamp extraction for `meraki:webhook` to the payload's `occurredAt`. Also tell them to run the saved search as a user whose timezone matches the site, or to derive local hour per network from a lookup of networkId to timezone."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the listed causes applies to a motion-alert proxy. The real confounders are missing: per-camera motion-alert schedules and sensitivity in Meraki Dashboard (alerts are often enabled only after hours), IR illuminators attracting insects or spider webs at night, headlights, weather, and cameras excluded from the webhook alert recipients.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `device_name`, `period`** — Health checks in `meraki` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with motion-alert-specific causes: alert schedule or region-of-interest differences between cameras, IR-attracted insects and webs, vehicle headlights and weather, and cameras not subscribed to the motion alert webhook."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Meraki add-on used by this UC is Splunkbase 5580 (Splunk_TA_cisco_meraki, displayName 'Cisco Meraki Add-on for Splunk'). App 5631 is not in the cached catalog and https://splunkbase.splunk.com/app/5631 returned 404 when fetched.",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether Splunkbase 5631 exists and what it is. If it is not a Meraki add-on, remove the reference and keep only 5580."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/mv-sense/rest-api/",
+      "explanation": "The add-on does not expose night-mode quality, but Meraki MV Sense publishes per-camera light-level readings over MQTT (topic `/merakimv/<serial>/light`, listed in the camera's Sense settings). That is a direct low-light signal the UC does not mention, so readers are pushed onto a weak proxy.",
+      "field": "dataSources",
+      "quote": "Camera night-mode quality is not exposed in the TA; this UC uses motion-alert volume per hour-of-day as a proxy.",
+      "severity": "major",
+      "suggested_fix": "Mention the MV Sense MQTT light topic as the better source for low-light conditions, bridged into Splunk through an MQTT-to-HEC relay. Keep motion-alert volume as a fallback only."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The data sources list `meraki:audit` as required, but the SPL never searches it. Only the optional 'audit-based path' in `implementation` uses it, which leaves the reader unsure what to onboard.",
+      "field": "dataSources",
+      "quote": "`index=meraki sourcetype=meraki:audit` from `cisco_meraki_audit` plus",
+      "severity": "minor",
+      "suggested_fix": "Mark `meraki:audit` as optional and only for tracking camera quality or retention setting changes, separate from the motion-alert search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The generic Cisco Security support index does not document Meraki MV night mode or motion-alert webhooks.",
+      "field": "references",
+      "quote": "Cisco Security documentation",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the Meraki webhook sample alerts page (https://developer.cisco.com/meraki/webhooks/webhook-sample-alerts/) and Meraki MV night mode / IR documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.cisco.com/meraki/webhooks/webhook-sample-alerts/",
+      "field": "spl",
+      "issue": "Meraki's default webhook payload sends alertType=\"Motion detected\" with alertTypeId=\"motion_alert\" (https://developer.cisco.com/meraki/webhooks/webhook-sample-alerts/), so `alertType=\"motionAlert\"` matches nothing. The OR keeps the search working, but the dead clause misleads readers. The meraki:webhooklogs:api events in the sourcetype IN list have no deviceName and no alertTypeId, so they are always dropped. The search returns raw counts with no threshold, so it is a report, not an alert.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'Night Mode Effectiveness and Low-Light Performance', but the data only supports motion-alert volume by time of day as a weak proxy. Consider retitling to something like 'Night-time Motion Alert Volume per Camera (Meraki MV)'.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0067-UC-15.3.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC is honest that night-mode quality is not exposed and uses motion-alert counts by hour as a proxy, but the polled `meraki:webhooklogs:api` path it offers cannot work because Meraki's webhook delivery log has no device name or alertTypeId. The SPL never compares a camera with its peers or applies a threshold, and the time-of-day buckets ignore site timezone.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.29",
+  "verdict": "incorrect"
+}

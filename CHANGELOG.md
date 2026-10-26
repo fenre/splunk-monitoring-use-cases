@@ -12,6 +12,33 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added
+
+- **UC text-quality review.** A tiered review of every use case's text for
+  clarity, specificity, consistency and factual correctness
+  ([`docs/uc-text-review-rubric.md`](docs/uc-text-review-rubric.md), plan in
+  [`docs/superpowers/plans/2026-10-26-uc-text-quality-review.md`](docs/superpowers/plans/2026-10-26-uc-text-quality-review.md)).
+  - `python -m splunk_uc audit-text-quality`: deterministic pre-pass covering
+    template families, skeleton clusters, title-token lists, CIM /
+    Splunkbase / premium-app drift, spelling and placeholder titles. It flags
+    16,299 of 16,652 UCs.
+  - v2 template families in `audit-template-provenance` (`--max-any-v2`), also
+    refused in lifted fields by `lift-validate --require-handcraft`.
+  - `review-prompt`, `scripts/uc_review_runner.py` (Cursor Python SDK, plus an
+    export/ingest hand-off), `generate-uc-review-report` (fix queue, human
+    lane, [`docs/uc-review-findings.md`](docs/uc-review-findings.md)),
+    `review-fix-scripted`, and `lift-prompt --findings`.
+  - Schema `schemas/v2/uc-review-finding.schema.json` (preview).
+  - Calibration on 150 UCs and a cat-15 pilot. 261 UCs are deep-reviewed so
+    far; most are `incorrect`, with evidence-backed blockers such as the
+    "Universal Forwarder (Splunkbase 617)" collector line, which points at a
+    non-existent app.
+
+### Changed
+
+- CI caps v2 template families and text-quality major findings at the
+  2026-10-26 baseline, and schema-validates the review ledger.
+
 ## [8.25.0] - 2026-07-24
 
 ### New Use Cases

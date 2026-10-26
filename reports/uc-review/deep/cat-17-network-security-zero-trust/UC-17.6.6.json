@@ -1,0 +1,119 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "3cdf23f88d59003fcfe232cb5f8a94d1e2a8aa642a90b43ae8b3bf74b1d6118c",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.6.6.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/edge-security-microsegmentation.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/latest/sources/vendor/Akamai/",
+      "explanation": "The subcategory guide configures Guardicore inputs with `sourcetype = guardicore:network:flow` and `index = guardicore`. This UC, its dataSources and its detailedImplementation use `guardicore:network` and `index=microseg`. SC4S documents `guardicore:centra:cef` as the syslog sourcetype for the Akamai add-on. None of these names has been reconciled with what Splunkbase 7426 actually emits.",
+      "field": "cross_field",
+      "quote": "Data in `index=microseg` with `sourcetype=guardicore:network`.",
+      "severity": "major",
+      "suggested_fix": "Check the sourcetypes defined in Akamai Guardicore Add-on for Splunk (7426) props.conf and use one name consistently in dataSources and detailedImplementation, aligned with the guide. Either use the guide's `guardicore` index or say that `microseg` is a site-specific name."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "risk is a string, so a descending sort orders it alphabetically: MEDIUM, LOW, HIGH. The HIGH-risk LOLBin edges the alert is built around end up at the bottom of the results.",
+      "field": "detailedImplementation",
+      "quote": "| sort - risk, - count",
+      "severity": "major",
+      "suggested_fix": "Add a numeric rank (for example `eval risk_rank=case(risk=\"HIGH\",3,risk=\"MEDIUM\",2,true(),1)`) and sort on `- risk_rank, - count`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The regex is unanchored, so `sh` matches any process name containing those letters (ssh, sshd, zsh, flash, crashpad, splunkd's helpers, and so on) and `java` matches javaw and others. Many benign processes would be classed HIGH and trigger the 'alert immediately' rule.",
+      "field": "detailedImplementation",
+      "quote": "match(process_name, \"(?i)cmd|powershell|bash|sh|wscript|cscript|mshta|certutil|bitsadmin\"), \"HIGH\"",
+      "severity": "major",
+      "suggested_fix": "Anchor the alternation to whole executable names, for example `^(cmd|powershell|pwsh|bash|sh|wscript|cscript|mshta|certutil|bitsadmin)(\\.exe)?$`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The 30-day history comes from a join subsearch, which is capped (by default 50,000 result rows and a runtime limit). In any real Centra estate the historical edge set would be silently truncated, so many known edges would come back as 'new'.",
+      "field": "detailedImplementation",
+      "quote": "| join type=left edge [\n    search index=microseg sourcetype=\"guardicore:network\" earliest=-31d latest=-1d",
+      "severity": "major",
+      "suggested_fix": "Keep historical edges in a lookup or summary index updated daily, and compare against it with `lookup` (or one search over 31 days using `stats min(_time) as first_seen by edge`) instead of a join subsearch."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These field names, the agent version requirement and the Centra UI paths do not appear in the grounding guide. They look like guesses, and the guide's own funnel search uses `source_label`/`dest_label` instead.",
+      "field": "detailedImplementation",
+      "quote": "Key fields: `src_asset`, `dst_asset`, `process_name`, `process_path`, `process_user`, `dst_port`, `src_segment`, `dst_segment`. ... Process visibility requires agent version 4.x+ ... Check Centra > Agent Configuration > Process Visibility setting. ... Reveal > select an asset > Process Communication Map",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the field names against the 7426 add-on's extractions, and the agent version and UI paths against Akamai Guardicore Centra documentation. Remove or correct anything that cannot be confirmed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The text is NAC template residue. It does not state the real value of the UC, which is spotting new process-to-destination communication paths (for example LOLBins reaching new hosts) that point to lateral movement or unapproved software.",
+      "field": "value",
+      "quote": "reduce unauthorized access, segmentation drift, and NAC policy failures without manual correlation",
+      "severity": "major",
+      "suggested_fix": "State the actual value: surfacing process-level communication edges never seen in the baseline window, so analysts can triage likely lateral movement or shadow applications before policy is updated."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Nothing in the UC uses a threshold or `span=1h`. The entries name no real causes of new process edges, such as software deployments and patching, auto-updaters, browsers reaching new destinations, or agents newly enrolled into Centra. Those are listed only in detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `edge` without crossing configured threshold ... shifts `count` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "List concrete benign new-edge sources (patch or deployment windows, auto-update services, browsers, newly onboarded agents) and how to suppress them, for example a process allowlist keyed on process_path plus dst_segment."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 has no connection to a Guardicore process-communication detection.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `m365` from equipment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "This is marketing language. The UC's own troubleshooting section admits 'too many new edges' is a common problem.",
+      "field": "detailedImplementation",
+      "quote": "dramatically reducing false positives",
+      "severity": "minor",
+      "suggested_fix": "Say that process context helps analysts triage new edges more quickly, and drop 'dramatically'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search window is earliest=-24h, and the filter keeps edges whose first_seen is within the last day, so every edge in the window passes. Nothing is compared against a baseline, so the SPL cannot detect changes as the title claims. Its edge string format also differs from detailedImplementation ('->' and '::' versus '→' and ':').",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Network_Traffic tstats grouped by user/action/src/dest has no process dimension and no new-edge logic, so it does not express this detection. It also contradicts the empty cimModels list.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0105-UC-17.6.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation describes a sensible new-process-edge baseline detection, but its SPL has logic bugs (risk sort order, unanchored LOLBin regex, subsearch truncation). Sourcetype and index naming disagree with the subcategory guide, and the value, false-positive and equipment text is template residue.",
+  "tier": "deep",
+  "uc_id": "UC-17.6.6",
+  "verdict": "rewrite"
+}

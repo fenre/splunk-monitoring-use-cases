@@ -1,0 +1,95 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "a8d7424bf046b636aa331dec1835fa3b5222045ae3212c629ec6f98a97feb5b7",
+  "file": "content/cat-16-service-management-itsm/UC-16.3.8.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no 20% drop test, no prior-week comparison and no category split. It labels each day 'improving' or 'declining' against a 7-row streamstats average that includes the current day, and the output has no alert condition. The implementation, description ('configured threshold') and SPL describe different detections.",
+      "field": "cross_field",
+      "quote": "Track 7-day rolling average; alert when ratio drops >20% vs prior week. Segment by category",
+      "severity": "major",
+      "suggested_fix": "Either describe the actual behaviour (daily views/tickets ratio with an improving/declining trend flag), or have the SPL owner add the 20%-vs-prior-week test and category grouping that the text promises."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL needs at least 7 daily buckets for its 7-row streamstats average, so a 24-hour search window gives a meaningless single row. The text also tells the reader to enable Data Model Acceleration and run `tstats` checks although the search uses neither, and 'throttle per entity' does not apply to a per-day series.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity",
+      "severity": "major",
+      "suggested_fix": "Specify a time range of at least 14 days (for example earliest=-14d@d). Remove the data-model and per-entity throttling text."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 1-4 appear twice: once as a UC-specific walkthrough and once as generic boilerplate (poll interval 300-900 s, vendor admin UI inventory count +/-5%, 'timechart count span=1h', 'joins/lookups enrich owner or asset metadata'). The second set does not apply to this search, which has no joins or lookups, and it implies an add-on exists when the app is 'Custom'.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps. State how KB view events and snow:incident events are ingested, then delete the generic boilerplate."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/service-management-itsm.md",
+      "explanation": "The SPL needs `snow:incident`, which comes from the Splunk Add-on for ServiceNow (Splunk_TA_snow, Splunkbase 1928 per the guide). `kb:views` is a custom sourcetype with no documented producer. The 'Universal Forwarder (Splunkbase 617)' label is not in the cached catalog and a UF cannot poll ServiceNow or Confluence APIs.",
+      "field": "app",
+      "quote": "Custom (ITSM API, KB platform analytics) — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the Splunk Add-on for ServiceNow for the incident feed. State clearly that `kb:views` is a custom feed and say how it is produced (for example a scripted input or HEC from the KB platform analytics export). Check what Splunkbase 617 is, or remove it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The data sources do not give the index, sourcetypes or fields the SPL relies on (`index=itsm`, `kb:views` with a `views` field, `snow:incident`).",
+      "field": "dataSources",
+      "quote": "KB article view counts, ticket creation rates",
+      "severity": "minor",
+      "suggested_fix": "List `index=itsm` `sourcetype=kb:views` (field `views`, optional) and `sourcetype=snow:incident`, as the SPL uses them."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Views divided by incident count does not measure deflection. Views can rise without reducing tickets, and the same article may be viewed by people who never would have opened a ticket. Presenting it as 'deflection ROI' overstates what the search shows.",
+      "field": "implementation",
+      "quote": "Compute deflection ratio (views / tickets) — higher ratio suggests effective self-service.",
+      "severity": "minor",
+      "suggested_fix": "Call it a correlation indicator (KB views per incident), not deflection, and note that true deflection needs session-level or search-then-no-ticket data."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk admin pages. None cover ServiceNow knowledge analytics or the Splunk Add-on for ServiceNow incident data.",
+      "field": "references",
+      "quote": "Splunk savedsearches.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add the Splunk Add-on for ServiceNow documentation and the knowledge-base analytics documentation of the KB platform you use."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `views` field and the `kb:views` sourcetype are not verified. `deflection_ratio` is null on days with no incidents, and the final trend compares a day with a 7-row average that includes that day. No alert condition is produced, although the description and implementation promise one.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0083-UC-16.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The idea (KB views against incident volume) is clear. The implementation prose describes a 20% week-over-week alert and category segmentation that the SPL does not implement, and detailedImplementation repeats two generic step sets that contradict the search.",
+  "tier": "triage",
+  "uc_id": "UC-16.3.8",
+  "verdict": "rewrite"
+}

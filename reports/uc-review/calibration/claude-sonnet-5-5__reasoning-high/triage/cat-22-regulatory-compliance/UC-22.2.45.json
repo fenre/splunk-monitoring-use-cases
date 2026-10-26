@@ -1,0 +1,137 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "7321a3d5f374f4e578dcfb6308c7248901be2b271f42b5257d8298bd206706b7",
+  "file": "content/cat-22-regulatory-compliance/UC-22.2.45.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.enisa.europa.eu/topics/csirts-in-europe",
+      "explanation": "As far as I know, MeliCERTes is the CSIRTs Network's collaboration platform used between CSIRTs. It is not a portal that entities use to submit NIS2 Art.23 notifications; those go to the national CSIRT or competent authority. The same MeliCERTes framing appears in the compliance assurance_rationale. The `*csirt*` URL, destination and recipient filters would also miss many CSIRT domains that do not contain that string, such as `cert.at`.",
+      "field": "dataSources",
+      "quote": "`index=network sourcetype=http_probe url=*csirt* OR url=*melicertes*`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which channels Art.23 reporting actually uses in each Member State and drive probing from `nis2_csirt_directory.csv` URLs and domains instead of wildcard guesses. Drop the MeliCERTes claim if it is not an entity-facing channel."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "As far as I know, the Exchange message-tracking sourcetype from the Microsoft Exchange add-on is `MSExchange:2013:MessageTracking` and the standard sendmail syslog sourcetype is `sendmail_syslog`, so these two names may not exist. Fields the SPL relies on (`recipient_domain`, `delivery_status` with value 'Delivered', `ssl_validity_days`, `response_time_ms`, `response_code`) are not shown to be extracted from any of these sources.",
+      "field": "dataSources",
+      "quote": "`index=email sourcetype=sendmail OR sourcetype=exchange:messagetracking`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the real sourcetypes and field names for the Exchange or sendmail logs and for Stream TLS events, and map them in the SPL or in props. Describe the custom `http_probe` fields explicitly."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation says daily at 06:00, but the savedsearches.conf stanza in detailedImplementation runs `0 2 * * 1` (weekly, Monday 02:00) over `-7d`. The description's alert condition (`avg_response_ms` > 10000 or `cert_days_remaining` < 14) omits the UNREACHABLE, EMAIL_FAIL and EMAIL_STALE states the SPL returns. The implementation sends test emails weekly while the SPL calls a channel EMAIL_STALE after 7 days, so an on-time weekly test will flap.",
+      "field": "cross_field",
+      "quote": "(4) Schedule the SPL daily at 06:00.",
+      "severity": "major",
+      "suggested_fix": "Pick one schedule, list all channel_health states in the description, and make the email test cadence shorter than the stale threshold (or lengthen the threshold)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFPs are the compliance pack's generic scenarios, including 'QSA activity' and 'BAA/DPA-covered vendor'. None describes a real cause of a false UNREACHABLE, SLOW or CERT_EXPIRING flag. The deterministic pass did not record this.",
+      "field": "knownFalsePositives",
+      "quote": "**Third-party processor under contract** — BAA/DPA-covered vendor generates expected rows grouped by `country_code`",
+      "severity": "major",
+      "suggested_fix": "Use real causes: portal maintenance windows, a probe egress IP blocked by the CSIRT, redirect responses (301/302) treated as failures, a TLD that does not map to a country, and test mail held in a quarantine."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic template residue from other regulations. The 'Hint' paragraphs repeat 'This is an operational consideration that influences either the detection's accuracy or its maintainability'. Step 4 has a single 'panel' that restates the whole visualization field, and Step 5 repeats NIS2 caveats about 24h early warning and BA/BAA governance that do not concern channel health.",
+      "field": "detailedImplementation",
+      "quote": "retention matching the regulation's minimum (PCI: 1y, HIPAA: 6y, NIST 800-53: 1-3y per FIPS 199, SOX: 7y)",
+      "severity": "major",
+      "suggested_fix": "Cut the generic text and keep: probe design, directory columns, the three joins, validation against a known-bad channel, and troubleshooting of probe, TLS and mail paths."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL starts from `inputlookup nis2_csirt_directory.csv` and does three left joins (probe, TLS, email), so the outer side is the lookup. The step also omits the email join. Step 3(c) is missing, because the list jumps from (b) to (d).",
+      "field": "detailedImplementation",
+      "quote": "This search correlates `index=network` (sourcetype=`http_probe`) on the outer side with `index=pki` (sourcetype=`stream:tls`) on the inner side, joined on `country_code` across the last 7 days.",
+      "severity": "major",
+      "suggested_fix": "Describe the lookup-first design with three joins, and renumber the validation steps."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The text never defines the columns of `nis2_csirt_directory.csv` (country_code, csirt_name, notification_channel, and a probe URL or email domain), nor how `country_code` is meant to match probe results.",
+      "field": "implementation",
+      "quote": "hit each CSIRT portal in `nis2_csirt_directory.csv` daily",
+      "severity": "minor",
+      "suggested_fix": "Document the lookup columns and give a sample row."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "The SPL does not use ES, yet `app` lists it and `premiumApps` lists Enterprise Security as if it were required. The version bounds on ES and Stream are also given without a source.",
+      "field": "app",
+      "quote": "Splunk Enterprise Security (Splunkbase 263) ≥7.0 for correlation",
+      "severity": "minor",
+      "suggested_fix": "Remove ES from premiumApps or mark it optional, and drop unsourced version bounds."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "specificity",
+      "explanation": "This Splunk Synthetic Monitoring URL looks like a guessed path. The ENISA reference attached to 'MeliCERTes platform' is a generic CSIRTs-in-Europe page. Several references have no `retrieved` date.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Synthetics/",
+      "severity": "minor",
+      "suggested_fix": "Replace them with the exact documentation pages and add retrieved dates."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "overclaiming",
+      "explanation": "The `verified` status rests on a maintainer group. The sourcetype, field-name and MeliCERTes assumptions above are unconfirmed.",
+      "field": "status",
+      "quote": "\"reviewer\": \"@nis2-evidence-pack-maintainers\"",
+      "severity": "minor",
+      "suggested_fix": "Record a named reviewer, or lower the status until the data path is confirmed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`country_code` is taken from the last dot-separated token of a URL, certificate subject or email domain. That breaks for `.eu`, `.org`, `.com`, `.gov.uk` (UK rather than ISO GB) or any URL with a path after the TLD. Two channels in one country collapse into one row because all joins are on `country_code`, and unmatched channel types ('other') always report HEALTHY. Redirect responses count as UNREACHABLE (`last_http_code != 200`). `evidence_id` hashes `now()`, so it changes on every run.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search covers only `Web` (status and response time for `*csirt*` URLs). It has no certificate or email logic and does not produce the channel_health states of the main SPL, although cimModels also lists Certificates. `schema` is just 'CIM'. Custom `http_probe` data is not tagged for the Web model unless the author builds that mapping.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "The entry 'N/A (compliance notification channel health)' is a free-text note, not a MITRE technique ID. It should be an empty list or removed.",
+      "severity": "minor"
+    },
+    {
+      "field": "compliance",
+      "issue": "The assurance_rationale names MeliCERTes portal reachability as an operator-controlled notification channel. See the dataSources finding on whether MeliCERTes is entity-facing.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0054-UC-22.2.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The channel-health idea is concrete and the SPL has a real structure, but the data-source assumptions (MeliCERTes as an operator notification portal, `*csirt*` URL filters, sourcetype and field names) are shaky. The schedule and thresholds disagree between fields, and the walkthrough is padded with generic template text.",
+  "tier": "triage",
+  "uc_id": "UC-22.2.45",
+  "verdict": "rewrite"
+}

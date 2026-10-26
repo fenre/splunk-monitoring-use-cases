@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "728551358d30d99207f77313f0bfdedc79bdcb5018c4fd13abeab27479a68172",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.30.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/rPDULoadStatusLoad",
+      "explanation": "PowerNet-MIB rPDULoadStatusLoad returns 'the phase/bank load measured in tenths of Amps'. The SPL's maxp-minp > 20 therefore fires on a 2.0 A spread between phases, not on 20% of phase rating, so a reader tuning to a percentage gets the wrong alert.",
+      "field": "implementation",
+      "quote": "Tune imbalance >20% (of max phase rating) per facility engineering.",
+      "severity": "blocker",
+      "suggested_fix": "State that the raw value is in tenths of amps and must be divided by 10. Express the threshold either in amps or as a percentage computed against a per-PDU phase rating from a lookup."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://mibs.observium.org/object/PowerNet-MIB/rPDULoadStatusPhaseNumber",
+      "explanation": "rPDULoadStatusTable is indexed by rPDULoadStatusIndex and holds both phase and bank records, identified by rPDULoadStatusPhaseNumber and rPDULoadStatusBankNumber. Index suffixes 1–3 are therefore not guaranteed to be phases 1–3. A single-phase PDU still reports index 1, so isnotnull(p1) does not exclude single-phase units, and on banked single-phase models p2/p3 can be banks that are misread as phases.",
+      "field": "implementation",
+      "quote": "Use `snmpwalk` to confirm exact suffixes and map to `rPDULoadStatusLoad1` fields in `props.conf`. Single-phase PDUs will null out—filter with `isnotnull(p1)`.",
+      "severity": "major",
+      "suggested_fix": "Map p1–p3 using rPDULoadStatusPhaseNumber (phase records only), and exclude single-phase units by checking that a phase-3 record exists, for example isnotnull(p3). For rPDU2-generation PDUs, consider rPDU2PhaseStatusCurrent."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/snmp-data-format/",
+      "explanation": "The app field lists Splunk Connect for SNMP, but SC4SNMP sends Gauge values such as rPDULoadStatusLoad to a metrics index as sourcetype sc4snmp:metric, not as snmp:apc:pdu events. dataSources also appends 'Collected via Universal Forwarder (Splunkbase 617)', which matches neither SNMP collector.",
+      "field": "cross_field",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=snmp:apc:pdu into power.",
+      "severity": "major",
+      "suggested_fix": "Scope the snmp:apc:pdu event sourcetype to SNMP Modular Input (1537), or document the SC4SNMP metric path and the mstats query it needs. Remove the Universal Forwarder sentence."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The first step sequence is headings without content. A second, generic Step 1–5 sequence follows with REST API 401/429 troubleshooting and an earliest=-24h@h schedule, which re-alerts every raw imbalance row from the past day because the SPL does not aggregate.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — MIB walk on a reference rPDU.\n\nStep 2 — Align extractions with UC-15.1.7 outlet metrics.\n\nStep 3 — Change management for cord moves.\n\nStep 4 — Optional Modbus path if SNMP disabled.",
+      "severity": "major",
+      "suggested_fix": "Merge into one sequence: snmpwalk of rPDULoadStatusTable showing the phase and bank number columns, the field extraction, a schedule matching the 5-minute poll (for example -10m with latest per host), and SNMP-specific troubleshooting."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Sibling UCs cite this same FAQ under three other titles ('PowerNet-MIB and SNMP', 'SNMP management card troubleshooting', 'UPS management and SNMP application note'), so at most one title can be accurate and the page may not document rPDU load tables at all.",
+      "field": "references",
+      "quote": "\"title\": \"APC PowerNet-MIB — rPDU load tables\",\n      \"url\": \"https://www.apc.com/us/en/faqs/FA156148/\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Open FA156148 and retitle it to match its content, or cite a PowerNet-MIB reference for rPDULoadStatusTable instead."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "AGENTS.md",
+      "explanation": "The URL contains an apostrophe. The canonical Search Reference landing page is .../SearchReference/WhatsInThisManual. The generic Splunk Enterprise documentation link adds nothing UC-specific.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/What'sInThisManual",
+      "severity": "minor",
+      "suggested_fix": "Fix the URL to WhatsInThisManual, and replace the generic docs link with the eval max/min function reference or the vendor MIB."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "consistency",
+      "explanation": "The detection polls a table; no trap path is used.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_trap."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`imbalance > 20` compares raw rPDULoadStatusLoad values, which are in tenths of amps, so the effective threshold is 2.0 A. `isnotnull(p1)` does not exclude single-phase PDUs. p1–p3 are taken from index suffixes rather than rPDULoadStatusPhaseNumber.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Row-level output with no latest-per-host aggregation, so every poll in the window produces its own alert row.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0024-UC-15.1.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC picks the right PowerNet-MIB table but gets its semantics wrong. rPDULoadStatusLoad is measured in tenths of amps, not percent, and its rows are indexed across phases and banks, so the '20%' threshold and the p1/p2/p3 = phase 1/2/3 mapping are both unreliable. detailedImplementation is a fragmentary, duplicated template.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.30",
+  "verdict": "incorrect"
+}

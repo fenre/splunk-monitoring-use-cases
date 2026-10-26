@@ -1,0 +1,89 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "2bb9bed8f545bb4bc6ce4ce6e6aa4e296cd41450085d62ead015e8c44bb500c1",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.30.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/mv-sense/rest-api/",
+      "explanation": "Both halves of the sentence are wrong. Meraki publishes live people and vehicle counts over MV Sense MQTT (`/merakimv/<serial>/0`, crossing and occupancy topics) and exposes them through REST endpoints such as `/devices/{serial}/camera/analytics/live`, `/recent` and `/overview`. The Dashboard webhook alert catalogue has no people-counting alert type.",
+      "field": "dataSources",
+      "quote": "Camera people-counting analytics are delivered via the Meraki MV Sense webhook; they are NOT in the polled device-API surface.",
+      "severity": "blocker",
+      "suggested_fix": "State that people counts come from MV Sense MQTT (via an MQTT broker bridged into Splunk, for example with an MQTT modular input or HEC relay) or from polling the camera analytics REST endpoints with a custom or REST modular input. Say that Splunk_TA_cisco_meraki (5580) does not collect them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/meraki/mv-sense/mqtt/",
+      "explanation": "Meraki documents MV Sense configuration per camera under Cameras > Monitor > Cameras > (camera) > Settings > Sense, with an MQTT broker as the delivery target. No 'MV Sense > Webhooks' page and no `peopleCount` POST payload exist. MQTT messages carry `counts.person` / `counts.vehicle` or crossing and occupancy objects instead.",
+      "field": "implementation",
+      "quote": "plus a Meraki MV Sense webhook in the Dashboard (Cameras > MV Sense > Webhooks). Each MV12/MV22/MV32/MV52/MV72 camera with people-counting enabled will POST `peopleCount` payloads.",
+      "severity": "blocker",
+      "suggested_fix": "Replace the step with the documented MQTT setup: enable Sense on the camera, add an MQTT broker, and subscribe to `/merakimv/<serial>/0` or to the occupancy topic for an area. Then describe how those messages reach Splunk and which field (for example `counts.person`) the search should average."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The text runs Steps 1 to 4 a second time with a generic template: poll intervals for a push feed, an 'inventory count +/-5%' check that means nothing for people counts, and a spot-check of the field `device_name, limit=10`, which treats a timechart option as a field. The duplicate block contradicts the first and confuses the reader.",
+      "field": "detailedImplementation",
+      "quote": "Step 1 — Configure data collection\n\nInstall and configure the add-on referenced in the app field (`Cisco Meraki Add-on for Splunk` (Splunkbase 5580)). Enable the modular input or HEC token that writes sourcetype=meraki:webhook, meraki:webhooklogs:api into meraki. Default poll interval 300–900 seconds",
+      "severity": "major",
+      "suggested_fix": "Delete the second Step 1 to Step 5 block and keep a single procedure specific to the real MQTT or REST analytics feed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "None of the entries describes a real people-counting distortion. Real ones include camera repositioning or a field-of-view change, area or zone reconfiguration, a camera offline (gaps read as zero occupancy), staff or cleaners counted as occupants, mirrors or screens, and fisheye double counts.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `avg` on `configured_sourcetype`** — Scheduled automation elevates `limit=10` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List people-counting-specific causes such as those above, and suggest annotating zone or area reconfiguration dates."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 5631 is not in the cached catalog and https://splunkbase.splunk.com/app/5631 returned 404. The Meraki add-on is 5580 (Splunk_TA_cisco_meraki).",
+      "field": "references",
+      "quote": "Splunk Add-on for Cisco Meraki (Splunkbase 5631)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check what Splunkbase 5631 is and remove the reference if it is not a Meraki add-on. Add the MV Sense REST and MQTT developer docs as references instead of the generic Cisco Security support page."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The search produces a 15-minute timechart per camera (`device_name`) with no location field, so a location comparison needs a camera-to-location lookup that the UC never mentions.",
+      "field": "visualization",
+      "quote": "Occupancy heat map by time of day; location comparison bar chart",
+      "severity": "minor",
+      "suggested_fix": "Mention a camera serial to site, floor or area lookup if location comparison is wanted, or describe the per-camera timechart that the search actually produces."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.cisco.com/meraki/mv-sense/rest-api/",
+      "field": "spl",
+      "issue": "The search filters webhook sourcetypes for `alertTypeId=\"people_counting\"` and a `peopleCount` field. Neither exists in Meraki webhook payloads (people counts are MQTT or REST analytics only: https://developer.cisco.com/meraki/mv-sense/rest-api/), and `meraki:webhooklogs:api` holds only delivery metadata. The search returns no rows. It is also a trend report, not an alert, because no threshold exists.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0069-UC-15.3.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC is built on a data path that does not exist. Meraki MV people counts come from MV Sense MQTT topics and the camera analytics REST endpoints, not from Dashboard webhooks, so the `meraki:webhook` / `meraki:webhooklogs:api` search would return nothing. The detailed implementation also repeats its steps with a second generic, polling-oriented block.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.30",
+  "verdict": "incorrect"
+}

@@ -11,6 +11,8 @@
 	audit-compliance-gaps audit-compliance-mappings audit-evidence-signatures \
 	audit-vendor-changelog \
 	audit-doc-counts audit-openapi-drift audit-content-quality audit-exclusions-coverage \
+	audit-text-quality uc-review-triage uc-review-route uc-review-deep uc-review-adjudicate \
+	uc-review-status uc-review-calibrate-select uc-review-report \
        audit-baseline-clause-grammar-free audit-peer-review-signoffs \
        audit-mcp-tool-schemas \
        stewardship-digest audit-reproducibility audit-reproducibility-fast \
@@ -235,6 +237,37 @@ audit-openapi-drift: ## Flag dist/api/ paths missing from openapi.yaml / api/v1/
 
 audit-content-quality: ## Flag description==value, jargon in grandmaExplanation, broken fixtureRefs, description/value gaps
 	$(SPLUNK_UC) audit-content-quality
+
+audit-text-quality: ## Deterministic UC text-quality pre-pass -> reports/uc-review/deterministic.jsonl
+	$(SPLUNK_UC) audit-text-quality
+
+# --- UC text-quality review (docs/uc-text-review-rubric.md) ---
+# Model tiers need `pip install cursor-sdk` and CURSOR_API_KEY. Pass
+# CAT=cat-NN to scope a run and ARGS="--dry-run" (or --limit N, --model ID)
+# to adjust it.
+UC_REVIEW := $(PYTHON) scripts/uc_review_runner.py
+UC_REVIEW_SCOPE = $(if $(CAT),--category $(CAT),)
+
+uc-review-triage: ## Fast-model triage of stale UCs (CAT=cat-NN, ARGS=...)
+	$(UC_REVIEW) triage $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-route: ## Show which UCs the deep tier would review, and why (CAT=cat-NN)
+	$(UC_REVIEW) route $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-deep: ## Heavy-model deep review of routed UCs (CAT=cat-NN, ARGS=...)
+	$(UC_REVIEW) deep $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-adjudicate: ## Second-opinion review of deep-review blockers (CAT=cat-NN)
+	$(UC_REVIEW) adjudicate $(UC_REVIEW_SCOPE) $(ARGS)
+
+uc-review-status: ## UC review record counts per tier and category
+	$(UC_REVIEW) status
+
+uc-review-calibrate-select: ## Write the stratified 150-UC calibration set
+	$(UC_REVIEW) calibrate select
+
+uc-review-report: ## Roll the review ledger into summary.json, fix-queue.json, docs/uc-review-findings.md
+	$(SPLUNK_UC) generate-uc-review-report
 
 audit-baseline-clause-grammar-free: ## Refuse `clause-grammar` fingerprints in audit-baseline.json
 	$(SPLUNK_UC) audit-baseline-clause-grammar-free

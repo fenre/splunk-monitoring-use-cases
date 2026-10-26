@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "49473073137900d666bd0a88d934e0c68477e2f5a96a04519fece1fc74191790",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.1.273.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/kms/latest/developerguide/logging-using-cloudtrail.html",
+      "explanation": "PutKeyPolicy is a KMS management (control-plane) event and is logged by default, so data events are not needed; enabling them only adds cost. The real prerequisite is missing: a trail with 'Exclude AWS KMS events' set (ExcludeManagementEventSources = kms.amazonaws.com) drops every KMS event, including PutKeyPolicy.",
+      "field": "implementation",
+      "quote": "Enable organization-wide CloudTrail with management and data events for cloudtrail.",
+      "severity": "major",
+      "suggested_fix": "Say that management events are enough, and tell the reader to confirm the trail does not exclude AWS KMS events. Alert on CloudTrail PutEventSelectors calls that add kms.amazonaws.com to ExcludeManagementEventSources."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.aws.amazon.com/kms/latest/developerguide/logging-using-cloudtrail.html",
+      "explanation": "`description` promises resource context and `visualization` asks for a 'Table of actor and resource', but the SPL output has no key ID or policy text. For this UC the useful evidence is the key ARN and the submitted policy (requestParameters.policy), which shows whether a new external or wildcard principal was granted.",
+      "field": "cross_field",
+      "quote": "returns actor, resource, and region context",
+      "severity": "major",
+      "suggested_fix": "In the description, name the fields an analyst should review (key ID/ARN from requestParameters or responseElements, and requestParameters.policy) and describe the review as checking the new policy for cross-account or '*' principals."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This is boilerplate shared across many CloudTrail UCs. `aws:accountId` is not a CloudTrail field (the fields are recipientAccountId and userIdentity.accountId). It also does not name the usual benign source of PutKeyPolicy: CloudFormation, CDK or Terraform updates to a key's KeyPolicy.",
+      "field": "knownFalsePositives",
+      "quote": "Planned change windows registered in CMDB; automation roles used by CI/CD pipelines with documented service accounts; sandbox accounts excluded via `aws:accountId` lookup.",
+      "severity": "major",
+      "suggested_fix": "Name infrastructure-as-code updates to KMS key policies (identifiable by the CloudFormation service principal or pipeline role in userIdentity), and use recipientAccountId for sandbox-account exclusions."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The SPL has no thresholds and no lookup, and CloudTrail arrives through the SQS-based S3 input rather than by API polling, so the throttling advice does not apply. Step 1 also says to 'Save as a real-time alert', which belongs in Step 4 and should be a short-interval scheduled search, not a real-time search.",
+      "field": "detailedImplementation",
+      "quote": "Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup. ... (3) API throttling — reduce poll frequency or enable queue buffering",
+      "severity": "major",
+      "suggested_fix": "Replace with UC-specific steps: verify that KMS events are not excluded from the trail, schedule the search every 5 to 15 minutes, review requestParameters.policy for added principals, and list known automation roles in an exclusion lookup that actually appears in the SPL."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/aws.md",
+      "explanation": "The AWS guide recommends the SQS-based S3 input for CloudTrail. The CloudWatch Logs input defaults to the `aws:cloudwatchlogs` sourcetype, which this `sourcetype=aws:cloudtrail` search would not match unless the sourcetype is overridden.",
+      "field": "implementation",
+      "quote": "Configure `Splunk_TA_aws` CloudTrail S3 or CloudWatch Logs input into `index=aws`.",
+      "severity": "minor",
+      "suggested_fix": "Recommend the SQS-based S3 input with sourcetype aws:cloudtrail. If CloudWatch Logs is used, say that the sourcetype must be set to aws:cloudtrail."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is the generic template with the title pasted in lower case. 'kms key policy put' is unexplained jargon, and the sentence does not say what is detected.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of aws cloudtrail kms key policy put so your team catches problems",
+      "severity": "major",
+      "suggested_fix": "For example: 'Our encryption keys have a rulebook saying who may use them. We raise an alert whenever someone rewrites that rulebook, so nobody can quietly give themselves or an outsider access to our encrypted data.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Outputs no key identifier or requestParameters.policy, so the resource and policy-content context the prose promises is absent. It also carries the `eval uc_marker` template residue.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`where All_Changes.action=*` does not filter for PutKeyPolicy and returns every change in the datamodel. PutKeyPolicy is also not in the add-on's documented CloudTrail-to-Change eventName table (v7.10.0); verify that it is tagged.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 (Valid Accounts: Cloud Accounts) describes how the actor got in, not the key-policy change itself. Verify whether a technique such as T1098 (Account Manipulation) or T1222 (permission modification), or T1486 for ransomware-style key lock-out, fits better.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "Maps to AU-2 (Event logging). A key-policy change alert is closer to evidence for key-management and access-control controls (for example SC-12 or AC-6) than for AU-2 event-logging selection.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "'AWS CloudTrail KMS key policy put' reads as a fragment; 'KMS Key Policy Modified (PutKeyPolicy)' is clearer.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0023-UC-4.1.273",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detection, filtering CloudTrail for KMS `PutKeyPolicy` events, is sound and the sourcetype and add-on are right. The supporting text is template residue: it tells the reader to enable data events that are not needed, it misses the one trail setting that silently removes these events, and its false-positive and plain-language text is generic.",
+  "tier": "deep",
+  "uc_id": "UC-4.1.273",
+  "verdict": "rewrite"
+}

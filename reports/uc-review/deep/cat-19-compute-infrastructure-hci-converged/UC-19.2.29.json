@@ -1,0 +1,111 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "4f9186d0dc4ea83178c0320d800c704821c2f32b70e9e51102e44b5064ea7611",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.29.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). The Nutanix add-on in the catalogue is 'TA for Nutanix Prism' (Splunkbase 3103, folder TA-nutanix), with TA-nutanix-PC (8349) for Prism Central. The same wrong ID appears in dataSources and references.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Add-on for Nutanix Prism, folder name Splunk_TA_nutanix, Splunkbase app 5076",
+      "severity": "blocker",
+      "suggested_fix": "Replace with TA for Nutanix Prism (Splunkbase 3103, TA-nutanix). Confirm which sourcetypes it really emits before citing nutanix:cluster:metrics and nutanix:host."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.nutanix.dev/api_reference/apis/prism_v2.html",
+      "explanation": "The Prism v2.0 API has a dedicated per-NIC stats endpoint (GET /hosts/{uuid}/host_nics/{pnic_id}/stats) for physical-NIC throughput. The UC instead takes 'controller' metrics from host stats. Controller metrics describe Stargate storage I/O, much of which stays local because of data locality, so they are not uplink traffic. The dotted names (controller.received_bytes_per_second) also do not match Nutanix's underscore-style stats keys (for example controller_read_io_bandwidth_kBps). The resulting 'saturation %' is not a measure of the uplink.",
+      "field": "dataSources",
+      "quote": "`.../stats?metrics=hypervisor_avg_io_latency_usecs,storage.usage_bytes,controller.received_bytes_per_second,controller.transmitted_bytes_per_second,controller.read_io_bandwidth_kBps,controller.write_io_bandwidth_kBps",
+      "severity": "major",
+      "suggested_fix": "Collect per-pNIC rx/tx byte rates from /hosts/{uuid}/host_nics/{pnic_id}/stats (check the metric names in the API explorer) and compare them per direction against link_speed_in_kbps of the bond members. Keep controller bandwidth only as context."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are divide-by-zero guards, not alert conditions. The SPL actually rates rows critical when rolling p95 >= 95% (or two or more 90% bursts with p95 >= 80%), high when p95 >= 90%, and warning when p95 >= the lookup target (default 80%). None of that is in the description, and 'grouped by host_uuid, _time' hides that only the latest row per host is returned.",
+      "field": "description",
+      "quote": "alert when `lkb` > 0, `elink` > 0, `denom_mbps` > 0, or `denom_mbps` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real severity ladder (p95 saturation over about 60 samples plus a 3-sample burst count, compared with negotiated link speed or the lookup's expected_link_speed_mbps), one row per CVM host."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm a 'Cluster > Network > CVM network' path in Prism Element (network views live under Network / Hardware > Host NICs). The Prism Element built-in roles are Viewer, Cluster Admin and User Admin; 'Cluster Viewer' is not one of them.",
+      "field": "detailedImplementation",
+      "quote": "In Prism Element, for the same cluster, open the path Cluster, Network, CVM network, and read the per-node CVM data path. ... A Prism service account with Cluster Viewer on Prism Element",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the navigation against the Prism Element web console guide for the AOS version in scope, and name the actual read-only role (Viewer)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The troubleshooting section already names the real benign drivers (live migration, post-disk-replacement resync, backup windows, a bond leg down halving capacity), but the false-positive list ignores them in favour of template text.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `nutanix:host:throughput`** — Scheduled automation elevates `_time` without crossing `lkb` > 0",
+      "severity": "major",
+      "suggested_fix": "Move the migration, resync, backup-window and degraded-bond cases into knownFalsePositives, each with its suppression key (Prism task id, UC-19.2.9 correlation, freeze window)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The optional switch corroboration polls ifHCInOctets/ifHCOutOctets through SC4SNMP, which is SNMP polling, not traps. The 'hyperv' entry in equipment is also not discussed anywhere; the UC targets AHV and ESXi.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_trap\"",
+      "severity": "minor",
+      "suggested_fix": "Use an SNMP-polling or ToR switch model slug, and drop 'hyperv' unless Hyper-V on Nutanix is explicitly in scope."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The HEC reference points at a truncated directory rather than the 'Use the HTTP Event Collector' page, and the Nutanix reference is the nutanix.dev home page rather than the v2.0 hosts/host_nics API.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/\"",
+      "severity": "minor",
+      "suggested_fix": "Link .../Data/UsetheHTTPEventCollector and the Prism v2.0 API reference section for hosts and host_nics."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified while naming an unrelated Splunkbase app and building on metrics that do not measure uplink utilisation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the NIC metric source is validated on a live cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "total_mbps adds received and transmitted bytes, then divides by a single-direction full-duplex link speed taken from one NIC row, so utilisation can be overstated by up to 2x on symmetric traffic. On an LACP bond it ignores the second member. The numerator is controller storage I/O, not NIC traffic.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`streamstats window=60 list(sat_pct)` followed by `mvexpand` multiplies event volume by about 60 before `stats ... BY host_uuid, _time`, which is expensive over 4h of one-minute samples. The output field 'peak_12' is really the max of a 60-sample window, so the name is misleading.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0115-UC-19.2.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is well structured with real troubleshooting cases, but it names an unrelated Splunkbase app (5076). It also measures 'uplink saturation' by dividing CVM storage-controller I/O bytes by NIC link speed, when Prism v2.0 exposes per-NIC stats for that purpose. The description's thresholds do not match the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.29",
+  "verdict": "incorrect"
+}

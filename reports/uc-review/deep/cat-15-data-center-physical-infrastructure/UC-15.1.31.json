@@ -1,0 +1,158 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c2fb8b58cf24ec4b4509c6629f91f4bdee5f1482b9942582d2a3dc84974f4a6d",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.31.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description (and the controlTest and knownFalsePositives, which mention `count`, `entity`, `src` and `span=1h`) describes an aggregated threshold detection. The SPL only filters and runs `table _time, host, trapoid, trap_name, eventName, _raw`. It has no stats, no `entity` field and no threshold.",
+      "field": "cross_field",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe what the SPL actually returns: one row per APC cooling-related trap or polled event, with host, trap OID, trap name and raw text. Remove the references to entity, count and threshold unless the SPL is changed to aggregate."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/splunk-configuration/",
+      "explanation": "Splunk Connect for SNMP sends traps with sourcetype `sc4snmp:traps` to the `netops` event index by default. `index=power sourcetype=snmp:trap` only happens if the operator overrides `splunk.sourcetypeTraps` and `splunk.eventIndex`, which the text never says.",
+      "field": "dataSources",
+      "quote": "receives APC InRow and NetShelter airflow events as `sourcetype=snmp:trap` (enterprise `.1.3.6.1.4.1.318`) from Splunk Connect for SNMP (Splunkbase #6266)",
+      "severity": "blocker",
+      "suggested_fix": "State the SC4SNMP defaults (`sc4snmp:traps` in `netops`), and say that `splunk.sourcetypeTraps`/`splunk.eventIndex` (or `SPLUNK_SOURCETYPE_TRAPS`/`SPLUNK_HEC_INDEX_EVENTS` for Docker Compose) must be set if the SPL's `index=power sourcetype=snmp:trap` is kept."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-snmp/main/configuration/traps/",
+      "explanation": "SC4SNMP is not a Splunk app that runs on a heavy forwarder. It is a containerised service (microk8s Helm chart or Docker Compose) that forwards to Splunk over HEC. Its trap listener accepts traps by SNMP community or v3 user secrets (`traps.communities`, `traps.usernameSecrets`), not by a per-device IP list, so 'register each APC device IP' is also wrong.",
+      "field": "detailedImplementation",
+      "quote": "a Heavy Forwarder or dedicated data-collection node hosting either Splunk Connect for SNMP (Splunkbase #6266)",
+      "severity": "blocker",
+      "suggested_fix": "Describe SC4SNMP as a separate microk8s or Docker Compose deployment with a HEC token pointing at Splunk. Configure trap communities or SNMPv3 user secrets in `values.yaml`, and expose UDP/162 through the trap service or load-balancer IP."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://oidref.com/1.3.6.1.4.1.318.1.1.13.3.2.2",
+      "explanation": "PowerNet-MIB has no `coolingUnitState` object. InRow status lives under `airIRRCUnitStatus` (1.3.6.1.4.1.318.1.1.13.3.2.2.2), and the generic cooling branch uses `coolingUnitStatusDiscreteTable`/`coolingUnitStatusAnalogTable`. The `implementation` and `detailedImplementation` fields repeat the same name ('extracting `coolingUnitState`', 'chart `_time` vs `coolingUnitState`').",
+      "field": "dataSources",
+      "quote": "cooling varbinds such as `coolingUnitState` when props are aligned to your MIB",
+      "severity": "blocker",
+      "suggested_fix": "Replace `coolingUnitState` with real PowerNet-MIB objects for the targeted unit family (for example `airIRRCUnitStatus*` for InRow RC, `airIRSCUnitStatusCompressor` for InRow SC, or the `coolingUnitStatusDiscrete*` table). Check the names against the APC PowerNet-MIB version installed on the NMC."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The dataSources, implementation and detailedImplementation fields present polling as an equal second path. The SPL requires `trapoid=\"*318*\"`, and polled GET/walk results carry no trap OID, so every `snmp:apc:cooling` event is filtered out.",
+      "field": "cross_field",
+      "quote": "or as polled `sourcetype=snmp:apc:cooling` metrics from the SNMP Modular Input (Splunkbase #1537)",
+      "severity": "major",
+      "suggested_fix": "Say that this UC's search covers the trap path only, or note that polled events need a separate search keyed on the polled status objects."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Security/Rolesandcapabilities",
+      "explanation": "Splunk has no built-in `splunk_admin` role. The built-in administrative role is `admin` on Splunk Enterprise and `sc_admin` on Splunk Cloud Platform.",
+      "field": "detailedImplementation",
+      "quote": "RBAC: use a `splunk_admin` (or deployment-manager equivalent) principal",
+      "severity": "blocker",
+      "suggested_fix": "Use `admin` (Splunk Enterprise) or `sc_admin` (Splunk Cloud Platform) for app installation and input configuration."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "These do not look like SC4SNMP or SNMP Modular Input settings. SC4SNMP decodes varbinds through its MIB server. The failure mode 'SC4SNMP restart clearing dedup state (symptom: alert storm)' also looks invented.",
+      "field": "detailedImplementation",
+      "quote": "Enable rich parsing (`full_json`, `VARBINDS`, or equivalent) so `trap_name`, `eventName`, and raw varbind strings are searchable",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the SC4SNMP trap documentation (MIB server, `maxVarbindsToDecode`, `aggregateTrapsEvents`) and the SNMP Modular Input `inputs.conf.spec`. Name only real options and remove failure modes that are not documented."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Neither SC4SNMP trap events nor SNMP Modular Input trap events are documented to carry fields named `trapoid`, `trap_name` or `eventName`. The search depends on `trapoid`.",
+      "field": "dataSources",
+      "quote": "key extracted fields include `trapoid`, `trap_name`, `eventName`",
+      "severity": "needs_verification",
+      "suggested_fix": "Inspect a real APC trap event from the chosen collector and list the actual field names, or document the props/transforms extraction that creates them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause of a spurious cooling alarm row. They also cite `count`, `src` and `span=1h`, which the SPL does not use.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `snmp:trap` — Scheduled automation elevates `src` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: the matching 'alarm cleared' trap that follows each fault (the keyword filter catches both), NMC reboots or firmware upgrades that send coldStart/informational traps containing 'InRow', lead/lag or scheduled compressor rotation, and non-cooling APC traps that contain 'environmental' or 'fan' (for example rack PDU fan or NetBotz sensor traps)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `earliest`/`latest` bound, so there is no -15m window in the SPL to match.",
+      "field": "implementation",
+      "quote": "keep a `-15m` dispatch window aligned to the cron schedule to match the SPL in this UC",
+      "severity": "minor",
+      "suggested_fix": "Specify the saved-search dispatch window (for example earliest=-15m latest=now) as a scheduling setting instead of saying it comes from the SPL."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL does not produce `alarm_text`. The Sankey suggestion is generic filler for a fault-alarm list.",
+      "field": "visualization",
+      "quote": "columns host, trapoid, trap_name, eventName, and parsed alarm_text; ... optional Sankey or relationship visualization",
+      "severity": "minor",
+      "suggested_fix": "Limit the columns to the fields the SPL returns and drop the Sankey suggestion, or add the alarm-text extraction to the dataSources field."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "spelling",
+      "explanation": "'API' is a typo for 'APC'. The CSV/email/PDF wording is generic.",
+      "field": "evidence",
+      "quote": "\"UC_15_1_31_APICoolingFault\"",
+      "severity": "minor",
+      "suggested_fix": "Rename to `UC_15_1_31_APCCoolingFault` and describe the evidence produced: the alert history plus matched trap rows with NMC alarm-log correlation."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "The subcategory guide maps UPS and sensor alarms to the CIM Alerts model. A device fault-alarm feed fits Alerts if normalisation is wanted.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "minor",
+      "suggested_fix": "Consider `Alerts` (with an eventtype/tag `alert`) if the traps are normalised, or say explicitly that no CIM mapping is intended."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`trapoid=\"*318*\"` is a substring wildcard. It drops every polled `snmp:apc:cooling` event, which has no trap OID, and it can match non-APC OIDs that contain '318' anywhere. Anchor on the `1.3.6.1.4.1.318.` prefix and handle the polled sourcetype separately.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The bare keyword filter matches alarm-cleared traps as well as faults, and matches unrelated APC traps (environmental probes, PDU fans). It has no fault/clear distinction, dedup or aggregation, so the description's threshold detection is not implemented. The duplicate case variants (`fan OR Fan`) are redundant because search terms are case-insensitive, and `host=*` is a no-op.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-15.1.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The implementation prose is detailed but rests on wrong product facts: Splunk Connect for SNMP's default index, sourcetype and deployment model are misstated, `coolingUnitState` is not a PowerNet-MIB object, and `splunk_admin` is not a Splunk role. The description, controlTest and knownFalsePositives describe a count/threshold detection the table-only SPL does not perform.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.31",
+  "verdict": "incorrect"
+}

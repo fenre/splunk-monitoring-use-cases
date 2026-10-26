@@ -1,0 +1,110 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "0e6055ba70e60d40b6bb00b02c705133156a894738c4f06dca8f261b7bffaa42",
+  "file": "content/cat-10-security-infrastructure/UC-10.13.3.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation mentions haversine distance, but the SPL only compares Country values between two logins less than 3600 seconds apart. No distance is computed, so the title 'Impossible Travel' overstates what is detected.",
+      "field": "cross_field",
+      "quote": "Enrich with `src_lat`/`src_lon` for haversine distance when available",
+      "severity": "major",
+      "suggested_fix": "Describe the detection as 'login from a different country within one hour', or add a haversine distance calculation from the iplocation lat and lon fields."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "explanation": "The SPL in Step 2 of detailedImplementation uses prev(), while the sidecar `spl` uses last(). The two versions of the same search disagree. `prev()` is not a documented streamstats aggregate function.",
+      "field": "detailedImplementation",
+      "quote": "streamstats window=2 global=f current(Country) as cur_c prev(Country) as prev_c current(_time) as ts prev(_time) as pts by user",
+      "severity": "major",
+      "suggested_fix": "Make detailedImplementation reuse the exact text of `spl`, and verify that the streamstats functions are valid and that the event order gives the previous login."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Iplocation",
+      "explanation": "The iplocation command returns city, region, country, lat and lon; it does not return an ASN by default. Check how an ASN would be available. Also check that `src_lat` and `src_lon` exist in CIM Authentication, since iplocation produces `lat` and `lon`.",
+      "field": "implementation",
+      "quote": "whitelist VPN egress ASNs",
+      "severity": "needs_verification",
+      "suggested_fix": "Use the actual field names produced by iplocation (lat, lon, Country), and either specify an ASN enrichment lookup or whitelist by VPN egress IP ranges."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "iplocation is a search command, not a feature of a TA, and no add-on is named. Splunkbase 617 is not in the cached catalog and a Universal Forwarder is not an add-on. Check what 617 is.",
+      "field": "app",
+      "quote": "IdP + iplocation enrichment in TA — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the CIM-mapped IdP add-ons used for the authentication data, and state that geolocation is done at search time with iplocation. Remove Splunkbase 617 unless verified."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs a table of individual login pairs with country, not a count, and has no schedule window or configured threshold. The only rule is a country change within 3600 seconds, which the description does not state.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "State that each row is a successful login whose country differs from the same user's previous successful login less than one hour earlier."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Country changes within an hour are common for VPN users, mobile carriers and cloud proxies, and iplocation is only approximate. Calling the result impossible travel overstates what the search proves.",
+      "field": "description",
+      "quote": "Two successful auths from distant `src` locations within a window that precludes travel",
+      "severity": "major",
+      "suggested_fix": "Call the result 'suspected impossible travel' and tell readers to review VPN egress and geolocation accuracy before treating a match as account compromise."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios applies to travel detection. Real causes are corporate or commercial VPN exit changes, mobile carrier IPs, GeoIP inaccuracy, and cloud-hosted proxies or SSO gateways.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `security` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List VPN or SASE egress switching, mobile carrier and proxy IPs that geolocate to another country, and inaccurate GeoIP records."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "It never says that the check looks for one person signing in from two far-apart places too quickly. It is circular and unrelated to the specific detection.",
+      "field": "grandmaExplanation",
+      "quote": "We use the same kind of check described for \"Impossible Travel Detection\" once our data is shaped in a common, repeatable way across products.",
+      "severity": "major",
+      "suggested_fix": "Explain plainly: 'We look for someone signing in from one country and then, soon after, from another, which can mean a stolen password.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The CIM search counts distinct `src` values per user in 15 minutes (`srcs>1`). It does not geolocate or compare countries, so it fires for any user with two devices or IPs and does not implement the same detection as the primary SPL.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Check that `current(Country)` and `last(Country)` are valid streamstats functions and that, with default newest-first ordering, `last()` returns the previous login rather than the current one. The detailedImplementation copy of the search uses prev() instead, so the two disagree.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0014-UC-10.13.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC claims impossible travel but only detects a country change within an hour, and the CIM variant just counts distinct sources. The documented SPL in detailedImplementation differs from the sidecar SPL, and several referenced enrichments do not exist in iplocation output.",
+  "tier": "triage",
+  "uc_id": "UC-10.13.3",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d1c7005bb1b864128847bf138137a886ffd1ff03d1a354a7913eb712303606a4",
+  "file": "content/cat-09-identity-access-management/UC-9.3.6.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository identifies the Okta add-on as Splunkbase 6553 (Splunk Add-on for Okta Identity Cloud), which this UC's own references link to. Splunkbase 617 is not in the catalog, and the add-on uses an API input rather than a Universal Forwarder.",
+      "field": "app",
+      "quote": "`Splunk_TA_okta`, IdP MFA enrollment data — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite the Splunk Add-on for Okta Identity Cloud (Splunkbase 6553) with its okta_organization input, and remove the Splunkbase 617 and Universal Forwarder wording."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL measures factors used in authentication events (eventType user.authentication.auth_via_mfa), not enrollment records. Adoption by enrollment (which factors users have registered) would need a different event type, so the data source description is wrong for this search.",
+      "field": "dataSources",
+      "quote": "IdP MFA enrollment logs, factor type metadata",
+      "severity": "major",
+      "suggested_fix": "Describe the source as Okta System Log MFA authentication events and state that the figures reflect factor use, not enrollment. Alternatively add the enrollment events and the SPL for them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "implementation describes a two-class split. The SPL has three classes and puts 'push' into a separate 'medium' class. The SPL lists no SMS, voice or email rule, so everything not matching 'FIDO' or 'push' is called 'phishable' by default.",
+      "field": "cross_field",
+      "quote": "Classify as phishing-resistant (FIDO2, WebAuthn) vs phishable (SMS, voice, email).",
+      "severity": "major",
+      "suggested_fix": "Align the documented classes with the SPL, for example phishing_resistant, push (medium), phishable, and list the Okta factor values mapped to each class."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL returns two columns (factor_type, total) with no time axis and no user field. A trend line and a per-user table of SMS users cannot be built from that output.",
+      "field": "visualization",
+      "quote": "Line chart (phishing-resistant adoption trend), Table (users still on SMS).",
+      "severity": "major",
+      "suggested_fix": "Limit visualization to a pie or bar chart of total by factor_type, or extend the SPL to split by _time and by user."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The search has no threshold and no schedule window. It is an adoption report, but the description presents it as an alert. The `the scheduled window` token is leftover template text.",
+      "field": "description",
+      "quote": "Outputs `total` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a report of MFA authentications by factor class, and state an adoption target such as the percentage of phishing_resistant over total if an alert is wanted."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Check the actual values of debugContext.debugData.factor in OktaIM2:log. Okta factor names are typically upper-case with underscores (for example OKTA_VERIFY_PUSH, SMS_FACTOR, FIDO_WEBAUTHN), and SPL match() is case-sensitive, so the lower-case 'push' pattern may never match.",
+      "field": "dataSources",
+      "quote": "match(factor,\"push\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the real factor values in sample Okta events and use case-insensitive patterns such as (?i)push, or list the exact values."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic and none applies to an adoption metric. Real distortions are service accounts, legacy apps forcing SMS, rollouts of a new factor in progress, and Okta Verify with FastPass counted under push.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `factor_type` without crossing configured threshold for UC-9.3.6.",
+      "severity": "major",
+      "suggested_fix": "Replace with real causes: legacy apps limited to SMS or voice, staged FIDO2 rollouts that temporarily lower the ratio, and accounts exempt from policy."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "After `stats count by debugContext.debugData.factor` only that field and `count` remain, so `match(factor, ...)` runs on a field that does not exist. It returns null and every row falls through to 'phishable', which makes the adoption figure always zero. Rename the field with `as factor` in the first stats or use `match('debugContext.debugData.factor', ...)`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1621 is Multi-Factor Authentication Request Generation (MFA fatigue), an adversary technique. An adoption-trend metric does not detect it, so the mapping does not fit.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Lists Security and Performance. The search is a posture and adoption report with no performance measure, so Performance does not match.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0013-UC-9.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC claims to measure phishing-resistant MFA adoption, but its SPL discards the factor field before classifying, so every factor ends up 'phishable'. The prose describes enrollment data, thresholds, per-user tables and trends that the search does not provide.",
+  "tier": "triage",
+  "uc_id": "UC-9.3.6",
+  "verdict": "incorrect"
+}

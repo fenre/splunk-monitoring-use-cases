@@ -1,0 +1,86 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "744a5b3260df0a6d656bcc96e6b1899f3991390c0af9258a5f902f76656e8df5",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.9.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation gives a 500 W/U design threshold, but the SPL has no where clause, so nothing can alert; the SPL only trends and forecasts.",
+      "field": "description",
+      "quote": "Outputs `avg_watts_per_u` each `1d`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a daily density trend with a 30-day forecast, or document where the 500 W/U comparison is applied."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "A 24-hour window gives one span=1d bucket per rack, but predict future_timespan=30 needs many daily points of history. Poll interval guidance (300 to 900 s) also clashes with the daily and hourly polling in implementation.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Specify a multi-week search window for the trend and forecast, and one consistent polling interval."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "explanation": "It never defines the power_watts field, nor the rack_inventory lookup (rack_id, rack_u_height) the SPL requires. A Universal Forwarder is not a modular input, and 617 is not in the cached Splunkbase catalog; the guide polls PDUs by SNMP on a Heavy Forwarder.",
+      "field": "dataSources",
+      "quote": "PDU per-rack power readings, DCIM inventory (rack height, location) Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Document the source of power_watts, the lookup definition and its columns, and the real collector. Verify the Splunkbase ID."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Step 4 is repeated four times and a second Step 1 to 5 sequence restarts, mixing a modular input with HEC.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Merge into one sequence that matches the real collection path."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The four references are generic Splunk pages; none covers rack power density, watts per U or the predict command.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "major",
+      "suggested_fix": "Cite the predict command reference and a rack density guideline or PDU vendor document."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template wording and do not name real density causes.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `avg_watts_per_u` over `span=1d` while `rack_id` remains in-scope",
+      "severity": "major",
+      "suggested_fix": "Cite real causes: a wrong rack_u_height in the inventory lookup, a newly commissioned rack with partial history, and a PDU that reports only one feed of an A/B pair."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`predict avg_watts_per_u` follows `timechart ... by rack_id`, which renames the output columns to the rack_id values, so the avg_watts_per_u field no longer exists and predict has nothing to forecast. timechart also caps the split-by series at ten racks by default. No threshold clause exists despite the 500 W/U text.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:53:11Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0002-UC-15.1.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A watts-per-U trend and forecast idea, but the SPL has no threshold, the scheduling guidance contradicts the daily forecast, and data sources, false positives and references are generic. The forecast step looks broken as written.",
+  "tier": "triage",
+  "uc_id": "UC-15.1.9",
+  "verdict": "rewrite"
+}

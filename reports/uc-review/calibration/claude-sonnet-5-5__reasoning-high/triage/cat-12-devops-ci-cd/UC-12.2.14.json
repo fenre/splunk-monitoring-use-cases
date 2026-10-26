@@ -1,0 +1,111 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "84d66e300c7af9d08a218c0b8a58d00c71f36270ed4cda2598fe7345713540fb",
+  "file": "content/cat-12-devops-ci-cd/UC-12.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The repository guide gives the Splunk App for Jenkins as Splunkbase 3332, installed as a plugin on the Jenkins controller that sends events over HEC. Splunkbase 617 is not in the catalog, and a Universal Forwarder is not how this app delivers data.",
+      "field": "app",
+      "quote": "Splunk App for Jenkins, Jenkins API — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite the Splunk App for Jenkins as Splunkbase 3332 with the Jenkins Splunk plugin sending to HEC, and describe the separate scripted or API poll needed for /computer/api/json. Remove the Splunkbase 617 and Universal Forwarder wording."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The guide's sourcetype list for Jenkins has jenkins:build, jenkins:audit, jenkins:pipeline and jenkins:metric, but not jenkins:computer. Check how the node-status data from /computer/api/json reaches Splunk and which sourcetype it gets. 'Agent heartbeat' is not a field of that API.",
+      "field": "dataSources",
+      "quote": "`/computer/api/json` `offline=true`, agent heartbeat",
+      "severity": "needs_verification",
+      "suggested_fix": "Document the input that polls /computer/api/json (for example a scripted input) and the sourcetype it writes. Remove 'agent heartbeat' unless a real source for it is named."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation promises a pool-percentage rule and 'production-labeled' paging, and visualization lists a single-value count and a status grid. The SPL only lists offline events whose lookup tier is production. It has no pool percentage, no count and no use of Jenkins labels.",
+      "field": "cross_field",
+      "quote": "Auto-create incident if >30% of pool offline.",
+      "severity": "major",
+      "suggested_fix": "Limit the text to what the SPL does (list offline production agents), or add the pool-percentage calculation and a count to the documented SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The SPL has no `entity` field, no count and no threshold. Each result row is an event for an offline agent from the production tier lookup, which the description never says. The window is a leftover placeholder.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "State that each row is a Jenkins agent reported offline whose entry in the jenkins_agent_tier lookup is production, and that any row should page the owners."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The search depends on a lookup named jenkins_agent_tier keyed on displayName with a tier field, but the text never says how to create it, which columns it needs, or that agents missing from it are silently excluded by `where tier=\"production\"`.",
+      "field": "implementation",
+      "quote": "Tag agents in lookup.",
+      "severity": "major",
+      "suggested_fix": "Document the lookup file or definition (displayName, tier), how to populate it, and how to handle agents with no tier."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real cause of Jenkins agents showing offline. Real ones are cloud or Kubernetes agents that are deliberately offline when idle, agents taken offline for maintenance, and controller restarts.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `cicd` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: ephemeral or autoscaled agents that disconnect when idle, agents manually marked offline for maintenance, and reconnect delays after a controller restart."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/devops-cicd.md",
+      "explanation": "The second Step 1 is generic text. It refers to a modular input and vendor API rate limits and conflicts with the guide's setup: the Jenkins Splunk plugin sends HEC events with an index of cicd. Step 3 appears twice with different advice.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=jenkins:computer into cicd. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with the Jenkins-specific steps from the guide (plugin, HEC URL and token, index cicd) plus a scripted poll for /computer/api/json, and keep one validation step."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "It is generic and uses unexplained jargon (Jenkins, executors). It never says what the UC does: alert when a build machine that production builds depend on goes offline.",
+      "field": "grandmaExplanation",
+      "quote": "We watch Jenkins health and jobs so executors, agents, and failures do not stall delivery.",
+      "severity": "major",
+      "suggested_fix": "Say in plain words: 'We get alerted when one of the computers that builds our software for production stops responding, so builds do not get stuck.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search returns every event with offline=true, not the latest state per agent. An agent that went offline and came back still appears for every poll while it was down, and there is no dedup by displayName or time window. `where tier=\"production\"` also drops any agent missing from the lookup, so unlisted offline agents never alert.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "UC-12.2.10 'Jenkins Node Offline Detection' covers the same signal (the detailedImplementation says this UC complements it), so the two overlap.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0017-UC-12.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A reasonable idea (page on offline production Jenkins agents) with a wrong add-on ID against the repository guide and several promises (pool percentage, labels, thresholds) the SPL does not deliver. Descriptive and operational text is largely template filler.",
+  "tier": "triage",
+  "uc_id": "UC-12.2.14",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "471c8ec3419510d2fe3fdaa82ec4a538e19829daf6f8191027ae90b3804fad97",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.8.105.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "SQM (sqm-scripts with cake/fq_codel) is a traffic shaper. As far as the reviewer knows it does not measure latency under load or write `event=sqm_test` records with a `latency_under_load_ms` field to syslog. The reader is not told what tool generates the measurement the SPL depends on.",
+      "field": "implementation",
+      "quote": "Ingest OpenWrt SQM measurements data through its real API, export, MQTT bridge, or open-source connector into `index=personal`",
+      "severity": "major",
+      "suggested_fix": "Say that a scheduled load-plus-latency probe must produce these events (for example a cron script on the router or a LAN host that saturates the link and pings during the load, using a tool such as flent or irtt). The script then emits `event=sqm_test router=<name> latency_under_load_ms=<n>` through `logger` to remote syslog or posts JSON to HEC. Confirm the tool choice before naming it."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`avg_latency_ms` and `max_latency_ms` are produced by the detection's `stats`; they do not exist on raw events. The field-presence check in Step 3(b), the threshold-calibration search in Step 3(d), and the 'Fields this search depends on' line in Step 2 would therefore return nulls. The raw fields are `event`, `latency_under_load_ms` and `router`.",
+      "field": "detailedImplementation",
+      "quote": "| stats perc50(avg_latency_ms) AS p50 perc90(avg_latency_ms) AS p90 perc99(avg_latency_ms) AS p99 max(avg_latency_ms) AS hi",
+      "severity": "major",
+      "suggested_fix": "List `event`, `latency_under_load_ms` and `router` as the required raw fields. Change Step 3(b) to `| table _time router latency_under_load_ms`, and Step 3(d) to compute `perc50/perc90/perc99/max(latency_under_load_ms) by router` with `event=sqm_test`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "OpenWrt's logd forwards syslog over UDP/TCP (`log_ip`/`log_port`); it does not post to HEC. A sourcetype named `openwrt:syslog` arriving only through HEC conflicts with the syslog transport, and Step 5's OAuth refresh, HTTP 429 and 'vendor developer app' troubleshooting does not apply to a router syslog feed.",
+      "field": "detailedImplementation",
+      "quote": "Route **Personal HEC index** events into `index=personal` with `sourcetype=openwrt:syslog`.\n\n**Collection method:** HTTP Event Collector token on index=personal.",
+      "severity": "major",
+      "suggested_fix": "Describe two paths. Path one: router remote syslog goes to a syslog receiver or Universal Forwarder monitor, with `sourcetype=openwrt:syslog` and `index=personal`. Path two: the probe script posts JSON to HEC. Replace the OAuth and 429 troubleshooting with checks for a missing cron run, the probe script exit status, and the `logread` remote-log settings."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Three of the four scenarios (activity synced from watch and phone, rest day, OAuth token expiry) come from a fitness-connector template and cannot occur for router latency probes. The real false-positive causes are missing.",
+      "field": "knownFalsePositives",
+      "quote": "**Multi-device double-count** — Same activity synced from watch and phone into `openwrt:syslog`.",
+      "severity": "major",
+      "suggested_fix": "Replace them with real causes: the probe ran while a large household download or upload was already saturating the link; the ISP's upstream congestion is outside the SQM shaper's control; the SQM shaper rate is set above the current line rate after the ISP changed the plan; Wi-Fi airtime contention inflates latency for a wireless probe host; a single outlier probe drives `max_latency_ms` over 100."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "A home-router latency check has no auditor or regulation. The panel text 'Configure according to standard Splunk visualization patterns' gives no guidance.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Describe a table of router, avg_latency_ms and max_latency_ms, plus a timechart of `latency_under_load_ms` by router against a 50 ms reference line. Drop the auditor and regulation wording."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "'Missed training goals' is fitness-template residue. The real value is catching bufferbloat that returns after the shaper settings drift or the ISP line rate changes.",
+      "field": "value",
+      "quote": "reduces missed training goals, stale hobby data, and connector failures",
+      "severity": "major",
+      "suggested_fix": "Say the UC shows when latency under load rises above the target, which indicates the SQM shaper rates no longer match the line, so video calls and gaming lag can be fixed by re-tuning the bandwidth settings."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL uses only `openwrt:syslog`. The other eight sourcetypes come from the subcategory list and suggest dependencies that do not exist. The `app` field has the same problem.",
+      "field": "dataSources",
+      "quote": "Personal network telemetry (`openwrt:syslog`, `unifi:event`, `pihole:query`, `adguard:query`, `tailscale:netmap`, `cloudflared:connector`, `doh:query`, `speedtest:result`, `uptime:probe`)",
+      "severity": "minor",
+      "suggested_fix": "List only `openwrt:syslog` events with `event=sqm_test`, and name the probe that produces them. Trim `app` to OpenWrt (sqm-scripts) plus the chosen probe and ingest path."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "This omits the `max_latency_ms>100` branch of the SPL condition. The Prerequisites section also says Splunk ≥9.0 while `splunkVersions` says 9.2+.",
+      "field": "detailedImplementation",
+      "quote": "It applies numeric thresholds on `avg_latency_ms` (> 50) after avg, max",
+      "severity": "minor",
+      "suggested_fix": "State both thresholds (avg > 50 ms OR max > 100 ms) and align the version floor with `splunkVersions`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The references are generic product home pages (Tailscale, Cloudflare Tunnel, Pi-hole, UniFi) unrelated to this UC. The SQM page is missing.",
+      "field": "references",
+      "quote": "\"title\": \"OpenWrt docs\",\n      \"url\": \"https://openwrt.org/docs/start\"",
+      "severity": "minor",
+      "suggested_fix": "Replace them with the OpenWrt SQM guide (https://openwrt.org/docs/guide-user/network/traffic-shaping/sqm) and the documentation for the chosen latency-under-load probe tool."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Nothing in the detection uses Cloudflare or MQTT.",
+      "field": "equipment",
+      "quote": "\"cloudflare\",\n    \"mqtt\",",
+      "severity": "minor",
+      "suggested_fix": "Keep `syslog` (plus an OpenWrt/router slug if one exists). Remove `cloudflare` and `mqtt`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "monitoringType",
+      "issue": "Latency under load is a performance signal; 'Security' does not fit and 'Availability' only partially fits. 'Performance' is the natural type.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`event=sqm_test` and `latency_under_load_ms` are not native OpenWrt or sqm-scripts log fields as far as the reviewer can tell. Confirm a defined probe script produces exactly these field names, or document them as user-defined.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0146-UC-25.8.105",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "The SPL idea (average and peak latency under load per router) is clear and the grandma text is good, but the implementation never says what produces the `event=sqm_test` / `latency_under_load_ms` records, validation steps query fields that only exist after `stats`, and the KFPs and dashboard text are copied from fitness/compliance templates.",
+  "tier": "deep",
+  "uc_id": "UC-25.8.105",
+  "verdict": "rewrite"
+}

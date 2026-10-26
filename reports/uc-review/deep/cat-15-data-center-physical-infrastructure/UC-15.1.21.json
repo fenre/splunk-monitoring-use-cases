@@ -1,0 +1,87 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "3e6df5c1620f9bfd2f924a5dd77375b00885809fe4a02db430b8bee6cb29d0f7",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.1.21.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-physical.md",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it cannot read panel meters on its own. The reader is never told what actually reads the panel meter (typically Modbus TCP, BACnet or SNMP on the meter or BMS), so they have no working collection path.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collection path: for example, a BMS/EPMS export, a Modbus/BACnet gateway (the guide lists BACnet IP via Edge Hub), or SNMP polling of the meter through Splunk Connect for SNMP (Splunkbase 6266) or SNMP Modular Input (Splunkbase 1537) on a heavy forwarder. Name the meter's per-phase current registers or objects. Make the same correction in `app` and `detailedImplementation`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Sibling UC-15.1.16 (Breaker Panel Load Balancing) uses the same `sourcetype=\"panel:phase\"` with `phase_a_amps`, `phase_b_amps`, `phase_c_amps` and `rated_amps`. One sourcetype cannot carry two different field schemas for per-phase current without the reader being told, and the two UCs also overlap in purpose.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"panel:phase\"` (main_l1_a, main_l2_a, main_l3_a)",
+      "severity": "major",
+      "suggested_fix": "Align the field names with UC-15.1.16 (or document that `main_l*_a` are FIELDALIAS targets for main-panel meters). Say in the description how this UC (main distribution panel, `panel_type=\"main\"`) differs from the branch-panel balancing in UC-15.1.16."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL also needs `panel_type=\"main\"` and `panel_id`. Neither is listed, so a reader who ingests only the three listed fields gets zero results.",
+      "field": "dataSources",
+      "quote": "(main_l1_a, main_l2_a, main_l3_a)",
+      "severity": "minor",
+      "suggested_fix": "Add `panel_id` and `panel_type` (with the value `main`) to the documented field list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is an electrical-panel UC, yet validation points to a PDU UI. Step 4 is repeated four times, and the whole Step 1–5 block then appears again with HEC, vendor-API 401/429 errors and a field spot-check of `host, user, action`, none of which exist in this data. 'Step 1 — Configure data collection' contains the alert rule instead of collection steps.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the PDU UI or SNMP poll for the same devices, readings, and time range.",
+      "severity": "major",
+      "suggested_fix": "Rewrite as one sequence. Collect per-phase amps from the main-panel meter at a stated interval, map `panel_id` to the electrical one-line diagram, validate against the meter's front display or EPMS, then schedule the search. Remove the HEC, API and `host, user, action` text."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The equipment tag is 'splunk', but the monitored equipment is a main-distribution-panel power meter.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Tag the equipment as a power meter / electrical panel slug from the equipment list (look up the matching slug in data/equipment-app-map.json)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "HEC is not part of this collection path, and there is no reference on phase-imbalance practice or on the meter protocol.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Cite the panel meter vendor's register/MIB documentation and an electrical guideline for acceptable phase current imbalance."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "There is no per-panel aggregation (`stats latest(main_l1_a) ... by panel_id`), so a 24h scheduled run returns one row per sample for an imbalanced panel. `avg_a` is not in `table`, so a reader cannot see the 20% baseline the row was measured against.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0014-UC-15.1.21",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The phase-deviation rule (any phase more than 20% from the three-phase mean) is clear and matches the SPL. Everything around it is templated or wrong: the collection path names the Universal Forwarder as a Splunkbase add-on, the field names clash with the sibling UC on the same sourcetype, and the implementation text describes PDUs and HEC rather than main-panel metering.",
+  "tier": "deep",
+  "uc_id": "UC-15.1.21",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,99 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "730cc1b6306ac8b7b7e14bfe183ace8104bc32fef2072a19b71b527f920e00c5",
+  "file": "content/cat-11-email-collaboration/UC-11.2.23.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-office-365/Sourcetypes/",
+      "explanation": "The Splunk Add-on for Microsoft Office 365 has no `ms:o365:dlp` sourcetype. DLP events from the DLP.All content type are indexed as `o365:management:activity`, which is the sourcetype the SPL uses. The field also contradicts itself in one sentence.",
+      "field": "dataSources",
+      "quote": "`sourcetype=ms:o365:dlp` events with SharePoint or OneDrive workload context Indexes: o365. Sourcetypes: o365:management:activity.",
+      "severity": "blocker",
+      "suggested_fix": "State that the source is `sourcetype=o365:management:activity` from the Management Activity input with the DLP.All content type enabled, filtered to DLP records (RecordType 11 ComplianceDLPSharePoint, Operation DlpRuleMatch/DlpRuleUndo/DlpInfo). Remove `ms:o365:dlp`."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC watches Microsoft 365 (SharePoint Online / OneDrive) DLP policy matches, not Google rules. A reader would get the wrong product.",
+      "field": "grandmaExplanation",
+      "quote": "We see when Google’s rules block or flag sensitive data",
+      "severity": "blocker",
+      "suggested_fix": "We see when Microsoft 365's data-protection rules flag or block sensitive files in SharePoint or OneDrive, and who triggered them, so teams can tell real leaks from noisy rules."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema",
+      "explanation": "In the Management Activity DLP schema, `PolicyName` is under `PolicyDetails{}` and `Severity` is under `PolicyDetails{}.Rules{}`. They are nested in every tenant, not just some, so the top-level `PolicyName`/`Severity` the SPL groups on will usually be empty. The text also leaves out the steps needed to receive DLP events: enabling the DLP.All content type and granting the ActivityFeed.ReadDlp permission.",
+      "field": "implementation",
+      "quote": "Confirm `Workload` and `Severity` fields exist in your DLP feed; some tenants require `spath` on JSON payloads. Map `PolicyName` to data-classification registers.",
+      "severity": "major",
+      "suggested_fix": "Explain that policy and severity come from `PolicyDetails{}.PolicyName` and `PolicyDetails{}.Rules{}.Severity` (extract with spath/mvexpand). Add the prerequisites: the DLP.All content type on the Management Activity input and the ActivityFeed.ReadDlp permission on the app registration. Use `SharePointMetaData.FilePathUrl` / `SiteCollectionUrl` for file context."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-office-365/Sourcetypes/",
+      "explanation": "The add-on maps `o365:management:activity` DLP events to the Data Loss Prevention datamodel (DLP_Incidents dataset). That datamodel fits this signal exactly, so leaving cimModels empty and saying acceleration is 'Not applicable' misses the normalised path.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "major",
+      "suggested_fix": "Add `DLP` (Data Loss Prevention, DLP_Incidents) to cimModels and describe the matching tstats option in dataModelAcceleration."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The description and value frame this as an Operations visibility feed, while monitoringType is Security/Compliance and the implementation routes matches to the DLP/endpoint-DLP queue. The audience and the response path disagree.",
+      "field": "cross_field",
+      "quote": "Purpose-built for 'SharePoint Online DLP Policy Matches (Office 365 DLP Feed)' in Operations workflows.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a data-protection/compliance detection: daily count of SharePoint/OneDrive DLP rule matches by policy, user and severity, for the DLP or insider-risk team."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "These are generic boilerplate steps. The add-on collects through a Management Activity modular input, not HEC, and a DLP feed has no 'inventory count' to reconcile. The step also schedules `earliest=-24h@h`, while the SPL uses `-24h`.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=o365:management:activity into o365. ... Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Replace with DLP-specific steps: enable the DLP.All content type and grant ActivityFeed.ReadDlp; validate by comparing DlpRuleMatch counts with the Purview DLP alerts / Activity explorer for the same day; align the schedule window with the SPL."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema",
+      "field": "spl",
+      "issue": "Filters `Workload=Dlp` and then matches `SourceWorkload` against sharepoint|onedrive. `SourceWorkload` is a Defender for Office 365 file-event field, not part of the DLP schema, and `PolicyName`/`Severity` sit inside `PolicyDetails{}` and `PolicyDetails{}.Rules{}`, not at top level. The search will likely return nothing, or group everything as policy=Dlp with a null Severity. Filter `RecordType=11` (ComplianceDLPSharePoint) or `Operation=DlpRuleMatch` with `Workload IN (SharePoint, OneDrive)`, and extract policy and severity with spath. Evidence: https://learn.microsoft.com/en-us/office/office-365-management-api/office-365-management-activity-api-schema",
+      "severity": "blocker"
+    },
+    {
+      "field": "id",
+      "issue": "This SharePoint Online / Microsoft 365 UC is filed under subcategory 11.2 (Google Workspace), whose primary TA is the Google Workspace add-on. Its siblings 11.2.20 to 11.2.24 have the same misfiling.",
+      "severity": "major"
+    },
+    {
+      "field": "difficulty",
+      "issue": "'beginner' understates the work. The detection needs nested-JSON (PolicyDetails/Rules) extraction plus a DLP permission and content-type setup.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0068-UC-11.2.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 1,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A Microsoft Purview DLP detection for SharePoint and OneDrive, but the dataSources name a sourcetype that does not exist, the plain-language text calls it Google, and the field model ignores the nested PolicyDetails structure of DLP events. The SPL filters on fields the DLP schema does not carry, so it will probably return no rows as written.",
+  "tier": "deep",
+  "uc_id": "UC-11.2.23",
+  "verdict": "incorrect"
+}

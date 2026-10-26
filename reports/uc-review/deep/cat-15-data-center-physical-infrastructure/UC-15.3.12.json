@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "2bddfef4226fc7fb61e4082f6c86c173dadf584626a3cca8f16dfc879616f720",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.3.12.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://www.splunk.com/en_us/download/universal-forwarder.html",
+      "explanation": "The Universal Forwarder is downloaded from splunk.com, not Splunkbase. https://splunkbase.splunk.com/app/617 returns 404 and the ID is absent from data/splunkbase-catalog.json. The UF is not a 'modular input'. The `app` field carries the same ID and is already flagged.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real path: BMS or fire-panel gateway alarms sent as SNMP traps or BACnet through an SNMP or BACnet collector, or a vendor API scripted input on a forwarder, into `index=physical` as `fire:suppression_status`. Drop 'Splunkbase 617'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "A 15–30 minute poll cannot alert 'immediately' on an active fire alarm. The UC never says that alarm transmission and response belong to the listed fire alarm and supervising-station path, with Splunk only adding secondary visibility and trending. A reader could treat this search as a life-safety alert.",
+      "field": "implementation",
+      "quote": "Poll every 15–30 minutes. Alert immediately on disarmed state, low agent (<95%), or active alarm.",
+      "severity": "major",
+      "suggested_fix": "State that Splunk offers secondary visibility and readiness reporting only and does not replace the fire alarm control panel or the monitoring station. Recommend event-driven ingest (panel or BMS traps or webhooks) for alarm_active and keep polling for agent level and armed state."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "'Pre-action' describes a water sprinkler system, and pre-action sprinklers have no agent level. FM-200 and Novec 1230 are clean-agent gaseous systems whose cylinder contents are checked by weight or pressure. Mixing the two misleads a reader about which panels expose `agent_level_pct`.",
+      "field": "detailedImplementation",
+      "quote": "Pre-action system armed/disarmed, agent levels (FM-200/Novec)",
+      "severity": "minor",
+      "suggested_fix": "Say 'clean-agent systems (for example FM-200 or Novec 1230): armed state and cylinder agent level' and, if pre-action sprinklers are in scope, cover them separately with their supervisory signals (valve, air pressure)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Steps 1 to 4 appear twice and the 'Step 4 — Operationalize' heading repeats four times. The second half is boilerplate that does not fit this search: there is no `entity` field, no stats or timechart, and no vendor API returning 401/429. A 24h window on a critical-safety alert also clashes with the 'alert immediately' requirement.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Keep one set of steps. Throttle on `zone`. Schedule over a window just longer than the poll interval. Validate against the fire panel or BMS status page for two zones, including one deliberately bypassed during a test."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` says the search counts by `entity` and checks only agent level. The `spl` has no aggregation and also alerts on `system_armed!=\"armed\"` and `alarm_active=\"true\"`, which are the most important conditions.",
+      "field": "cross_field",
+      "quote": "Combines `count` by `entity` and compares against `agent_level_pct` < 95.",
+      "severity": "major",
+      "suggested_fix": "Describe one row per zone status event where the system is not armed, the agent level is below 95%, or an alarm is active."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `host`, `src`, `count` and synthetic probes, which have nothing to do with fire suppression telemetry. Real causes are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`** — Health checks in `physical` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: systems deliberately disarmed or bypassed for inspection, hot work or servicing; alarm_active during scheduled functional tests; pressure-based agent readings that drift with room temperature unless temperature-compensated; and cylinders being swapped or recharged."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL only displays `last_inspection_date`; it does not flag overdue inspections, so the compliance reporting claim is not supported by the search.",
+      "field": "implementation",
+      "quote": "Track inspection dates. Report on system readiness for compliance.",
+      "severity": "minor",
+      "suggested_fix": "Say that overdue-inspection reporting needs an added condition (for example days since last_inspection_date > the site's inspection interval), or drop the claim."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search does not reduce to the latest state per zone. Over the documented 24h window, a zone disarmed once appears on every poll, and a zone re-armed later still shows its old disarmed rows. Use `stats latest(...) by zone` before the `where`.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`alarm_active=\"true\"` and `system_armed!=\"armed\"` assume exact string values; a panel emitting 1/0 or 'ARMED' would be missed or always flagged. A null `system_armed` is silently excluded rather than treated as unknown.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0051-UC-15.3.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL and short implementation text describe a usable readiness check on armed state, agent level and alarm. The rest is template residue: a non-existent Splunkbase ID, duplicated boilerplate steps and generic false positives. The UC implies that a 15–30 minute poll gives 'immediate' fire-alarm alerting without saying Splunk is only secondary visibility next to the life-safety system.",
+  "tier": "deep",
+  "uc_id": "UC-15.3.12",
+  "verdict": "incorrect"
+}

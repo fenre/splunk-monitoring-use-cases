@@ -1,0 +1,119 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "237486099f9c886bda599330baada24f74f7b05891b593fdff6ca51a3dee608b",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.1.46.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL never reads `_internal` or metrics.log. It runs `| tstats count WHERE index=* by _time span=15m, sourcetype` over the indexed events of every non-internal index the searching role can see.",
+      "field": "dataSources",
+      "quote": "`index=_internal sourcetype=splunkd` (metrics.log), `index=_internal sourcetype=splunkd` (component=Metrics)",
+      "severity": "major",
+      "suggested_fix": "Say the data source is the index-time metadata (tsidx) of all production indexes, queried with `tstats` by sourcetype. No extra ingestion is needed. Optionally mention `metrics.log group=per_sourcetype_thruput` as an alternative feed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats",
+      "explanation": "This search references no data model. `tstats` over `index=*` with `sourcetype` and `_time` reads index-time fields straight from tsidx files, so no acceleration is needed. Following this step sends the reader looking for a non-existent data model.",
+      "field": "detailedImplementation",
+      "quote": "Uses `tstats` against precomputed summaries; ensure the referenced data model is accelerated.",
+      "severity": "major",
+      "suggested_fix": "Replace it with: '`tstats` reads index-time metadata (index, sourcetype, host, source, _time) directly from tsidx files. No data model acceleration is required.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` describes a train-weekly, apply-every-15-minutes design. The SPL runs `fit DensityFunction ... into sourcetype_volume_model`, so every scheduled run retrains the model on whatever time range that run covers and overwrites it. There is no separate `apply` search.",
+      "field": "cross_field",
+      "quote": "Schedule every 15 minutes against a 30-day trained DensityFunction model per sourcetype. ... Retrain the model weekly via a separate scheduled search.",
+      "severity": "major",
+      "suggested_fix": "Document the two-search pattern explicitly. (1) A weekly training search over 30 days using `fit DensityFunction count by sourcetype into sourcetype_volume_model`. (2) A 15-minute detection search over recent buckets using `apply sourcetype_volume_model`. Make clear that the SPL shown is the training form."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The search counts events per sourcetype only. It has no error-rate measure and no per-forwarder grain, so it cannot detect an error-rate spike or say which forwarder stopped. `implementation` also promises enrichment with forwarder host metadata that the search does not perform.",
+      "field": "detailedImplementation",
+      "quote": "Silent data pipeline breaks — a forwarder stops sending, a sourcetype drops to zero, or error rates spike",
+      "severity": "major",
+      "suggested_fix": "Limit the claim to per-sourcetype volume anomalies and zero-count gaps. If error rate is wanted, describe a companion search (for example a count of `log_level=ERROR` or HTTP 5xx per sourcetype). Describe host-level attribution as a follow-up drilldown by `host`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Placeholder text (`target_index`, `configured_sourcetype`) that misses this search's real false positives. Sparse or batch sourcetypes that legitimately log once an hour or once a day produce `count=0` (silent_drop) in most 15-minute buckets. The current, still-filling bucket at the end of the window reads low. Weekends and holidays dip below a model trained mostly on weekdays. A sourcetype that is completely silent for the whole window never appears at all, so a true total outage is missed rather than flagged.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Log Volume and Error Rate Anomaly per Sourcetype (MLTK)' shifts `count` over `span=15m`",
+      "severity": "major",
+      "suggested_fix": "List those causes. Suggest an allow-list lookup of expected-cadence sourcetypes, ending the search at `latest=-15m@m` or similar so the incomplete bucket is excluded, and a separate expected-sourcetype inventory check for sourcetypes that have disappeared completely."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The toolkit is listed on Splunkbase as app 2890, now titled 'Splunk AI Toolkit'. It requires the Python for Scientific Computing add-on for the search head's platform (for example Splunkbase 2882 for Linux 64-bit). The UC names neither.",
+      "field": "app",
+      "quote": "Splunk Machine Learning Toolkit (MLTK)",
+      "severity": "minor",
+      "suggested_fix": "List 'Splunk AI Toolkit (formerly MLTK, Splunkbase 2890)' plus 'Python for Scientific Computing (Splunkbase 2882 Linux / 2883 Windows)' as search-head prerequisites."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is generic platform-health text. It does not say the UC learns how much data each kind of log normally sends and flags a source that suddenly goes quiet or floods.",
+      "field": "grandmaExplanation",
+      "quote": "We watch platform health and capacity for search, indexing, and data delivery so the system we use for answers does not go dark or slow first.",
+      "severity": "major",
+      "suggested_fix": "For example: 'We learn how much data each kind of log usually sends every 15 minutes and raise a flag when one suddenly goes quiet or sends far more or less than normal, so we notice broken data feeds quickly.'"
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "An advanced-difficulty MLTK model with train/apply scheduling is placed in the crawl wave, which is meant for first-step detections.",
+      "field": "wave",
+      "quote": "\"wave\": \"crawl\"",
+      "severity": "minor",
+      "suggested_fix": "Move it to walk or run, or add the basic volume and inventory UCs (for example UC-13.1.13) as prerequisites."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "PagerDuty is only an optional alert destination. It is not equipment that generates the monitored data.",
+      "field": "equipment",
+      "quote": "\"pagerduty\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `pagerduty` from `equipment`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "title",
+      "issue": "The title promises 'Error Rate' anomaly detection, but the SPL models only event count per sourcetype.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search uses `fit ... into` on every run instead of `apply`, so the model is retrained on each scheduled window. The final 15-minute bucket is incomplete when `latest=now`. Sourcetypes absent for the entire window are never zero-filled, so a total outage is missed.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0078-UC-13.1.46",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL is a reasonable per-sourcetype volume model built on `tstats`, but the prose describes data sources (metrics.log), an error-rate signal and a train/apply schedule that the search does not use. The description, controlTest and knownFalsePositives still contain `target_index` and `configured sourcetype` placeholders.",
+  "tier": "deep",
+  "uc_id": "UC-13.1.46",
+  "verdict": "rewrite"
+}

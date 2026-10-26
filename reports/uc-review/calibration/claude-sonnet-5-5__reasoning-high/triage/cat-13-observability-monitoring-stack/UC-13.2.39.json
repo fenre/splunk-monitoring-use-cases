@@ -1,0 +1,112 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "b1cefd3d5f50efcf2298d7f5ecc0a0fee9dae09fff6aaa702ee8fb5294bcdd39",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.2.39.json",
+  "findings": [
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.fluentbit.io/manual/administration/monitoring",
+      "explanation": "No add-on is named and Splunkbase 617 is not in the cached catalog. Fluent Bit sends to Splunk through its splunk output plugin (HEC) or a log file read by a forwarder, not a Universal Forwarder that 'forwards stderr'. `storage.metrics on` is a real Fluent Bit service option.",
+      "field": "app",
+      "quote": "Fluent Bit `storage.metrics on` and stderr forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Describe the real path: Fluent Bit's splunk output to HEC for its own logs, and the HTTP monitoring endpoint for storage metrics. Remove the Splunkbase 617 reference unless verified."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.fluentbit.io/manual/administration/monitoring",
+      "explanation": "Fluent Bit's storage metrics endpoint reports chunk counts by state (for example up, down, busy), not retry attempts, so a retry search on a metrics sourcetype may find nothing. The sourcetypes fluentbit:storage and fluentbit:log are custom names with no setup described.",
+      "field": "dataSources",
+      "quote": "Fluent Bit storage metrics/logs (`fluentbit:storage`) from internal diagnostics",
+      "severity": "needs_verification",
+      "suggested_fix": "Document how fluentbit:storage and fluentbit:log are produced and what the events contain. Use the storage endpoint for chunk state and the Fluent Bit log for retry messages."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "There is no threshold. The SPL returns a count of any matching log line for each host, input and output. The text calls the filter an 'enrichment path', and it does not say that one line containing 'retry' plus an error word already produces a row.",
+      "field": "description",
+      "quote": "Threshold bundle: configured threshold; aggregation grain: `host`, `input_name`, `output_name`; metrics: `count`.",
+      "severity": "major",
+      "suggested_fix": "State that each row is a host, input and output pair with the number of retry-related error lines, and say what count should page."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.fluentbit.io/manual/administration/buffering-and-storage",
+      "explanation": "The implementation is one fragment about tuning. It does not say how the logs and metrics reach Splunk, how to enable filesystem buffering (storage.type) and storage.metrics, what the retry limit is, or how input_name and output_name are extracted from log lines.",
+      "field": "implementation",
+      "quote": "Tune `storage.max_chunks_up` and disk paths; correlate with output plugin errors.",
+      "severity": "major",
+      "suggested_fix": "Give the setup steps: enable storage.metrics and filesystem buffering, ship Fluent Bit logs to HEC, extract input and output names, then tune Retry_Limit and storage.max_chunks_up."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The generic text refers to a modular input, poll intervals and vendor API rate limits that do not apply to Fluent Bit log shipping. It names no real Fluent Bit settings.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=fluentbit:storage, fluentbit:log into fluent. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with Fluent Bit-specific steps and a validation search that checks both sourcetypes are arriving in index=fluent."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real Fluent Bit cause. Real ones are brief downstream outages (HEC, Elasticsearch) that cause normal retries which succeed, and short network blips that are not data loss.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `fluent` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: brief output outages where retries succeed, planned downstream maintenance, and restarts that replay buffered chunks."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The Fluentd monitoring reference does not apply to a Fluent Bit storage-layer problem, and the URL points to a general deployment page.",
+      "field": "references",
+      "quote": "https://docs.fluentd.org/deployment/",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the Fluent Bit buffering and storage documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats count by host, input_name, output_name` drops every event where input_name or output_name is not extracted, and Fluent Bit log lines contain these only inside text such as 'input=tail.0 > output=splunk.0'. Without an extraction the search returns nothing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The filter `\"retry\" AND (\"error\" OR \"failed\" OR \"give up\")` matches ordinary transient flush retries ('failed to flush chunk ... retry in N seconds'). Check the message Fluent Bit logs when Retry_Limit is exceeded; it is believed to say the chunk 'cannot be retried', which does not contain the word 'retry'. The search may count transient retries and miss real exhaustion.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Storage Layer Chunk I/O Retry Exhaustion', but the search counts any retry-and-error line and does not look for the exhaustion condition or storage-layer I/O errors.",
+      "severity": "major"
+    },
+    {
+      "field": "id",
+      "issue": "UC-13.2.39 is a Fluent Bit log pipeline UC filed under 13.2 'Splunk ITSI (Premium)'. It does not involve ITSI, and the same is true of siblings such as UC-13.2.9 and UC-13.2.10.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0020-UC-13.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A Fluent Bit log-pipeline UC filed under ITSI whose search matches generic 'retry' log text rather than retry exhaustion, relies on fields that Fluent Bit logs do not provide, and has templated implementation and false-positive text.",
+  "tier": "triage",
+  "uc_id": "UC-13.2.39",
+  "verdict": "rewrite"
+}
