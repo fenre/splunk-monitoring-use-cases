@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_250 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_251 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -1242,6 +1242,10 @@ _No inbound links yet._
 _No inbound links yet._
 
 ## `docs/superpowers/plans/2026-07-22-cat-25-mega-expansion.md`
+
+_No inbound links yet._
+
+## `docs/superpowers/plans/2026-10-26-uc-text-quality-review.md`
 
 _No inbound links yet._
 
