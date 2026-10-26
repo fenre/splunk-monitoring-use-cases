@@ -19,6 +19,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from splunk_uc.audits._template_fingerprints import (
     detect_template_flags,
@@ -169,7 +170,7 @@ def _build_handcraft_section(flags: list[str]) -> str:
     return HANDCRAFT_SECTION.format(template_flags=", ".join(flags) or "(none detected)")
 
 
-def _build_findings_section(record: dict | None, *, current_sha: str) -> str:
+def _build_findings_section(record: dict[str, Any] | None, *, current_sha: str) -> str:
     if not record:
         return ""
     from splunk_uc.tools.lift.validate import LIFT_SURFACE_FIELDS
@@ -184,8 +185,8 @@ def _build_findings_section(record: dict | None, *, current_sha: str) -> str:
         "evidence_url",
         "evidence_ref",
     )
-    fixable: list[dict] = []
-    readonly: list[dict] = []
+    fixable: list[dict[str, Any]] = []
+    readonly: list[dict[str, Any]] = []
     for finding in record.get("findings", []):
         row = {k: finding[k] for k in keep if k in finding}
         (fixable if finding.get("field") in LIFT_SURFACE_FIELDS else readonly).append(row)
@@ -203,7 +204,7 @@ def _build_findings_section(record: dict | None, *, current_sha: str) -> str:
     )
 
 
-def _load_findings(spec: str | None, uc_id: str, sidecar_path: Path) -> dict | None:
+def _load_findings(spec: str | None, uc_id: str, sidecar_path: Path) -> dict[str, Any] | None:
     if not spec:
         return None
     if spec == "auto":
@@ -211,7 +212,8 @@ def _load_findings(spec: str | None, uc_id: str, sidecar_path: Path) -> dict | N
 
         bare = uc_id if uc_id.startswith("UC-") else f"UC-{uc_id}"
         return authoritative_record(bare, sidecar_path.parent.name)
-    return json.loads(Path(spec).read_text(encoding="utf-8"))
+    record: dict[str, Any] = json.loads(Path(spec).read_text(encoding="utf-8"))
+    return record
 
 
 def _build_domain_pack_section(pack_id: str | None, packs_dir: Path | None) -> tuple[str, str]:

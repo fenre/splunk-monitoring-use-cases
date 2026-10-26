@@ -299,7 +299,8 @@ def _v2_quote(uc: dict[str, Any], flag: str, field: str) -> str:
     if field == "references":
         return "https://lantern.splunk.com/"
     if field == "controlTest":
-        ct = uc.get("controlTest") if isinstance(uc.get("controlTest"), dict) else {}
+        raw_ct = uc.get("controlTest")
+        ct: dict[str, Any] = raw_ct if isinstance(raw_ct, dict) else {}
         text = f"{_as_str(ct.get('positiveScenario'))}\n{_as_str(ct.get('negativeScenario'))}"
     else:
         text = _field_text(uc, field)

@@ -88,8 +88,9 @@ def test_premium_app_mismatch(entry: object, spl: str, pillar: str, removed: boo
         assert field is None
 
 
-@pytest.mark.parametrize("kwargs", fx.SERIALISATIONS)
-def test_serialise_like_preserves_format(kwargs: dict) -> None:
+@pytest.mark.parametrize(("indent", "ensure_ascii"), fx.SERIALISATIONS)
+def test_serialise_like_preserves_format(indent: int, ensure_ascii: bool) -> None:
+    kwargs = {"indent": indent, "ensure_ascii": ensure_ascii}
     data = {"id": "1.1.1", "description": "a — b", "z": 1, "a": [1, 2]}
     raw = json.dumps(data, **kwargs) + "\n"
     out = fx.serialise_like(raw, {**data, "description": "c — d"})
