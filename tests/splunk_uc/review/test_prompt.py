@@ -115,25 +115,38 @@ def test_adjudication_requires_prior_and_lists_blockers() -> None:
                 "explanation": "Link-state syslog is not Network_Traffic.",
                 "evidence_ref": "docs/guides/cisco-networks.md",
             },
-            {"field": "value", "dimension": "specificity", "severity": "major", "explanation": "generic"},
+            {
+                "field": "value",
+                "dimension": "specificity",
+                "severity": "major",
+                "explanation": "generic",
+            },
         ],
         "firewalled_field_flags": [],
     }
-    prompt = rp.build_prompt("adjudication", [_entry()], prior=prior, ledger_path=Path("/nonexistent"))
+    prompt = rp.build_prompt(
+        "adjudication", [_entry()], prior=prior, ledger_path=Path("/nonexistent")
+    )
     blockers = _json_block_after(prompt, "# PRIOR BLOCKERS")
     assert [b["field"] for b in blockers] == ["cimModels"]
-    assert '"adjudicates": {"tier": "deep", "model": "claude-opus-5-5-high", "agrees": true}' in prompt
+    assert (
+        '"adjudicates": {"tier": "deep", "model": "claude-opus-5-5-high", "agrees": true}' in prompt
+    )
 
 
 def test_iter_batches_never_cross_subcategory() -> None:
-    entries = rp.select_batch("15.1", offset=0, limit=10) + rp.select_batch("15.2", offset=0, limit=3)
+    entries = rp.select_batch("15.1", offset=0, limit=10) + rp.select_batch(
+        "15.2", offset=0, limit=3
+    )
     batches = rp.iter_batches(entries, size=4)
     assert [len(b) for b in batches] == [4, 4, 2, 3]
     for batch in batches:
         assert len({grounding.subcategory_id(uc) for _, uc in batch}) == 1
 
 
-def test_guide_excerpt_prefers_keyword_sections(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_guide_excerpt_prefers_keyword_sections(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     guide = tmp_path / "guide.md"
     guide.write_text(
         "## Intro\nGeneral text.\n\n## Syslog\ncisco:ios cisco:ios LINEPROTO\n\n## Other\nNothing.\n",

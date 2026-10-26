@@ -71,9 +71,12 @@ def category_of(path: Path) -> str:
 
 
 def rel_file(path: Path) -> str:
+    """Repo-relative ``content/cat-*/UC-*.json`` path (also for content trees outside the repo)."""
     try:
         return str(path.resolve().relative_to(REPO_ROOT.resolve()))
     except ValueError:
+        if path.parent.parent.name == "content":
+            return f"content/{path.parent.name}/{path.name}"
         return str(path)
 
 
