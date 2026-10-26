@@ -171,6 +171,26 @@ def score_candidate(
         cand_gated |= _keys(candidate[uc_id], GATED_SEVERITIES)
         cand_blockers |= _keys(candidate[uc_id], ("blocker",))
 
+    needs_deep = {
+        uc_id
+        for uc_id in common
+        if any(
+            f.get("dimension") == "correctness" and f.get("severity") in GATED_SEVERITIES
+            for f in reference[uc_id].get("findings", [])
+        )
+        or any(
+            f.get("severity") == "blocker"
+            for f in reference[uc_id].get("firewalled_field_flags", [])
+        )
+    }
+    routed = {uc_id for uc_id in common if _routes_to_deep(candidate[uc_id])}
+    verdict_agreement = (
+        sum(1 for u in common if reference[u].get("verdict") == candidate[u].get("verdict"))
+        / len(common)
+        if common
+        else 0.0
+    )
+
     matched = ref_gated & cand_gated
     recall = len(matched) / len(ref_gated) if ref_gated else 1.0
     false_blockers = {k for k in cand_blockers if k not in ref_gated}
@@ -190,9 +210,28 @@ def score_candidate(
         "thresholds": {"recall_min": RECALL_MIN, "false_blocker_max": FALSE_BLOCKER_MAX},
         "human_labels_applied": sum(1 for v in labels.values() if v.get("checked")),
         "passed": passed,
+        "routing_recall": round(len(needs_deep & routed) / len(needs_deep), 4)
+        if needs_deep
+        else 1.0,
+        "ucs_needing_deep": len(needs_deep),
+        "ucs_routed_by_candidate": len(routed),
+        "verdict_agreement": round(verdict_agreement, 4),
         "missed_examples": [list(k) for k in sorted(ref_gated - cand_gated)[:25]],
         "false_blocker_examples": [list(k) for k in sorted(false_blockers)[:25]],
     }
+
+
+def _routes_to_deep(triage: dict[str, Any]) -> bool:
+    """Triage-driven part of the deep routing rule (see ``_runner.deep_routing_reasons``)."""
+    if any(
+        f.get("dimension") == "correctness" and f.get("severity") in GATED_SEVERITIES
+        for f in triage.get("findings", [])
+    ):
+        return True
+    if any(f.get("severity") == "blocker" for f in triage.get("firewalled_field_flags", [])):
+        return True
+    confidence = triage.get("confidence")
+    return isinstance(confidence, (int, float)) and confidence < 0.6
 
 
 def load_json(path: Path) -> dict[str, Any]:

@@ -255,6 +255,14 @@ def extract_reviews(text: str) -> list[dict[str, Any]]:
     raise ValueError("reply has no 'reviews' list")
 
 
+QUOTE_MAX = 500
+SUMMARY_MAX = 800
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "\u2026"
+
+
 MODEL_KEYS = (
     "verdict",
     "confidence",
@@ -282,6 +290,11 @@ def complete_record(
             record[key] = review[key]
     record.setdefault("findings", [])
     record.setdefault("firewalled_field_flags", [])
+    for finding in record["findings"]:
+        if isinstance(finding, dict) and isinstance(finding.get("quote"), str):
+            finding["quote"] = _clip(finding["quote"], QUOTE_MAX)
+    if isinstance(record.get("summary"), str):
+        record["summary"] = _clip(record["summary"], SUMMARY_MAX)
     if tier != "adjudication":
         record.pop("adjudicates", None)
     if run_id:
