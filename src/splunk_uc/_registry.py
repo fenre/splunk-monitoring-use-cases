@@ -415,6 +415,14 @@ register(
 )
 register(
     Verb(
+        name="audit-text-quality",
+        module="audits.text_quality",
+        help="Deterministic UC text-quality pre-pass: template families, skeleton clusters, CIM/Splunkbase/premium-app mismatches, spelling.",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-baseline-clause-grammar-free",
         module="audits.baseline_clause_grammar_free",
         help="Phase F drift guard: refuse `clause-grammar` fingerprints in audit-baseline.json.",
