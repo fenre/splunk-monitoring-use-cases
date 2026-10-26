@@ -1,0 +1,90 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "e774d045583760e1827c91b032cf28530cc1eca87bfda3a92625c3001eb39a13",
+  "file": "content/cat-11-email-collaboration/UC-11.5.12.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5781",
+      "explanation": "Splunkbase 5781 is the 'Cisco Webex' connector for Splunk SOAR (actions such as send message and list rooms). It does not ingest device telemetry into Splunk. The Splunk add-on is 'Webex Add-on for Splunk' (`ta_cisco_webex_add_on_for_splunk`, Splunkbase 8365). It runs as a REST modular input, not on a Universal Forwarder. detailedImplementation repeats the wrong ID.",
+      "field": "app",
+      "quote": "`Cisco Webex Add-on` (Splunkbase #5781) — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "App: Webex Add-on for Splunk (`ta_cisco_webex_add_on_for_splunk`, Splunkbase 8365), using its Generic Endpoint input against the Webex Devices API (`/v1/devices`, scope spark-admin:devices_read) on a heavy forwarder or Splunk Cloud IDM. Remove 5781 and the UF reference from app, dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.webex.com/docs/api/v1/devices/get-device-details",
+      "explanation": "The Webex Devices API reports `connectionStatus` with lowercase values (connected, disconnected, connected_with_issues, offline_expired, activating). It exposes `errorCodes[]` and `software` rather than a health state or firmware version, and gives a `workspaceId`/`locationId` rather than a room or building name. A reader would look for fields that do not exist and miss `connected_with_issues`.",
+      "field": "implementation",
+      "quote": "Monitor connection status (Connected/Disconnected), health state, and firmware version.",
+      "severity": "major",
+      "suggested_fix": "Describe the real fields: connectionStatus (incl. connected_with_issues / offline_expired), lastSeen for staleness, errorCodes for health, software for firmware, and product = 'Cisco Room Navigator' to select schedulers. Resolve workspaceId/locationId to room and building through the Workspaces/Locations APIs or a lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation's rule is offline for more than 30 minutes during business hours. The SPL and description alert immediately on any non-Connected status and flag staleness only after 4 hours, with no business-hours window.",
+      "field": "cross_field",
+      "quote": "Alert when any device goes offline for more than 30 minutes during business hours.",
+      "severity": "major",
+      "suggested_fix": "Make the prose match the detection actually shipped (immediate offline, 4-hour staleness), or record that a 30-minute business-hours rule needs a lastSeen-based duration and a schedule window."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "The UC checks whether room-booking panels and signage screens are online and healthy. It does not measure empty bookings or licence waste; those belong to sibling UCs such as 11.5.9 and 11.5.6.",
+      "field": "grandmaExplanation",
+      "quote": "so empty bookings, bad gear, and license waste are visible before a big event fails.",
+      "severity": "major",
+      "suggested_fix": "We check that the booking panels outside meeting rooms and the lobby display screens are switched on and connected, and tell facilities which building has a dead or frozen screen."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/splunk/ta_cisco_webex_add_on_for_splunk/blob/main/package/README.md",
+      "explanation": "`webex:room_analytics` is listed but never used by the detection, and `webex:device` is not a sourcetype the Webex add-on produces (its generic endpoint input names sourcetypes `cisco:webex:<endpoint>`).",
+      "field": "dataSources",
+      "quote": "`sourcetype=webex:device` (device status), `sourcetype=webex:room_analytics`",
+      "severity": "minor",
+      "suggested_fix": "List only the device-status feed and name the sourcetype the configured input actually writes (for example `cisco:webex:devices` from the generic endpoint input), after confirming it in the deployment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generic category boilerplate; only Webex devices are in scope.",
+      "field": "detailedImplementation",
+      "quote": "Compare with each vendor’s admin portal (Zoom, Webex, Microsoft) for the same service or device and time range.",
+      "severity": "minor",
+      "suggested_fix": "Compare the offline list with Control Hub > Devices filtered to Room Navigator and signage devices, and check the status of two known devices."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.webex.com/docs/api/v1/devices/get-device-details",
+      "field": "spl",
+      "issue": "Filters and evaluates fields the Webex Devices API does not return (mode, health_state, firmware_version, room_name, building) and compares connection_status to 'Connected', while the API value is lowercase `connectionStatus=connected`. As written, every device would show as 'Offline' or drop out. Use connectionStatus, lastSeen, errorCodes, software and product, with a workspace lookup for room/building. Evidence: https://developer.webex.com/docs/api/v1/devices/get-device-details",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0071-UC-11.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The intent (find offline or stale Room Navigator and signage devices per building) is clear, but the app field points to a Splunk SOAR connector rather than a Splunk add-on. The field model (health_state, mode, Connected/Disconnected, firmware_version, room_name, building) does not match the Webex Devices API, and the 30-minute business-hours rule in the prose does not match the 4-hour SPL logic.",
+  "tier": "deep",
+  "uc_id": "UC-11.5.12",
+  "verdict": "incorrect"
+}

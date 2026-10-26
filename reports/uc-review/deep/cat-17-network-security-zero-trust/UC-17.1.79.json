@@ -1,0 +1,137 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8ebaa1635ef18f29823b94d466d5bf518ed0712776089386227caa5d902e1502",
+  "file": "content/cat-17-network-security-zero-trust/UC-17.1.79.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1352 is the 'App for Cisco Network Data' (`cisco_ios`), not an ISE add-on, and ISE authorization events arrive as syslog, not via a modular input or scripted poll. The ISE guide names the Splunk Add-on for Cisco Identity Services (Splunkbase 1915) receiving `cisco:ise:syslog` (directly or via SC4S).",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Cisco Security (Splunkbase 1352) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Say: ISE Passed/Failed Authentication syslog categories sent from the MnT/PSN nodes to SC4S or a syslog input, parsed by Splunk Add-on for Cisco Identity Services (Splunkbase 1915) as `cisco:ise:syslog` into `index=nac`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-syslog/blob/master/tests/test_cisco_ise.py",
+      "explanation": "Raw ISE CISE_Passed_Authentications syslog carries the policy stack as `ISEPolicySetName`, `AuthorizationPolicyMatchedRule` and `SelectedAuthorizationProfiles` (plus SGT/dACL inside `cisco-av-pair` / `Response={...}`); no event field is named `MatchedRuleName` or `AuthorizationProfile`. Unless Splunkbase 1915 defines aliases with these names, the SPL groups on null fields and returns nothing.",
+      "field": "dataSources",
+      "quote": "`MatchedPolicyName`, `MatchedRuleName`, `AuthorizationProfile`, `SecurityGroup`, `dACL`, `VLAN`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the props.conf of Splunk Add-on for Cisco Identity Services (1915) for field aliases. If none exist, document the raw names (`ISEPolicySetName`, `AuthorizationPolicyMatchedRule`, `SelectedAuthorizationProfiles`) and how SGT/dACL/VLAN are extracted from the av-pairs."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-syslog/blob/master/tests/test_cisco_ise.py",
+      "explanation": "ISE syslog is pushed, not polled, and ISE splits each authentication record into numbered segments: `MessageCode` 5200 is in segment 0 while `AuthorizationPolicyMatchedRule` and `ISEPolicySetName` sit in later segments. Without reassembly (SC4S, or raising the ISE remote-target maximum length) a search that filters on MessageCode and groups on the rule field finds no matching events. The whole section is the generic template ('Standard pattern.', inventory-count comparison, severity routing).",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cisco:ise:syslog into nac. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace with ISE-specific steps: enable Passed Authentications and Failed Attempts logging categories to the Splunk remote target, ensure multi-segment messages are reassembled (SC4S or larger message length), install add-on 1915, then validate that a known 5200 event shows the policy set, rule and profile fields."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/cisco-ise.md",
+      "explanation": "The SPL outputs only policy, rule and profile with counts; it has no SGT/dACL/VLAN columns for the Sankey, and a 'dead-rule list' is impossible from hit counts because rules with zero hits never appear in `stats` output. That needs the configured rule inventory (e.g. the ISE OpenAPI authorization-rules endpoint listed in the ISE guide) to compare against.",
+      "field": "visualization",
+      "quote": "Sankey diagram: rules → profiles → SGTs/dACLs/VLANs. Dead-rule list. Catch-all rule top-N.",
+      "severity": "major",
+      "suggested_fix": "Describe what the SPL supports (rule/profile hit table and top-N) and state that dead-rule detection requires joining against a rule inventory pulled from `/api/v1/policy/network-access/authorization-rules`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search only lists rules that were hit; it cannot show unused rules, so the plain-language text promises the dead-rule outcome the detection does not deliver.",
+      "field": "grandmaExplanation",
+      "quote": "We map out which rules are used and which aren't",
+      "severity": "major",
+      "suggested_fix": "E.g. 'We count which access rules people actually land on and what access each rule hands out, so the team can spot rules doing too much and check unused ones against the full rule list.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/splunk/splunk-app-cisco-ise/blob/master/app/Splunk_CiscoISE/lookups/message_catalog.csv",
+      "explanation": "All scenarios are about authentication failures, but the SPL reads only successful events (5200 Authentication succeeded, 5236 Authorize-Only succeeded), so none of them can affect the output. Real distortions for a rule-hit funnel are reauthentication/interim churn inflating counts for always-on endpoints, MAB-to-CWA redirect flows hitting two rules per session, and policy-set renames splitting history.",
+      "field": "knownFalsePositives",
+      "quote": "Clients fail EAP-TLS during staged cert deployment ... Short auth failure burst while ISE node restarts ... mimic auth failures.",
+      "severity": "major",
+      "suggested_fix": "Replace with those funnel-specific causes and how to handle them (count distinct `audit_session_id`/endpoint per rule, normalise renamed rules)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "The SPL searches raw `cisco:ise:syslog` and never uses the Authentication data model, which has no policy-set, rule or authorization-profile fields; acceleration is irrelevant to this search.",
+      "field": "cimModels",
+      "quote": "\"dataModelAcceleration\": \"Yes — Authentication.\"",
+      "severity": "minor",
+      "suggested_fix": "Set dataModelAcceleration to 'Not applicable' or explain that Authentication is only for sibling success/failure counts."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation says `earliest=-24h@h`, and no 'ISE Authorization Funnel dashboard' is defined anywhere in the UC or shipped by the add-on; the SPL produces no funnel-drop stage either.",
+      "field": "implementation",
+      "quote": "Schedule the search daily over the last 7 days; review the funnel-drop chart in the ISE Authorization Funnel dashboard.",
+      "severity": "minor",
+      "suggested_fix": "Pick one window (7 days for rule-usage review), and describe the dashboard panels the reader must build instead of referring to a non-existent dashboard."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC carries a wrong Splunkbase ID, unverified field names, template implementation text and false positives that cannot occur; the generic reviewer handle is not evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until an ISE SME confirms field names against real events and the implementation is rewritten."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The ISE reference points at the cisco.com home page, and the 'Splunkbase app 1352' reference is the wrong app.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco ISE 3.4 — Authorization Policies\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the ISE 3.4 administrator guide chapter on policy sets/authorization policies and Splunkbase app 1915."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`MessageCode IN (5200, 5236)` keeps only successful authentications, so authorization outcomes that end in a reject (5400 with FailureReason 15039 'Rejected per authorization profile', i.e. DenyAccess rules) are absent; the title promises a funnel 'to final authorization result'. Also grouping fields may not exist under these names (raw ISE uses ISEPolicySetName / AuthorizationPolicyMatchedRule / SelectedAuthorizationProfiles).",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "Rationale says 'measures user enrollment funnel completion', which describes a different UC; this one measures authorization-rule usage.",
+      "severity": "minor"
+    },
+    {
+      "field": "compliance",
+      "issue": "Mode 'satisfies' for PCI 7.2.2 / ISO A.5.18 / AC-6 is strong for a rule-hit count report that does not review who is entitled to which access; 'contributing' assurance fits but the evidenceArtifact 'alert log' does not exist (the search has no alert condition).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0102-UC-17.1.79",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A useful rule-hit inventory idea, but the sidecar names the wrong Splunkbase add-on in its data sources, uses field names that do not match raw ISE syslog, ignores ISE multi-segment syslog, promises a dead-rule list and Sankey the SPL cannot produce, attaches failure-oriented false positives to a success-only search, and is marked `verified` despite generic template implementation text.",
+  "tier": "deep",
+  "uc_id": "UC-17.1.79",
+  "verdict": "incorrect"
+}

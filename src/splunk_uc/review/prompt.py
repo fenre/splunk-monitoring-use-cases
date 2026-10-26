@@ -19,6 +19,7 @@ import json
 import re
 import sys
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -120,22 +121,37 @@ def load_rubric_text(path: Path = RUBRIC_DOC) -> str:
     return text[start:end].strip()
 
 
+@lru_cache(maxsize=4)
+def _ledger_offsets(ledger_path: Path, mtime_ns: int, size: int) -> dict[str, int]:
+    """Byte offset of each UC's line in the deterministic JSONL (rebuilt when the file changes)."""
+    offsets: dict[str, int] = {}
+    with ledger_path.open("rb") as fh:
+        while True:
+            offset = fh.tell()
+            line = fh.readline()
+            if not line:
+                break
+            match = re.search(rb'"uc_id": "(UC-[\d.]+)"', line)
+            if match:
+                offsets[match.group(1).decode()] = offset
+    return offsets
+
+
 def deterministic_index(
     uc_ids: Iterable[str], *, ledger_path: Path = DETERMINISTIC_LEDGER
 ) -> dict[str, dict[str, Any]]:
-    """Stored deterministic records for ``uc_ids`` (scans the JSONL once)."""
+    """Stored deterministic records for ``uc_ids``."""
     wanted = set(uc_ids)
     found: dict[str, dict[str, Any]] = {}
     if not wanted or not ledger_path.is_file():
         return found
-    needles = {f'"uc_id": "{uid}"': uid for uid in wanted}
-    with ledger_path.open(encoding="utf-8") as fh:
-        for line in fh:
-            match = re.search(r'"uc_id": "UC-[\d.]+"', line)
-            if match and match.group(0) in needles:
-                found[needles[match.group(0)]] = json.loads(line)
-                if len(found) == len(wanted):
-                    break
+    stat = ledger_path.stat()
+    offsets = _ledger_offsets(ledger_path, stat.st_mtime_ns, stat.st_size)
+    with ledger_path.open("rb") as fh:
+        for uid in sorted(wanted):
+            if uid in offsets:
+                fh.seek(offsets[uid])
+                found[uid] = json.loads(fh.readline())
     return found
 
 

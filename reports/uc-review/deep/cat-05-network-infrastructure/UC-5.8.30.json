@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a86a79f629c136016dd73ced98d8c923e4fe1e9704d0f299f69bc4708b240ec8",
+  "file": "content/cat-05-network-infrastructure/UC-5.8.30.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.infoblox.com/space/nios86/1105004175/Monitoring%20Tools",
+      "explanation": "The NIOS audit log records administrative activity only: logins and logouts, object writes, admin-initiated service restarts and reboots, scheduled tasks and WAPI calls. A named crash, a restart after an out-of-memory kill, or an HA failover is a system event that goes to syslog, not the audit log. The text and its 'Grid member health audit' search (crash|oom|memory|disk) promise detections this sourcetype cannot provide.",
+      "field": "detailedImplementation",
+      "quote": "Infoblox Grid audit logs capture: (1) grid member service restarts (DNS, DHCP, NTP), (2) configuration changes (zone additions, record modifications), (3) admin logins and logouts, (4) grid upgrade events, (5) HA failover events.",
+      "severity": "blocker",
+      "suggested_fix": "Say that infoblox:audit shows only admin-initiated service restarts and reboots. To catch unplanned named restarts, OOM kills or HA failovers, point to the NIOS syslog stream that the Splunk Add-on for Infoblox ingests. Look up the exact message text for these events in the NIOS syslog documentation, or drop those claims."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.infoblox.com/space/nios86/1105004175/Monitoring%20Tools",
+      "explanation": "In the NIOS audit log, Action is one of CALLED, CREATED, DELETED, LOGIN_ALLOWED, LOGIN_DENIED, MESSAGE, MODIFIED, POST, PUT or DELETE, and Execution Status is Executed, Normal, Pending Approval or Scheduled. There is no success/failure 'result' and no restart/start/stop/failover/upgrade action. The login-failure search (and the `login.fail` regex) cannot match LOGIN_DENIED, and the restart search filters on action values that never occur.",
+      "field": "detailedImplementation",
+      "quote": "| where match(action, \"(?i)login\") AND match(result, \"(?i)fail\")",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the searches against the real audit vocabulary. Use action=LOGIN_DENIED for failed logins, and match service restarts in the message text of CALLED or MESSAGE entries. Before naming fields, confirm the field names that Splunk_TA_infoblox extracts for infoblox:audit (for example `| fieldsummary` on sample data)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/dns-dhcp.md",
+      "explanation": "dataSources and the SPL use index=dns with fields admin, host and object. Every detailedImplementation search uses index=infoblox with admin_name, object_type, object_name, result and source_ip. A reader cannot tell which index or field names are real.",
+      "field": "cross_field",
+      "quote": "Data in `index=infoblox` (or `index=dns`) with `sourcetype=infoblox:audit`. Key fields: `admin_name`, `action`, `object_type`, `object_name`, `result` (success/failure), `source_ip`.",
+      "severity": "major",
+      "suggested_fix": "Use one index (the dns-dhcp guide uses index=dns) and one set of field names in dataSources, detailedImplementation and the SPL. Take the field names from the add-on's actual extractions for infoblox:audit."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-infoblox/Sourcetypes/",
+      "explanation": "The Splunk Add-on for Infoblox maps infoblox:audit to the Authentication and Change data models, and the repo's DNS/DHCP guide lists infoblox:audit under Change. An empty cimModels hides the CIM path for admin changes and login events.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": []",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to Change (with Authentication for the login-failure part), or explain why the UC stays raw-only."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The searches run only on admin audit records, so they can count admin-initiated restarts but cannot see watchdog or crash restarts. Telling readers that the frequency metric separates maintenance from instability overstates what the data shows.",
+      "field": "detailedImplementation",
+      "quote": "Multiple unplanned restarts indicate a problem: Infoblox Out-of-Memory (OOM) kills the named process and restarts it, a configuration error causes named to crash on startup, or a runaway query load triggers a watchdog restart.",
+      "severity": "major",
+      "suggested_fix": "Present the restart count as a count of admin-initiated restarts, which tracks change activity, and add a separate syslog-based search if unplanned restarts must be detected."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "No 'Resource Allocation' editor or tunable DNS process memory limit could be confirmed in NIOS Grid Manager. The 'Grid > Members > HA Status' path also looks invented.",
+      "field": "detailedImplementation",
+      "quote": "Check the member's resource allocation (Grid > Members > select member > Resource Allocation). Consider increasing the DNS process memory limit or reducing the cache TTL.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NIOS Administrator Guide for the real navigation to member resource and HA status views (for example the Grid Manager Members tab status columns and Detailed Status). Remove any step that has no documented counterpart."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.infoblox.com/space/nios86/1105004175/Monitoring%20Tools",
+      "explanation": "NIOS has no 'comprehensive' audit mode. The real settings are the audit log type (Detailed, Brief or WAPI Detailed) and the 'Copy Audit Log Messages to Syslog' checkbox, which is what gets audit records to Splunk.",
+      "field": "implementation",
+      "quote": "Enable comprehensive audit logging on Grid Manager and forward to Splunk.",
+      "severity": "minor",
+      "suggested_fix": "Say: set Audit Log Type to Detailed (Grid Properties > General) and enable Copy Audit Log Messages to Syslog with an external syslog server pointing at Splunk/SC4S."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The quoted filter is cut off and drops the final `critical` term. 'Rolls up `values`' and '`the scheduled window`' are placeholder text, not a description of the 24-hour keyword rollup.",
+      "field": "description",
+      "quote": "Rolls up `values` by `host`, `admin`, `object` across `the scheduled window` and pages when `count` >= 1. Uses filter `restart OR stopped OR failed OR \"Named\" OR \"DNS Service\" OR `.",
+      "severity": "minor",
+      "suggested_fix": "Describe the search in a sentence: over the last 24 hours, keyword-match infoblox:audit for restart, stop, failure and critical terms, and list each host/admin/object combination with its actions and last time seen."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The bare keyword filter (restart OR stopped OR failed OR \"Named\" OR \"DNS Service\" OR critical) does not follow the audit log's action vocabulary. NIOS audit logs successful admin operations plus LOGIN_DENIED, so 'failed' and 'critical' rarely mean what the title implies, and 'Named' matches any DNS-object audit record. `where count>=1` after stats does nothing.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'DNS Service Restarts' implies unplanned restarts, but infoblox:audit only records admin-initiated service restarts. Either scope the title to admin-initiated restarts or add a syslog source.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0032-UC-5.8.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The short fields are template residue. detailedImplementation reads as specific, but it rests on a wrong model of the NIOS audit log: it treats crash and OOM restarts, HA failovers and failed results as audit events, and uses action values and field names the audit log does not have. Index, field names and CIM mapping also disagree across fields.",
+  "tier": "deep",
+  "uc_id": "UC-5.8.30",
+  "verdict": "incorrect"
+}

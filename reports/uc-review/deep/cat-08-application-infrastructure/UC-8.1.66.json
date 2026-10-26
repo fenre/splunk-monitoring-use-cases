@@ -1,0 +1,101 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "8ca5441fc85cdc3a6aa0d2bed3566f8f3e9d4ddf3a0c405bea47ad76252032f4",
+  "file": "content/cat-08-application-infrastructure/UC-8.1.66.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/617",
+      "explanation": "Splunkbase app 617 does not exist and the Universal Forwarder is not a Splunkbase app. memcached `stats` output comes from a scripted poll (e.g. `echo stats | nc host 11211`) or an agent such as Telegraf.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "memcached `stats` (bytes, limit_maxbytes, evictions) polled per instance by a scripted input on a forwarder (or Telegraf memcached input) and indexed as sourcetype memcached:stats with host and port. Drop the Splunkbase 617 reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_url": "https://raw.githubusercontent.com/memcached/memcached/master/doc/protocol.txt",
+      "explanation": "memcached is an LRU cache that is designed to fill limit_maxbytes and then evict; bytes near limit_maxbytes is normal steady state for a warm cache, so paging on it alone produces constant false alarms. Pressure is shown by evictions (especially evicted_unfetched) rising and hit ratio falling while at the limit.",
+      "field": "implementation",
+      "quote": "Alert at 90% with warning; 95% page on-call.",
+      "severity": "major",
+      "suggested_fix": "Treat used_pct >= 90% as informational capacity context and alert only when it coincides with a rising `evictions` rate or falling get_hits/(get_hits+get_misses); reserve paging for that combination."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "collectd's memcached plugin reports df-style used/free gauges rather than raw `bytes`/`limit_maxbytes`, and Telegraf normally sends to Splunk as metrics (splunkmetric/HEC), not as `memcached:stats` events with those field names; the event search may find nothing for either collector.",
+      "field": "app",
+      "quote": "collectd/Telegraf memcached input — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name one collection path and confirm it yields events with fields `bytes` and `limit_maxbytes` in sourcetype memcached:stats (e.g. a scripted `stats` poll emitting key=value), or rewrite for the metrics index the chosen agent writes to."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no stats, no entity or count field, and `lim > 0` is only a divide-by-zero guard, not an alert condition.",
+      "field": "description",
+      "quote": "grouped by `entity`. Outputs `count` each `the scheduled window`; alert when `lim` > 0, or `used_pct` > 90",
+      "severity": "minor",
+      "suggested_fix": "Returns memcached samples where bytes exceed 90% of limit_maxbytes, per host (and port when multiple instances run on one host)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Generic boilerplate: there is no vendor API or rate limit for a local memcached stats poll, and the validation and troubleshooting steps (vendor admin UI inventory, HTTP 401/429) do not apply.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=memcached:stats into infrastructure. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Describe a 60 s scripted `stats` poll per memcached port, include port in the key, validate by comparing `echo stats | nc host 11211` output with the latest event, and troubleshoot connection refusals or SASL-enabled instances."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Template filler; the SPL has no span=1h or count, and the real benign cause (a warm cache sitting at its limit) is not mentioned.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Memcached Memory Usage vs maxbytes Threshold' shifts `count` over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "List real causes: healthy warm caches at 90-100% of limit_maxbytes with low evictions; cache pre-warming after deploys; intentionally small limit_maxbytes on test instances."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "Uses jargon ('slab space', 'right-sizing') and does not say what is checked.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to support right-sizing memory per cluster before peak events exhaust slab space.",
+      "severity": "major",
+      "suggested_fix": "Memcached is a fast short-term memory for our applications with a fixed size limit. We check how full each one is and flag those close to their limit, so we can give them more room before useful data starts getting pushed out."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`used > lim*0.95` is redundant with `used_pct > 90`; the search returns every raw sample over 90% with no per-host/port aggregation or severity split, although implementation describes 90% warn / 95% page. Consider `stats latest(...) by host, port` and a severity eval.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "`high` overstates a condition that is normal for a warm LRU cache unless correlated with evictions.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0052-UC-8.1.66",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The stats fields (bytes, limit_maxbytes) are real, but the UC treats a full memcached as a page-worthy fault when an LRU cache normally runs near its limit, cites a non-existent Splunkbase app, mixes metric collectors with an event-index search, and the implementation is generic HEC/vendor-API boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-8.1.66",
+  "verdict": "incorrect"
+}

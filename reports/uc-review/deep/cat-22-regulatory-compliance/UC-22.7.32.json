@@ -1,0 +1,146 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1f358447e3f46203db041fc5b4f37f129f1f1ea55b8abaf42c5f7636913fb018",
+  "file": "content/cat-22-regulatory-compliance/UC-22.7.32.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The search reads only `aws:cloudtrail`. The 'supplemented by' clause is boilerplate that no field or search step uses, and the source names no index, input type or fields.",
+      "field": "dataSources",
+      "quote": "`aws:cloudtrail` — supplemented by authentication logs, system audit trails, and configuration management database (CMDB) asset inventory exports",
+      "severity": "major",
+      "suggested_fix": "Describe `index=aws sourcetype=aws:cloudtrail` from the Splunk Add-on for AWS (Splunkbase 1876), collected through the SQS-based S3 input. Name the fields that matter for scoping (`eventCategory`/`managementEvent`, `recipientAccountId`, `awsRegion`) and drop the boilerplate."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL computes one median over all hourly totals in the 14-day window (`eventstats` has no `by` clause). There is no per-entity or per-peer baseline, and `h` is just the hour bucket. The Step 2 explanation describes a different detection.",
+      "field": "detailedImplementation",
+      "quote": "The primary dimension here is `h` — the detection's finding is effectively 'a h whose behaviour diverges from its own historical baseline or its peer group,'",
+      "severity": "major",
+      "suggested_fix": "Explain that the search totals CloudTrail events per hour over 14 days, takes the median hourly count, and flags hours below 20% of that median. Say that it is a single global baseline across all accounts and regions."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`h` and `ratio` are calculated by the search and never exist in raw events, so this check always shows nulls. The percentile calibration on `ratio` also assumes a 'base search' that the text never defines.",
+      "field": "detailedImplementation",
+      "quote": "This detection specifically needs: `h`, `ratio`. Run:\n\n```spl\nindex=aws sourcetype=aws:cloudtrail earliest=-1h\n| head 100\n| table h, ratio",
+      "severity": "major",
+      "suggested_fix": "Validate raw inputs instead: confirm `index=aws sourcetype=aws:cloudtrail` has continuous events per account and region, for example with `| tstats count where index=aws sourcetype=aws:cloudtrail by _time span=1h`. Calibrate the 0.2 ratio against the real hourly series."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "A weekly Monday run means a CloudTrail logging stop can go unnoticed for up to seven days, which undermines the continuous log-generation purpose. The stanza also only writes to a summary index and never alerts.",
+      "field": "detailedImplementation",
+      "quote": "cron_schedule = 0 2 * * 1\ndispatch.earliest_time = -14d",
+      "severity": "major",
+      "suggested_fix": "Schedule the search hourly or every few hours, evaluate only completed hours (`latest=-1h@h`), and add an alert action. Keep the summary-index action for evidence if needed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios that cannot produce a volume-drop row. The real causes of false positives for this search are missing.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling — QSA activity spikes `index=aws` `aws:cloudtrail` without crossing `ratio` < 0.2. ... BAA/DPA-covered vendor generates expected rows grouped by `h`",
+      "severity": "major",
+      "suggested_fix": "List the real causes: low-activity night and weekend hours falling below 20% of the median, the current partial hour if the window ends at `now`, CloudTrail delivery or SQS ingestion lag, add-on input restarts, and planned decommissioning of accounts or regions."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "These are fragments, not steps. The SPL has no seasonality handling or account dimension, so a reader cannot act on 'seasonal adjust' or 'exclude account suspensions'.",
+      "field": "implementation",
+      "quote": "(1) Seasonal adjust for holidays; (2) exclude account suspensions; (3) incident response if confirmed.",
+      "severity": "major",
+      "suggested_fix": "Write concrete steps: ingest CloudTrail with the SQS-based S3 input, decide whether to scope to management events, consider a per-account or per-hour-of-week baseline, schedule on completed hours, and route alerts to the logging-pipeline owner."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The signal is log-volume health, not change activity. The Change data model counts change events by action and user and cannot express a volume drop, so the accelerated variant is not equivalent to the primary SPL.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Change\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Drop the Change model, or describe a `tstats count where index=aws sourcetype=aws:cloudtrail by _time span=1h` variant that uses index-time fields and needs no data model."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "grandma_fidelity",
+      "explanation": "The explanation repeats the title and says nothing about what is watched or why it matters.",
+      "field": "grandmaExplanation",
+      "quote": "We keep evidence for Administrative API Logging Volume Drop vs Baseline. The NIST Cybersecurity Framework tells us what good practice looks like, and we keep evidence we match it.",
+      "severity": "major",
+      "suggested_fix": "For example: 'Our cloud keeps a diary of every administrative action. Every hour we count the diary entries, and if far fewer appear than usual, the diary may have stopped writing, so someone checks before we lose the record.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by the 'Compliance SME Panel', yet its own compliance evidence artefacts say 'Auto-drafted — SME review required'. The DE.CM-02 mapping is also wrong, which contradicts SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the mappings and implementation are reviewed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The volume figures are unsourced. The text recommends SQS-based ingest but shows the legacy `aws_cloudtrail` input stanza, and the add-on's inputs are configured on its own Inputs page, not under Settings > Data Inputs.",
+      "field": "detailedImplementation",
+      "quote": "CloudTrail management events average 5000-50000 API calls/account/hour for active workloads (~5-50 GB/account/month). ... Configure the input through Settings > Data Inputs > CloudTrail (SQS-based ingest is strongly preferred over S3 polling). ... [aws_cloudtrail://prod_account]",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Add-on for AWS docs. Show an `aws_sqs_based_s3` stanza with the CloudTrail decoder if that is the recommended path, and either source or remove the volume numbers."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Both entries are calculated by the search, not fields the source must provide.",
+      "field": "requiredFields",
+      "quote": "\"requiredFields\": [\n    \"h\",\n    \"ratio\"\n  ]",
+      "severity": "minor",
+      "suggested_fix": "List source fields instead, for example `_time`, `eventCategory` and `recipientAccountId` if the search is scoped by them."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+      "field": "compliance",
+      "issue": "DE.CM-02 in CSF 2.0 is 'The physical environment is monitored to find potentially adverse events', which does not fit a CloudTrail volume check (PR.PS-04 or DE.CM-09 fit better). PR.PS-04 appears twice with conflicting assurance ('full' and 'partial') and inconsistent regulation keys ('nist-csf' and 'NIST CSF'). The 'full' rationale claims correlation with configuration baselines that the SPL does not do. Evidence: https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats count by h` emits no row for hours with zero events, so a complete CloudTrail stop, the most important case, never produces an alert row. The search also counts all CloudTrail events, not only administrative or management APIs as the title says. It uses one global median with no per-account or per-region split and includes the current partial hour, which causes false positives.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats over `Change.All_Changes` by action, object_category and user has no time bucketing or ratio, so it does not measure a logging-volume drop.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Administrative API' does not match the SPL, which does not filter to administrative or management events.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0129-UC-22.7.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The hourly CloudTrail-volume-versus-median idea is simple and usable, but almost every prose field is template text. The implementation misdescribes the search, the CIM model does not fit a log-volume health signal, and the compliance mappings overclaim; DE.CM-02 is the physical-environment subcategory.",
+  "tier": "deep",
+  "uc_id": "UC-22.7.32",
+  "verdict": "incorrect"
+}

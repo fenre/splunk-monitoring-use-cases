@@ -24,6 +24,7 @@ Subcommands::
     calibrate score --candidate-model ID
     export   --tier T --out DIR  write prompts + manifest for an out-of-band model run
     ingest   --manifest DIR/manifest.json --model LABEL
+    plan                         write reports/uc-review/full-run-plan.json (sizes, order, commands)
 
 Examples::
 
@@ -241,6 +242,75 @@ def cmd_export(args: argparse.Namespace, config: dict[str, Any]) -> int:
     return 0
 
 
+def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
+    """Render every outstanding deep prompt (no model calls) and write the full-run plan."""
+    from splunk_uc.review.prompt import build_prompt
+
+    root = Path(args.root)
+    by_category: dict[str, list[runner.Entry]] = {}
+    for path, uc in iter_sidecars():
+        by_category.setdefault(path.parent.name, []).append((path, uc))
+
+    rows = []
+    for category, entries in by_category.items():
+        pending = [
+            (p, uc)
+            for p, uc in entries
+            if runner.needs_review(p, uc, "deep", root=root, force=False)
+        ]
+        chars = sum(len(build_prompt("deep", [entry])) for entry in pending)
+        critical = sum(1 for _, uc in entries if uc.get("criticality") == "critical")
+        verified = sum(1 for _, uc in entries if uc.get("status") == "verified")
+        rows.append(
+            {
+                "category": category,
+                "ucs": len(entries),
+                "deep_reviewed": len(entries) - len(pending),
+                "deep_pending": len(pending),
+                "critical": critical,
+                "verified": verified,
+                "prompt_chars": chars,
+                "approx_input_tokens": chars // 4,
+                "command": f"python3 scripts/uc_review_runner.py deep --all --category {category[:6]}",
+            }
+        )
+    rows.sort(
+        key=lambda r: (
+            r["category"].startswith("cat-25-"),
+            -(r["critical"] + r["verified"]) / max(1, r["ucs"]),
+            r["category"],
+        )
+    )
+    total_tokens = sum(r["approx_input_tokens"] for r in rows)
+    plan = {
+        "$comment": (
+            "Full-run plan for the UC review deep tier (scripts/uc_review_runner.py plan). "
+            "Order: categories with the highest share of critical + verified UCs first, cat-25 last; "
+            "within a category the runner orders UCs critical, verified, high, medium, low. "
+            "Token counts are prompt characters / 4 and exclude model output and tool use."
+        ),
+        "deep_model": runner.default_model("deep", config=config).label,
+        "adjudication_model": runner.default_model("adjudication", config=config).label,
+        "ucs": sum(r["ucs"] for r in rows),
+        "deep_pending": sum(r["deep_pending"] for r in rows),
+        "approx_input_tokens": total_tokens,
+        "categories": rows,
+        "after_each_category": [
+            "python3 scripts/uc_review_runner.py adjudicate --category cat-NN",
+            "python3 -m splunk_uc generate-uc-review-report",
+        ],
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"Wrote {out}: {plan['deep_pending']} UCs pending deep review, "
+        f"~{total_tokens / 1e6:.1f}M input tokens",
+        file=sys.stderr,
+    )
+    return 0
+
+
 def cmd_ingest(args: argparse.Namespace, config: dict[str, Any]) -> int:
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     outcome = runner.ingest_replies(manifest, model=runner.ModelSpec.parse(args.model))
@@ -423,6 +493,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--batch-size", type=int, default=None)
 
+    p = sub.add_parser("plan", help="Render outstanding deep prompts and write the full-run plan")
+    p.add_argument("--out", default=str(REVIEW_ROOT / "full-run-plan.json"))
+
     p = sub.add_parser("ingest", help="Validate and persist reply files from an export manifest")
     p.add_argument("--manifest", required=True)
     p.add_argument("--model", required=True, help="Label of the model that wrote the replies")
@@ -448,6 +521,7 @@ COMMANDS = {
     "calibrate": cmd_calibrate,
     "export": cmd_export,
     "ingest": cmd_ingest,
+    "plan": cmd_plan,
 }
 
 

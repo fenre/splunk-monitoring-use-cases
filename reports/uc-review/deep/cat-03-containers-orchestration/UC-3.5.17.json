@@ -1,0 +1,120 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "29d325aa7bf43fac782857ec30951d5682850c1344f31e023ca6953382a68940",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.17.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
+      "explanation": "The Splunk Common Information Model has no 'Capacity' datamodel. Performance covers host CPU, memory, storage and network metrics, not namespace ResourceQuota objects, and no cimSpl uses either model.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\", \"Capacity\"]",
+      "severity": "blocker",
+      "suggested_fix": "Remove 'Capacity'. Leave cimModels empty (ResourceQuota and LimitRange objects have no CIM fit), or keep Performance only if a mapped kube-state-metrics feed is actually described."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "dataSources and detailedImplementation Step 1(4) collect LimitRange objects and kube:pod:status 'for validating that pods comply with LimitRange defaults and constraints', but implementation and the three described searches only measure ResourceQuota utilization, quota rejections and quota trend. Nothing checks LimitRange coverage or violations. The quota-rejection search also matches only 'exceeded quota' text, so LimitRange admission failures ('maximum cpu usage per Container is ...') are missed.",
+      "field": "cross_field",
+      "quote": "**`sourcetype=kube:objects:limitranges`** (LimitRange objects defining per-container and per-pod default/min/max resource constraints for each namespace — collected alongside ResourceQuotas for compliance comparison)",
+      "severity": "major",
+      "suggested_fix": "Either add a LimitRange lane to implementation and detailedImplementation (namespaces without a LimitRange, and FailedCreate messages matching LimitRange min/max violations), or remove the LimitRange and pod-status sources and the compliance claim from description and dataSources."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Quota and LimitRange admission rejections surface as Warning events with reason FailedCreate (recorded by the ReplicaSet/Job/StatefulSet controller) and a message containing 'is forbidden: exceeded quota'. A direct pod create that admission rejects returns an API error to the client and records no Event. No standard Event reason 'Forbidden' is documented.",
+      "field": "detailedImplementation",
+      "quote": "**Reason**: `Forbidden` — the **API server admission webhook** rejected the request",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against a live cluster (kubectl get events --field-selector type=Warning after a forced quota breach). If confirmed, drop the 'Forbidden' reason and say that only controller-created pods produce FailedCreate events, while direct pod creates appear only in API server audit logs (responseStatus.code 403)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "The described pipeline is the Splunk Distribution of OpenTelemetry Collector (k8sobjects and Prometheus receivers). Splunk Connect for Kubernetes is the retired Fluentd-based predecessor (end of support 1 January 2024) and not a modular input, yet dataSources says 'Collected via Splunk Connect for Kubernetes ... modular input'.",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "major",
+      "suggested_fix": "Remove Splunk Connect for Kubernetes from app and dataSources and name only the Splunk OpenTelemetry Collector for Kubernetes plus kube-state-metrics."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Validation step (d) treats index=containers as a metrics index, while dataSources and the rest of the UC treat it as an event index carrying sourcetype=otel:metrics. One index cannot be both, so either this check or the event-based searches will return nothing.",
+      "field": "detailedImplementation",
+      "quote": "`| mstats count(kube_resourcequota) WHERE index=containers BY namespace, resource span=5m | head 20`",
+      "severity": "minor",
+      "suggested_fix": "Send kube-state-metrics to a separate metrics index (for example k8s_metrics) and use mstats there, or make the validation an event search on sourcetype=otel:metrics."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the entries describes a real benign cause of quota alerts. Real ones include namespaces deliberately sized to exactly their replica count (pods quota at 100%), batch or CI namespaces that fill quota by design during runs, terminating pods still counted against quota during rollouts, and object-count quotas (configmaps, secrets) that sit at their limit intentionally.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `kube:objects:resourcequotas`** — Scheduled automation elevates `quota_name` without crossing `cpu_hard` > 0 for UC-3.5.17.",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with these scenarios and say how to exclude them (namespace_metadata.csv tier or environment, resource type, rollout window)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The 'ResourceQuota Metrics' and 'k8sobjects Receiver' references point to generic documentation roots instead of the pages they name.",
+      "field": "references",
+      "quote": "\"url\": \"https://github.com/kubernetes/kube-state-metrics/blob/main/docs/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the kube-state-metrics ResourceQuota and LimitRange metric pages under docs/metrics/policy/, and the k8sobjects receiver README in opentelemetry-collector-contrib."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated handle. The UC's own troubleshooting admits the quantity strings need unit conversion that the searches never do, and the LimitRange half of the title is not implemented, so the detection cannot have been validated.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the searches produce correct percentages against kubectl describe quota and a LimitRange check exists."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "eval uses double-quoted strings in coalesce(\"metadata.namespace\", namespace), coalesce(\"status.hard.requests.cpu\", ...) and similar. In eval, double quotes are string literals, so ns is the literal text 'metadata.namespace' and every *_hard / *_used is a non-numeric string. Utilization and risk are wrong for every row. Field names need single quotes ('status.hard.requests.cpu').",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Kubernetes quantities ('500m', '8Gi', '3500m') are never converted to numbers before division. Even with correct field references, cpu_pct and mem_pct would be null or 0 for millicore and binary-suffix values.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one spl field with no combining command, so it cannot run as one saved search. trendline also has no BY clause, so the 7-day SMA blends all namespaces together.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'LimitRange Compliance', but no search evaluates LimitRange objects or LimitRange admission failures.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0019-UC-3.5.17",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The ResourceQuota utilization and quota-rejection guidance is reasonable, but the UC promises LimitRange compliance it never detects. It lists a CIM datamodel ('Capacity') that does not exist, invents a 'Forbidden' event reason, and points collection at the retired Splunk Connect for Kubernetes. Description, value, controlTest, evidence, exclusions and knownFalsePositives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.17",
+  "verdict": "incorrect"
+}

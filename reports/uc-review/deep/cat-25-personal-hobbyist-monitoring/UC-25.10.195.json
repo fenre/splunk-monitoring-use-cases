@@ -1,0 +1,122 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "65b8be82b409ab3dc252b57613bfee7646b1f2ce7322217ccd789b5712ac129d",
+  "file": "content/cat-25-personal-hobbyist-monitoring/UC-25.10.195.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/natekspencer/ha-planta/issues/16",
+      "explanation": "Planta does not push to HEC, so a poller is needed. Planta's public API is limited to Premium subscribers, and Planta has told integrators that scraping its private app API breaches its terms. The text gives the reader neither fact, so they may build against the private API.",
+      "field": "detailedImplementation",
+      "quote": "**Collection method:** HTTP Event Collector token on index=personal.\n\n**Reference endpoint / path:** `POST https://<splunk>:8088/services/collector/event`.",
+      "severity": "major",
+      "suggested_fix": "State that a Planta Premium subscription and the official public API are required. A small scheduled poller, for example a scripted input modelled on the ha-planta integration, fetches plants and care actions and posts them to HEC as `planta:plant`. Warn against the private app API."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "It is unclear whether the Planta public API returns a field named `care_status`. Planta models care as action types (watering, fertilizing, misting, repotting) with due and completed dates, and the reviewer could not confirm a status field.",
+      "field": "implementation",
+      "quote": "Map the source's `care_status` values into a small set of clear labels and chart the resulting counts.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Planta public API payload for plants and actions, and document the actual field and values (for example the action type, or a derived overdue/done/upcoming state). If the connector derives `care_status`, explain how it is computed."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `where` clause or threshold; it is a distribution report (`stats count as events by status_value`). The prose also names an output field `count`, but the SPL renames it to `events`.",
+      "field": "description",
+      "quote": "Alerts on 'Planta Plant Care Event Status Mix' (UC-25.10.195) using `index=personal` sourcetype `planta:plant` by aggregating `count` grouped by `status_value` over `the scheduled window` and alerting when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a report: it counts Planta care events per lowercased `care_status` value (defaulting to 'unknown') so you can see the mix of completed, overdue and skipped care. If an alert is wanted, document a specific condition, such as a rising share of overdue items."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "`status_value` is created by the search's `eval`, so this field-presence check on raw events always shows blanks. The raw dependency is `care_status`. Because of `coalesce`, missing `care_status` silently becomes 'unknown' rather than failing.",
+      "field": "detailedImplementation",
+      "quote": "| table status_value\n```\n\nEvery column the detection uses should be non-null on recent rows.",
+      "severity": "major",
+      "suggested_fix": "List `care_status` as the required raw field and check `| stats count by care_status` with `fillnull value=MISSING`. A large 'unknown' bucket means the field mapping is broken."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The watch-and-phone sync, rest day and weekly-bin scenarios come from a fitness template and do not describe Planta data.",
+      "field": "knownFalsePositives",
+      "quote": "**Multi-device double-count** — Same activity synced from watch and phone into `planta:plant`.",
+      "severity": "major",
+      "suggested_fix": "Use real causes. Repeated polls can re-ingest the same care action unless deduplicated by action id. Snoozed or rescheduled reminders can show as overdue. Plants archived or deleted in the app leave stale rows. A shared household account makes several people's care completions appear together."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "`activity` is not a field in the SPL, and 'missed training goals' is fitness-template residue.",
+      "field": "value",
+      "quote": "by tracking `activity` on `planta:plant` feeds, reducing missed training goals, stale hobby data",
+      "severity": "major",
+      "suggested_fix": "Say the UC shows how plant care is going overall: how many care tasks were completed versus overdue or skipped, which helps spot a backlog of neglected plants."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "Neither the SPL nor any technical field defines healthy, warning or bad categories. The search only lowercases whatever `care_status` contains, so the grandma text invents a classification.",
+      "field": "grandmaExplanation",
+      "quote": "counting how many events are healthy, warning, or bad",
+      "severity": "major",
+      "suggested_fix": "For example: 'It counts your Planta plant-care reminders by their status, such as done or overdue, so you can see at a glance whether your plants are being looked after.' Use the real status values once confirmed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A houseplant care dashboard has no auditor or regulation, and the panel guidance ('Configure according to standard Splunk visualization patterns') is empty.",
+      "field": "detailedImplementation",
+      "quote": "the auditor needs all five windows without retyping. Enable scheduled PDF export for the full dashboard on the regulation's reporting cadence.",
+      "severity": "major",
+      "suggested_fix": "Describe a pie or bar chart of `events` by `status_value` over 30 days, plus an optional weekly stacked column to show the trend. Drop the auditor and regulation sentences."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only `planta:plant`. The other three sourcetypes, and the matching parts of `app` and `references`, play no part in this UC.",
+      "field": "dataSources",
+      "quote": "Govee soil readings (`govee:soil`), Philips Hue grow-light cycles (`hue:event`), and SensorPush dome climate (`sensorpush:climate`)",
+      "severity": "minor",
+      "suggested_fix": "List only Planta care events (`planta:plant`) from the Planta public API, and trim `app` and `references` to match."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "`splunk` is not the monitored equipment; the monitored product is the Planta app.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use a Planta slug if the catalogue has one, or leave equipment empty."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "monitoringType",
+      "issue": "'Audit' does not fit a hobby plant-care status mix; 'Analytics' alone is enough.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0148-UC-25.10.195",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "A simple status-distribution report wrapped in alerting language and fitness-template KFPs. The text never explains how to get Planta data, which requires the Premium-only public API, or which values `care_status` actually takes.",
+  "tier": "deep",
+  "uc_id": "UC-25.10.195",
+  "verdict": "rewrite"
+}

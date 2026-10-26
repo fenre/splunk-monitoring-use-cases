@@ -1,0 +1,129 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c13a5809c85cd25667cca62ff755de876f515e5530e420ecd96ef417d50a5d2c",
+  "file": "content/cat-23-business-analytics/UC-23.7.3.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "visualization and detailedImplementation say normalised CES means higher = easier. The SPL computes `8-ces_num` / `6-ces_num`, which on the standard CES 'how easy' scale (high = easy, as in the UC's own example 'How easy was fixing this?' = 6) makes higher = more effort. `effort_index` then adds friction penalties to it, which only makes sense if higher = harder. Read with the stated subtitle, dashboards and `avg_ces_good` would be interpreted backwards.",
+      "field": "cross_field",
+      "quote": "subtitle documents CES inversion (**higher normalized score = easier path**)",
+      "severity": "blocker",
+      "suggested_fix": "State that `ces_normalized` is an effort score (higher = harder), rename the `avg_ces_good` label in visuals to 'average effort (higher = harder)', and fix the heatmap subtitle and Step 2 bullet. Alternatively, document that the source survey scale is reversed if that is the case."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-servicenow/Configureinputs/",
+      "explanation": "Splunk_TA_snow configures table collection with `snow://<name>` inputs (`table = incident`, `timefield = sys_updated_on`). There is no `servicenow_record_input` input type, and the same name is repeated in detailedImplementation prerequisites and Step 1.",
+      "field": "app",
+      "quote": "Heavy Forwarder **`servicenow_record_input`** toward **`snow:incident`**",
+      "severity": "blocker",
+      "suggested_fix": "Say: create a Splunk Add-on for ServiceNow input (inputs.conf `[snow://incident]` with `table = incident`, `timefield = sys_updated_on`, `included properties` listing number, caller_id, category, reassignment_count, reopen_count, opened_at, resolved_at, closed_at, contact_type)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.qualtrics.com/support/integrations/api-integration/common-api-questions-by-product/",
+      "explanation": "The POST only starts an asynchronous export and returns a progressId; there are no rows to deserialize and no cursor pagination. You must poll `.../export-responses/{progressId}` until it returns a fileId, then download `.../{fileId}/file`, which is zipped by default. Incremental pulls use startDate or continuation tokens.",
+      "field": "detailedImplementation",
+      "quote": "invoking `POST https://<datacenterId>.qualtrics.com/API/v3/surveys/<surveyId>/export-responses` with cursor pagination parameters ... deserialize JSON rows",
+      "severity": "major",
+      "suggested_fix": "Describe the start, poll progress, download (`compress:false` or unzip) sequence with a startDate or continuationToken checkpoint."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "This mixes two input styles. A modular input stanza is `scheme://instance_name` with the script registered via README/inputs.conf.spec, while a path-based stanza with `passAuth` is a scripted input (`[script://...]`).",
+      "field": "detailedImplementation",
+      "quote": "[qualtrics_response_poller:///opt/splunk/etc/apps/TA_qualtrics_ces/bin/qualtrics_poll.py]\ninterval = 900 ... passAuth = splunk-system-user",
+      "severity": "minor",
+      "suggested_fix": "Use `[script://$SPLUNK_HOME/etc/apps/TA_qualtrics_ces/bin/qualtrics_poll.py]` for a scripted input, or `[qualtrics_response_poller://ces_prod]` with parameters for a modular input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is an authoring-style note to the generator, not a prerequisite, and it is false given the heavy bolding throughout. The full canonical SPL is also pasted again in Step 2 and has already drifted: it drops `survey_uid`.",
+      "field": "detailedImplementation",
+      "quote": "Bold markup kept intentionally sparse inside procedural prose — roughly two emphasized clauses per thousand characters — mirroring **UC-23.7.1** discipline.",
+      "severity": "major",
+      "suggested_fix": "Delete the markup note. Replace the duplicated SPL with 'run the SPL from the spl field' plus the explanatory bullets."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios (maintenance, synthetic probes, batch dc) do not apply to survey and ticket data. The real interpretation hazards are already written in Step 5: email-versus-voice scoring bias, case_number/number prefix mismatch starving the join, and stale effort_index weights.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `case_key_norm`, `channel_canon`, `issue_category` — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with the Step 5 hazards plus low-response strata and survey timing relative to resolution, each with its mitigation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "These are scale-detection and feature-flag conditions, not alert thresholds. The search ranks channel × issue_category cells by average effort index over 90 days, and alerting is only the optional `where avg_effort>=7` clone described in Step 2.",
+      "field": "description",
+      "quote": "before applying `ces_num` <= 5, `ces_num` >= 1, `channels_used` >= 2, or `reopen_safe` >= 1",
+      "severity": "major",
+      "suggested_fix": "Describe the output: per channel and issue category, average effort index (CES plus reassignment, channel switch, reopen and long-handle penalties), case count, switches and repeats, with an optional alert at avg_effort ≥ 7."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "repeat_within_7d is described as a 7-day repeat, but the SPL uses lifetime reopen_count with no 7-day window. Implementation promises daily exception alerts, while detailedImplementation specifies a 30-day window with weekly digests.",
+      "field": "implementation",
+      "quote": "normalize **`INC`-stripped** ticket IDs ... daily **`effort_index`** exception alerts",
+      "severity": "minor",
+      "suggested_fix": "Call the field a reopen proxy (or describe a real 7-day caller-repeat calculation), and use one alert cadence and window throughout."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Check Point firewalls have nothing to do with CES and support-channel analytics.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"checkpoint\", \"servicenow\"]",
+      "severity": "minor",
+      "suggested_fix": "Remove checkpoint."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an authoring agent. The inverted-scale contradiction and the non-existent input type show no SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a support-operations or Splunk SME signs off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`ces_normalized` inverts CES (8-x / 6-x) and is then summed with friction penalties into `effort_index` but also reported as `avg_ces_good`. The direction must be confirmed against the source scale. For an unlabelled score of 6 or 7, the code assumes a 1-7 scale.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`survey_uid` is computed with a fixed `%Y-%m-%d %H:%M:%S` format and never used. `channels_used` only exceeds 1 when a case has several survey rows, so channel-switch detection is usually zero, as the UC itself admits.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0139-UC-23.7.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The join logic, the ID-normalisation advice and the CES-specific troubleshooting are good. But the prose describes the CES inversion backwards, which makes dashboards read the wrong way round. It names a non-existent ServiceNow add-on input type, gives a Qualtrics export flow that would not work, and leaves authoring residue and templated false positives in place.",
+  "tier": "deep",
+  "uc_id": "UC-23.7.3",
+  "verdict": "incorrect"
+}

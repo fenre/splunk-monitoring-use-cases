@@ -1,0 +1,92 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "b1cefd3d5f50efcf2298d7f5ecc0a0fee9dae09fff6aaa702ee8fb5294bcdd39",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.2.39.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.fluentbit.io/manual/administration/monitoring",
+      "explanation": "The Universal Forwarder is not a Splunkbase add-on with a modular input. 617 is not in the cached Splunkbase catalogue, and no Splunk TA defines a fluentbit:storage sourcetype. storage.metrics only exposes chunk counters on the Fluent Bit HTTP server (/api/v1/storage); the retry messages are in the Fluent Bit log.",
+      "field": "app",
+      "quote": "Fluent Bit `storage.metrics on` and stderr forwarded to Splunk — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Say that collection is customer-built: a UF file monitor on the Fluent Bit log file (or a Fluent Bit splunk/HEC output for its own logs) with a locally defined sourcetype, plus an optional scripted or HTTP poll of /api/v1/storage. Remove the Splunkbase ID."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.fluentbit.io/manual/administration/scheduling-and-retries",
+      "explanation": "Retry exhaustion is controlled by the per-output Retry_Limit (default 1) and scheduler.base/scheduler.cap. Once retries are exhausted the chunk is discarded unless storage.keep.rejected is on. storage.max_chunks_up only caps how many chunks are held in memory, so tuning it does not address the failure this UC detects.",
+      "field": "implementation",
+      "quote": "Tune `storage.max_chunks_up` and disk paths; correlate with output plugin errors.",
+      "severity": "blocker",
+      "suggested_fix": "Point operators to Retry_Limit on the failing [OUTPUT], scheduler.base/cap backoff, storage.total_limit_size, and storage.keep.rejected (DLQ) to keep chunks that exhausted retries. Then investigate the destination that is refusing the flushes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generic vendor-API boilerplate: there is no modular input, poll interval or vendor rate limit for Fluent Bit logs. The validation step ('compare against the vendor admin UI inventory count') and the troubleshooting step (HTTP 401/429 from a vendor endpoint) do not apply either.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=fluentbit:storage, fluentbit:log into fluent. Default poll interval 300–900 seconds unless the vendor API rate-limits lower. Grant the ingestion role `list_inputs`",
+      "severity": "major",
+      "suggested_fix": "Describe monitoring the Fluent Bit log file (or the systemd journal or container stdout) with a UF, defining props for the chosen sourcetype, and extracting input/output instance names. Validate by forcing a failing output (for example an unreachable host with Retry_Limit 1) and confirming that 'cannot be retried' lines arrive."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The description, controlTest and KFP present input_name and output_name as available fields, but Fluent Bit engine log lines carry them inline ('input=tail.0 > output=es.0'), and no extraction is documented anywhere. stats by these fields will drop every event unless they are extracted.",
+      "field": "cross_field",
+      "quote": "aggregation grain: `host`, `input_name`, `output_name`",
+      "severity": "major",
+      "suggested_fix": "Document the rex or props EXTRACT that pulls input and output instance names from the engine log line, or group by host only."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The false-positive scenarios are generated filler and do not name real causes of retry noise.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `fluentbit:storage`** — Scheduled automation elevates `input_name` without crossing configured threshold",
+      "severity": "major",
+      "suggested_fix": "List real causes: planned restarts of the destination (Elasticsearch, Splunk HEC) producing transient 'failed to flush chunk ... retry in N seconds' warnings that later succeed, and expected HTTP 429 or backpressure from the destination during bulk loads."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "No threshold is defined anywhere; the SPL simply counts matches.",
+      "field": "description",
+      "quote": "Threshold bundle: configured threshold; aggregation grain:",
+      "severity": "minor",
+      "suggested_fix": "State the alert condition explicitly, for example any 'cannot be retried' event, or more than N retry warnings per host and output per hour."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The filter \"retry\" AND (\"error\" OR \"failed\" OR \"give up\") matches ordinary transient warnings ('failed to flush chunk ..., retry in N seconds'). It probably misses actual exhaustion, which Fluent Bit logs as 'chunk ... cannot be retried', and 'retried' is a different search token from 'retry'. Fluent Bit does not log 'give up'. Verify the exact engine messages and match 'cannot be retried' explicitly.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "stats by host, input_name, output_name depends on fields that no extraction in the UC produces, so results will be empty unless an extraction is added.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0081-UC-13.2.39",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 1
+  },
+  "summary": "This is a thin, templated UC built on an invented collection path (a 'Universal Forwarder' Splunkbase add-on and a fluentbit:storage sourcetype). Its tuning advice points at the wrong Fluent Bit setting for retry exhaustion, and the detailedImplementation is generic modular-input boilerplate that does not apply to Fluent Bit logs.",
+  "tier": "deep",
+  "uc_id": "UC-13.2.39",
+  "verdict": "incorrect"
+}

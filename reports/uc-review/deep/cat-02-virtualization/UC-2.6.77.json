@@ -1,0 +1,106 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "db6718024c8067111886cfb49516cd023995f71b9a8ee12ad9b575114a0b3c3d",
+  "file": "content/cat-02-virtualization/UC-2.6.77.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.citrix.com/en-us/uberagent/8-x/metrics/session.html",
+      "explanation": "uberAgent's documented sourcetypes are `uberAgent:Application:Errors` (plural; crashes and hangs) and `uberAgent:Application:UIDelay` (UI unresponsiveness, `UIDelayMs`). Citrix session round-trip time lives in `uberAgent:Session:SessionDetail` as `SessionRoundTripTimeMs`. The uberAgent metric reference does not document an `uberAgent:Network:Performance` sourcetype with latency or loss.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"uberAgent:Application:Error\"` (if configured); `sourcetype=\"uberAgent:Network:Performance\"` (latency, loss)",
+      "severity": "blocker",
+      "suggested_fix": "List `uberAgent:Process:ProcessStartup` (`StartupTimeMs`, `AppName`), `uberAgent:Application:UIDelay` (`UIDelayMs`) and/or `uberAgent:Application:Errors` (ErrorTypeName=Hang), and `uberAgent:Session:SessionDetail` (`SessionRoundTripTimeMs`). If per-process network latency is wanted, use `uberAgent:Process:NetworkTargetPerformance` as sibling UC-2.6.26 does."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/citrix-virtual-apps-desktops.md",
+      "explanation": "Neither the Template for Citrix XenDesktop 7 nor the integration guide's sourcetype list contains `citrix:broker:app_usage`, and `launch_to_ready_ms` does not look like a Citrix broker or Monitor OData field. Both appear to be invented.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"citrix:broker:app_usage\"` (app title, `launch_to_ready_ms`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collector and field for application launch time (for example a Monitor OData `Sessions`/`Connections` field for launch or brokering duration), or drop this source."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`implementation` and `detailedImplementation` describe p95-based, lookup-driven SLO alerts split by team, with hangs alerting only when 'sustained 3x15m'. The SPL computes medians, uses static 10000 ms / 100 ms thresholds, ORs all three conditions into one alert, and fires on any single hang. `detailedImplementation` also writes 'p95 `med_start`', which mixes the two statistics.",
+      "field": "cross_field",
+      "quote": "Build three small alerts: p95 startup, p95 RTT, and not-responding process count",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as it stands (15-minute median startup and RTT plus hang count per app and host, one combined alert) or show the p95 and per-team split as explicit modified SPL. Make the hang condition match in both places."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is Linux capacity boilerplate keyed on `_time`. It says nothing about why a Citrix app would show slow startup, hangs or high RTT without a real user-facing problem.",
+      "field": "knownFalsePositives",
+      "quote": "Package managers spike `_time` metrics ... Correlate with apt/yum logs ... Nightly backup I/O on `_time` ... `linux_capacity_exceptions.csv` keyed on `_time`",
+      "severity": "major",
+      "suggested_fix": "List real causes. First launch after an image update builds caches (cold start), AV or real-time scan on first launch delays startup, logon storms slow startup on shared hosts, modal dialogs or long-running macros register as UI delays, and remote or Wi-Fi users raise RTT without any datacenter fault. Suppress via a Citrix app/host maintenance lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`exclusions`, `evidence` ('Linux —' panel, `csv:linux_controls`) and the `knownFalsePositives` suppression note frame a Windows Citrix VDA user-experience UC as a Linux capacity control. That is the wrong domain, and it contradicts the Citrix lookup `citrix_app_friendly_names.csv` used in `detailedImplementation`.",
+      "field": "cross_field",
+      "quote": "Entities listed in `linux_capacity_exceptions.csv` during approved tests are excluded.",
+      "severity": "major",
+      "suggested_fix": "Replace with a Citrix-specific exception list (for example test delivery groups or known heavy-startup LOB apps) and remove the Linux naming."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The second Step 1 to 5 block is generic boilerplate that repeats the first. uberAgent pushes events through HEC and is not a polled modular input. The block's `earliest=-24h@h` conflicts with the SPL's `earliest=-4h` on a 15-minute bin.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=uberAgent:Process:ProcessStartup, uberAgent:Network:Performance, citrix:broker:app_usage into xd. Default poll interval 300–900 seconds ... Schedule the SPL with earliest=-24h@h",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated generic block. Keep the Citrix-specific steps, and state the uberAgent HEC/receiver configuration and the real schedule (for example every 15 minutes over the last 4 hours)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.citrix.com/en-us/uberagent/7-5-x/metrics/applications/application-and-process-startup.html",
+      "explanation": "uberAgent documents the startup field as `StartupTimeMs` (milliseconds). `startup_ms` is not an uberAgent field, so this check points the reader at a field that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "Verify `startup_ms` is milliseconds, not seconds.",
+      "severity": "minor",
+      "suggested_fix": "Reference `StartupTimeMs` (and `AppName` for the application key) from `uberAgent:Process:ProcessStartup`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The references are generic landing pages (the Splunkbase listing, the Citrix technical overview, the Splunk docs home). None of them is the uberAgent metric reference that defines the fields used.",
+      "field": "references",
+      "quote": "\"title\": \"uberAgent — Process and network metrics\", \"url\": \"https://splunkbase.splunk.com/app/1448\"",
+      "severity": "minor",
+      "suggested_fix": "Link the uberAgent metric pages for Application & Process Startup, UI Unresponsiveness and Session Metrics on docs.citrix.com."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The SPL uses fields that uberAgent does not emit: `startup_ms`/`app_name`/`process_name` instead of `StartupTimeMs`/`AppName`/`ProcName`, and `ica_rtt_ms` instead of `SessionRoundTripTimeMs` in `uberAgent:Session:SessionDetail`. It queries a non-documented `uberAgent:Network:Performance` and the unverified `citrix:broker:app_usage`. It detects hangs with a `not responding` regex on `_raw` instead of `uberAgent:Application:UIDelay` / `Application:Errors` ErrorTypeName=Hang. It also searches `index=xd`, while uberAgent data normally lands in a dedicated uberAgent index (siblings use `index=uberagent`). As written, it will likely return nothing.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:24Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0009-UC-2.6.77",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "Splitting slow start, UI hang and network RTT per application is a good triage design, and the grandma text captures it well. But two uberAgent sourcetypes are misnamed, the RTT source is wrong, and the field names and statistics in the SPL do not match uberAgent's documented fields or the p95 approach described in the implementation. The false-positive, exclusion and evidence text is Linux capacity boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-2.6.77",
+  "verdict": "incorrect"
+}

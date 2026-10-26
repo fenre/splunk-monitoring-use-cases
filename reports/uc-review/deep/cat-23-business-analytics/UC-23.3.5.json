@@ -1,0 +1,155 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "86fdc9bfbbd775125ebff55f59c949e37605d301647e0a1106a2ef71bafc832f",
+  "file": "content/cat-23-business-analytics/UC-23.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4146 is the Webtools Add-on (TA-webtools). The Splunk Add-on for Salesforce is 3549, which sibling UC-23.3.2 uses. The same wrong ID is repeated in references.",
+      "field": "app",
+      "quote": "Splunk Add-on for Salesforce ([Splunkbase 4146](https://splunkbase.splunk.com/app/4146))",
+      "severity": "blocker",
+      "suggested_fix": "Change to Splunk Add-on for Salesforce (Splunk_TA_salesforce, Splunkbase 3549) in app and references."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.google.com/google-ads/api/reference/rpc/v24/AdGroupCriterion.QualityInfo",
+      "explanation": "Google Ads API has no `metrics.quality_score`. Quality Score is a keyword-level attribute, `ad_group_criterion.quality_info.quality_score`, queried from `keyword_view`. Campaign-level GAQL rows as described will therefore never carry a Quality Score, and the QS band logic is always 'unknown'.",
+      "field": "dataSources",
+      "quote": "`metrics.quality_score`",
+      "severity": "blocker",
+      "suggested_fix": "Add a keyword_view GAQL pull selecting `ad_group_criterion.quality_info.quality_score` (plus creative/post-click/predicted-CTR buckets), and say that QS is rolled up to the campaign level, for example impression-weighted."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://developers.google.com/google-ads/api/docs/sunset-dates",
+      "explanation": "Google Ads API v17 was sunset long ago; the current reference is v24/v26. Pinning a sunset version makes the polling instructions fail. The same pin appears in app, evidence and detailedImplementation, where 'API v17 deprecation' is presented as a troubleshooting item.",
+      "field": "dataSources",
+      "quote": "Google Ads API v17 — GAQL polling",
+      "severity": "major",
+      "suggested_fix": "Do not pin a version, or say 'a currently supported Google Ads API version (see the sunset schedule)'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.oracle.com/a/ocom/docs/oracle-advertising-end-of-life-faqs.pdf",
+      "explanation": "Oracle ended Moat Analytics on 30 September 2024, so the MOAT feed, the `moat:sivt` sourcetype and the `moat_score` filter cannot be implemented. The evidence field also cross-references MOAT reports.",
+      "field": "detailedImplementation",
+      "quote": "Configure HEC for SIVT-overlay reports from MOAT (`/v2.4/inventory`) and DoubleVerify ... `where moat_score>=70 AND doubleverify_score>=70`",
+      "severity": "blocker",
+      "suggested_fix": "Replace MOAT with a current verification vendor (DoubleVerify, IAS) or drop the SIVT overlay. Remove MOAT from evidence."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The implementation steps build a different detection from the canonical SPL. It uses a different index (vs `index=business`), different sourcetypes (vs `paid_media:*`), a 15-minute/2-hour window (vs 30-day CPA rollups with week-over-week deltas), and a different z-score SPL with SIVT filters. A reader following these steps produces data the canonical search never matches.",
+      "field": "detailedImplementation",
+      "quote": "Forward to Heavy Forwarders sending to `index=marketing_paid_media` with `sourcetype=google_ads:campaign_metrics`, `sourcetype=meta:insights` ... `cron_schedule = */15 * * * *`, `dispatch.earliest_time = -2h` ... Use SPL: `index=marketing_paid_media ...`",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the steps to ingest into `index=business` with the `paid_media:*` sourcetypes from dataSources, schedule the canonical SPL (e.g. daily), and delete the alternative inline SPL."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/Extractfieldsfromfileswithstructureddata",
+      "explanation": "This appears in detailedImplementation step 2. props.conf says not to combine INDEXED_EXTRACTIONS=json with KV_MODE=json, because fields are extracted twice. TIMESTAMP_FIELDS lists the fields that together form one timestamp, not one alternative per vendor.",
+      "field": "dataSources",
+      "quote": "Configure `props.conf`: `KV_MODE = json`, `INDEXED_EXTRACTIONS = json`, `TIMESTAMP_FIELDS = segments.date,date_start,reportDate,stat_time_day`",
+      "severity": "blocker",
+      "suggested_fix": "Use one props stanza per vendor sourcetype with its own timestamp field. Pair INDEXED_EXTRACTIONS=json with KV_MODE=none, or use KV_MODE=json alone for HEC event payloads."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-23-business-analytics/UC-23.3.7.json",
+      "explanation": "UC-23.3.6 is Content Marketing & Resource-Center Lead Conversion and UC-23.3.7 is Email Deliverability; neither covers influencer, affiliate or CTV. DV360 is also listed as an in-scope source in dataSources (`dbx:dsp_spend`), which contradicts the exclusion.",
+      "field": "exclusions",
+      "quote": "Influencer / creator-marketing performance excluded (covered by UC-23.3.6). Affiliate-network performance (CJ Affiliate, Impact, Awin) tracked in UC-23.3.7. ... Programmatic CTV / DV360 ... handled in UC-23.3.6.",
+      "severity": "major",
+      "suggested_fix": "Remove the wrong UC references and settle whether DSP/DV360 spend is in scope."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are unit-normalisation branches, not alert conditions. The SPL flags campaigns whose blended CPA exceeds the platform target, whose CPA rose more than 25% week over week, whose LTV-adjusted ROAS is below the floor, or that spent more than $5,000 with Below-Avg Quality Score.",
+      "field": "description",
+      "quote": "pages when `spend_micros` > 0, `average_cpc_micros` > 1000, `average_cpc_micros` > 0, or `average_cpc_micros` < 500",
+      "severity": "major",
+      "suggested_fix": "Describe the four alert conditions and the per-campaign, per-platform 30-day grain."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are generic. The real paid-media false-positive causes are missing: Smart Bidding learning periods after strategy changes, conversion-reporting lag and attribution-window back-fill, FX rate gaps, budget changes mid-month, platform-reported versus CRM-deduplicated conversions, and iOS ATT under-reporting. detailedImplementation hints at some of these.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `quality_score_band`, `platform`, `account_id`, `campaign_id` — Health checks in `business` populate the same fields",
+      "severity": "major",
+      "suggested_fix": "List the paid-media causes with mitigations (exclude campaigns in learning status, lag the window by the attribution window, require FX rows)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Dell EMC storage has nothing to do with paid-media CPA analytics.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"db_connect\", \"dell_emc\", \"salesforce\"]",
+      "severity": "minor",
+      "suggested_fix": "Remove dell_emc."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Reloading the deployment server does not refresh OAuth credentials on a Heavy Forwarder. tstats must be the first command in a search. `/v2/adAnalyticsV2` is the legacy LinkedIn endpoint, while dataSources uses `/rest/adAnalytics`. TikTok `/business/get/` is not the ads reporting endpoint (`/report/integrated/get/`).",
+      "field": "detailedImplementation",
+      "quote": "reload with `splunk reload deployment-server` ... `| search index=marketing_paid_media | tstats latest(_time) where index=marketing_paid_media` ... LinkedIn Ads (`/v2/adAnalyticsV2`), TikTok OAuth (`/business/get/`)",
+      "severity": "minor",
+      "suggested_fix": "Say to update the credential in the add-on's storage/passwords and restart the input. Use `| tstats latest(_time) where index=business sourcetype=paid_media:*`. Use the same LinkedIn and TikTok endpoints as dataSources."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an authoring agent. A discontinued vendor, a sunset API version and the wrong add-on ID show the content was not verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-cat23.3.5-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a marketing-ops or Splunk SME validates it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Dotted field names are unquoted inside coalesce (`metrics.cost_micros`, `metrics.impressions`, `metrics.quality_score`, `ad_group.id`). In eval, `.` is the concatenation operator, so these do not reference the GAQL fields. Single-quote them as done for `'campaign.id'`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`bin _time span=7d` and the week-over-week `streamstats` run after a `stats` that dropped `_time`, so there is one row per campaign and `cpa_delta_pct` is always null. Join keys also mismatch: numeric `campaign_id` is joined against lowercased UTM slugs and CRM CampaignId.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`fillnull value=999999 target_cpa_threshold` and the default `monthly_budget_usd=250000` hide missing lookups. `pacing_health` treats the 30-day spend total as month-to-date.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0138-UC-23.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has a broad, plausible multi-platform paid-media data inventory. But several product facts are wrong: the Salesforce add-on ID, the Quality Score field, the Google Ads API version, MOAT (discontinued) and the props settings. detailedImplementation describes a different index, different sourcetypes, a different schedule and a different SPL from the canonical search. Exclusion cross-references and templated fields misdescribe the detection.",
+  "tier": "deep",
+  "uc_id": "UC-23.3.5",
+  "verdict": "incorrect"
+}

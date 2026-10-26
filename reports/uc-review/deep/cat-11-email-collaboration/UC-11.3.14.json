@@ -1,0 +1,90 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9bbd3eb9caae3eea5873e7c3feb15424ad8ff3bc3305cb6719913a76ab1e912d",
+  "file": "content/cat-11-email-collaboration/UC-11.3.14.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.webex.com/docs/api/v1/meeting-qualities/get-meeting-qualities",
+      "explanation": "The Webex Meeting Qualities API returns per-media-session arrays of packetLoss, latency, jitter, frameRate, mediaBitRate and resolutionHeight for audioIn/audioOut/videoIn/videoOut/shareIn/shareOut. It has no MOS value, so the MOS threshold and its 'Poor Audio MOS' bucket cannot be built from this feed.",
+      "field": "implementation",
+      "quote": "Set alert thresholds: MOS < 3.5, packet loss > 5%, jitter > 30 ms, latency > 300 ms.",
+      "severity": "blocker",
+      "suggested_fix": "Drop the MOS threshold, or state that MOS has to be estimated from latency/jitter/loss (for example an E-model approximation). Express thresholds against the real metrics: audioIn/audioOut packetLoss %, latency ms and jitter ms per sampling interval."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.webex.com/docs/api/v1/meeting-qualities",
+      "explanation": "Webex documents no 10-minute minimum polling interval. The 10 minutes is the delay before quality data becomes available after a meeting starts, and the stated limit is one call every 5 minutes per meeting instance ID. The text also omits that the API is queried per meetingId, which means listing meetings first.",
+      "field": "implementation",
+      "quote": "Configure a modular input to poll the Webex Meeting Qualities API every 10 minutes (the minimum interval allowed).",
+      "severity": "major",
+      "suggested_fix": "Say that quality data appears about 10 minutes after a meeting starts and stays retrievable for 7 days; the API is rate-limited to one call per meeting instance every 5 minutes. Use the Cisco Webex Add-on's 'Webex Meeting Qualities' input, which handles meeting enumeration and checkpointing."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/ta_cisco_webex_add_on_for_splunk/blob/main/package/README.md",
+      "explanation": "The Cisco Webex Add-on for Splunk ships a dedicated 'Webex Meeting Qualities' input that writes `cisco:webex:meeting:qualities`. It is a REST modular input run on a heavy forwarder or search head; the Universal Forwarder (617) cannot run it and plays no part. The dataSources field repeats the same UF claim.",
+      "field": "app",
+      "quote": "`ta_cisco_webex_add_on_for_splunk` (GitHub), Webex Meeting Qualities API (Pro Pack required) — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "App: Cisco Webex Add-on for Splunk (`ta_cisco_webex_add_on_for_splunk`), 'Webex Meeting Qualities' input (sourcetype `cisco:webex:meeting:qualities`, scope analytics:read_all), run on a heavy forwarder or Splunk Cloud IDM. Remove the Universal Forwarder reference from app and dataSources."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://developer.webex.com/docs/api/v1/meeting-qualities/get-meeting-qualities",
+      "explanation": "The description and controlTest name scalar fields (audioMOS, videoPacketLoss, audioJitter, audioLatency, participantEmail, meetingId) and the sourcetype `webex:meeting_quality`. None of these exist in the API response, which uses webexUserEmail, meetingInstanceId and nested arrays, or in the add-on's `cisco:webex:meeting:qualities` sourcetype. Readers who follow the prose will look for fields that do not exist.",
+      "field": "cross_field",
+      "quote": "alert when `audioMOS` < 3.5, `videoPacketLoss` > 5, `audioJitter` > 30, or `audioLatency` > 300",
+      "severity": "major",
+      "suggested_fix": "Describe the detection with the real structure: per participant (webexUserEmail) per meeting (meetingInstanceId), expand audioIn{}/videoIn{} arrays and flag sampling intervals where packetLoss, latency or jitter exceed the thresholds."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The Meeting Qualities API covers Webex Meetings media sessions only. Webex Calling quality comes from other sources such as Detailed Call History or calling quality reports.",
+      "field": "detailedImplementation",
+      "quote": "Supports SLA reporting and vendor accountability for Webex Calling and Meetings.",
+      "severity": "minor",
+      "suggested_fix": "Limit the claim to Webex Meetings; point to the Webex Calling UCs (for example UC-11.3.15) for calling quality."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The Cisco Security support index has nothing to do with Webex meeting quality. The Webex Meeting Qualities API reference and the add-on README are the sources a reader needs.",
+      "field": "references",
+      "quote": "Cisco Security documentation",
+      "severity": "minor",
+      "suggested_fix": "Replace with https://developer.webex.com/docs/api/v1/meeting-qualities and https://github.com/splunk/ta_cisco_webex_add_on_for_splunk."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.webex.com/docs/api/v1/meeting-qualities/get-meeting-qualities",
+      "field": "spl",
+      "issue": "Uses the invented sourcetype `webex:meeting_quality` and scalar fields audioMOS, videoPacketLoss, audioJitter, audioLatency, participantEmail and meetingId. The add-on writes `cisco:webex:meeting:qualities`, and the API returns webexUserEmail, meetingInstanceId and per-interval arrays under audioIn{}/videoIn{} (no MOS). The search will return nothing. Rewrite with spath/mvexpand over audioIn{}.packetLoss{}, latency{} and jitter{}. Evidence: https://developer.webex.com/docs/api/v1/meeting-qualities/get-meeting-qualities",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0069-UC-11.3.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The Webex licensing and scope facts are right (Pro Pack, analytics:read_all, 10-minute delay, 7-day window), but the UC relies on a MOS metric the Meeting Qualities API does not return. It also invents scalar field names and a sourcetype, and describes the official add-on's built-in input as a generic UF modular input.",
+  "tier": "deep",
+  "uc_id": "UC-11.3.14",
+  "verdict": "incorrect"
+}

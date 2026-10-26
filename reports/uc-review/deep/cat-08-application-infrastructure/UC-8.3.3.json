@@ -1,0 +1,101 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "587ebe108c4e99a64f18d210d3b275b943336ec9343101dd559def8b2390a81d",
+  "file": "content/cat-08-application-infrastructure/UC-8.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/message-queues.md",
+      "evidence_url": "https://splunkbase.splunk.com/app/2647",
+      "explanation": "Splunkbase 617 does not exist. The repository guide names the Splunk Add-on for JMX (Splunkbase 2647) for Kafka broker MBeans, run on a heavy forwarder rather than a Universal Forwarder.",
+      "field": "app",
+      "quote": "JMX, broker metrics — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Splunk Add-on for Java Management Extensions (Splunk_TA_jmx, Splunkbase 2647) polling kafka.server / kafka.controller MBeans on each broker."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources, detailedImplementation and equipment (rabbitmq) promise RabbitMQ node health, but the SPL only reads Kafka JMX fields (UnderReplicatedPartitions, ActiveControllerCount) from index=kafka.",
+      "field": "cross_field",
+      "quote": "RabbitMQ management API (`/api/nodes`)",
+      "severity": "major",
+      "suggested_fix": "Scope the UC to Kafka and remove RabbitMQ from dataSources and equipment, or point readers to a separate RabbitMQ node-health UC."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL only checks UnderReplicatedPartitions and the summed ActiveControllerCount. A broker that goes offline stops reporting and simply drops out of `stats latest`, so it is not detected; disk/CPU/network and IsrShrinksPerSec are not queried.",
+      "field": "implementation",
+      "quote": "Track disk usage, CPU, memory, network I/O. Alert on broker offline, under-replicated partitions, or controller election. Monitor ISR (In-Sync Replica) shrink rate.",
+      "severity": "major",
+      "suggested_fix": "State what the search alerts on (any broker with under-replicated partitions, or the cluster not having exactly one active controller) and list offline-broker detection (missing heartbeat vs expected broker list), OfflinePartitionsCount and IsrShrinksPerSec as separate extensions."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "kafka-consumer-groups reports consumer lag, not broker health, and Traefik/Envoy are irrelevant; the section also adds a data-model-acceleration note although no data model is used and repeats steps 1-4 with a contradictory 300-900 s poll interval versus 'every minute'.",
+      "field": "detailedImplementation",
+      "quote": "Compare with the broker or gateway’s own UI or CLI (`kafka-consumer-groups`, RabbitMQ management, ActiveMQ console, or Traefik/Envoy access log on the node)",
+      "severity": "major",
+      "suggested_fix": "Validate with `kafka-topics.sh --describe --under-replicated-partitions --bootstrap-server ...` and by checking which broker is controller (kafka-metadata-quorum.sh describe --status on KRaft). Remove the acceleration paragraph and the duplicated steps; keep a 60 s JMX poll."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Template filler that names no real cause of transient under-replication or controller-count deviation.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `broker_id` — Health checks in `kafka` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: rolling broker restarts/upgrades (URP > 0 until replicas catch up), partition reassignments or replica throttling, controller failover where the summed count is briefly 0 or 2 between polls, and stale `latest` values from a broker that stopped reporting."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "grandma_fidelity",
+      "explanation": "Restates the risk in jargon ('broker') without saying what is checked.",
+      "field": "grandmaExplanation",
+      "quote": "We watch for signs that broker failures cause message loss and application disruption.",
+      "severity": "major",
+      "suggested_fix": "Kafka passes messages between our applications and keeps extra copies on several servers. We check that every server's copies are up to date and that exactly one server is in charge, and alert when copies fall behind or the cluster has no clear leader, before messages can be lost."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "Misstates the logic: cluster_controllers is a cluster-wide sum compared with 1, and under_replicated is a separate per-broker test.",
+      "field": "description",
+      "quote": "Combines `cluster_controllers` by `broker_id` and compares against `under_replicated` > 0.",
+      "severity": "minor",
+      "suggested_fix": "Flags any Kafka broker reporting under-replicated partitions, or a cluster whose active controller count is not exactly 1."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Sourcetype `kafka:broker` is not among the Kafka sourcetypes in the repository guide (kafka:jmx, kafka:server); the Splunk Add-on for JMX writes sourcetype=jmx by default. Confirm the sourcetype.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`eventstats sum(controllers)` has no `by cluster`, so environments with several Kafka clusters always sum to >1. In KRaft deployments with dedicated controllers, ActiveControllerCount is only reported by controller nodes; if only brokers are polled the sum is 0 and the alert fires permanently. Consider adding OfflinePartitionsCount.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T17:11:25Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-8.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The SPL is a reasonable Kafka check (UnderReplicatedPartitions per broker, ActiveControllerCount summed to 1), but the text claims RabbitMQ coverage, resource metrics, broker-offline and ISR-shrink detection that the search does not do, cites a non-existent Splunkbase app instead of the JMX add-on, and the implementation is generic boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-8.3.3",
+  "verdict": "incorrect"
+}
