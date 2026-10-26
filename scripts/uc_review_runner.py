@@ -25,6 +25,7 @@ Subcommands::
     export   --tier T --out DIR  write prompts + manifest for an out-of-band model run
     ingest   --manifest DIR/manifest.json --model LABEL
     plan                         write reports/uc-review/full-run-plan.json (sizes, order, commands)
+    validate                     schema-validate every committed review record
 
 Examples::
 
@@ -311,6 +312,25 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
     return 0
 
 
+def cmd_validate(args: argparse.Namespace, config: dict[str, Any]) -> int:
+    """Schema-validate every committed model-tier record (production and calibration)."""
+    from splunk_uc.review._ledger import load_record, validate_record
+
+    root = Path(args.root)
+    paths = sorted(root.glob("*/cat-*/UC-*.json")) + sorted(
+        root.glob("calibration/*/*/cat-*/UC-*.json")
+    )
+    bad = 0
+    for path in paths:
+        record = load_record(path)
+        errors = ["unreadable JSON"] if record is None else validate_record(record)
+        if errors:
+            bad += 1
+            print(f"{path.relative_to(REPO_ROOT)}: {'; '.join(errors[:3])}", file=sys.stderr)
+    print(f"uc_review_runner validate: {len(paths)} records, {bad} invalid")
+    return 1 if bad else 0
+
+
 def cmd_ingest(args: argparse.Namespace, config: dict[str, Any]) -> int:
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     outcome = runner.ingest_replies(manifest, model=runner.ModelSpec.parse(args.model))
@@ -493,6 +513,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--batch-size", type=int, default=None)
 
+    sub.add_parser("validate", help="Schema-validate every committed review record")
+
     p = sub.add_parser("plan", help="Render outstanding deep prompts and write the full-run plan")
     p.add_argument("--out", default=str(REVIEW_ROOT / "full-run-plan.json"))
 
@@ -522,6 +544,7 @@ COMMANDS = {
     "export": cmd_export,
     "ingest": cmd_ingest,
     "plan": cmd_plan,
+    "validate": cmd_validate,
 }
 
 
