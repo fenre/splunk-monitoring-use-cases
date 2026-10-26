@@ -1094,3 +1094,11 @@ register(
         category="review",
     )
 )
+register(
+    Verb(
+        name="review-fix-scripted",
+        module="review.fix_scripted",
+        help="Mechanical fixes for UC review families (controltest-variant, purpose-built, premium-app-mismatch); dry run by default.",
+        category="review",
+    )
+)

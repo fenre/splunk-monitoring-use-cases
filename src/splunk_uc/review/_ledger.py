@@ -200,6 +200,17 @@ def is_current(record: dict[str, Any] | None, *, sha: str) -> bool:
     )
 
 
+def authoritative_record(
+    uc_id: str, category: str, *, root: Path | None = None
+) -> dict[str, Any] | None:
+    """The UC's adjudication record if any, else deep, else triage."""
+    for tier in ("adjudication", "deep", "triage"):
+        record = load_record(record_path(tier, category, uc_id, root=root))
+        if record is not None:
+            return record
+    return None
+
+
 def iter_tier_records(tier: str, *, root: Path | None = None) -> Iterator[dict[str, Any]]:
     """Yield every stored record for one tier (JSONL for deterministic, per-UC JSON otherwise)."""
     base = root or REVIEW_ROOT

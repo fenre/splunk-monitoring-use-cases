@@ -146,9 +146,14 @@ fit the signal, implementation steps that would not work.
 
 Findings drive the fix phase (plan Phase 6):
 
-- **Scripted families** (`template_v2:*`, `premium_app_pillar_mismatch`,
-  `v2_lantern_root_reference`, `cim_models_*`) are fixed by reviewed
-  scripts, one PR per family.
+- **Scripted families** are fixed by `python -m splunk_uc review-fix-scripted`
+  (dry run by default, one PR per family). Only fixes that need no new
+  facts are scripted: `controltest-variant` (drop "Variant N confirms"),
+  `purpose-built` (drop the generated "Purpose-built for" sentence) and
+  `premium-app-mismatch` (drop an unexplained security-only premium app
+  from a non-security UC). Self-referential UC IDs, skeleton prose, bare
+  Lantern references and CIM mismatches need researched replacements, so
+  they go through the lift loop.
 - **Prose findings** are fixed through the lift loop:
   `lift-prompt UC-X.Y.Z --findings <ledger record>` feeds the findings to
   the author, and `lift-validate --require-handcraft` refuses any diff that
