@@ -22,6 +22,8 @@ Subcommands::
     calibrate select             write the stratified 150-UC calibration set
     calibrate run --tier deep|triage [--model ID]
     calibrate score --candidate-model ID
+    export   --tier T --out DIR  write prompts + manifest for an out-of-band model run
+    ingest   --manifest DIR/manifest.json --model LABEL
 
 Examples::
 
@@ -192,29 +194,7 @@ def cmd_status(args: argparse.Namespace, config: dict[str, Any]) -> int:
 
 
 def cmd_triage(args: argparse.Namespace, config: dict[str, Any]) -> int:
-    root = Path(args.root)
-    batches = runner.triage_batches(
-        _entries(args),
-        batch_size=args.batch_size or config.get("batch_size", 8),
-        root=root,
-        force=args.force,
-    )
-    if args.limit:
-        batches = batches[: args.limit]
-    if not batches:
-        print("triage: nothing to review (all records current)", file=sys.stderr)
-        return 0
-    outcome = asyncio.run(
-        _execute(
-            "triage",
-            [(b, None) for b in batches],
-            model=_model(args, "triage", config),
-            concurrency=args.concurrency or config["concurrency"]["triage"],
-            root=root,
-            dry_run=args.dry_run,
-        )
-    )
-    return _report(outcome, dry_run=args.dry_run)
+    return _run_tier(args, config, "triage")
 
 
 def _routed(
@@ -222,9 +202,49 @@ def _routed(
 ) -> list[tuple[runner.Entry, list[str], dict[str, Any] | None]]:
     root = Path(args.root)
     entries = _entries(args)
-    if tier == "deep" and getattr(args, "uc", None):
-        return [((p, uc), ["explicit --uc"], None) for p, uc in entries]
+    if tier == "deep" and (getattr(args, "uc", None) or getattr(args, "all", False)):
+        return [
+            ((p, uc), ["explicit selection"], None)
+            for p, uc in entries
+            if runner.needs_review(p, uc, "deep", root=root, force=args.force)
+        ]
     return runner.select_for_tier(tier, entries, root=root, force=args.force)
+
+
+def _jobs(
+    args: argparse.Namespace, tier: str, config: dict[str, Any]
+) -> list[tuple[list[runner.Entry], dict[str, Any] | None]]:
+    if tier == "triage":
+        batches = runner.triage_batches(
+            _entries(args),
+            batch_size=getattr(args, "batch_size", None) or config.get("batch_size", 8),
+            root=Path(args.root),
+            force=args.force,
+        )
+        jobs = [(b, None) for b in batches]
+    else:
+        jobs = [([entry], prior) for entry, _, prior in _routed(args, tier)]
+    return jobs[: args.limit] if args.limit else jobs
+
+
+def cmd_export(args: argparse.Namespace, config: dict[str, Any]) -> int:
+    jobs = _jobs(args, args.tier, config)
+    if not jobs:
+        print(f"export: nothing to review for tier {args.tier}", file=sys.stderr)
+        return 0
+    manifest = runner.export_jobs(args.tier, jobs, out_dir=Path(args.out), root=Path(args.root))
+    print(
+        f"Wrote {len(manifest['jobs'])} {args.tier} prompts to {args.out}/ "
+        f"({sum(len(j['uc_ids']) for j in manifest['jobs'])} UCs)",
+        file=sys.stderr,
+    )
+    return 0
+
+
+def cmd_ingest(args: argparse.Namespace, config: dict[str, Any]) -> int:
+    manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    outcome = runner.ingest_replies(manifest, model=runner.ModelSpec.parse(args.model))
+    return _report(outcome, dry_run=False)
 
 
 def cmd_route(args: argparse.Namespace, config: dict[str, Any]) -> int:
@@ -240,17 +260,15 @@ def cmd_route(args: argparse.Namespace, config: dict[str, Any]) -> int:
     return 0
 
 
-def _run_single_tier(args: argparse.Namespace, config: dict[str, Any], tier: str) -> int:
-    rows = _routed(args, tier)
-    if args.limit:
-        rows = rows[: args.limit]
-    if not rows:
-        print(f"{tier}: nothing to review", file=sys.stderr)
+def _run_tier(args: argparse.Namespace, config: dict[str, Any], tier: str) -> int:
+    jobs = _jobs(args, tier, config)
+    if not jobs:
+        print(f"{tier}: nothing to review (all records current)", file=sys.stderr)
         return 0
     outcome = asyncio.run(
         _execute(
             tier,
-            [([entry], prior) for entry, _, prior in rows],
+            jobs,
             model=_model(args, tier, config),
             concurrency=args.concurrency or config["concurrency"][tier],
             root=Path(args.root),
@@ -261,11 +279,11 @@ def _run_single_tier(args: argparse.Namespace, config: dict[str, Any], tier: str
 
 
 def cmd_deep(args: argparse.Namespace, config: dict[str, Any]) -> int:
-    return _run_single_tier(args, config, "deep")
+    return _run_tier(args, config, "deep")
 
 
 def cmd_adjudicate(args: argparse.Namespace, config: dict[str, Any]) -> int:
-    return _run_single_tier(args, config, "adjudication")
+    return _run_tier(args, config, "adjudication")
 
 
 def _model_slug(spec: runner.ModelSpec) -> str:
@@ -387,9 +405,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("deep", help="Heavy-model review of routed UCs")
     common(p)
+    p.add_argument(
+        "--all", action="store_true", help="Review every selected UC, not only routed ones"
+    )
 
     p = sub.add_parser("adjudicate", help="Second-opinion review of deep-review blockers")
     common(p)
+
+    p = sub.add_parser("export", help="Write prompts + manifest for an out-of-band model run")
+    common(p)
+    p.add_argument("--tier", choices=list(MODEL_TIERS), required=True)
+    p.add_argument(
+        "--out", required=True, help="Output directory for prompt files and manifest.json"
+    )
+    p.add_argument(
+        "--all", action="store_true", help="deep tier: every selected UC, not only routed ones"
+    )
+    p.add_argument("--batch-size", type=int, default=None)
+
+    p = sub.add_parser("ingest", help="Validate and persist reply files from an export manifest")
+    p.add_argument("--manifest", required=True)
+    p.add_argument("--model", required=True, help="Label of the model that wrote the replies")
 
     p = sub.add_parser("calibrate", help="Calibration set selection, runs and scoring")
     p.add_argument("action", choices=["select", "run", "score"])
@@ -410,6 +446,8 @@ COMMANDS = {
     "deep": cmd_deep,
     "adjudicate": cmd_adjudicate,
     "calibrate": cmd_calibrate,
+    "export": cmd_export,
+    "ingest": cmd_ingest,
 }
 
 

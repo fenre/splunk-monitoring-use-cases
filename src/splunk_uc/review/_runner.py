@@ -607,6 +607,99 @@ async def run_jobs(
     return total
 
 
+# --------------------------------------------------------------------------
+# File-based hand-off (export prompts, ingest replies)
+# --------------------------------------------------------------------------
+
+
+def export_jobs(
+    tier: str,
+    jobs: Sequence[tuple[list[Entry], dict[str, Any] | None]],
+    *,
+    out_dir: Path,
+    root: Path,
+) -> dict[str, Any]:
+    """Write one prompt file per job plus ``manifest.json`` for out-of-band model runs."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for index, (entries, prior) in enumerate(jobs, start=1):
+        uc_ids = [uc_id_of(uc) for _, uc in entries]
+        job_id = f"{tier}-{index:04d}-{uc_ids[0]}"
+        prompt_file = out_dir / f"{job_id}.prompt.md"
+        prompt_file.write_text(build_prompt(tier, list(entries), prior=prior), encoding="utf-8")
+        rows.append(
+            {
+                "job": job_id,
+                "uc_ids": uc_ids,
+                "files": [str(p) for p, _ in entries],
+                "prompt": str(prompt_file),
+                "reply": str(out_dir / f"{job_id}.reply.md"),
+            }
+        )
+    manifest = {"tier": tier, "root": str(root), "jobs": rows}
+    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return manifest
+
+
+def ingest_replies(
+    manifest: dict[str, Any],
+    *,
+    model: ModelSpec,
+    root: Path | None = None,
+) -> BatchOutcome:
+    """Validate and persist reply files listed in an ``export_jobs`` manifest."""
+    tier = manifest["tier"]
+    ledger_root = root or Path(manifest["root"])
+    outcome = BatchOutcome()
+    for job in manifest["jobs"]:
+        entries: list[Entry] = []
+        for raw in job["files"]:
+            path = Path(raw)
+            entries.append((path, json.loads(path.read_text(encoding="utf-8"))))
+        reply_path = Path(job["reply"])
+        log_line: dict[str, Any] = {
+            "ts": _now(),
+            "tier": tier,
+            "model": model.label,
+            "uc_ids": job["uc_ids"],
+            "status": "ingested",
+            "run_id": f"file:{job['job']}",
+            "usage": {},
+        }
+        if not reply_path.is_file():
+            for uid in job["uc_ids"]:
+                outcome.failed[uid] = "no reply file"
+            log_line["status"] = "missing_reply"
+            outcome.log.append(log_line)
+            continue
+        try:
+            good, errors = records_from_reply(
+                reply_path.read_text(encoding="utf-8"),
+                entries,
+                tier=tier,
+                model=model,
+                run_id=f"file:{job['job']}",
+            )
+        except ValueError as exc:
+            good, errors = {}, {uid: [str(exc)] for uid in job["uc_ids"]}
+        for path, uc in entries:
+            uc_id = uc_id_of(uc)
+            if uc_id in good:
+                write_record(
+                    record_path(tier, category_of(path), uc_id, root=ledger_root), good[uc_id]
+                )
+                outcome.written.append(uc_id)
+            else:
+                outcome.failed[uc_id] = (
+                    "review_failed: " + "; ".join(errors.get(uc_id, ["unknown"]))[:400]
+                )
+        log_line["valid"] = sorted(good)
+        log_line["invalid"] = sorted(errors)
+        outcome.log.append(log_line)
+    append_run_log(outcome.log, root=ledger_root)
+    return outcome
+
+
 def api_key_from_env() -> str:
     key = os.environ.get("CURSOR_API_KEY", "").strip()
     if not key:
