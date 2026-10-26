@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_250 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
 
 ---
 
@@ -1264,6 +1264,14 @@ _No inbound links yet._
 ## `docs/uc-quality-mandate.md`
 
 - [`docs/mitre-attack-mapping.md`](mitre-attack-mapping.md)
+
+## `docs/uc-review-findings.md`
+
+_No inbound links yet._
+
+## `docs/uc-text-review-rubric.md`
+
+_No inbound links yet._
 
 ## `docs/url-scheme.md`
 
