@@ -1579,6 +1579,12 @@ var DOC_UC_MAP = {
   "docs/uc-quality-mandate.md": {
     title: "Use Case Quality Mandate"
   },
+  "docs/uc-text-review-rubric.md": {
+    title: "UC Text-Quality Review Rubric"
+  },
+  "docs/uc-review-findings.md": {
+    title: "UC Text-Quality Review Findings"
+  },
 
   /* ── Replication ─────────────────────────────────────────────────────── */
   "docs/replication-guide.md": {

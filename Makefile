@@ -266,6 +266,9 @@ uc-review-status: ## UC review record counts per tier and category
 uc-review-calibrate-select: ## Write the stratified 150-UC calibration set
 	$(UC_REVIEW) calibrate select
 
+uc-review-report: ## Roll the review ledger into summary.json, fix-queue.json, docs/uc-review-findings.md
+	$(SPLUNK_UC) generate-uc-review-report
+
 audit-baseline-clause-grammar-free: ## Refuse `clause-grammar` fingerprints in audit-baseline.json
 	$(SPLUNK_UC) audit-baseline-clause-grammar-free
 

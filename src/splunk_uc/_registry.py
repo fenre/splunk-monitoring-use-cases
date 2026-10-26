@@ -1086,3 +1086,11 @@ register(
         category="review",
     )
 )
+register(
+    Verb(
+        name="generate-uc-review-report",
+        module="review.report",
+        help="Roll the UC review ledger up into summary.json, fix-queue.json and docs/uc-review-findings.md.",
+        category="review",
+    )
+)
