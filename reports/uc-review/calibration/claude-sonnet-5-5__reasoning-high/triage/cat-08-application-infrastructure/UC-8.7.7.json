@@ -1,0 +1,100 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "405a2ece4a6561f3cef4b8423caa8984a542e27c3beef221de75960dfaa920fa",
+  "file": "content/cat-08-application-infrastructure/UC-8.7.7.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL is a 30-day daily trend (`timechart span=1d count by sc_status`) of 4xx responses. It does not alert on anything, and the condition '>= 400 or < 500' is true for every status code as written. A reader cannot tell whether this is a dashboard trend or an alert.",
+      "field": "description",
+      "quote": "Outputs `count` each `1d`; alert when `sc_status` >= 400, or `sc_status` < 500.",
+      "severity": "major",
+      "suggested_fix": "Describe it as a 30-day daily count of IIS 4xx responses by status code for service review, and say whether an alert is expected (and on which threshold) or not."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no lookup and filters no URIs, so the health-probe exclusion is not implemented. The detailedImplementation Step 1 gives different advice ('Pair with marketing campaign calendar to explain spikes'), which is unrelated to configuring data collection.",
+      "field": "implementation",
+      "quote": "Exclude health-probe URIs via lookup.",
+      "severity": "major",
+      "suggested_fix": "Either add the exclusion lookup (named, with the cs_uri_stem key) to the documented search, or drop the claim. Put campaign-calendar correlation in a separate interpretation note, not in the data collection step."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The SPL explanation just points back to other fields, and the pipeline walkthrough is one generic bullet. A second boilerplate Step 1-5 block follows (vendor API polling interval, 'joins/lookups enrich owner', HTTP 401/429 troubleshooting of a vendor endpoint, throttling per entity) that has no meaning for a file-based IIS log trend.",
+      "field": "detailedImplementation",
+      "quote": "Understanding this SPL\n\n**IIS Client Error Status Trending for Service Review** — See the description and value fields in this use case JSON.",
+      "severity": "major",
+      "suggested_fix": "Explain the search (filter 4xx, count per day by status) and the IIS W3C log inputs. Delete the generic block. Validate by comparing one day's 404 count with the IIS log files or Log Parser."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The catalog lists the Splunk Add-on for Microsoft IIS (Splunk_TA_microsoft-iis) as Splunkbase 3185, which the references use. The app field attaches 617 to the Universal Forwarder instead, and 617 is not in the cached catalog. A Universal Forwarder is not a Splunkbase app, so the ID looks misplaced.",
+      "field": "app",
+      "quote": "Splunk Add-on for Microsoft IIS — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Write 'Splunk Add-on for Microsoft IIS (Splunkbase 3185) on a Universal Forwarder reading the W3C logs' and remove the 617 reference unless it can be verified."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The data sources write the field with a hyphen, while the SPL and the controlTest use `sc_status`. Readers may search for the wrong name.",
+      "field": "dataSources",
+      "quote": "(`sc-status` 4xx)",
+      "severity": "minor",
+      "suggested_fix": "Use `sc_status` (the field as extracted by the add-on) consistently, and note the W3C log name `sc-status`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence does not say what is being watched. It never mentions website errors or 'page not found' style responses, and the reference to security teams is not part of this UC.",
+      "field": "grandmaExplanation",
+      "quote": "We use this to support service owners reviewing quality alongside security teams.",
+      "severity": "major",
+      "suggested_fix": "Say in plain words that we count how often visitors get 'not found' or 'not allowed' style errors from our IIS web servers each day, so owners can see if a service is getting worse."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "No scenario names real IIS causes of 4xx volume. The 401 challenge/response exchange of Windows-integrated (NTLM or Kerberos) authentication, crawler and scanner 404s, missing favicon or robots.txt requests, and deliberate 403s from request filtering all inflate the trend.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `sc_status`",
+      "severity": "minor",
+      "suggested_fix": "List these causes and suggest excluding 401 handshakes with `sc_substatus`, known bots by user agent, and health-probe URIs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search counts all Web events by http_method and dest in 5-minute spans. It does not filter on `Web.status` 400-499 or split by status, so it does not reproduce the 4xx trend of the raw SPL.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Compliance' is listed, but the UC has no compliance mapping or attestation purpose. It is a status-code trend for service review.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0087-UC-8.7.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detection is a simple IIS 4xx trend and uses the right add-on and sourcetype, but the prose describes an alert and lookup that the SPL does not have. The implementation steps contradict each other, the cimSpl does not match the detection, and the grandma text says nothing about web errors.",
+  "tier": "triage",
+  "uc_id": "UC-8.7.7",
+  "verdict": "rewrite"
+}

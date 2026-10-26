@@ -1,0 +1,132 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "93aac15ea466b6925db13a226e26a6df67ae000bb35a3f24902a9ab08380d0d6",
+  "file": "content/cat-13-observability-monitoring-stack/UC-13.4.10.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The search can show that a write or rotate event was logged and that the gateway was last seen before it. It cannot show which key version the gateway authenticated with, because the gateway events carry only an alias or path and a timestamp. gateway_cutover_gap fires when the gateway has no traffic after the rotation, which also happens for an idle gateway. It does not show use of a stale key. The text also calls these checks 'audit-grade proof' and 'real protection'.",
+      "field": "detailedImplementation",
+      "quote": "audit-grade proof that vendor and gateway credentials rotate on schedule",
+      "severity": "major",
+      "suggested_fix": "Describe the output as evidence that rotation events occurred within policy and that gateway traffic did or did not continue after them. State that proving use of the new key needs the gateway to log a key or secret version fingerprint, and make that a prerequisite for the cutover claim."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "This promises more than the detection supports, since the search cannot confirm that the app is using the new key. The rest of the explanation is fine.",
+      "field": "grandmaExplanation",
+      "quote": "we flag it so auditors see real protection—not paperwork alone",
+      "severity": "minor",
+      "suggested_fix": "Say that the check flags keys that were not refreshed on schedule or that show no activity after a refresh, so someone can look into it."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.hashicorp.com/vault/docs/audit",
+      "explanation": "Vault audit logs nest the path and operation under request.path and request.operation, and operation values are create, read, update, delete, list and patch. 'renew' is a lease-renewal path under sys/leases, and renewing a lease extends the TTL without changing the secret, so it is not a rotation. The SPL coalesces secret_path, path, request_path and data_path but not request.path.",
+      "field": "dataSources",
+      "quote": "HashiCorp Vault audit JSON with secret paths and renew operations",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a sample vault:audit event on your Vault version. Name the real fields (request.path, request.operation, type), say how KV v2 data and metadata paths are normalised, and exclude lease renewals from the rotation timestamp."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The sourcetypes azure:monitor:microsoft.keyvault and msazure:keyvault:diagnostic and the operation name SecretRotate are not confirmed. Key Vault documents SecretSet and SecretNewVersionCreated style events, and as far as I know rotation policies apply to keys, not secrets. For AWS, RotateSecret is the API call that starts rotation, and Secrets Manager reports rotation outcome separately (RotationSucceeded or RotationFailed), so the call alone does not prove a successful rotation.",
+      "field": "dataSources",
+      "quote": "Azure Key Vault diagnostic categories SecretSet and SecretRotate",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetypes the Microsoft Azure add-on produces for Key Vault diagnostics and the exact operationName values in a test vault. For AWS, add the rotation outcome events, or document that RotateSecret and PutSecretValue only show attempts."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I cannot confirm a Splunk-published add-on of this name. Vault audit logs are normally shipped by a Universal Forwarder from the audit file, by syslog, or over HEC. The grounding data lists only the AWS add-on (1876) as a verified app.",
+      "field": "app",
+      "quote": "Splunk Add-on for HashiCorp Vault",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Splunkbase for a Vault add-on and add its ID, or describe the actual collection method (UF reading the audit device file, or HEC)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "The AWS add-on (1876) is correct for CloudTrail, but the sentence presents it as the collector for the whole list, which also covers Vault audit logs, Azure Key Vault diagnostics, GCP audit logs and the AI gateway. The data sources also list GCP Secret Manager, yet the SPL has no GCP arm, and the implementation calls GCP optional 'Lane E'.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Add-on for Amazon Web Services (Splunkbase 1876) modular input or scripted poll into the index named in the SPL.",
+      "severity": "minor",
+      "suggested_fix": "Name the collector per source, and mark GCP Secret Manager as not covered by the delivered SPL."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Authentication is listed, but no search uses it and the dataModelAcceleration text says only 'future cutover analytics'. Change is used by the tstats join, but mapping Vault policy edits, secret mounts and ConfigMaps to Change.object = secret path is a custom mapping, not something a CIM add-on provides for these sources.",
+      "field": "cimModels",
+      "quote": "\"Change\",\n    \"Authentication\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Keep Change only if you document the mapping needed to populate it, and remove Authentication from cimModels until a search uses it."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Accelerating CIM data models needs the Splunk Common Information Model add-on, not Splunk Enterprise Security. Nothing in the SPL requires ES.",
+      "field": "premiumApps",
+      "quote": "Optional CIM Authentication and Change tstats acceleration for gateway identity and infrastructure change joins.",
+      "severity": "minor",
+      "suggested_fix": "Remove Splunk Enterprise Security from premiumApps, or state a feature that actually needs it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The fenced copy uses eventstats mean(key_age_days), while the spl field uses avg(key_age_days), so it does not match exactly. The closing 'checklist' line is the generator's self-check text. Step 2 also tells the reader about a 'fifth multisearch arm' that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL must match the spl JSON field exactly:",
+      "severity": "minor",
+      "suggested_fix": "Make the fenced SPL identical to the spl field, delete the authoring checklist and the 'must match exactly' sentence, and drop the fifth-arm paragraph or implement it."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is the generic 'catalog-team'. No SME sign-off is shown, and the sourcetype names, Vault operation values and AWS and Azure event semantics above are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a secrets-management SME confirms the field names and events on real Vault, AWS and Azure data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The Vault arm treats renew and update as rotation (match on update|write|rotate|renew|kv-patch). Lease renewals and ordinary KV edits then reset the rotation clock, so keys that were never rotated show as compliant. Operation values 'write', 'rotate' and 'kv-patch' are not Vault operation names, and the path coalesce misses request.path.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The tstats join uses FROM datamodel=Change WHERE nodename=Change BY Change.object. In CIM the Change model's root dataset is All_Changes, so the field is normally All_Changes.object and the datamodel reference is Change.All_Changes. As written the tstats may return nothing. Please verify.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search window is a fixed -90d, while rotation_threshold_days can be larger. Any key with a longer policy that was last rotated before the window has a null last_rotation_ts and is flagged as a violation with no age shown.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0046-UC-13.4.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation is thoughtful about secret stores and gateway cutover, but it claims audit-grade proof of rotation and cutover that the data cannot give. Several vendor sourcetype, field and operation names look guessed, and the fenced SPL, premium app note and data sources have small mismatches with the sidecar.",
+  "tier": "triage",
+  "uc_id": "UC-13.4.10",
+  "verdict": "rewrite"
+}

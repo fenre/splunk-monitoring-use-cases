@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "dc8304340185ab87b43a8a7467abe4fd983f23e9b42c88e7a92d789d5fbdcda9",
+  "file": "content/cat-11-email-collaboration/UC-11.3.51.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The final `timechart` keeps only `avg_participants` and `peak_participants`, so `utilization_pct` is gone before the alert. The `lookup pexip_capacity_lookup node_pool` has no `node_pool` field after `stats ... by _time`. The description says only 'configured threshold'. The 80% rule and the capacity comparison cannot be applied by the SPL.",
+      "field": "implementation",
+      "quote": "Alert when utilization exceeds 80% or when predicted peaks will exceed capacity.",
+      "severity": "major",
+      "suggested_fix": "Describe what the search really produces (hourly participant averages and peaks and a 24-hour forecast), or rewrite it so that utilization against capacity is computed and tested."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The search computes 15-minute counts, but its final output is an hourly timechart with a forecast, so the described outputs are not what the user receives. `dc(name)` counts conferences that appear in the bucket, not conferences active at the same time, so 'concurrency' is not measured.",
+      "field": "description",
+      "quote": "Outputs `active_conferences`, `total_participants`, `peak_per_conf` each `15m`",
+      "severity": "major",
+      "suggested_fix": "Describe the real output, and explain how concurrency is derived from `start_time` and `end_time` (the SPL computes both but never uses them)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Polling a history endpoint every 5 minutes with no checkpoint, time filter or de-duplication re-indexes the same conferences, so `sum(participant_count)` double-counts. Authentication for the Management API and paging are not mentioned. `participant_count` is the number of participants in a conference, not a concurrent count at a moment.",
+      "field": "implementation",
+      "quote": "polls the Pexip Management REST API at `/api/admin/history/v1/conference/` every 5 minutes. The API returns up to 10,000 conference instances",
+      "severity": "major",
+      "suggested_fix": "Add a checkpoint on `start_time` or `id`, de-duplicate on the conference id, describe authentication and paging, and define how concurrency is derived."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "There is no published 'Custom Pexip TA'. The Universal Forwarder is not a Splunkbase app. A reader cannot tell what to install, and the grounding guide does not cover Pexip.",
+      "field": "app",
+      "quote": "Custom Pexip TA (scripted input polling Management REST API) — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Say that the collector is a script you write, state where it runs, and remove the Splunkbase ID."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The Step 1 text is cut off mid-sentence. The text ends with a generic scripted-input example (`collect.sh`, `your_sourcetype`, `index = main`, 'metric=value') that has nothing to do with Pexip.",
+      "field": "detailedImplementation",
+      "quote": "Use `predict` to forecast peak demand 24 …\n\nStep 2",
+      "severity": "major",
+      "suggested_fix": "Complete Step 1 and replace the template with a Pexip-specific script outline for the history endpoint, or delete it."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Pexip timestamps may carry fractional seconds, in which case this format returns null. Check the response format. The two `eval` results are never used.",
+      "field": "detailedImplementation",
+      "quote": "strptime(start_time, \"%Y-%m-%dT%H:%M:%S\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Match the format to the real timestamps (for example with `%6N`) and use `start` and `end` for the concurrency calculation, or remove them."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The equipment list names Splunk, not Pexip.",
+      "field": "equipment",
+      "quote": "\"splunk\"",
+      "severity": "minor",
+      "suggested_fix": "Use the Pexip equipment slug."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The Lantern root is flagged elsewhere, and the other references are generic conf-file pages. None covers the Pexip Management API history endpoint.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "major",
+      "suggested_fix": "Cite the Pexip Infinity Management API documentation for conference history."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`lookup ... node_pool` runs after `stats ... by _time`, so the key field does not exist. `utilization_pct` is dropped by the following `timechart`, and `start`/`end` are computed but unused, so the search cannot show concurrency or capacity use.",
+      "severity": "major"
+    },
+    {
+      "field": "criticality",
+      "issue": "'high' for a trending and capacity-planning search looks too high.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0069-UC-11.3.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The Pexip history endpoint and the capacity-planning intent are plausible, but the SPL cannot deliver the utilization alert or true concurrency that the text describes. The collection design risks duplicated events and the detailed implementation ends with a generic script template.",
+  "tier": "triage",
+  "uc_id": "UC-11.3.51",
+  "verdict": "rewrite"
+}

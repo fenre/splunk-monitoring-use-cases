@@ -1,0 +1,112 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "587ebe108c4e99a64f18d210d3b275b943336ec9343101dd559def8b2390a81d",
+  "file": "content/cat-08-application-infrastructure/UC-8.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/message-queues.md",
+      "explanation": "The app field names no real add-on, and Splunkbase 617 is not in the cached catalog. The guide for this subcategory names Splunk Connect for Kafka as Splunkbase 3862, with Kafka JMX and a Burrow scripted input as the sources. A reader cannot tell what to install, and the ID is not backed by the repository.",
+      "field": "app",
+      "quote": "JMX, broker metrics — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Name the real collection path from the guide: Kafka JMX plus Splunk Connect for Kafka (Splunkbase 3862) on a Heavy Forwarder, or a scripted JMX poll, and drop the Splunkbase 617 reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "implementation (and visualization) promise broker-offline detection, disk/CPU/memory/network metrics and ISR shrink rate. The SPL only checks UnderReplicatedPartitions and the sum of ActiveControllerCount per broker_id. A broker that is down sends no events, so `latest()` by broker_id never raises it as offline, and none of the resource metrics are queried.",
+      "field": "cross_field",
+      "quote": "Alert on broker offline, under-replicated partitions, or controller election. Monitor ISR (In-Sync Replica) shrink rate.",
+      "severity": "major",
+      "suggested_fix": "Either limit implementation and visualization to under-replicated partitions and the single-active-controller check, or add the extra detections. Add an explicit missing-broker check if broker offline is claimed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/message-queues.md",
+      "explanation": "dataSources lists RabbitMQ and `equipment` lists rabbitmq, but the SPL only reads index=kafka sourcetype=kafka:broker with Kafka-only fields (UnderReplicatedPartitions, ActiveControllerCount). RabbitMQ nodes are not covered. The 'Universal Forwarder (Splunkbase 617)' boilerplate also conflicts with the guide's Heavy Forwarder instructions.",
+      "field": "dataSources",
+      "quote": "Kafka JMX (broker metrics), RabbitMQ management API (`/api/nodes`)",
+      "severity": "major",
+      "suggested_fix": "Drop RabbitMQ from dataSources and equipment for this UC, or describe a separate RabbitMQ search. State the ingest path for the Kafka JMX metrics."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/message-queues.md",
+      "explanation": "The guide's sourcetype list contains kafka:server, kafka:controller, kafka:jmx, kafka:consumer_lag, kafka:burrow and kafka:connect, but not kafka:broker. Check which sourcetype the Kafka JMX input actually produces and whether UnderReplicatedPartitions and ActiveControllerCount are extracted fields on it.",
+      "field": "dataSources",
+      "quote": "sourcetype=\"kafka:broker\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Align the sourcetype with the one the JMX input writes (likely kafka:jmx per the guide) or document the custom sourcetype and its field extractions."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The description does not say what the detection is. It omits that the second condition flags clusters whose summed active-controller count is not exactly 1, and it names `the scheduled window` as a literal window. It describes keyword routing instead of what a result row means.",
+      "field": "description",
+      "quote": "Combines `cluster_controllers` by `broker_id` and compares against `under_replicated` > 0.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is a broker that reports under-replicated partitions, or a broker in a cluster whose total ActiveControllerCount is not 1 (no controller or more than one)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The false-positive text refers to a field `src` and a `span=1h` that are not in the SPL, and none of the four scenarios names a real Kafka cause. Real causes would be rolling broker restarts, partition reassignments, and controller failover during maintenance.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `under_replicated` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace with real Kafka causes: rolling restarts that briefly raise UnderReplicatedPartitions, partition reassignment or reassign-partitions runs, and a short controller election window where the ActiveControllerCount sum is 0 or 2."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/message-queues.md",
+      "explanation": "The second Step 1 is generic text. It contradicts the first Step 1 ('every minute') and refers to a vendor API and modular input that do not exist for Kafka JMX. It omits the guide's concrete steps: enabling KAFKA_OPTS JMX flags on each broker and the Splunk Connect for Kafka / Burrow setup.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=kafka:broker into kafka. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Replace the generic block with the JMX remote flags on each broker, the collection input, a single consistent poll interval, and a validation search on the kafka index."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses the unexplained term 'broker' and restates a consequence of failure. It does not say what is checked: whether the message servers have copies of their data out of sync, or whether there is not exactly one leader coordinating the cluster.",
+      "field": "grandmaExplanation",
+      "quote": "We watch for signs that broker failures cause message loss and application disruption.",
+      "severity": "major",
+      "suggested_fix": "Explain in plain words, for example: 'We check that the servers passing messages between programs are healthy, that each one has all its backup copies, and that exactly one of them is in charge, and we alert the team if not.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats latest(...) by broker_id` only reports brokers that sent events in the search window. A stopped broker disappears instead of alerting. `cluster_controllers != 1` also relies on every broker reporting, so a missing broker can hide a zero or duplicate controller state.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Only Availability is declared, but the implementation text also describes performance metrics (CPU, disk, network). Confirm whether Performance should be listed.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0012-UC-8.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The UC aims at Kafka broker health, but the text is template-heavy. The implementation promises broker-offline, resource and ISR-shrink monitoring that the SPL cannot provide, and the app field cites a Splunkbase ID that matches nothing in the repository's Kafka guidance.",
+  "tier": "triage",
+  "uc_id": "UC-8.3.3",
+  "verdict": "incorrect"
+}

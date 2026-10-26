@@ -1,0 +1,95 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ea008cc10a9b4241a519a69e9cd579b002172e3b31109c49260b2c9ef1aa7eb4",
+  "file": "content/cat-05-network-infrastructure/UC-5.1.58.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation says index=juniper and sourcetype juniper:structured while the SPL, dataSources and description use index=network and juniper:junos:structured; the grounding guide's network index is `network`.",
+      "field": "cross_field",
+      "quote": "Data in `index=juniper` with `sourcetype=juniper:structured`.",
+      "severity": "major",
+      "suggested_fix": "Use one index and one sourcetype everywhere (juniper:junos:structured via Splunk_TA_juniper into the network index, unless local convention differs) and state it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation thresholds (outside change window, more than one in 7 days) match neither the catalogue SPL (any event in a 24h bin) nor the detailedImplementation search (30-day window, warning for more than 3 events, critical only for crash-type text); there is no change-window logic in either search.",
+      "field": "cross_field",
+      "quote": "Critical alert on any mastership change outside a change window; warning if more than one event per chassis per 7 days.",
+      "severity": "major",
+      "suggested_fix": "Pick one set of thresholds and make the SPL, implementation and detailedImplementation search agree, including how planned switchovers are excluded."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template word salad and omit the real benign causes of a routing-engine mastership change: planned manual switchover during maintenance or software upgrade (ISSU/NSSU), scheduled RE replacement, and test failovers.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `_time` without crossing `failover_events` > 0 for UC-5.1.58.",
+      "severity": "major",
+      "suggested_fix": "List those causes and how to recognise them (manual/admin text, change ticket, upgrade window) and key suppression on chassis and window."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These Junos syslog message identifiers, and the SPL's `SERD_MASTERSHIP` and `RE_SWITCHOVER` tokens, could not be confirmed; real RE mastership and ksyncd tags should be checked against the Junos System Log Explorer.",
+      "field": "detailedImplementation",
+      "quote": "Key syslog: `RPD_REDUNDANCY_RE_SWITCHOVER`, `KSYNCD_PEER_TIMEOUT`, `CHASSISD_RE_INIT_INVALID`.",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the exact system-log tags for routing-engine mastership change, ksyncd timeout and chassisd RE state changes in the Junos System Log Explorer and use them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Appended generic boilerplate (poll interval, vendor API 401/429, list_inputs capability) does not apply to Junos syslog and contradicts the device-side syslog configuration shown earlier.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=juniper:junos:structured into network. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "minor",
+      "suggested_fix": "Remove the generic steps and describe syslog forwarding to SC4S or a syslog input with the Splunk Add-on for Juniper."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/cisco-networks.md",
+      "explanation": "References are generic Splunk configuration pages (HEC, inputs.conf, savedsearches.conf); there is no Juniper documentation on GRES/NSR or system log messages and no link to Splunk Add-on for Juniper.",
+      "field": "references",
+      "quote": "Splunk HTTP Event Collector",
+      "severity": "minor",
+      "suggested_fix": "Add Juniper GRES/NSR and system-log references and the Splunkbase page for Splunk_TA_juniper."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "Title words pasted in; does not say that the backup brain of a network router has taken over from the main one.",
+      "field": "grandmaExplanation",
+      "quote": "something looks wrong with junos routing engine failover monitoring",
+      "severity": "minor",
+      "suggested_fix": "Explain that routers have a spare controller and we raise a flag when it takes over."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`search ... \"Routing Engine.*switch\"` treats the quoted string as a literal with wildcards, not a regex (use `regex`/`match`), the `rex` creating old_role/new_role is never used, and `where failover_events > 0` after `stats count` is always true.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0006-UC-5.1.58",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation contains real Junos GRES/NSR context, but the catalogue SPL, the implementation thresholds and the long worked search each define a different detection, with different indexes and sourcetypes. Description, value and false positives are template text.",
+  "tier": "triage",
+  "uc_id": "UC-5.1.58",
+  "verdict": "rewrite"
+}

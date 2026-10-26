@@ -1,0 +1,70 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9ac2ce18dcde4edb051b170db2523f4e3d6262651c808e6f6f672316f3a91b17",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The UC only works if UC-20.1.4 (Idle Resource Identification) writes `cloud:idle_candidates` events with `estimated_monthly_savings` and account id, but prerequisiteUseCases is empty and the wave is crawl. The required field names and the summary-writing mechanism (collect, summary index) are never specified.",
+      "field": "cross_field",
+      "quote": "Populate `cloud:idle_candidates` from scheduled UC-20.1.4 logic.",
+      "severity": "major",
+      "suggested_fix": "List UC-20.1.4 in prerequisiteUseCases, state the required fields and how the summary events are written, and set the wave accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "`-1d` is the search lookback (`earliest=-1d`), not a threshold; there is no threshold at all, and the SPL returns the top 25 accounts. `idle_dollars` is actually the sum of `estimated_monthly_savings`, not dollars currently idle.",
+      "field": "description",
+      "quote": "Threshold bundle: -1d; aggregation grain: `lineItem_UsageAccountId`; metrics: `idle_dollars`.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is an account with the sum of estimated monthly savings from idle candidates seen in the last day, top 25, with owner email from the lookup; rename idle_dollars accordingly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The sourcetype is produced by a scheduled search into a summary index, not by a modular input or HEC token; the appended generic Steps 1-5 block (poll interval, `list_inputs`, HTTP 401/429 from a vendor endpoint) therefore does not apply. The 'Universal Forwarder (Splunkbase 617)' attribution also repeats here.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=cloud:idle_candidates into summary.",
+      "severity": "major",
+      "suggested_fix": "Describe the summary-indexing search from UC-20.1.4 and validate by comparing totals with that UC's output; delete the generic block."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The SPL looks back only one day and the `aws_account_owner` lookup (columns account_id, owner_email) is neither defined nor documented, so the monthly email cannot be built from this text; summing a day of repeated candidate events can also overstate savings.",
+      "field": "implementation",
+      "quote": "Monthly email to top account owners.",
+      "severity": "minor",
+      "suggested_fix": "Document the lookup columns, state that candidates must be deduplicated per resource before summing, and align the lookback with the monthly cadence."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "References a `src` field and threshold that do not exist here; real causes (seasonal or batch workloads flagged idle, stopped-but-needed DR resources, stale owner mapping) are missing.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing configured threshold for UC-20.1.20.",
+      "severity": "major",
+      "suggested_fix": "List real false-positive causes for idle-resource findings and how to exempt them."
+    }
+  ],
+  "firewalled_field_flags": [],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0029-UC-20.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "A roll-up of UC-20.1.4 idle candidates to account owners, but its upstream dependency is not declared, the description treats a lookback as a threshold, the money metric is mislabeled, and the data collection guidance is generic input boilerplate that does not fit a summary feed.",
+  "tier": "triage",
+  "uc_id": "UC-20.1.20",
+  "verdict": "rewrite"
+}

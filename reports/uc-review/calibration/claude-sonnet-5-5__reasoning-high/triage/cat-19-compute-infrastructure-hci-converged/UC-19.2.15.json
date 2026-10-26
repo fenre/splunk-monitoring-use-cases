@@ -1,0 +1,90 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "90f2076eee3d351bfd9300a7adaa50341449f590bf2dc81c48bad60bd3715803",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The text contains a stray `]` as a grouping field, a repeated condition, a truncated filter string, and 'thresholds' that are merely '> 0' checks. The real triggers are lookup-driven: stalled job with skew over target (critical), ETA over target hours or proactive disabled with skew above threshold (high), skew near target while under 95% complete (warning).",
+      "field": "description",
+      "quote": "grouped by `cluster_id`, `job_id`, `vendor`, `]`. Outputs `job_started_ts`, `proactive_mark`, `cluster_mean_rebalance_pct` each `the scheduled window`; alert when `pr_run` > 0, `cfg_thr` > 0, `pr_run` > 0, or `disk_used_pct` > 0. Filter chain includes filter `(index=hci OR index=nutanix OR index=vmware OR index=cisco O`.",
+      "severity": "major",
+      "suggested_fix": "Describe the four severity rules and their lookup defaults (12 h ETA, 15% skew, 30% proactive threshold, 4 h stall) and remove the placeholder grouping and truncated filter."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Nutanix Curator scan/job REST paths, the HX Connect paths `/rest/clusters/{cid}/rebalance/state` and `/progress`, and the vSAN properties `ProactiveRebalanceRunning` / `ProactiveRebalanceMaxIOPS` (from Get-VsanRuntimeInfo) are stated as exact facts but are not in the grounding; the guide lists no nutanix:curator or hyperflex rebalance sourcetypes, and the claim that Splunk_TA_nutanix provides `nutanix:curator` is unconfirmed (5076 is not in the cached catalog).",
+      "field": "dataSources",
+      "quote": "/PrismGateway/services/rest/v2.0/cluster/curator/scans and /v2.0/cluster/curator/jobs/{job_id}",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each endpoint, cmdlet property and TA sourcetype against vendor docs or a lab; if they do not exist, say that the collector must be built from curator_cli / vSAN health APIs instead."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified, yet the search cannot run as written and the feeds are all custom and unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been executed against real data and reviewed by an SME."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Roughly a third of the text is a lettered list of Supplements A to Z and Appendices AA to AJ (IPv6, regression tests, executive PDFs) that are generic operations advice, plus a 'Closing checklist' of authoring notes ('no raw lookup command', 'keep equipmentModels aligned with uc.schema patterns'), which leaks repository process text into customer guidance.",
+      "field": "detailedImplementation",
+      "quote": "Supplement A — Capacity planning exports: archive monthly CSV of rebalance_eta_minutes peaks even when severity stays warning. Supplement B — Security",
+      "severity": "major",
+      "suggested_fix": "Delete the supplements, appendices and closing checklist; keep only the vendor-specific collection, validation and troubleshooting steps."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Template scenarios do not name real causes: capacity added or disk replaced (large skew), rolling reboots or patching, vendor jobs idling at 99% in trim phases, and exporters that reset job ids.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `job_id` without crossing `pr_run` > 0 for UC-19.2.15.",
+      "severity": "major",
+      "suggested_fix": "List those real causes (the troubleshooting section already names several) and tie them to the change_freeze_until mechanism."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The reference is titled 'Run Storage Maintenance Tasks (Optimize-StoragePool, Optimize-Volume)' but links to the generic Windows Server storage landing page.",
+      "field": "references",
+      "quote": "\"url\": \"https://learn.microsoft.com/en-us/windows-server/storage/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Optimize-StoragePool and Get-StorageJob cmdlet pages."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "All four `multisearch` arms end in `stats`, which is not a streaming command, so multisearch rejects the search; it cannot run as written.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The vSAN arm fabricates progress (`if(pr_run>0, 50, 0)` as rebalance_pct), so slope, ETA and stall math for vSAN are meaningless; `rebalance_disk_skew_pct` is `range(disk_used_pct)` across all disk events in 25 hours (not a per-moment per-disk difference); `streamstats window=24` counts events rather than time; the backtick `comment(...)` macro is not built into Splunk.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0028-UC-19.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A four-vendor rebalance tracker whose SPL cannot run (stats inside multisearch), whose description is broken template text, and whose detailedImplementation is padded with generic supplements and appendices; vendor endpoints and cmdlet properties are unconfirmed and the record is marked verified.",
+  "tier": "triage",
+  "uc_id": "UC-19.2.15",
+  "verdict": "rewrite"
+}

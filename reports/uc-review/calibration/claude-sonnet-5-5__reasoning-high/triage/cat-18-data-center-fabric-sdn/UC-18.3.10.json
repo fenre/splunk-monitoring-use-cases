@@ -1,0 +1,158 @@
+{
+  "confidence": 0.6,
+  "content_sha256": "0012b7380a1a960a8bd25c67261c41352845ddcf7f8f40986ab72fc40cde643c",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.10.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models network communication sessions and flows. EVPN route-type counters and BGP summary snapshots from NX-API/eAPI are control-plane inventory-style metrics, not traffic events. Inventory is also a poor fit for route counts. The same wrong choice is repeated in the `schema` field.",
+      "field": "cimModels",
+      "quote": "**Network_Traffic** for **BGP**/**EVPN** routing context (peer-derived neighbors, update-driven posture) plus **Inventory**",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic. Either leave cimModels empty with a note that no CIM model fits routing-table telemetry, or choose a model after checking the CIM dataset definitions. Fix the `schema` and `dataModelAcceleration` text to match."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "Splunkbase 4241 is not in the cached `data/splunkbase-catalog.json`. The grounding guide names the NSX add-on as `Splunk_TA_vmware-nsxt` (Splunkbase 4856), and that name does not match the UC's 'Splunk Add-on for VMware NSX'. The ID and product name may be invented. The same ID appears in detailedImplementation.",
+      "field": "app",
+      "quote": "**Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241))",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the NSX add-on on Splunkbase. If it is the NSX-T add-on, use `Splunk_TA_vmware-nsxt` (4856) as in the guide, or drop the add-on if it is not needed for this UC."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The cached Splunkbase catalog lists app 1897 as 'Cisco ACI Add-on for Splunk Enterprise (deprecated)'. The grounding guide uses `Splunk_TA_cisco-aci` (Splunkbase 4022). The UC recommends the deprecated add-on and uses a name that does not match it.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897))",
+      "severity": "major",
+      "suggested_fix": "Reference `Splunk_TA_cisco-aci` (Splunkbase 4022), or remove the ACI add-on mention, which is peripheral to standalone EVPN leaves."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The guide lists `Splunk_TA_vmware` as Splunkbase 1810, while the cached catalog lists 3215 as 'Splunk Add-on for VMware'. The two repository sources disagree. Check which one is current.",
+      "field": "app",
+      "quote": "**Splunk Add-on for VMware** ([Splunkbase 3215](https://splunkbase.splunk.com/app/3215))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the current Splunkbase ID for the VMware add-on and use it consistently with the guide."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide lists the Splunk_TA_cisco-nexus syslog sourcetype as `cisco:nexus:syslog`, not `cisco:nxos:syslog`. Some sibling UCs use `cisco:nxos:*`, so naming across the subcategory is inconsistent.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:nxos:syslog`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetype the Nexus add-on or SC4S actually assigns and use that name."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "As far as I know, the `show bgp l2vpn evpn summary` and `show bgp evpn summary` output is a per-neighbor table, not per-route-type counters. The `evpn_route_type` field the SPL buckets on may not exist in that output. The Junos command `show evpn overview` also needs checking.",
+      "field": "detailedImplementation",
+      "quote": "compare **`show bgp l2vpn evpn summary`** route-type columns with Splunk **`latest(route_total)`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NX-OS, EOS and Junos CLI output. If per-type totals come from per-route-type commands (for example `show bgp l2vpn evpn route-type 2`) or from the Ansible-normalised collector, say so."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These conditions are true for almost every row and are not the alert logic. The SPL flags routes >= 1.25 x leaf_p95, and Step 5 triggers on hot_growth plus warn_routes plus alert_seed. The schedule also disagrees: the implementation says every fifteen minutes, Step 5 says every thirty minutes with `earliest=-4h@m`, and the SPL uses `earliest=-24h@m`.",
+      "field": "cross_field",
+      "quote": "alert when `route_total` >= 0, `leaf_p95` > 0, `leaf_p95` > 0, or `vrf_fanout` <= 6",
+      "severity": "major",
+      "suggested_fix": "State one alert rule (hot_growth with delta_routes>0 and thresholds from `evpn_route_thresholds`) in description, KFPs and controlTest, with a single schedule and search window."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunk search macros are invoked with backticks, not percent signs. The text also says to 'import the saved SPL from this JSON file', which makes no sense to a reader of the published catalogue.",
+      "field": "implementation",
+      "quote": "wrap the opening index union inside macro **`%evpn_route_indexes%`**",
+      "severity": "minor",
+      "suggested_fix": "Write the macro as a backtick-quoted `evpn_route_indexes` call, or drop the macro, and tell the reader to paste the SPL from the SPL field."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Large parts of the walkthrough are generic filler that would fit any REST-polled network UC: residency, blackouts, a drill video, 'executive buyers appreciate' panels, 'junior on-call engineers', a RACI. This hides the few EVPN-specific steps and reads as generated padding. Step 5 is also titled 'Operationalize & Troubleshoot' while Step 4 is already 'Operationalize'.",
+      "field": "detailedImplementation",
+      "quote": "If legal requires data residency, confirm Heavy Forwarders parsing REST payloads stay in the approved geography even when switches sit abroad. During blackouts, operators should still be able to open the saved report from a cold cache copy exported nightly to object storage.",
+      "severity": "major",
+      "suggested_fix": "Cut the filler and keep prerequisites, per-vendor collection, validation of per-type counts, thresholds and troubleshooting."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The SPL hard-codes RT2>200000 and RT5>80000 as headroom watches. No vendor document is cited for these numbers, and they conflict with the per-site `evpn_route_thresholds` lookup advertised for alerting.",
+      "field": "detailedImplementation",
+      "quote": "gives a secondary color cue when absolute scale—not just growth—enters a vendor-documented uneasy band",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the platform scale limits these figures come from, or call them example values to be replaced by the lookup."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The `m365` equipment tag has no connection to EVPN route accounting. Nothing in the UC mentions Microsoft 365.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "major",
+      "suggested_fix": "Remove `m365`. Check the other tags (`syslog`, `nsx`, `vmware`) against what the UC actually needs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status is `verified` while the reviewer is 'agent-handcraft-2026-04-29', which is not an SME sign-off. Several facts above (add-on IDs, CLI output columns, sourcetype names) are unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until a named network SME validates the collection commands, add-ons and thresholds."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "Type-2/3/5 routes and 'control-plane memory' are EVPN jargon, not plain language. The text also says it watches whether the 'mix tilts', but the SPL alerts on growth against the leaf's own 95th percentile.",
+      "field": "grandmaExplanation",
+      "quote": "We map how many Type-2, Type-3, and Type-5 routes pile up in each fabric pocket",
+      "severity": "minor",
+      "suggested_fix": "Explain that the switches keep lists of where devices can be reached, that the lists are counted by kind, and that the alert fires when one list grows unusually fast."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search ends with `| timechart span=1h sum(routes) AS evpn_routes by rt_bucket`, which discards growth_flag, alert_seed, delta_routes, capacity_hint, leaf and the other fields. The alert design (`| where growth_flag=\"hot_growth\"`, alert_seed, payload fields) and the table, scatter and per-leaf panels cannot run from this SPL.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`fabric_site` is derived with coalesce(pod_id, site_code, fabric_token, fabric_site) after `stats ... BY _time leaf rt_bucket`, so those fields no longer exist and it is always 'unspecified'. Also, `route_total` coalesces generic fields such as prefix_count and count, so `network:bgp_neighbor` prefix counts are summed as EVPN routes in RT_OTHER.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0052-UC-18.3.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The EVPN route-type bucketing idea and the detailedImplementation are specific and useful. However, the CIM mapping does not fit the signal, several add-on IDs conflict with the grounding, the prose thresholds are meaningless and disagree with the SPL and the walkthrough, and the shipped SPL ends in a timechart that cannot support the described alert.",
+  "tier": "triage",
+  "uc_id": "UC-18.3.10",
+  "verdict": "incorrect"
+}

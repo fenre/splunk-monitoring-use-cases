@@ -1,0 +1,167 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "d0176f9512776b01b29e11c4b8944d8541ee70ee1f32552c73d519d1e476ab33",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.27.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/image/prune/",
+      "explanation": "The Docker prune commands (`docker image prune`, `docker system prune`) document `--all`, `--filter` and `--force` but no `--dry-run` option. The test would fail with an unknown flag, and the `flag_dry`, `reclaim_predicted_gb` and RECLAIM-MISMATCH logic and 'dry-run bytes' data source all rely on a dry-run that does not exist in the stock CLI.",
+      "field": "detailedImplementation",
+      "quote": "run docker image prune --dry-run on a lab host and confirm a single execve line lands in Splunk",
+      "severity": "blocker",
+      "suggested_fix": "Remove the dry-run claims or describe a custom wrapper that estimates reclaim (for example from `docker system df`) before pruning. Confirm against the current Docker CLI reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL does not group by host and output a `max`. It emits one row per event with five severities (UNSAFE-FLAG-COMBO, RECLAIM-MISMATCH, CRON-MISSED, LARGE-MANUAL-PRUNE, OK). The >50 GB threshold only drives LARGE-MANUAL-PRUNE, and the sourcetype list names only `docker:events` while three sourcetypes are searched.",
+      "field": "description",
+      "quote": "grouped by `host_id`. Outputs `max` each `the scheduled window`; alert when `reclaim_actual_gb` > 50.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output: prune events and snapshots per host with flag checks, reclaim delta and SLA state, and list the five severities and their triggers."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "With `latest=@h` the search never sees events from the current hour, so a five-minute schedule only produces new information hourly and alerts lag by up to an hour. The detailed text also says the SPL window lets `streamstats` see paired snapshots 'when collectors run at least hourly', which conflicts with a five-minute pairing intent.",
+      "field": "cross_field",
+      "quote": "schedule every five minutes on business-critical pools ... time range earliest=-24h@h latest=@h",
+      "severity": "major",
+      "suggested_fix": "Use the same time boundaries as the schedule (for example `latest=now`), or schedule hourly and say alerts are delayed by up to one hour."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL's three multisearch arms read only `docker:events`, `auditd:execve` and `docker:system_df`. The syslog, journald, `docker:audit:prune_log` and `docker:inspect` sources, exit codes and the 'success and exit status' signal are listed but never used, so CRON-MISSED cannot see whether a timer actually succeeded.",
+      "field": "dataSources",
+      "quote": "sourcetype=syslog or structured systemd journald exports for CRON, docker-prune.service, docker-prune.timer ... sourcetype=docker:audit:prune_log for custom HEC events from Ansible, Salt, or CI runners",
+      "severity": "major",
+      "suggested_fix": "Add the cron and prune_log arms to the search, or mark those sources as optional enrichment that is not part of the delivered detection."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide names Splunk Connect for Docker (Splunkbase 3303, logging-driver based) and shows `docker events` going to a file for a forwarder, while sibling UCs cite Splunkbase 4496. No Splunkbase ID is given here, and an add-on with a `docker events` modular input and `docker df` inputs is not confirmed. The reference link also points to a Splunk docs path that needs checking.",
+      "field": "app",
+      "quote": "Splunk Add-on for Docker (Splunk_TA_docker) for modular docker events and docker df style inputs",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the Splunkbase entry and the exact add-on name and ID, and use the sidecar or scripted-input approach in the guide if no such add-on exists. Resolve the 3303/4496 discrepancy."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for Unix and Linux is believed to ingest audit.log as `linux_audit`, not `auditd:execve`. Auditd writes the process name and executable (`comm`, `exe`) in a SYSCALL record and the arguments (`a0=`, `a1=`) in a separate EXECVE record, so a single-event match on `comm=\"docker\"` plus 'prune' may never succeed.",
+      "field": "dataSources",
+      "quote": "sourcetype=auditd:execve from Linux auditd rules on /usr/bin/docker and /usr/local/bin/docker execve lines",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetype the add-on produces and show a sample record. Explain how SYSCALL and EXECVE records are combined, or use the audit key (`-k docker_prune`) with PROCTITLE."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/events/",
+      "explanation": "Docker emits explicit `prune` events (for example image or container prune) that carry the reclaimed bytes, but the UC does not use them. The `builder:prune` action and the Action-field naming (`Type:Action` as 'image:delete') should be checked against the events reference. `network:remove` is listed but not matched by the SPL.",
+      "field": "dataSources",
+      "quote": "Action values image:delete, container:destroy, volume:destroy, network:remove, and builder:prune",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the real Action and Type values in the Docker events reference. Consider the prune events and their `reclaimed` attribute as the reclaim source."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL is not byte-identical to the `spl` field: the `spl` field builds ids and `flags_compact` with the `.` concatenation operator while the fenced copy uses `strcat()`. The text also says the closing table lists 'twelve columns' but the table has 17.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte:",
+      "severity": "major",
+      "suggested_fix": "Keep one version of the SPL and remove the byte-for-byte claim. Correct the column count."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Meta commentary describing the document itself, in a text of more than 15,000 characters with a very long Step 1 and repeated 'Differentiation recap' paragraphs. This makes the guidance hard to follow.",
+      "field": "detailedImplementation",
+      "quote": "Closing: Step 5 lists twelve numbered troubleshooting cases covering stream gaps, audit path drift",
+      "severity": "minor",
+      "suggested_fix": "Remove self-referential closing text and trim repeated governance and recap paragraphs."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "None of the described add-ons or inputs maps Docker prune events into the Change model, and the main SPL does not use CIM. The CIM search filters on `Change.vendor_product=\"Docker\"` and `Change.command`, which only exist if custom tagging is added. The text does not say how to produce it.",
+      "field": "cimModels",
+      "quote": "Accelerate Splunk CIM Change.All_Changes summaries when docker prune automation is normalized into Change with command and user fields",
+      "severity": "major",
+      "suggested_fix": "Either document the field aliases and tags that normalize docker events and auditd into Change, or leave cimModels empty."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "A list of server models has no bearing on docker prune auditing, and the claim that auditd and docker events 'behave consistently' on them is unsupported.",
+      "field": "hardware",
+      "quote": "fleet SKUs such as Dell PowerEdge R750, HPE ProLiant DL360 Gen11, Lenovo ThinkSystem SR650 V3, and AWS Graviton m7g instances",
+      "severity": "major",
+      "suggested_fix": "Remove the hardware list and keep only real requirements (Linux with auditd, Docker Engine, clock sync)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "'verified' is claimed with a repository handle as the reviewer, not evidence of SME sign-off. Key mechanics (dry-run flag, auditd record format, reclaim pairing) look unverified.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"@splunk-monitoring-use-cases\"",
+      "severity": "major",
+      "suggested_fix": "Lower the status until an SME has run the pre/post pairing on a real host."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide uses sourcetype `docker:event` (singular) and index `container` for Docker events, while this UC and several siblings use `docker:events` and `oti_containers`. The guide and the siblings disagree on the sourcetype.",
+      "field": "dataSources",
+      "quote": "index=oti_containers sourcetype=docker:events",
+      "severity": "minor",
+      "suggested_fix": "Align with the guide or document the sourcetype and index mapping."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats window=2 current=t last(reclaim_b)` returns the current row's own value, so `prev_reclaim` equals `reclaim_b` and `reclaim_actual_gb` is always 0 (or null) instead of the pre/post delta. The window also counts non-df rows from the other lanes. LARGE-MANUAL-PRUNE and RECLAIM-MISMATCH therefore cannot fire.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search covers 24 hours but CRON-MISSED compares `time_since_last_scheduled` with 168 and 192 hour thresholds. A host with df snapshots but no prune in 24 hours gets 9999 hours and fires daily on weekly schedules, and hosts with no events at all produce no row. `last_prune_ts` also includes manual and engine-event prunes, so any manual prune hides a missed cron job.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The leading `comment(\"...\")` is a single-backtick macro call, so it needs a `comment(1)` macro to exist; otherwise the search fails. Inline comments normally use triple backticks. The `-a` regex `\\s-a\\s` will not match auditd arguments written as `a3=\"-a\"`. The table returns every row including `OK` severity with no filter, so an alert on this search fires continuously.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`appendcols` pairs the Change results with Inventory results by row position, not by host, so the host context is misaligned. The Change search relies on `vendor_product=\"Docker\"` and `command` values that may not be populated.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0040-UC-3.1.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "An ambitious governance UC with real design thinking, but the central pre/post reclaim logic depends on a `--dry-run` prune flag that Docker does not appear to offer, the search window cannot support the weekly cadence checks, and the prose, CIM variant and setup steps do not match the SPL. The 'verified' status and server-hardware text are not supported.",
+  "tier": "triage",
+  "uc_id": "UC-3.1.27",
+  "verdict": "incorrect"
+}

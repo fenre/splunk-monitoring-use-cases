@@ -24,6 +24,7 @@ from splunk_uc.review._ledger import (
     rel_file,
     uc_id_of,
 )
+from splunk_uc.review._routing import triage_routing_reasons
 
 CALIBRATION_ROOT = REVIEW_ROOT / "calibration"
 SET_PATH = CALIBRATION_ROOT / "set.json"
@@ -222,16 +223,7 @@ def score_candidate(
 
 
 def _routes_to_deep(triage: dict[str, Any]) -> bool:
-    """Triage-driven part of the deep routing rule (see ``_runner.deep_routing_reasons``)."""
-    if any(
-        f.get("dimension") == "correctness" and f.get("severity") in GATED_SEVERITIES
-        for f in triage.get("findings", [])
-    ):
-        return True
-    if any(f.get("severity") == "blocker" for f in triage.get("firewalled_field_flags", [])):
-        return True
-    confidence = triage.get("confidence")
-    return isinstance(confidence, (int, float)) and confidence < 0.6
+    return bool(triage_routing_reasons(triage))
 
 
 def load_json(path: Path) -> dict[str, Any]:

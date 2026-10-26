@@ -1,0 +1,76 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c1f33440fabc048b3df277fa3c848bad371534238400a48dd52815a2f2856018",
+  "file": "content/cat-15-data-center-physical-infrastructure/UC-15.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The implementation relies on weather context, but the SPL applies a fixed `econ_hours < 4` per day regardless of outdoor temperature, so summer or very cold days will alert even though the economizer is not expected to run.",
+      "field": "cross_field",
+      "quote": "Compare economizer hours to weather bin data. Investigate AHU with low free-cooling in mild weather.",
+      "severity": "major",
+      "suggested_fix": "State that the fixed 4-hour threshold is a starting value and must be applied only on days when outdoor conditions allow free cooling, or describe how to join OA temperature (oa_temp_f / enthalpy_ok) before alerting."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "`econ_hours` is a count of events in economizer mode, which equals hours only if the source emits one event per hour; the sample interval is never stated, so the threshold's meaning is unclear.",
+      "field": "description",
+      "quote": "Outputs `sum` each `1d`; alert when `econ_hours` < 4.",
+      "severity": "major",
+      "suggested_fix": "State the expected poll interval (for example one event per hour or per 5 minutes) and convert the event count to hours accordingly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The false-positive list uses generic template scenarios and a `src` field that is not in the SPL; it omits the real causes: hot or humid seasons, enthalpy lockout, planned damper maintenance, and sensor outages that produce few events.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `src` without crossing `econ_hours` < 4",
+      "severity": "major",
+      "suggested_fix": "List seasonal lockout, enthalpy limits, AHU maintenance and missing BMS data as the genuine causes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The text repeats headings four times and then restarts Steps 1 to 5 with generic boilerplate (`list_inputs`, HTTP 401/429 from vendor endpoint, 'throttle per entity') that does not apply to a BMS economizer feed.",
+      "field": "detailedImplementation",
+      "quote": "Step 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize\nStep 4 — Operationalize",
+      "severity": "major",
+      "suggested_fix": "Collapse to one set of steps specific to the BMS economizer feed: confirm `mode` values, poll interval, and AHU naming."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Universal Forwarder is not a Splunkbase app, 617 is not in the cached catalog, and the `bms:economizer` sourcetype and `mode=\"economizer\"` value are not in the grounding guide (which only lists bacnet:metrics / bacnet:event).",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the real BMS ingestion path and whether `mode` takes the literal value \"economizer\"; document the actual values."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`timechart ... sum(...) as econ_hours by ahu_id` produces one column per ahu_id, not an `econ_hours` column, so `| where econ_hours < 4` matches nothing; the search needs stats/bin by _time, ahu_id (or untable/foreach) before the threshold.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0022-UC-15.2.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The intent (low free-cooling hours per AHU per day) is understandable, but the SPL does not produce the column it filters on, and the 4-hour threshold and the 'compare to weather' advice are not reflected in the search.",
+  "tier": "triage",
+  "uc_id": "UC-15.2.15",
+  "verdict": "rewrite"
+}

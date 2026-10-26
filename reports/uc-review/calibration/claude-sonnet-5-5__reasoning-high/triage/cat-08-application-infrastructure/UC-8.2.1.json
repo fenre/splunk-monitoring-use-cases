@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3b8ac22ab4b32a17ff1dd959c452e2839d5b221ab8a04002465330735958a814",
+  "file": "content/cat-08-application-infrastructure/UC-8.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/application-servers.md",
+      "explanation": "The repository guide identifies TA-jmx as Splunkbase 2647 and says it is installed on a Heavy Forwarder. Splunkbase 617 is attached to TA-jmx here and is not in the cached catalog, so a reader would look up the wrong app.",
+      "field": "app",
+      "quote": "`TA-jmx`, OpenTelemetry — Universal Forwarder (Splunkbase 617)",
+      "severity": "blocker",
+      "suggested_fix": "Cite TA-jmx as Splunkbase 2647 (installed on a Heavy Forwarder) and drop the 'Universal Forwarder (Splunkbase 617)' wording."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/application-servers.md",
+      "explanation": "dataSources says the feed arrives via a Universal Forwarder, while implementation and detailedImplementation Step 1 say to deploy the JMX TA on a heavy forwarder. TA-jmx is a polling add-on, not a Universal Forwarder input. The sentence is also the same boilerplate used by every sibling UC.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "State that TA-jmx polls the java.lang:type=Memory MBean from a Heavy Forwarder into index=jmx with sourcetype jmx:memory. Mention the Prometheus JMX exporter only if a separate ingest path for it is documented."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "implementation says to poll every minute, but the second Step 1 in detailedImplementation says the poll interval is 300-900 seconds. The two steps give conflicting guidance for the same setup. The generic text also refers to a vendor API and HEC token that do not apply to JMX polling.",
+      "field": "cross_field",
+      "quote": "Poll memory MBeans every minute. | Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Keep one JMX polling interval that matches the 5-minute SPL span and remove the duplicated generic Step 1-4 block that refers to vendor APIs and HEC."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "evidence_ref": "docs/guides/application-servers.md",
+      "explanation": "The second half of detailedImplementation is generic template text. It talks about vendor admin UI inventory, vendor API 401/429 errors and an owner lookup, none of which exist in this JMX heap search. It does not give the concrete setup steps from the guide: JMX remote flags, jmx.conf stanza for java.lang:type=Memory with HeapMemoryUsage, and access credentials.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Replace the generic steps with JMX-specific ones: enable remote JMX on the JVM, add a memory stanza in TA-jmx for java.lang:type=Memory (HeapMemoryUsage, NonHeapMemoryUsage), and validate with a search on sourcetype=jmx:memory."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/application-servers.md",
+      "explanation": "The guide's playbook trigger is heap above 85% sustained for 5 minutes. The SPL averages over a 5-minute bucket, which is similar but not stated, so the reader cannot tell the alert grain.",
+      "field": "implementation",
+      "quote": "Alert at 85% heap usage.",
+      "severity": "minor",
+      "suggested_fix": "State that the alert fires when the 5-minute average heap percentage per host exceeds 85."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/application-servers.md",
+      "explanation": "The repository guide validates with index=jvm and sourcetype jmx:*, while this UC uses index=jmx. Both are local choices, but the difference is not called out.",
+      "field": "detailedImplementation",
+      "quote": "index=jmx sourcetype=\"jmx:memory\"",
+      "severity": "minor",
+      "suggested_fix": "Note that the index name is a deployment choice and align it with the guide (index=jvm), or say that index=jmx is a placeholder."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses jargon (JVM heap, OutOfMemoryError). It also states a consequence rather than saying what is watched: the share of memory a Java program has used and an alert at 85%.",
+      "field": "grandmaExplanation",
+      "quote": "We watch for signs that JVM heap exhaustion causes OutOfMemoryError, crashing the application.",
+      "severity": "major",
+      "suggested_fix": "Rewrite in plain words, for example: 'We check how full a Java program's working memory is and warn the team when it passes about 85%, before the program runs out and stops.'"
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "consistency",
+      "explanation": "dataSources and equipment list Prometheus, but the SPL only uses sourcetype jmx:memory with HeapMemoryUsage.used and HeapMemoryUsage.max, which come from TA-jmx. Check whether Prometheus JMX exporter data would populate those field names and sourcetype.",
+      "field": "equipmentModels",
+      "quote": "Prometheus JMX exporter",
+      "severity": "needs_verification",
+      "suggested_fix": "Remove the Prometheus JMX exporter mention, or document a separate ingest path and field mapping for it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search uses `timechart ... by host` and then `where heap_usage > 85`. After a split-by timechart the output columns are the host names, so a column named heap_usage does not exist and the where clause will not filter as intended. Use bin plus stats by _time, host, then where, or filter before the timechart.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The eval references HeapMemoryUsage.used and HeapMemoryUsage.max without single quotes. Dotted field names inside eval normally need single quotes ('HeapMemoryUsage.used'). The guide's sample SPL has the same form, so confirm how TA-jmx JSON fields are extracted.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0011-UC-8.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The detection idea (JVM heap above 85%) is sound, but the app field cites a Splunkbase ID that contradicts the repository guide, and the text mixes heavy-forwarder and universal-forwarder collection with conflicting poll intervals. The grandma explanation restates a consequence rather than the detection.",
+  "tier": "triage",
+  "uc_id": "UC-8.2.1",
+  "verdict": "incorrect"
+}

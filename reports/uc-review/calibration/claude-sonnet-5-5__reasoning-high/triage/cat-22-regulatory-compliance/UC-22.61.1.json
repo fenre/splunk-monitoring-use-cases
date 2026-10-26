@@ -1,0 +1,149 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "7aa7cb01f0fc4a70e0cf8349431c6fe5a014135c4d7b5b13c557f506e4bdb5dc",
+  "file": "content/cat-22-regulatory-compliance/UC-22.61.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The search reads a KV Store lookup with `inputlookup`. There is no index, sourcetype, `count` or `entity` field. The description leaves template placeholders and never says that one row is one registered system whose filing or assessment is missing, overdue or about to be due.",
+      "field": "description",
+      "quote": "on `index=target_index` sourcetype `configured sourcetype`. Combines `count` by `entity` and compares against `days_since_assessment` > 365",
+      "severity": "major",
+      "suggested_fix": "Describe the real input: systems in `cn_mlps_register_lookup` flagged for a missing filing receipt, an overdue or upcoming assessment, or an expired assessor accreditation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The MPS rules, as commonly cited, require Level 3 systems to be assessed at least yearly and Level 4 at least every six months, with Level 5 assessed according to special security requirements. A fixed quarterly (92-day) cycle for Level 5 appears to be invented. The same claim appears in the compliance rationale ('Level 5 quarterly') and the SPL.",
+      "field": "cross_field",
+      "quote": "mlps_grade = \"L4\", 183 - days_since_assessment,\n    mlps_grade = \"L5\", 92 - days_since_assessment",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current MPS measures for Level 5 assessment frequency and cite the source. If none is fixed, make the Level 5 interval a configurable register field."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "GB/T 22239-2019 is the baseline of security requirements for each level. The grading method (how a system's level is determined) is defined in the separate classification guide, GB/T 22240. The §6.1 reference and 'Level 1 threshold' may be wrong.",
+      "field": "exclusions",
+      "quote": "below the MLPS Level 1 threshold defined by GB/T 22239-2019 §6.1",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the clause and standard that define grading, and cite it correctly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The search is an `inputlookup` over a KV Store with no CIM data model, and no cimSpl exists. Mapping to Change and Inventory is unsupported. Likewise the dataSources entry `snow:cmdb_ci` and the ServiceNow add-on, CIM add-on and ES are listed, but the SPL uses none of them.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [ \"Change\", \"Inventory\" ]",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty for this register tracker, or document how CMDB data is joined. Remove or justify the unused add-ons. Mark ES as optional for the `notable` action."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The second set of Steps 1 to 5 is generic template text appended after the PRC-specific steps. It talks about modular inputs, HEC, `index=main`, a vendor API and `tstats`, none of which apply to a KV Store register. It also contradicts the earlier Step 1 and Step 2 headings.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=see SPL into index=main. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Delete the generic block, or replace it with checks relevant to a KV Store (collection permissions, lookup population, record freshness)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "This is a collections.conf stanza, but the SPL uses `| inputlookup cn_mlps_register_lookup`, which is a lookup definition in transforms.conf (external_type = kvstore, collection = ...). The text does not mention that definition, so the search would fail on a fresh install. The summary_index marker `mlps_grade=$mlps_grade$` also uses a result token form that may not resolve (`$result.mlps_grade$` is the usual form).",
+      "field": "detailedImplementation",
+      "quote": "[cn_mlps_register_lookup]\nenforceTypes = true\nfield.system_id = string",
+      "severity": "major",
+      "suggested_fix": "Add the transforms.conf lookup stanza and its permissions, state the collection name, and use the correct result-token syntax or remove it."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The China Banking and Insurance Regulatory Commission was folded into the National Financial Regulatory Administration (NFRA) in 2023, so the example is outdated.",
+      "field": "detailedImplementation",
+      "quote": "CBIRC for finance",
+      "severity": "minor",
+      "suggested_fix": "Use NFRA (and check PBOC or CSRC where appropriate) as the sector protection department example."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "QSA, BAA and DPA are PCI/HIPAA terms, `configured sourcetype` is a placeholder, and the scenarios do not match a register freshness check. Real causes are missing: assessment completed but register not yet updated, decommissioned systems still listed, grade under re-evaluation, and an empty-string receipt not being treated as missing.",
+      "field": "knownFalsePositives",
+      "quote": "External assessor sampling** — QSA activity spikes `index=audit_evidence` `configured sourcetype` without crossing `days_since_assessment` > 365.",
+      "severity": "major",
+      "suggested_fix": "Replace with register-specific causes and the project_status handling."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The sidecar claims verified status and a named SME panel, but all three compliance entries and the splunkbaseApps entries carry `requires_sme_review: true`. The text also relies on a manually maintained lookup, so it proves the register is current, not that the system complies.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"PRC Cybersecurity SME Panel + CISO + PRC Compliance Lead\"",
+      "severity": "major",
+      "suggested_fix": "Align status and review flags; say clearly that the UC tracks register data entered by the compliance team."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "Plain language, but it generalises: filing applies from Level 2, and the yearly re-check only to Level 3 and above, with shorter cycles at higher levels. 'We make sure no system slips past' is also more than a register check proves.",
+      "field": "grandmaExplanation",
+      "quote": "China requires every important computer system to be graded by how sensitive it is, registered with the police cyber-unit, and re-checked every year by an approved tester.",
+      "severity": "minor",
+      "suggested_fix": "Say 'the more sensitive systems' are re-checked on a fixed schedule, and that the check watches the register for gaps and due dates."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The link goes to the MPS home page, not to the notice. The generic Splunk documentation link is not specific to KV Store lookups.",
+      "field": "references",
+      "quote": "MPS Notice on Implementing the Multi-Level Protection Scheme (2018)",
+      "severity": "minor",
+      "suggested_fix": "Link the actual notice or measures document, and add Splunk's KV Store lookup documentation."
+    },
+    {
+      "confidence": 0.4,
+      "dimension": "clarity",
+      "explanation": "The industry is Manufacturing, but the UC and its sibling UCs apply to all network operators in the PRC. Likewise `isnull(mps_filing_receipt)` will miss receipts stored as empty strings, which is the normal KV Store state for a blank field.",
+      "field": "cross_field",
+      "quote": "\"industry\": \"Manufacturing\"",
+      "severity": "minor",
+      "suggested_fix": "Use a generic industry value and treat empty strings as missing in the SPL description."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "compliance",
+      "issue": "All three entries use mode 'satisfies' with assurance 'full'. A register tracker with manually entered dates cannot fully satisfy CSL Art. 21 or the MLPS Level 3 and annual-assessment duties. The clause identifiers 'MLPS-2-0-L3' and 'MLPS-2-0-annual' are not real clause numbers and the version string is unusual.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "'N/A (regulatory governance)' is not a valid technique identifier. Use an empty list.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Level 5 assessment interval of 92 days is questionable (see correctness finding). The `isnull(mps_filing_receipt)` test will miss empty strings.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0035-UC-22.61.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Unusually well tailored: the register-based SPL, KV Store schema, risk tiers and PRC-specific notes are concrete and credible. The remaining problems are template residue in the description, false-positive and generic setup text, a Level 5 interval that looks invented, CIM and app mappings the SPL does not use, and a 'verified' status that contradicts the SME-review flags.",
+  "tier": "triage",
+  "uc_id": "UC-22.61.1",
+  "verdict": "rewrite"
+}

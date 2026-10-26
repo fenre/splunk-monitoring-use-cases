@@ -1,0 +1,118 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "fe13fa5a2e514524ef214788de3c0983d7e809e8406a4ef876095aae1bb5d8dc",
+  "file": "content/cat-21-industry-verticals/UC-21.5.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The description never says what an upset is (alarm_state change, tag deviation, trip), which signals are correlated, or what makes a result row. Nothing in the text or SPL defines the correlation. 'Operational risk before it impacts ... service delivery' fits any UC in the subcategory.",
+      "field": "description",
+      "quote": "Monitors refinery dcs unit upset correlation using `oil:refinery:dcs` telemetry in `index=oilgas` to surface operational risk",
+      "severity": "major",
+      "suggested_fix": "State the actual rule, for example: units with alarm_state transitions or out-of-range tags within the same window, correlated by unit_id, and the window and trigger used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation text and Step 4 describe threshold tuning against a baseline. The SPL has no threshold (`where event_count > 0` is true for every group) and no baseline calculation. A row is produced for any unit that emits any event.",
+      "field": "cross_field",
+      "quote": "tune thresholds using a 14-day baseline.",
+      "severity": "major",
+      "suggested_fix": "Either describe the real condition (any event per unit) as an inventory report, or add the baseline/threshold logic to the SPL and describe it in the prose."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL shown in Step 2 is different from the spl field. It groups by hour with no unit_id and outputs different columns (distinct_hosts versus distinct_assets and unit_id). A reader following the guide builds a different search from the one catalogued.",
+      "field": "detailedImplementation",
+      "quote": "| stats count as event_count dc(host) as distinct_hosts by _time span=1h\n| where event_count > 0\n| table _time event_count distinct_hosts",
+      "severity": "major",
+      "suggested_fix": "Use the same SPL in both places and explain its output columns."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The `*` is a leftover placeholder for a filter pattern that does not exist in the SPL. The same placeholder is in controlTest ('matching `*`', 'without `*` markers'), so the test cannot be executed. Step 3 also says to compare with 'SCADA HMI, EHR interface engine, POS gateway, OSS/BSS console', which is cross-vertical boilerplate.",
+      "field": "detailedImplementation",
+      "quote": "applies `*` to surface `Refinery DCS unit upset correlation`",
+      "severity": "major",
+      "suggested_fix": "Remove the placeholder and name the real match condition. Validate against the refinery DCS operator console or alarm journal for the same unit and time range."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "No fields are named. The SPL needs unit_id, tag_name, value, alarm_state and host, but nowhere does the text say which of these the DCS feed provides or how to map them.",
+      "field": "implementation",
+      "quote": "Normalize field extractions in props/transforms for the Oil, Gas, and Mining feed.",
+      "severity": "minor",
+      "suggested_fix": "List the required fields (unit_id, tag_name, value, alarm_state) and say how a DCS or historian export is mapped onto them."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The SPL uses only a raw index and sourcetype and needs neither app. The grounding names 5180 'Splunk Operational Technology Intelligence (OTI)' and 5151 'OT Security Add-on for Splunk' (DA-ESS-OTSecurity), so the product name is slightly off. Listing them as install prerequisites suggests a dependency the search does not have.",
+      "field": "app",
+      "quote": "Splunk OT Intelligence (Splunkbase 5180), OT Security Add-on (Splunkbase 5151)",
+      "severity": "minor",
+      "suggested_fix": "Say that the apps are optional enrichment, correct the 5180 product name, and note the ES dependency of 5151 if it is kept."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "UC-21.5.1 is pipeline pressure and flow anomaly detection on a different sourcetype (pipeline SCADA). It does not provide the refinery DCS feed that this UC needs, so listing it as a prerequisite is not meaningful.",
+      "field": "detailedImplementation",
+      "quote": "prerequisite UC: 21.5.1 when applicable",
+      "severity": "minor",
+      "suggested_fix": "Remove the prerequisite or replace it with a UC that establishes the oil:refinery:dcs ingestion."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "A refinery DCS is neither pipeline equipment nor necessarily an Edge Hub source. The tags look inherited from sibling pipeline UCs.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"edge_hub\", \"oilgas\", \"pipeline\"]",
+      "severity": "minor",
+      "suggested_fix": "Tag the actual DCS vendor or platform, or drop the pipeline tag."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence repeats the lowercased title and keeps the DCS acronym and 'correlation' unexplained. It does not say what the unit-level signal is.",
+      "field": "grandmaExplanation",
+      "quote": "signs of refinery dcs unit upset correlation",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We watch the control system of a refinery unit and flag it when its alarms and readings go out of normal range, so operators can step in early.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats ... by unit_id` removes _time, tag_name, value and alarm_state, so the final `table _time unit_id tag_name value alarm_state` returns empty columns for four of five fields. `where event_count > 0` never filters anything. The search does not correlate upsets.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T0809 is an ATT&CK for ICS technique ID that I believe is 'Data Destruction'. It does not obviously fit a process-upset correlation use case, which has no security detection logic. Check the mapping on attack.mitre.org.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0074-UC-21.5.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 1,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The title promises correlation of refinery DCS unit upsets, but nothing in the UC defines an upset or correlates anything. The search just counts events per unit, the prose refers to thresholds and a placeholder pattern that do not exist, and the documented SPL differs from the spl field.",
+  "tier": "triage",
+  "uc_id": "UC-21.5.14",
+  "verdict": "rewrite"
+}

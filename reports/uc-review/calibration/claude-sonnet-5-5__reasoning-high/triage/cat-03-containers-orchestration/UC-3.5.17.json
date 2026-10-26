@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "29d325aa7bf43fac782857ec30951d5682850c1344f31e023ca6953382a68940",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.17.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide lists Splunk Connect for Kubernetes as Splunkbase 3743, and 5167 is not in the cached catalog. The same field already names the Splunk Distribution of OpenTelemetry Collector as the collector, so the trailing SCK reference is also contradictory.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the SCK reference or correct it to 3743. Keep only the OTel Collector with the k8sobjects receiver and the Prometheus receiver for kube-state-metrics."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "SCK is not a modular input, and the implementation says everything is collected by the OTel Collector, so the sentence contradicts it. The five-sourcetype requirement also overstates the SPL, which uses only kube:objects:resourcequotas and kube:events. kube:objects:limitranges, kube:pod:status and otel:metrics are not searched by it.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "needs_verification",
+      "suggested_fix": "State the OTel Collector as the only collection path, and mark limitranges, pod status and metrics as optional or remove them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
+      "explanation": "Capacity is not a CIM data model, and the CIM overview lists no such model. Performance covers host CPU, memory, storage and network metrics, not Kubernetes ResourceQuota objects. The mapping is invalid as written.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Capacity\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Capacity. Keep Performance only if kube-state-metrics are actually mapped to it, otherwise leave cimModels empty."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "cpu_hard, mem_hard and pods_hard are the configured quota sizes, so 'greater than 0' would fire on any namespace that has a quota. The SPL actually tiers by max_util at 50, 70, 85 and 95 percent and does not alert on cpu_hard. The description also names 'Primary focus: LimitRange Compliance', which no search implements.",
+      "field": "description",
+      "quote": "alert when `cpu_hard` > 0, `mem_hard` > 0, `pods_hard` > 0, or `max_util` >= 95",
+      "severity": "major",
+      "suggested_fix": "Describe the real detection: utilization of used versus hard CPU, memory and pods per namespace and quota, with risk tiers at 50, 70, 85 and 95 percent. Describe quota rejection events and the 30-day trend separately."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation and dataSources promise LimitRange compliance and pod-spec checks, and visualization promises 'soonest forecasted exhaustion', but none of the three searches reads kube:objects:limitranges or kube:pod:status. The third search only computes a 7-day SMA and no forecast. Step 1 says the SPL must convert millicores and Gi units, yet the SPL does no conversion.",
+      "field": "cross_field",
+      "quote": "comparing each pod's resource specifications against the namespace's LimitRange constraints",
+      "severity": "major",
+      "suggested_fix": "Either remove the LimitRange and forecast claims, or have the SPL owners add the missing searches. State that quantities like 500m and 8Gi need conversion that the SPL does not currently provide."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "ResourceQuota is enforced by the built-in ResourceQuota admission plugin, not by an admission webhook. Controllers emit FailedCreate events with the 'exceeded quota' message. A direct create returns a 403 to the client but is not normally a Kubernetes event with reason Forbidden.",
+      "field": "detailedImplementation",
+      "quote": "**Reason**: `Forbidden` — the **API server admission webhook** rejected the request",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which events are actually emitted on a cluster with a tight quota and describe the ResourceQuota admission controller correctly. Drop reason=Forbidden from the description and the SPL if it never occurs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "mstats works only on metrics indexes, while every other search and validation step treats index=containers as an event index, with sourcetype=kube:events and kube:objects searched as events. One index cannot be both.",
+      "field": "detailedImplementation",
+      "quote": "| mstats count(kube_resourcequota) WHERE index=containers BY namespace, resource span=5m | head 20",
+      "severity": "needs_verification",
+      "suggested_fix": "Decide whether kube-state-metrics go to a separate metrics index, then use that index in mstats. Alternatively search otel:metrics as events consistently."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation depends on UC-3.5.16 for the events receiver, but prerequisiteUseCases lists UC-3.6.4 and not UC-3.5.16.",
+      "field": "cross_field",
+      "quote": "already collects Warning events (configured in UC-3.5.16)",
+      "severity": "minor",
+      "suggested_fix": "Add UC-3.5.16 to prerequisiteUseCases or describe the k8s_events receiver setup in this UC. Confirm what UC-3.6.4 contributes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated 'agent-handcraft' identity, so there is no SME sign-off. The SPL cannot return correct utilization and the app ID is wrong, so verified is not supportable.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to a non-verified value until a Kubernetes SME runs the searches against real ResourceQuota events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The first and third searches use eval coalesce(\"metadata.namespace\", namespace) and coalesce(\"status.hard.requests.cpu\", ...) with double-quoted names. In eval, double quotes create string literals, so ns, quota_name and every cpu or memory value become those literal strings and not the spath-extracted fields. Single quotes around dotted field names are required. As written, utilization is 0 or null for every quota and the searches return nothing meaningful.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "ResourceQuota values such as '500m', '8Gi' and '20' are strings. The SPL divides them directly, or calls tonumber on unit-suffixed strings, which returns null for 500m and 8Gi. CPU and memory percentages need a unit-conversion step. The third search also runs trendline across all namespaces together after a stats by _time, ns, which mixes series.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title includes LimitRange Compliance, but no search evaluates LimitRange objects or pod resource defaults.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0043-UC-3.5.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation text is detailed about ResourceQuota and kube-state-metrics, but the description promises LimitRange compliance and thresholds the SPL does not implement. The SPL reads dotted fields through quoted strings, so it cannot work as written. The app cites the wrong Splunkbase ID and cimModels lists a model that is not part of CIM.",
+  "tier": "triage",
+  "uc_id": "UC-3.5.17",
+  "verdict": "incorrect"
+}

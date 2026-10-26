@@ -1,0 +1,109 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "ccb9451987cc6efc9a4994ef8b1eaf24887e0f7ec9f7fb3c4be2dd239a542e9e",
+  "file": "content/cat-12-devops-ci-cd/UC-12.7.3.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked `status: verified` with reviewer `catalog-team`, but nothing shows SME sign-off or a run against real Argo CD repo-server logs. The add-on, the field extractions (repo_url_host, component, pod_name) and the log strings it matches are unconfirmed.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an Argo CD operator has tested the search against real repo-server logs and a named reviewer is recorded."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No 'Splunk Add-on for Argo CD' is known from the repository, and Splunkbase 617 is not in the cached catalog. A Universal Forwarder is not an add-on. Check whether the add-on exists and what 617 is.",
+      "field": "app",
+      "quote": "Splunk Add-on for Argo CD, Kubernetes log collector with pod labels — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the real collection path, for example Splunk Distribution of OpenTelemetry Collector or Splunk Connect for Kubernetes collecting repo-server pod logs, and drop the add-on name and Splunkbase 617 unless verified."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation describes alerting on sustained errors over 15 minutes and a miss rate compared with a 7-day baseline. The SPL and description page on any conn_errors > 0 in a single 5-minute bucket, or miss_rate > 15 as a fixed threshold. A reader following the implementation text would build a different alert.",
+      "field": "cross_field",
+      "quote": "Alert on sustained conn_err > 0 for a single host over 15 minutes or cache miss_rate spikes versus 7-day baseline.",
+      "severity": "major",
+      "suggested_fix": "Make the text match the SPL (any error in 5 minutes, fixed 15% miss rate), or change the SPL to add the 15-minute persistence and baseline comparison."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The description does not say what is being counted. The 'miss rate' is cache-miss log lines divided by all repo-server log lines, not cache misses divided by cache lookups, and connection errors are regex matches on raw log text.",
+      "field": "description",
+      "quote": "Alerts on Miss Rate activity in UC-12.7.3 ('Argo CD Repo-Server Connection Errors and Manifest Cache Miss Rate')",
+      "severity": "major",
+      "suggested_fix": "Say that each row is a 5-minute window per repo host in which repo-server logs show connection or auth errors, or in which more than 15% of log lines mention a manifest cache miss."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "evidence_url": "https://argo-cd.readthedocs.io/en/stable/operator-manual/high_availability/#repo-server",
+      "explanation": "Sibling UCs use argocd:server for the notifications controller and API server logs, so the sourcetype mixes components. Check whether the repo-server writes 'manifest cache miss' lines at the default log level, since cache statistics are normally exposed as Prometheus metrics. The 'Git provider latency fields from sidecar' source is not defined anywhere.",
+      "field": "dataSources",
+      "quote": "`sourcetype=argocd:server` (repo-server pod logs), optional Git provider latency fields from sidecar",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the actual repo-server log lines and log level, and either use the Prometheus metrics for cache behavior or document the log level needed. Remove the undefined sidecar source."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The scenarios name no real cause. Real ones are Git provider outages or rate limits, repo-server restarts during rollouts that clear the manifest cache, and a Redis restart causing a temporary cache-miss spike.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `devops` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "List real causes: Git provider incidents or rate limiting, rolling restarts of argocd-repo-server, cache resets after a Redis restart, and first sync of a new large repository."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The text is generic and mismatched. The data is pod logs, not a polled API, so poll intervals and 'vendor API rate limits' do not apply. It omits how to tail the repo-server pods and how to extract repo_url_host. It also says to schedule with earliest=-24h@h, whereas the SPL buckets 5 minutes.",
+      "field": "detailedImplementation",
+      "quote": "Enable the modular input or HEC token that writes sourcetype=argocd:server into devops. Default poll interval 300–900 seconds unless the vendor API rate-limits lower.",
+      "severity": "major",
+      "suggested_fix": "Describe log collection from the argocd-repo-server pods, the field extraction for repo_url_host, component and pod_name, and a schedule and time range that match the 5-minute buckets."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The sentence is a generic GitOps line reused across UCs, with jargon (GitOps, Argo). It says nothing about the repo-server failing to reach or read the Git repositories, or about slow manifest generation.",
+      "field": "grandmaExplanation",
+      "quote": "We watch GitOps sync and Argo signals so clusters stay aligned with the desired configuration in Git.",
+      "severity": "major",
+      "suggested_fix": "Say in plain words: 'We watch the part of our deployment tool that fetches configuration from Git, and alert when it cannot reach the repositories or keeps redoing work, since updates would stall.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats ... by _time, repo_url_host` drops every event where repo_url_host is not extracted, and no extraction is documented. If the field is missing the search returns nothing. The filter `(component=repo-server OR pod_name=\"*repo-server*\")` also depends on undocumented fields.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`miss_rate` is cache-miss log lines over all log lines, not misses over cache lookups, so a threshold of 15 depends on log verbosity. The regexes for `rpc error` and `authentication required` also match unrelated repo-server messages.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0018-UC-12.7.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 1,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A sensible repo-server health idea, but it is marked verified without evidence, names an add-on that may not exist, depends on undocumented field extractions, and describes alert logic (sustained errors, baseline spikes) that its SPL does not implement. The plain-language explanation is a generic GitOps line.",
+  "tier": "triage",
+  "uc_id": "UC-12.7.3",
+  "verdict": "rewrite"
+}

@@ -40,6 +40,7 @@ from splunk_uc.review._ledger import (
     validate_record,
     write_record,
 )
+from splunk_uc.review._routing import triage_routing_reasons
 from splunk_uc.review.prompt import build_prompt, iter_batches
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -533,17 +534,7 @@ def deep_routing_reasons(
         reasons.append("status=verified")
     if category_of(path).startswith("cat-22-") and uc.get("compliance"):
         reasons.append("cat-22 compliance claim")
-    if triage:
-        if any(
-            f.get("dimension") == "correctness" and f.get("severity") in ("blocker", "major")
-            for f in triage.get("findings", [])
-        ):
-            reasons.append("triage correctness finding")
-        if any(f.get("severity") == "blocker" for f in triage.get("firewalled_field_flags", [])):
-            reasons.append("triage firewalled blocker")
-        confidence = triage.get("confidence")
-        if isinstance(confidence, (int, float)) and confidence < 0.6:
-            reasons.append("triage confidence < 0.6")
+    reasons += triage_routing_reasons(triage)
     return reasons
 
 

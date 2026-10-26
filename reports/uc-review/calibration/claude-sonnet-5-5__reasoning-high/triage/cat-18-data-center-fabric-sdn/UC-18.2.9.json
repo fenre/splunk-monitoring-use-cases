@@ -1,0 +1,137 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "69b0ee1620be273561ed6a006735a073285c70363457d803648a3caec5f784c2",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/MultivalueEvalFunctions",
+      "explanation": "`sort()` is not an SPL eval function (the multivalue function is `mvsort`), so the search copied from Step 2 fails with an unknown-function error. It also disagrees with the `spl` field, which correctly uses mvsort.",
+      "field": "detailedImplementation",
+      "quote": "| eval tep_pair_hint=mvjoin(sort(mvdedup(mvappend(src_tep_ip_seen,dst_tep_ip_seen))),\",\")",
+      "severity": "blocker",
+      "suggested_fix": "Replace `sort(` with `mvsort(` so detailedImplementation matches the `spl` field exactly."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The record is marked verified with reviewer 'agent-handcraft-2026-04-29'; no SME sign-off exists, and the NSX log tokens, API calls and CLI commands below are unverified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an NSX SME has validated the collectors, syslog tokens and thresholds in a lab."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The opening is a broken fragment (stray parenthesis, refers to UC 18.2.5 criteria although this UC is meant to go beyond binary UP/DOWN of 18.2.5). The alert logic sentence says the alert 'enforces ... `mtu_path_num` > 0, or `mtu_used_num` > 0', which is not what the SPL does: those are conditions in a comparison (path MTU more than 400 below configured MTU), not alert thresholds. The rtt >= 50 ms, probe outcome and syslog-marker triggers are not mentioned.",
+      "field": "description",
+      "quote": "Surfaces when UC 18.2.5) criteria fire for",
+      "severity": "major",
+      "suggested_fix": "Describe each trigger: loss >= 0.1%, jitter >= 1 ms, MTU issue flag or path MTU more than 400 bytes below configured MTU, bad probe outcome, RTT >= 50 ms (watch), and the three syslog markers; and state it is complementary to UC-18.2.5."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These upper-case markers are presented as strings emitted by NSX Manager syslog, but they do not look like documented NSX alarm or log event names and are not in the grounding guide. The SPL's syslog branch depends entirely on them.",
+      "field": "dataSources",
+      "quote": "**`OVERLAY_PATH_DEGRADED`**, **`MTU_MISMATCH`**, **`TUNNEL_PERFORMANCE_LOW`** markers",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify against NSX alarm/event IDs and real syslog samples (for example tunnel and TEP alarms in the NSX Event Catalog) and replace with the actual tokens."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The CLI command, the nsxdp-cli sub-commands (`netcpa stats get`, `geneve get`, `vlanstats overlay-pnic-rx-drop`) and the UI path 'System > Fabric > Hosts > <host> > Tunnels > Path Health' are stated precisely but cannot be confirmed from the grounding; they look generated. The REST path `/transport-nodes/{id}/tunnels/{tunnel-id}/stats` also needs checking against the NSX API reference.",
+      "field": "detailedImplementation",
+      "quote": "**`nsxcli -c \"get logical-overlay-tunnel <tunnel-id> stats\"`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each command, REST route and UI label on a lab NSX 4.x host and the NSX API guide; remove any that do not exist."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "The MTU figures are questionable: NSX documents a minimum of 1600 with 1700 recommended for GENEVE, and common jumbo guidance is a 9000 underlay with an 8900 overlay, not '9000 minus 50 = 8950'. The cited VMware 'MTU guidance' URL is a generic page.",
+      "field": "detailedImplementation",
+      "quote": "**`1700`** minimum envelopes versus **`8950`** jumbo envelopes minus encaps overhead",
+      "severity": "needs_verification",
+      "suggested_fix": "Quote the exact MTU requirement from the NSX MTU documentation for your version and link that page."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow/session records; per-TEP-pair loss, jitter and RTT probe results and MTU settings are not traffic events, and the dataModelAcceleration text suggests aliasing TEP IPs into Network_Traffic.src_ip/dest_ip, which would pollute traffic searches. Performance is also a poor match for network path quality.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic, state that no CIM model fits path-probe telemetry (or use a custom/metrics index), and remove the acceleration advice."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation repeatedly points to knownFalsePositives scenarios (`probe_interval_sampling_artefact`, `lag_rebalance_window`, `probe_cpu_saturation`, `tep_pool_exhaustion_onboarding`, `tor_maintenance_window`) that do not appear in the knownFalsePositives field, which holds only generic template scenarios.",
+      "field": "cross_field",
+      "quote": "chatter summarized inside knownFalsePositives",
+      "severity": "major",
+      "suggested_fix": "Write the real false-positive scenarios (probe sampling artefacts, LAG rebalance, CPU-starved probe hosts, TEP pool onboarding, top-of-rack maintenance) into knownFalsePositives or drop the cross references."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The sentence is word salad with broken markdown; it does not say which API (Manager vs Policy) provides the tunnel endpoints.",
+      "field": "app",
+      "quote": "covering **`Policy`**/`**Manager`** **`transport-node`** tunnels endpoints enumerated inside VMware **`API`** references.",
+      "severity": "minor",
+      "suggested_fix": "State that the collector calls the NSX Manager REST API `/api/v1/transport-nodes/{id}/tunnels` using session authentication."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "A macro file path is referenced as if it exists, and suppression is described without a lookup name; detailedImplementation tells the reader to paste the SPL into that macro, which is not defined anywhere in the grounding.",
+      "field": "implementation",
+      "quote": "schedule **`macros/nsxt_overlay_path_quality`** alerts with CMDB-backed suppression.",
+      "severity": "minor",
+      "suggested_fix": "Either define the macro (and where it lives) or say to save the search as an alert; name the CMDB suppression lookup."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "clarity",
+      "explanation": "A choropleth is a geographic map; rack facets are not choropleths, and `rack_id` / `site_code` are not fields produced by the SPL.",
+      "field": "visualization",
+      "quote": "Choropleth-style rack facets when **`rack_id`** lookups exist",
+      "severity": "minor",
+      "suggested_fix": "Use a heatmap or small multiples by rack and say that rack_id/site_code come from an optional lookup."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Syslog events carry no src_tn_id/dst_tn_id, so every syslog-derived row groups under an empty src_key/dst_key and collapses into one row per 5-minute bin and fault type; `transport_node_overlay_context` fires on any vmware:nsxt:transport_node event whose _raw matches a broad regex, producing noise that is not a quality fault.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title is a keyword list of about 30 words ending with 'Beyond Binary UP/DOWN UC-18.2.5' and cites another UC ID; it reads as a title-token salad and is repeated in evidence and controlTest.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0026-UC-18.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The scope separation from UC-18.2.5 is thoughtful, but the SPL pasted into detailedImplementation uses a non-existent eval function and differs from the `spl` field, the description garbles the thresholds, several NSX log tokens, CLI commands and UI paths look invented, and the sidecar is marked verified by an agent reviewer.",
+  "tier": "triage",
+  "uc_id": "UC-18.2.9",
+  "verdict": "incorrect"
+}

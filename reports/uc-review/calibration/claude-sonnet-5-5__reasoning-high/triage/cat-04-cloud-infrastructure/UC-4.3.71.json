@@ -1,0 +1,107 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "2d712277560a3cbc4c6e51a0e29948483cd091296ba7306b0541a6cda7c2ba01",
+  "file": "content/cat-04-cloud-infrastructure/UC-4.3.71.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/gcp.md",
+      "explanation": "The grounding guide lists the add-on's sourcetypes (`google:gcp:pubsub:message`, `google:gcp:monitoring`, `google:gcp:billing:report`, `google:gcp:storage`, `google:gcp:resource:metadata`, `google:gcp:scc:findings`) and has no `google:gcp:audit`. Cloud Audit Logs reach Splunk through the Pub/Sub input as `google:gcp:pubsub:message`, and sibling audit UCs (4.3.1, 4.3.2) use that sourcetype. The same wrong sourcetype is used in the SPL, the controlTest and the compliance evidenceArtifact, and detailedImplementation says to configure 'the modular input for `google:gcp:audit`', but the add-on has no such input (the guide shows `google_cloud_pubsub://`).",
+      "field": "dataSources",
+      "quote": "`index=gcp` sourcetype=`google:gcp:audit` collected via Splunk Add-on for Google Cloud Platform",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=google:gcp:pubsub:message` and describe the Pub/Sub modular input and the log sink that feeds it, consistent with UC-4.3.1."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://cloud.google.com/artifact-registry/docs/audit-logging",
+      "explanation": "`artifactregistry.repositories.create` is the IAM permission name. As far as I know, the Admin Activity audit log `methodName` for Artifact Registry is the RPC name, for example `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository`, and the permission appears in `authorizationInfo`. The same pattern is used in the controlTest scenarios and the value text, and the field may also be nested under a `data.` prefix when the event comes through Pub/Sub. The '+3 related API operations' is really one more operation (delete), repeated as exact and wildcard patterns.",
+      "field": "description",
+      "quote": "queries Google Cloud `google:gcp:audit` for `*artifactregistry.repositories.create*` (+3 related API operations)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real Artifact Registry audit event and the product's audit-logging documentation, then use the actual `methodName` values (create, delete, and any update) and the correct field path in description, controlTest and value. Describe it as create and delete."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL tabulates `_time`, `methodName`, `principalEmail` and `resourceName`. There is no region field, and the text offers no way to get one beyond parsing `resourceName`. The knownFalsePositives and detailedImplementation both say to exclude automation principals and sandbox accounts 'via a lookup', but the SPL has no lookup or exclusion.",
+      "field": "cross_field",
+      "quote": "returns actor, resource, and region context for security review and change validation",
+      "severity": "minor",
+      "suggested_fix": "Either extract the location from `resourceName` in the SPL or drop the region claim, and say which lookup implements the exclusions or remove the mention."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "These are generic and do not name the common real causes for repository creation and deletion: Terraform or Deployment Manager pipelines, Cloud Build and other CI service accounts, new-project bootstrap automation and routine repository cleanup. The value text calls every create 'high-signal', which these causes contradict.",
+      "field": "knownFalsePositives",
+      "quote": "Approved change windows; documented automation service principals; sandbox accounts excluded via lookup.",
+      "severity": "minor",
+      "suggested_fix": "Name those causes and the service accounts to allowlist, and soften the 'high-signal' wording."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "specificity",
+      "explanation": "The search has no thresholds, so 'tune thresholds' (and 'alert fatigue — tune thresholds') does not apply. The walkthrough does not say how to scope the Pub/Sub log sink (for example to the Artifact Registry service) or that repository create and delete are Admin Activity events enabled by default. There is also a stray '..' after the dashboard description.",
+      "field": "detailedImplementation",
+      "quote": "Tune thresholds to your change cadence; exclude break-glass principals and sandbox accounts via a lookup.",
+      "severity": "minor",
+      "suggested_fix": "Replace the threshold advice with sink-filter guidance and a concrete allowlist approach, and fix the punctuation."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "grandma_fidelity",
+      "explanation": "It pastes the lowercased title and does not explain what is watched: someone creating or deleting a place where software packages are stored. The claim of catching 'problems in your online services' is broader than what the detection shows.",
+      "field": "grandmaExplanation",
+      "quote": "We watch cloud logs for signs of gcp artifact registry repository changes so your team catches problems in your online services before customers or auditors do.",
+      "severity": "minor",
+      "suggested_fix": "Say that we get an alert whenever someone creates or deletes a storage area for the company's software packages in Google Cloud, so unexpected changes are noticed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search matches `protoPayload.methodName` against `*artifactregistry.repositories.create*` and `...delete*`. As far as I know, those are permission names and the Artifact Registry audit `methodName` values are RPC names such as `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository`, so the search would not match real events. The exact-match terms are redundant with the leading-wildcard terms, and leading wildcards are expensive. The sourcetype is wrong per the grounding guide.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The tstats search counts every `Change.All_Changes` record (`action=*`) by user, action and object. It has no filter for Artifact Registry or for repository create and delete, so it does not reflect the detection, and the cost block's `tstats_eligible: true` implies equivalence that does not exist.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "'Repository Changes' suggests all changes, but the SPL covers only create and delete. Updates, IAM policy changes and cleanup-policy edits are not covered.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078.004 (Valid Accounts: Cloud Accounts) is about use of compromised cloud credentials, which a repository create or delete event alone does not show. Check whether another technique, such as one for cloud-infrastructure modification or for tampering with stored images, fits better.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "compliance",
+      "issue": "NIST SP 800-53 AU-2 (Event Logging) is about deciding which events to log. Alerting on repository changes fits configuration-change controls (for example CM-3 or CM-5) or monitoring controls (AU-6, SI-4) better. The mapping is marked `requires_sme_review: true`, which is appropriate.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0060-UC-4.3.71",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (alert on Artifact Registry repository create and delete in GCP audit logs) is clear and the add-on ID is right. However, the sourcetype and modular input conflict with the grounding guide, and the audit methodName pattern looks like an IAM permission name rather than the audit-log method. If so, the search would return nothing.",
+  "tier": "triage",
+  "uc_id": "UC-4.3.71",
+  "verdict": "incorrect"
+}

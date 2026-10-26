@@ -1,0 +1,104 @@
+{
+  "confidence": 0.65,
+  "content_sha256": "22d08c466407d99366147790339309143aff1be27714e7a36bd51e8f05d85a06",
+  "file": "content/cat-14-iot-operational-technology-ot/UC-14.3.45.json",
+  "findings": [
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/iot-ot.md",
+      "explanation": "The grounding says Splunk Edge Hub sensor data flows as metrics via HEC to dedicated indexes. A Universal Forwarder modular input is not how Edge Hub delivers data. Splunkbase 617 is not in the cached catalog and is not an Edge Hub add-on.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "State that Edge Hub (and the custom people-counting container) send data to Splunk via HEC into edge-hub-data / edge-hub-logs. Remove the Universal Forwarder and Splunkbase 617 wording."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The 'Universal Forwarder (Splunkbase 617)' suffix is unverified (the ID is not in data/splunkbase-catalog.json). The v2.1+ version, USB passthrough and NPU support also come with no source.",
+      "field": "app",
+      "quote": "Splunk Edge Hub (USB camera + NPU container), v2.1+ — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Splunk Edge Hub release notes for the first version with USB camera passthrough and NPU container support, then cite it. Drop the Universal Forwarder suffix."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The implementation says the container emits a `people_count` metric. The dataSources list `metric_name=occupancy_count`. The SPL reads the field `people_detected` from events containing `people_count_event`. Three different names for the same signal, so a reader cannot tell what to emit.",
+      "field": "cross_field",
+      "quote": "outputs people_count metric to MQTT and event logs",
+      "severity": "major",
+      "suggested_fix": "Pick one event/field contract (event marker, field name, and whether a metric is also sent) and use it in implementation, dataSources and SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The final SPL stage groups by `location` only, so `camera_id` and `peak_occupancy` are not in the output. There is also no `where` clause, so every location (including NORMAL) is returned and no threshold is applied at the end.",
+      "field": "description",
+      "quote": "Pipeline aggregates `peak_occupancy`, `avg_occ` by `location`, `camera_id` ... Alert logic enforces configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Describe the real output (status and average occupancy per location) and say how OVERCROWDED / EMERGENCY_EXCEEDED rows are selected for alerting, or have the SPL owner add the filter."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The text never says where the thresholds live. The SPL reads them via a REST path (`/services/data-model/indexes/facility_capacity_limits`) that does not look like a real lookup or KV store endpoint, so a reader cannot create the data it needs.",
+      "field": "implementation",
+      "quote": "Set safe + emergency capacity thresholds per location.",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the lookup or KV store collection holding location, max_occupancy_safe and max_occupancy_emergency, and show how to create it."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The UC contains no intercom or visual-alert integration, and nothing in the grounding says Edge Hub drives an intercom. Camera-based people counting also omits any privacy or consent note.",
+      "field": "implementation",
+      "quote": "trigger intercom/visual alerts if emergency threshold exceeded.",
+      "severity": "minor",
+      "suggested_fix": "Reword to 'route the alert to the facilities or safety team'. Add a note on privacy handling (process on the device and store only counts, not images) and check local rules."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The SPL has no `span=1h`, and none of the scenarios name a real cause for wrong counts, such as a camera obstruction, double counting at doorways, or a model misclassifying mannequins and posters.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `peak_occupancy`, `avg_occ` over `span=1h`",
+      "severity": "minor",
+      "suggested_fix": "List real causes of bad counts (camera angle, lighting, crowd occlusion, duplicate camera coverage of one location, stale capacity limits)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "The references are generic Splunk admin pages. None document Splunk Edge Hub, its container support or the camera feature.",
+      "field": "references",
+      "quote": "Splunk savedsearches.conf reference",
+      "severity": "minor",
+      "suggested_fix": "Add the Splunk Edge Hub documentation for custom containers and USB camera support."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`| rest /services/data-model/indexes/facility_capacity_limits` inside `join` is not a valid way to read a capacity table (use `inputlookup` or a KV store lookup). The second `stats` drops peak_occupancy and camera_id, and nothing filters to alert rows. people_detected and people_count_event are not confirmed field/event names.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0082-UC-14.3.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "A reasonable occupancy-vs-capacity idea, but the prose describes an alert that the SPL does not implement. The field names disagree between implementation and SPL. The collection path (Universal Forwarder, Splunkbase 617) contradicts the grounding, which says Edge Hub data arrives via HEC.",
+  "tier": "triage",
+  "uc_id": "UC-14.3.45",
+  "verdict": "incorrect"
+}

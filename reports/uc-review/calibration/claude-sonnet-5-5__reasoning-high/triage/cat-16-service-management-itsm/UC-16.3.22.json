@@ -1,0 +1,104 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "1e197a41fa9a4497c5e0797c0a068d6f6b45f2b5240aab898c54ab352e4cadc1",
+  "file": "content/cat-16-service-management-itsm/UC-16.3.22.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "This is the only implementation guidance. It does not say which Jira custom fields hold planned start and end, how `start_epoch` and `end_epoch` are produced, or how `service_ci` is attached to a change. A reader cannot get the SPL to return rows.",
+      "field": "implementation",
+      "quote": "Require ISO timestamps in custom fields; normalize to epoch at ingest.",
+      "severity": "major",
+      "suggested_fix": "Name the Jira custom fields for planned start and end, show the props/transforms or ingest-time eval that creates start_epoch and end_epoch, and show how the CI or service is mapped (field or lookup)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The app field promises a CMDB lookup for `service_ci`, but the SPL contains no `lookup` or `inputlookup` and groups directly by `service_ci`. The prose also says nothing about the lookup's definition or fields.",
+      "field": "cross_field",
+      "quote": "Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci`",
+      "severity": "major",
+      "suggested_fix": "Document the lookup (name, keys, output fields) and the point where it is applied, or state that service_ci is a Jira custom field and name it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The SPL outputs pairs of overlapping changes (key, prev_key, service_ci, start, end, prev_end). It does not produce a `count` and has no threshold, so a reader gets the wrong idea of what a result row is.",
+      "field": "description",
+      "quote": "Outputs `count` each `the scheduled window`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is one change whose planned window starts before the previous change on the same service CI has ended, and list the output columns."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The grounding guide lists `jira:issue` and `jsm:issue` as sourcetypes, and the UC cites the Jira Cloud add-on's source types page. Whether `jira:cloud:issues` is the add-on's real sourcetype was not checked. The fields `issue_type`, `labels`, `key` and `start_epoch` need the same check.",
+      "field": "dataSources",
+      "quote": "sourcetype=\"jira:cloud:issues\" OR sourcetype=\"jira:issue\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Add-on for Jira Cloud sourcetype documentation and use the exact sourcetype and field names it defines."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "6211 matches Splunk_TA_Jira_Cloud in the catalog, but the 'Universal Forwarder (Splunkbase 617)' suffix is not in the cached catalog and contradicts the add-on's own API polling input. The add-on collects Jira Cloud data itself.",
+      "field": "app",
+      "quote": "Splunk Add-on for Jira Cloud (6211) + CMDB lookup `service_ci` — Universal Forwarder (Splunkbase 617)",
+      "severity": "needs_verification",
+      "suggested_fix": "Remove the 'Universal Forwarder (Splunkbase 617)' suffix, or say which component runs the add-on input (typically a heavy forwarder or the search head tier)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Steps 1-4 are written twice, and the second set is boilerplate that does not fit: there is no inventory count in Jira to compare with, 'KPI tiles' and 'critical severity to on-call' do not apply to a CAB collision report, and 'joins/lookups enrich owner' does not match this search.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Keep one step set. Validate by picking two known overlapping changes in Jira, checking their planned start and end values, and confirming they appear as a pair in the output."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "An alert email is an action, not a visualization, and a Gantt-style table is not a standard Splunk panel; the text does not say how to build it.",
+      "field": "visualization",
+      "quote": "Gantt-style table, Alert email to CAB.",
+      "severity": "minor",
+      "suggested_fix": "Name an actual visualization (for example a table of colliding change pairs, or a timeline custom visualization) and move the CAB email to the alert action."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios names a real cause for a false collision, for example a parent change with child tasks, intentionally bundled or paired changes on one CI, or reused or copied tickets.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `jira:cloud:issues`",
+      "severity": "minor",
+      "suggested_fix": "List real causes such as linked parent/child changes, intentionally concurrent standard changes, and cloned tickets with unchanged dates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats window=1` compares each change only with the immediately preceding one (sorted by start), so a long window that overlaps several later changes is detected only against the next one, and an earlier long change is missed once a shorter change sits between them. The search also does not filter on CAB approval, although the title says 'CAB-Approved Windows'.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0083-UC-16.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 4,
+    "specificity": 2
+  },
+  "summary": "The collision idea is sound and the Jira Cloud add-on ID matches the catalog. The implementation is a single vague sentence, and the text relies on fields (service_ci, start_epoch, end_epoch, CAB approval) that no documented step creates.",
+  "tier": "triage",
+  "uc_id": "UC-16.3.22",
+  "verdict": "rewrite"
+}

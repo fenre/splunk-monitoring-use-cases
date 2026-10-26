@@ -1,0 +1,86 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "2f1ead36a5fa165919bc8a742d9d1baf0c4841c830e6f6a13d4297cab7edc1f1",
+  "file": "content/cat-24-business-intelligence-analytics-platforms/UC-24.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL measures idle time as now minus the last event it sees. With a 24-hour window no user can ever be more than one day idle, so the `days_idle>60` filter returns nothing. The implementation says 'schedule monthly', which is a third scheduling statement.",
+      "field": "detailedImplementation",
+      "quote": "Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages.",
+      "severity": "major",
+      "suggested_fix": "Specify a lookback longer than the idle threshold (for example earliest=-180d) and a monthly schedule. Say that users with no events in the lookback do not appear, so the search must be joined to a list of known accounts."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The search can only list users that appear in the ExecutionLog and have been quiet for 60 days. It cannot find accounts that never ran a report, and it does not use any account list or directory data. The text claims an 'inactive account' list, which the logic does not produce.",
+      "field": "implementation",
+      "quote": "Ingest Power BI Report Server activity events; schedule monthly and route the idle-account list to identity/license owners.",
+      "severity": "major",
+      "suggested_fix": "Document that the result is users with no report executions in the lookback, and add a lookup of licensed or authorized accounts to catch users with no activity at all."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/finops-cost-capacity.md",
+      "explanation": "The app field says the ExecutionLog is read through DB Connect, while dataSources says it is 'Collected via Universal Forwarder (Splunkbase 617)'. A Universal Forwarder cannot read the ExecutionLog SQL table. The grounding guide lists DB Connect as Splunkbase 2686, and 617 is not in the cached catalog.",
+      "field": "app",
+      "quote": "Power BI Report Server ExecutionLog via DB Connect and service logs via UF. — Universal Forwarder (Splunkbase 617)",
+      "severity": "major",
+      "suggested_fix": "Name Splunk DB Connect (Splunkbase 2686) with a query against the ReportServer ExecutionLog view, and say which sourcetype it writes. Remove the Universal Forwarder (Splunkbase 617) claim."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "`powerbi:reportserver` is not a documented sourcetype. The ExecutionLog views (ExecutionLog3) expose the user in a column called `UserName`, while the SPL groups by `user`. Whether a field extraction or alias exists is not stated.",
+      "field": "dataSources",
+      "quote": "Power BI Report Server execution log (`powerbi:reportserver`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Microsoft ExecutionLog3 column list and state the DB Connect query or props alias that produces `user` and `_time` (for example TimeStart)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "Power BI Report Server is licensed through Power BI Premium or SQL Server Enterprise with Software Assurance, not as a per-account licence that can be reclaimed. The claim that inactive accounts free licences should be checked against Microsoft's licensing terms.",
+      "field": "grandmaExplanation",
+      "quote": "so their licences can be freed",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Report Server licensing model. If it is not per-user, reword to 'tidy up access' or 'review who still needs access'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The steps are generic boilerplate: 'joins/lookups enrich owner' (the search has none), 'KPI tiles', an HTTP 401/429 troubleshooting hint for an on-prem SQL source that has no vendor API, and a poll interval of 300-900 seconds that does not fit a monthly inventory report.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Describe the real setup: a DB Connect input against the ReportServer database, how often it runs, and validate by comparing the idle list with the Report Server web portal or the ExecutionLog3 view."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Idle time depends only on events inside the search window, so users who never ran a report are missing and the result is only valid when the time range is longer than 60 days. No account lookup is used.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0085-UC-24.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 3,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The inactive-account idea is simple and understandable, but the text does not make the 60-day logic workable: it schedules a 24-hour search and contradicts itself about how data is collected. Licensing and user-name claims are unverified.",
+  "tier": "triage",
+  "uc_id": "UC-24.2.31",
+  "verdict": "rewrite"
+}

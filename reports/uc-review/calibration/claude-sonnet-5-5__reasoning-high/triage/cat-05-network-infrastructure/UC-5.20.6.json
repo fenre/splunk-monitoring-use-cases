@@ -1,0 +1,86 @@
+{
+  "confidence": 0.6,
+  "content_sha256": "4bab8cb064852f2de43effcc2d8b61e95f1476aa1a5e151dc4db4323982db776",
+  "file": "content/cat-05-network-infrastructure/UC-5.20.6.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rfc-editor.org/rfc/rfc4293",
+      "explanation": "In RFC 4293 ipIfStatsEntry (1.3.6.1.2.1.4.31.3.1) the column .10 is not HCOutOctets and .7 is not ipIfStatsInDiscards (ipIfStatsInDiscards is a much later column, and ipIfStatsInOctets is not OID .2, which is ipIfStatsIfIndex). The Telegraf example and the troubleshooting text therefore poll the wrong columns and the counters would be mislabelled.",
+      "field": "detailedImplementation",
+      "quote": "Prefer 64-bit high-capacity (HC) counters: `ipIfStatsHCInOctets` (OID .6) and `ipIfStatsHCOutOctets` (OID .10).",
+      "severity": "blocker",
+      "suggested_fix": "Look up the exact column OIDs for ipIfStatsHCInOctets, ipIfStatsHCOutOctets, ipIfStatsInDiscards and ipIfStatsOutDiscards in the RFC 4293 IP-MIB and correct every OID in the Telegraf block and prose."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified with a group handle as reviewer although the OIDs, field names and sourcetype contradictions below show it was not run against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set to draft until validated on devices with real ipIfStatsTable data."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The catalogue SPL and dataSources use `snmp:ipIfStatsTable` with field names like ipIfStatsIPVersion, while the detailed searches use `sc4snmp:*`; the HEC route also sends to index=network with no step that renames the sourcetype or creates those fields, so one of the two searches cannot match.",
+      "field": "cross_field",
+      "quote": "SC4SNMP sends results to Splunk HEC as `sourcetype=sc4snmp:event` or `sc4snmp:metric`.",
+      "severity": "major",
+      "suggested_fix": "Use one sourcetype and document the exact field names SC4SNMP/Telegraf emit."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Neither the catalogue SPL (which only sorts by an absolute IPv6/IPv4 difference) nor the detailedImplementation alert (zero-counter test with a lookup, plus a discard ratio with no 10x filter) implements this rule; description's 'alert when -1h' is unrelated.",
+      "field": "cross_field",
+      "quote": "Alert when IPv6 counters are zero on an interface where IPv6 is configured, or when IPv6 discards exceed IPv4 discards by more than 10x.",
+      "severity": "major",
+      "suggested_fix": "State one alert rule and make SPL, implementation and detailedImplementation implement it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Meaningless phrase in a value statement; nothing about spreadsheets is relevant to SNMP counters.",
+      "field": "value",
+      "quote": "before spreadsheet checks hide regressions",
+      "severity": "minor",
+      "suggested_fix": "Say the UC shows dual-stack interfaces where IPv6 carries no traffic or drops disproportionately."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; real causes such as IPv6 not yet enabled on an interface, link-local only interfaces, IPv4-only management ports and counter resets after reload are absent.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `network` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and exclude them via the ipv6_enabled_interfaces lookup."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Uses `latest()` of cumulative octet counters, so the IPv4/IPv6 'parity' reflects lifetime totals since the last reset, not recent traffic; after `chart ... sum(...) as bytes sum(...) as discards over host by ip_version` the columns are named like `bytes: IPv6`, not 'IPv6' and 'IPv4', so the later `eval` expressions would not reference real fields.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0008-UC-5.20.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A good concept with detailed SNMP collection guidance, but the SNMP column OIDs in the example configs appear wrong, the catalogue SPL compares lifetime counter totals and differs from the described alerts, and sourcetype names disagree across sections. Status is marked verified without evidence.",
+  "tier": "triage",
+  "uc_id": "UC-5.20.6",
+  "verdict": "incorrect"
+}

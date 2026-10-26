@@ -31,8 +31,14 @@ Deep-review routing: a UC goes to `deep` when any of these hold:
 - `criticality` is `critical`
 - `status` is `verified`
 - triage reported a `blocker` or `major` finding in the `correctness` dimension
+- triage reported a `blocker` or `major` firewalled-field flag
+- triage scored `correctness` at 3 or below
 - triage `confidence` is below 0.6
 - it is in cat-22 and carries a `compliance[]` claim
+
+Calibration on 2026-10-26 found that 83% of UCs need a deep correctness
+review, so in practice the deep tier runs on every UC (`deep --all`); see
+[`reports/uc-review/calibration/decision.md`](../reports/uc-review/calibration/decision.md).
 
 <!-- rubric:begin -->
 ## Rubric (embedded verbatim in review prompts)

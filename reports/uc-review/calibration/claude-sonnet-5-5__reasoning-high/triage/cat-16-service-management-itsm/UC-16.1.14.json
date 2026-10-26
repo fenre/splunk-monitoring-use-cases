@@ -1,0 +1,99 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "75879fef25d3e58e236be50583a6aa9cc813ef5050337429fa89ce1e8d3b17f1",
+  "file": "content/cat-16-service-management-itsm/UC-16.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL requires pct_elapsed >= 80 AND < 100 (a band), not 'or', and does no grouping or counting by entity; the description does not match the search or the implementation (alert at 80% elapsed while not yet breached).",
+      "field": "description",
+      "quote": "thresholds `pct_elapsed` >= 80, or `pct_elapsed` < 100. Groups `count` by `entity` each `the scheduled window`.",
+      "severity": "major",
+      "suggested_fix": "Say: each row is an open SLA task that has consumed at least 80% but less than 100% of its SLA window and has not yet breached."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The logic is a fixed 80% elapsed-time threshold, not a prediction (no queue depth, work remaining or trend); the title and value text overstate the capability.",
+      "field": "title",
+      "quote": "SLA Breach Prediction",
+      "severity": "minor",
+      "suggested_fix": "Describe it as an early warning at a configurable percentage of SLA time elapsed and mention that it does not estimate whether work will finish in time."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL has a hard-coded 80 and no priority, assignment group or queue depth; the text does not say where to change the threshold or how to blend queue depth.",
+      "field": "implementation",
+      "quote": "Optionally blend with assignment group queue depth. Tune thresholds per priority and SLA definition.",
+      "severity": "minor",
+      "suggested_fix": "Point to the literal `80` in the SPL as the tunable threshold, or provide a lookup keyed on sla_type/priority."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The ServiceNow task_sla table normally carries fields such as `start_time`, `planned_end_time`, `has_breached` and a `task` reference; the field names `sla_start_time`, `breach_time`, `parent` and `number` used in the SPL may not exist there, and the grounding guide lists no snow:task_sla sourcetype (only snow:incident etc.). Also confirm whether Splunk_TA_snow ingests task_sla by default.",
+      "field": "dataSources",
+      "quote": "ServiceNow incident + SLA task / task_sla (`sourcetype=snow:task_sla` or equivalent)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the table's actual column names in the ServiceNow dictionary and the TA input list; document any custom input or field aliases needed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for ServiceNow is Splunkbase 1928 in the grounding data; 617 is not in the cached catalog and a Universal Forwarder is not a Splunkbase app. The app field mixes the two.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite Splunk Add-on for ServiceNow (Splunkbase 1928) and its ServiceNow account/input setup; drop the unverified 617 reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Template scenarios about hosts, synthetic probes and `span=1h` do not apply to ServiceNow SLA rows; real causes (paused or on-hold SLAs, business-schedule vs wall-clock differences, SLAs with retroactive start time, stale task_sla rows for closed incidents) are not named.",
+      "field": "knownFalsePositives",
+      "quote": "Health checks in `itsm` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.",
+      "severity": "major",
+      "suggested_fix": "Describe SLA pause/on-hold time, schedule-based SLAs where wall-clock now() overstates elapsed time, and rows for already-resolved tasks."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A second generic Steps 1-5 block (inventory count, host/user/action, HTTP 401/429) is appended after the real steps and repeats them.",
+      "field": "detailedImplementation",
+      "quote": "Compare `| tstats count where index=... sourcetype=...` against the vendor admin UI inventory count (+/-5%).",
+      "severity": "major",
+      "suggested_fix": "Remove the generic block; keep ServiceNow-specific validation (compare against the Task SLA list view)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`now()-sla_start_time` and `planned_end_time-sla_start_time` do arithmetic on fields that the ServiceNow TA delivers as date-time strings; without strptime they evaluate to null so pct_elapsed would never be computed. The percentage ignores business-schedule pauses.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "Pillar is Security although this is an ITSM operations/SLA use case.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0023-UC-16.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The idea (flag open SLA tasks that have used 80 to 99 percent of their window) is clear in the SPL and implementation, but the description describes a different, count-by-entity detection with a garbled threshold. The task_sla field names and the 'prediction' claim need checking.",
+  "tier": "triage",
+  "uc_id": "UC-16.1.14",
+  "verdict": "rewrite"
+}

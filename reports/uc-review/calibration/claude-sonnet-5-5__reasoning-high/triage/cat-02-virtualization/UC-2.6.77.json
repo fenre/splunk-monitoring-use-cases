@@ -1,0 +1,94 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "db6718024c8067111886cfb49516cd023995f71b9a8ee12ad9b575114a0b3c3d",
+  "file": "content/cat-02-virtualization/UC-2.6.77.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The description begins with a truncated title fragment and ends with 'Mapped to keywords Citrix, Per, Application, Perceived, Performance', and it names only one of the three sourcetypes; the reader cannot tell what causes a row or what grain is reported.",
+      "field": "description",
+      "quote": "Surfaces vs Network) anomalies for UC-2.6.77",
+      "severity": "major",
+      "suggested_fix": "State that each row is one app on one host in a 15-minute bin where median startup time exceeds 10000 ms, median ICA RTT exceeds 100 ms, or at least one not-responding event occurred."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Linux boilerplate (apt/yum, backup I/O, Nagios) with the suppression lookup keyed on `_time`, which cannot identify an app or host to suppress; none of the causes is specific to slow app launches (for example first launch after image update, AV scan at logon, cold file cache).",
+      "field": "knownFalsePositives",
+      "quote": "Suppression mechanism:** `linux_capacity_exceptions.csv` keyed on `_time`, `valid_until`.",
+      "severity": "major",
+      "suggested_fix": "Name real causes (first launch after gold-image change, antivirus on-access scans, cold cache after logon, planned network maintenance) and key suppression on app and host."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Implementation and detailedImplementation speak of p95 values, but the SPL and controlTest use `median` (`med_start`, `med_ica`). Also detailedImplementation says to schedule with earliest=-24h@h while the SPL has `earliest=-4h` and a 15-minute bin.",
+      "field": "cross_field",
+      "quote": "Build three small alerts: p95 startup, p95 RTT, and not-responding process count",
+      "severity": "major",
+      "suggested_fix": "Align the statistic (median or p95) and the time window across SPL, description and implementation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The sibling UCs use `uberAgent:Application:Errors`, `uberAgent:Application:UIDelay`, `uberAgent:Process:NetworkTargetPerformance` and `index=uberagent`; this UC uses different sourcetype names, lists the Error sourcetype but never searches it, and reads uberAgent data from `index=xd`. ICA RTT is a session metric in uberAgent:Session:SessionDetail (UC-2.6.2), not a network-performance event field.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"uberAgent:Application:Error\"` (if configured); `sourcetype=\"uberAgent:Network:Performance\"` (latency, loss)",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify sourcetype and field names against the uberAgent documentation, use the same index as the siblings, and take ICA RTT from the session sourcetype."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The SPL and implementation use `startup_ms`, `ica_rtt_ms`, `app_name` and `process_name`; uberAgent field names are typically CamelCase (for example AppName, ProcessName) and these snake_case names are not in the grounding guide. The uncertainty about units shows the field is not confirmed.",
+      "field": "cross_field",
+      "quote": "Verify `startup_ms` is milliseconds, not seconds.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the actual field names and units emitted by uberAgent for ProcessStartup and replace the guessed names."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Startup events, network events and broker app_usage events come from different hosts (endpoint vs broker) and use different naming for the app, so grouping by app and host is unlikely to combine them into one row, undermining the 'startup vs hang vs network' comparison.",
+      "field": "cross_field",
+      "quote": "stats median(start_ms) as med_start, median(ica) as med_ica, sum(hang) as hang_ev by _time, app, host",
+      "severity": "needs_verification",
+      "suggested_fix": "Describe the join key explicitly (for example uberAgent host and AppName for all three signals) or document the three signals as separate panels."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "Title words listed as a sentence, followed by generic 'capacity incidents, patch regressions, and service outages'; it gives no user-visible benefit such as faster root-cause of slow app complaints.",
+      "field": "value",
+      "quote": "Alerting on Citrix, Per, Application, Perceived, Performance through UC-2.6.77",
+      "severity": "major",
+      "suggested_fix": "Explain that the alert tells EUC, application and network teams which of the three causes is behind slow or frozen published applications."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`hang=if(match(_raw, \"(?i)not.?(responding)\"),1,0)` regex-matches raw text of every sourcetype instead of using an uberAgent hang/UI-delay field, and the `app=coalesce(app_name, process_name, title, ...)` mixes unrelated names across sources.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0002-UC-2.6.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The intent (split slow app start, hangs and network latency) is useful but the field names, indexes and cross-source join are largely unverified and inconsistent with sibling UCs. The description, value and false positives are title-word salad or Linux boilerplate, and prose says p95 while the SPL uses median.",
+  "tier": "triage",
+  "uc_id": "UC-2.6.77",
+  "verdict": "rewrite"
+}

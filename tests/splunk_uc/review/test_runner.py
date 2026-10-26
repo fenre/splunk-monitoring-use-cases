@@ -141,7 +141,9 @@ def test_review_batch_gives_up_after_one_repair(tmp_path: Path) -> None:
     entries = _copy_ucs(tmp_path, "UC-15.1.1")
     bad = _review(
         "UC-15.1.1",
-        findings=[{"field": "value", "dimension": "tone", "severity": "major", "explanation": "x" * 20}],
+        findings=[
+            {"field": "value", "dimension": "tone", "severity": "major", "explanation": "x" * 20}
+        ],
     )
     invoker = FakeInvoker(_reply(bad), "not json at all")
     outcome = _run(
@@ -341,16 +343,31 @@ def test_deep_routing_reasons() -> None:
     uc = {"criticality": "high", "status": "verified", "compliance": [{"regulation": "GDPR"}]}
     triage = {
         "confidence": 0.5,
+        "scores": {"correctness": 3},
         "findings": [{"dimension": "correctness", "severity": "major"}],
-        "firewalled_field_flags": [],
+        "firewalled_field_flags": [{"severity": "major"}],
     }
     reasons = runner.deep_routing_reasons(uc, path, triage)
     assert reasons == [
         "status=verified",
         "cat-22 compliance claim",
         "triage correctness finding",
+        "triage firewalled blocker/major",
+        "triage correctness score <= 3",
         "triage confidence < 0.6",
     ]
+    clean = {
+        "confidence": 0.9,
+        "scores": {"correctness": 4},
+        "findings": [],
+        "firewalled_field_flags": [],
+    }
+    assert (
+        runner.deep_routing_reasons(
+            {"criticality": "low"}, Path("/x/content/cat-01-a/UC-1.1.1.json"), clean
+        )
+        == []
+    )
     assert (
         runner.deep_routing_reasons(
             {"criticality": "low"}, Path("/x/content/cat-01-a/UC-1.1.1.json"), None

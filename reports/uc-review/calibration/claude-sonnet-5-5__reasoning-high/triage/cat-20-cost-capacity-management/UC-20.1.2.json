@@ -1,0 +1,73 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "589501466c726ea299ad98985864b822ac54ae23d50089df8b3d0ac456c12cd6",
+  "file": "content/cat-20-cost-capacity-management/UC-20.1.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "There is no configured threshold: the SPL totals daily spend across accounts and flags days where the total exceeds the upper95 bound of a `predict` LLP5 forecast. The description never mentions prediction, the 95% interval or that the total is across all accounts.",
+      "field": "description",
+      "quote": "Outputs `daily_spend` each `1d`; alert when configured threshold.",
+      "severity": "major",
+      "suggested_fix": "Say that each row is a day on which total daily AWS spend exceeded the 95% upper prediction bound for the account total."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL has no time range (the baseline is whatever the search window is) and groups by account only; it neither limits to 30 days nor splits by service. It also anomaly-checks the sum of all accounts, not each account.",
+      "field": "implementation",
+      "quote": "Build 30-day baseline of daily spending per account and service.",
+      "severity": "minor",
+      "suggested_fix": "State the recommended search window (for example earliest=-30d@d) and that the anomaly test is on the combined total; describe a per-account/service variant separately if wanted."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.aws.amazon.com/cur/latest/userguide/what-is-cur.html",
+      "explanation": "AWS Cost and Usage Reports are delivered up to several times a day and the month-to-date files are restated, and the current day is a partial day; neither effect (duplicate or restated line items, partial-day dip) is mentioned, yet the text claims anomalies are caught 'within hours'. Also Step 1 describes analysis rather than data collection, and a second generic Steps 1-5 block (modular input or HEC, `list_inputs`, HTTP 401/429) is appended.",
+      "field": "detailedImplementation",
+      "quote": "Spot-check two known entities for field presence (`anomaly, lineItem_UsageAccountId`).",
+      "severity": "needs_verification",
+      "suggested_fix": "Add a CUR caveat: use usage-date fields or dedupe restated lines, exclude the partial current day, and expect detection delays of up to a day; remove the generic boilerplate block."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The data source does not name the feed (`aws:billing:cur` from the AWS add-on's CUR input, as used in the SPL), the required CUR options, or the retention needed for a useful baseline.",
+      "field": "dataSources",
+      "quote": "Billing data with historical trending",
+      "severity": "minor",
+      "suggested_fix": "Name `aws:billing:cur` (CUR via S3, Splunk Add-on for AWS) and the history length required."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum(cost)` over events keyed on _time will double-count CUR line items that are re-delivered in month-to-date files unless deduplicated or keyed on the usage start date; `foreach *` also iterates over `_time` and the span fields. `predict` is run on a single total, so account-level anomalies are not detected.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "splunkPillar",
+      "issue": "Pillar is Security for a cloud-spend anomaly use case; Observability matches sibling cost UCs (the crypto-mining mention is only one possible cause).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-sonnet-5-5@reasoning=high",
+  "reviewed_at": "2026-10-26T16:38:22Z",
+  "rubric_version": "1.0",
+  "run_id": "file:triage-0029-UC-20.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 2,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL (daily total spend per AWS account, predicted with LLP5 and compared to the 95% upper bound) is a sensible idea, but the description speaks of an unspecified threshold, the implementation promises a per-service baseline the search does not do, and the CUR data caveats are not mentioned.",
+  "tier": "triage",
+  "uc_id": "UC-20.1.2",
+  "verdict": "rewrite"
+}
