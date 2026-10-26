@@ -25,7 +25,7 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 | cat-12-devops-ci-cd | 126 | 0 | 4 | 0 | 0 |
 | cat-13-observability-monitoring-stack | 184 | 0 | 6 | 0 | 0 |
 | cat-14-iot-operational-technology-ot | 249 | 0 | 6 | 0 | 0 |
-| cat-15-data-center-physical-infrastructure | 117 | 117 | 117 | 0 | 0 |
+| cat-15-data-center-physical-infrastructure | 117 | 117 | 117 | 0 | 117 |
 | cat-16-service-management-itsm | 102 | 0 | 6 | 0 | 0 |
 | cat-17-network-security-zero-trust | 208 | 0 | 4 | 0 | 0 |
 | cat-18-data-center-fabric-sdn | 76 | 0 | 5 | 0 | 0 |
@@ -52,19 +52,19 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 | Check | Findings |
 |---|---|
 | `skeleton_cluster` | 15807 |
-| `template_v2:v2_description_selfref` | 15535 |
-| `template_v2:v2_value_selfref` | 15390 |
-| `template_v2:v2_controlTest_skeleton` | 14302 |
-| `template_v2:v2_controlTest_variant` | 14301 |
-| `title_token_salad` | 13832 |
-| `template_v2:v2_kfp_selfref_heading` | 12314 |
+| `template_v2:v2_description_selfref` | 15534 |
+| `template_v2:v2_value_selfref` | 15389 |
+| `template_v2:v2_controlTest_skeleton` | 14301 |
+| `template_v2:v2_controlTest_variant` | 14184 |
+| `title_token_salad` | 13830 |
+| `template_v2:v2_kfp_selfref_heading` | 12313 |
 | `template_v2:v2_evidence_skeleton` | 12221 |
 | `template_v2:v2_exclusions_skeleton` | 12183 |
 | `splunkbase_unknown_id` | 11281 |
-| `template_v2:v2_description_purpose_built` | 8033 |
+| `template_v2:v2_description_purpose_built` | 7967 |
 | `template_v2:v2_description_title_salad` | 6058 |
-| `template_v2:v2_exception_register` | 3305 |
-| `template_v2:v2_lantern_root_reference` | 1975 |
+| `template_v2:v2_exception_register` | 3304 |
+| `template_v2:v2_lantern_root_reference` | 1974 |
 | `firewalled:spl` | 1465 |
 | `firewalled:title` | 1433 |
 | `splunkbase_name_mismatch` | 381 |
