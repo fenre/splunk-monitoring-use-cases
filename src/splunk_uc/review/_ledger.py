@@ -155,7 +155,8 @@ def apply_evidence_rule(record: dict[str, Any]) -> dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def load_schema() -> dict[str, Any]:
-    return json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    schema: dict[str, Any] = json.loads(SCHEMA_PATH.read_text(encoding="utf-8"))
+    return schema
 
 
 def validate_record(record: dict[str, Any]) -> list[str]:

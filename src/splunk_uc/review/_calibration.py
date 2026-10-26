@@ -85,7 +85,7 @@ def select_calibration_set(
             }
             for uid, (path, uc) in chosen.items()
         ),
-        key=lambda r: [int(x) for x in r["uc_id"].removeprefix("UC-").split(".")],
+        key=lambda r: [int(x) for x in str(r["uc_id"]).removeprefix("UC-").split(".")],
     )
     step = max(1, len(rows) // max(1, human_sample))
     human = [r["uc_id"] for r in rows[::step]][:human_sample]
@@ -227,4 +227,5 @@ def _routes_to_deep(triage: dict[str, Any]) -> bool:
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return payload

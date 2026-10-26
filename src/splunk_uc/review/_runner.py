@@ -74,10 +74,10 @@ class ModelSpec:
     def parse(cls, raw: str) -> ModelSpec:
         """``id`` or ``id@key=value,key=value`` (the form stored in review records)."""
         model_id, _, rest = raw.partition("@")
-        params = tuple(
-            tuple(pair.split("=", 1))  # type: ignore[misc]
-            for pair in rest.split(",")
-            if "=" in pair
+        params: tuple[tuple[str, str], ...] = tuple(
+            (key, value)
+            for key, _, value in (pair.partition("=") for pair in rest.split(","))
+            if value
         )
         return cls(id=model_id.strip(), params=params)
 
@@ -88,7 +88,8 @@ class ModelSpec:
 
 
 def load_models_config(path: Path = MODELS_CONFIG) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    config: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return config
 
 
 def default_model(tier: str, *, config: dict[str, Any] | None = None) -> ModelSpec:

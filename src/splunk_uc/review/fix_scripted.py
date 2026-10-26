@@ -53,11 +53,11 @@ PREMIUM_APP_MARKERS: dict[str, tuple[str, ...]] = {
     "Splunk SOAR": ("soar", "playbook"),
     "Splunk OT Security Add-on": ("ot security",),
 }
-SERIALISATIONS = (
-    {"indent": 2, "ensure_ascii": False},
-    {"indent": 2, "ensure_ascii": True},
-    {"indent": 1, "ensure_ascii": True},
-    {"indent": 1, "ensure_ascii": False},
+SERIALISATIONS: tuple[tuple[int, bool], ...] = (
+    (2, False),
+    (2, True),
+    (1, True),
+    (1, False),
 )
 
 Fixer = Callable[[dict[str, Any]], tuple[dict[str, Any], str | None]]
@@ -151,9 +151,9 @@ def serialise_like(raw: str, data: dict[str, Any]) -> str:
     """Serialise ``data`` with the same indent / escaping / trailing newline as ``raw``."""
     original = json.loads(raw)
     trailing = "\n" if raw.endswith("\n") else ""
-    for kwargs in SERIALISATIONS:
-        if json.dumps(original, **kwargs) + trailing == raw:
-            return json.dumps(data, **kwargs) + trailing
+    for indent, ensure_ascii in SERIALISATIONS:
+        if json.dumps(original, indent=indent, ensure_ascii=ensure_ascii) + trailing == raw:
+            return json.dumps(data, indent=indent, ensure_ascii=ensure_ascii) + trailing
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
