@@ -52,6 +52,14 @@ def product(product_id: str) -> dict[str, Any]:
     return _rows()[product_id]
 
 
+def display_name(product_id: str) -> str:
+    """Short product name for badges; the id itself when unregistered."""
+    row = _rows().get(product_id)
+    if row is None:
+        return product_id
+    return str(row.get("shortName") or row["name"])
+
+
 def _first_present(uc: dict[str, Any], keys: tuple[str, ...]) -> Any:
     for key in keys:
         if key in uc:

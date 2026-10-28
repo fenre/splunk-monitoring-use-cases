@@ -21,6 +21,8 @@ import sys
 from collections.abc import Iterable
 from typing import Any
 
+from splunk_uc import products
+
 REPO_ROOT = os.path.dirname(
     os.path.dirname(
         os.path.dirname(
@@ -47,10 +49,13 @@ LEGACY_MARKDOWN_DIFFICULTY = frozenset(
     {"🟢 Beginner", "🔵 Intermediate", "🟠 Advanced", "🔴 Expert"}
 )
 
-# AGENTS.md authoring contract — every UC sidecar must carry these keys
-# with non-empty values. Tracks the 13-field practical contract that is
-# stricter than the JSON schema's two-required-keys minimum (the schema
-# stays loose to allow stub UCs during authoring).
+# AGENTS.md authoring contract — every Splunk-platform UC sidecar must
+# carry these keys with non-empty values. Tracks the 13-field practical
+# contract that is stricter than the JSON schema's two-required-keys
+# minimum (the schema stays loose to allow stub UCs during authoring).
+# Product-specific fields (``spl``, ``cimModels``, ``productArtifacts``)
+# are only required when the UC's primary product lists them in
+# ``data/splunk-products.json`` ``requires``; see ``required_fields``.
 REQUIRED_JSON_FIELDS = [
     "id",
     "title",
@@ -72,11 +77,28 @@ REQUIRED_JSON_FIELDS = [
 # be present, and ``null`` is still rejected, but ``[]`` is allowed.
 JSON_FIELDS_ALLOW_EMPTY_LIST = frozenset({"cimModels"})
 
+_PRODUCT_GATED_FIELDS = frozenset(
+    field for row in products.all_products() for field in row["requires"]
+)
+
+
+def required_fields(payload: dict[str, Any]) -> list[str]:
+    """Base contract plus the fields the UC's primary product requires."""
+    product_fields = products.requires(payload)
+    out = [
+        f
+        for f in REQUIRED_JSON_FIELDS
+        if f not in _PRODUCT_GATED_FIELDS or f in product_fields
+    ]
+    out.extend(f for f in product_fields if f not in out)
+    return out
+
 
 def audit_uc_json(uc_path: str, payload: dict[str, Any]) -> list[str]:
     """Validate a single SSOT UC sidecar against the AGENTS.md contract.
 
-    * Each entry in ``REQUIRED_JSON_FIELDS`` must be present and non-empty.
+    * Each entry in ``required_fields(payload)`` must be present and non-empty.
+    * ``products`` / ``productArtifacts`` must match the product registry.
     * ``criticality`` / ``difficulty`` must use the schema enum (lower-case
       strings; the markdown emoji forms are explicitly rejected as a
       regression hint).
@@ -95,7 +117,7 @@ def audit_uc_json(uc_path: str, payload: dict[str, Any]) -> list[str]:
             f"({expected_id!r}); rename the file or fix the JSON."
         )
 
-    for fname in REQUIRED_JSON_FIELDS:
+    for fname in required_fields(payload):
         if fname not in payload:
             issues.append(f"{label}: missing required field {fname!r}")
             continue
@@ -144,6 +166,9 @@ def audit_uc_json(uc_path: str, payload: dict[str, Any]) -> list[str]:
             issues.append(f"{label}: spl must be a string (got {type(spl).__name__})")
         elif not spl.strip():
             issues.append(f"{label}: spl is empty")
+
+    for problem in products.validate(payload):
+        issues.append(f"{label}: {problem}")
 
     return issues
 

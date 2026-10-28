@@ -18,6 +18,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from splunk_uc import products
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTENT = REPO_ROOT / "content"
 LEDGER_PATH = REPO_ROOT / "data" / "id-ledger.json"
@@ -58,12 +60,32 @@ def read_catalogue_version() -> str:
     return IDENTITY_GUARANTEE_SINCE
 
 
+#: Fingerprint surface of a Splunk-platform UC; recorded once in the ledger
+#: header. Revisions hashed from any other surface carry their own list.
+DEFAULT_FINGERPRINT_FIELDS = ("title", "spl")
+
+
+def fingerprint_field_names(payload: dict[str, Any]) -> list[str]:
+    """``title`` plus the primary product's ``fingerprintFields``."""
+    return ["title", *[f for f in products.fingerprint_fields(payload) if f != "title"]]
+
+
+def _fingerprint_value(value: Any) -> Any:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
 def content_fingerprint(payload: dict[str, Any]) -> str:
-    """Stable SHA-256 over title + primary SPL (the reuse-detection surface)."""
-    title = str(payload.get("title", "")).strip()
-    spl = str(payload.get("spl", "")).strip()
+    """Stable SHA-256 over the reuse-detection surface.
+
+    ``title`` plus the fields the UC's primary product names in
+    ``data/splunk-products.json`` — ``spl`` for the Splunk platform.
+    """
     canonical = json.dumps(
-        {"spl": spl, "title": title},
+        {f: _fingerprint_value(payload.get(f)) for f in fingerprint_field_names(payload)},
         ensure_ascii=False,
         sort_keys=True,
         separators=(",", ":"),
@@ -119,6 +141,7 @@ def _revision_record(
     fingerprint: str,
     catalogue_version: str,
     catalogue_commit: str | None = None,
+    fields: list[str] | None = None,
 ) -> dict[str, Any]:
     revision: dict[str, Any] = {
         "contentFingerprint": fingerprint,
@@ -126,6 +149,8 @@ def _revision_record(
     }
     if catalogue_commit:
         revision["catalogueCommit"] = catalogue_commit
+    if fields and tuple(fields) != DEFAULT_FINGERPRINT_FIELDS:
+        revision["fingerprintFields"] = list(fields)
     return revision
 
 
@@ -153,14 +178,17 @@ def merge_fingerprint_revisions(
     current_fp: str,
     catalogue_version: str,
     catalogue_commit: str | None = None,
+    fields: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Append a revision when content changes; never shorten the list."""
     revisions = list(entry_fingerprint_revisions(prior_entry))
     if not revisions:
-        return [_revision_record(current_fp, catalogue_version, catalogue_commit)]
+        return [_revision_record(current_fp, catalogue_version, catalogue_commit, fields)]
     latest = str(revisions[-1].get("contentFingerprint", "")).strip()
     if latest != current_fp:
-        revisions.append(_revision_record(current_fp, catalogue_version, catalogue_commit))
+        revisions.append(
+            _revision_record(current_fp, catalogue_version, catalogue_commit, fields)
+        )
     return revisions
 
 
@@ -405,13 +433,15 @@ def _carry_notes(prior: dict[str, Any], entry: dict[str, Any]) -> None:
 
 def _active_entry(
     uc_id: str,
-    fp: str,
+    payload: dict[str, Any],
     prior: dict[str, Any],
     baseline: dict[str, dict[str, Any]] | None,
     version: str,
 ) -> dict[str, Any]:
+    fp = content_fingerprint(payload)
+    fields = fingerprint_field_names(payload)
     if prior:
-        revisions = merge_fingerprint_revisions(prior, fp, version)
+        revisions = merge_fingerprint_revisions(prior, fp, version, fields=fields)
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "active",
@@ -424,10 +454,15 @@ def _active_entry(
     if baseline is not None and uc_id in baseline:
         base_fp = content_fingerprint(baseline[uc_id])
         revisions = [
-            _revision_record(base_fp, IDENTITY_BASELINE_VERSION, IDENTITY_BASELINE_COMMIT)
+            _revision_record(
+                base_fp,
+                IDENTITY_BASELINE_VERSION,
+                IDENTITY_BASELINE_COMMIT,
+                fingerprint_field_names(baseline[uc_id]),
+            )
         ]
         if base_fp != fp:
-            revisions.append(_revision_record(fp, version))
+            revisions.append(_revision_record(fp, version, fields=fields))
         return {
             "id": uc_id,
             "status": "active",
@@ -441,7 +476,7 @@ def _active_entry(
         "id": uc_id,
         "status": "active",
         "contentFingerprint": fp,
-        "fingerprintRevisions": [_revision_record(fp, version)],
+        "fingerprintRevisions": [_revision_record(fp, version, fields=fields)],
         "firstSeenVersion": version,
     }
 
@@ -469,13 +504,19 @@ def _removed_entry(
 
     payload = _git_last_payload(uc_id)
     fp = content_fingerprint(payload) if payload else UNKNOWN_FINGERPRINT
+    fields = fingerprint_field_names(payload) if payload else None
     if baseline is not None and uc_id in baseline:
         base_fp = content_fingerprint(baseline[uc_id])
         revisions = [
-            _revision_record(base_fp, IDENTITY_BASELINE_VERSION, IDENTITY_BASELINE_COMMIT)
+            _revision_record(
+                base_fp,
+                IDENTITY_BASELINE_VERSION,
+                IDENTITY_BASELINE_COMMIT,
+                fingerprint_field_names(baseline[uc_id]),
+            )
         ]
         if payload and base_fp != fp:
-            revisions.append(_revision_record(fp, version))
+            revisions.append(_revision_record(fp, version, fields=fields))
         entry = {
             "id": uc_id,
             "status": "removed",
@@ -494,7 +535,7 @@ def _removed_entry(
         "id": uc_id,
         "status": "removed",
         "contentFingerprint": fp,
-        "fingerprintRevisions": [_revision_record(fp, revision_version)],
+        "fingerprintRevisions": [_revision_record(fp, revision_version, fields=fields)],
         "firstSeenVersion": UNKNOWN_VERSION,
         "firstSeenVersionSource": "git-reconstruction",
         "firstSeenVersionNote": (
@@ -536,9 +577,10 @@ def build_ledger_document(
 
     entries: list[dict[str, Any]] = []
     for uc_id in sorted(catalogue.keys(), key=_id_sort_key):
-        fp = content_fingerprint(catalogue[uc_id].payload)
         entries.append(
-            _active_entry(uc_id, fp, previous_entries.get(uc_id, {}), baseline, version)
+            _active_entry(
+                uc_id, catalogue[uc_id].payload, previous_entries.get(uc_id, {}), baseline, version
+            )
         )
     for uc_id in sorted(removed_ids - set(catalogue), key=_id_sort_key):
         entries.append(_removed_entry(uc_id, previous_entries.get(uc_id, {}), baseline, version))
@@ -565,7 +607,7 @@ def build_ledger_document(
         "identityBaselineVersion": IDENTITY_BASELINE_VERSION,
         "identityBaselineCommit": IDENTITY_BASELINE_COMMIT,
         "hashAlgorithm": "sha256",
-        "fingerprintFields": ["title", "spl"],
+        "fingerprintFields": list(DEFAULT_FINGERPRINT_FIELDS),
         "seedPolicy": {
             "activeFirstSeenVersion": "identity-baseline",
             "note": (

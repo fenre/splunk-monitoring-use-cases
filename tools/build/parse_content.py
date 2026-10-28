@@ -58,6 +58,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT / "src") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "src"))
 
+from splunk_uc import products as _products
+
 try:
     from splunk_uc.audits.gold_profile import audit_uc as _audit_uc_gold_v1
     from splunk_uc.audits.gold_profile_v2 import audit_uc_v2 as _audit_uc_gold_v2
@@ -597,6 +599,14 @@ def _canonical_uc_to_legacy(canonical: dict[str, Any]) -> dict[str, Any]:
         if pre:
             uc["pre"] = pre
 
+    prd = _products.non_default_products(canonical)
+    if prd:
+        uc["prd"] = prd
+        uc["prdn"] = [_products.display_name(p) for p in prd]
+    pra = _products.artifacts_of(canonical)
+    if pra:
+        uc["pra"] = [dict(a) for a in pra]
+
     # cimSpl
     cim_spl = canonical.get("cimSpl")
     if isinstance(cim_spl, str) and cim_spl.strip():
@@ -726,7 +736,9 @@ def _post_process_category(record: dict[str, Any], legacy) -> None:
                 m_text = (uc.get("m") or "").lower()
                 if m_text.startswith(legacy.ESCU_GENERIC_IMPL_PREFIX) or not m_text.strip():
                     uc["m"] = legacy.generate_escu_short_impl(uc)
-            elif not (uc.get("md") or "").strip():
+            elif not (uc.get("md") or "").strip() and _products.applies(uc, "spl"):
+                # The generated guide tells the reader to run the SPL;
+                # only products that implement the UC in SPL get it.
                 uc["md"] = legacy.generate_detailed_impl(uc)
 
             sidecar_eq, sidecar_models = legacy._sidecar_equipment_tags(cat_id, uc.get("i"))
@@ -775,6 +787,17 @@ def _post_process_category(record: dict[str, Any], legacy) -> None:
 
 _QUALITY_BRONZE_FIELDS = {"i", "n", "c", "f", "q", "v", "d", "t", "m"}
 _QUALITY_SILVER_EXTRA = {"mtype", "md", "refs", "e", "ge", "wv"}
+# Implementation fields (canonical name → short key). ``_QUALITY_BRONZE_FIELDS``
+# carries the Splunk-platform one; other products swap in their ``requires``.
+_QUALITY_IMPLEMENTATION_KEYS = {"spl": "q", "productArtifacts": "pra"}
+
+
+def _quality_bronze_fields(uc: dict[str, Any]) -> set[str]:
+    required = set(_products.requires(uc))
+    wanted = {short for canon, short in _QUALITY_IMPLEMENTATION_KEYS.items() if canon in required}
+    if wanted == {"q"}:
+        return _QUALITY_BRONZE_FIELDS
+    return (_QUALITY_BRONZE_FIELDS - set(_QUALITY_IMPLEMENTATION_KEYS.values())) | wanted
 _QUALITY_GOLD_EXTRA = {"z", "em"}
 
 _QS_BOILERPLATE_RE = re.compile(
@@ -813,10 +836,12 @@ def _compute_quality(uc: dict[str, Any]) -> tuple[str, int, list[str]]:
 
     gaps: list[str] = []
 
+    bronze_fields = _quality_bronze_fields(uc)
+
     # Bronze
-    bronze = all(_present(k) for k in _QUALITY_BRONZE_FIELDS)
+    bronze = all(_present(k) for k in bronze_fields)
     if not bronze:
-        missing = [k for k in _QUALITY_BRONZE_FIELDS if not _present(k)]
+        missing = [k for k in bronze_fields if not _present(k)]
         return ("none", max(0, 10 - len(missing) * 2), [f"missing: {k}" for k in missing])
 
     depth = 25

@@ -368,6 +368,7 @@ class CatalogUC(TypedDict, total=False):
     ``regs``       compliance[].regulation Set of unique regulation ids
     ``cmp``        compliance[]          Per-clause assurance summary
     ``prd``        ``products``           Emitted only when not the default
+    ``prdn``       (computed)            Product short names for ``prd`` (badges)
     ``pra``        ``productArtifacts``   Emitted only when present
     ``escu``       (computed)            True when app field includes ESCU/ES
     ``escu_rba``   (computed)            True for risk-based-alerting ESCU UCs
@@ -398,6 +399,7 @@ class CatalogUC(TypedDict, total=False):
 
     # Product / SPL.
     prd: list[str]
+    prdn: list[str]
     pra: list[ProductArtifact]
     q: str
     qs: str

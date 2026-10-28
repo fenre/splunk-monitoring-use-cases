@@ -123,6 +123,38 @@ GET_USE_CASE_OUTPUT_SCHEMA: dict[str, Any] = {
         "mitreAttack": {"type": "array", "items": {"type": "string"}},
         "cimModels": {"type": "array", "items": {"type": "string"}},
         "dataSources": {"type": "string"},
+        "products": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Splunk products the UC is implemented in, primary first "
+                "(ids from data/splunk-products.json, e.g. "
+                "``splunk-observability-cloud``). Absent means the UC is "
+                "implemented as SPL on the Splunk platform (Splunk "
+                "Enterprise / Splunk Cloud Platform)."
+            ),
+        },
+        "productArtifacts": {
+            "type": "array",
+            "description": (
+                "Non-SPL implementation artifacts for products other than "
+                "the Splunk platform — SignalFlow detectors, Agent "
+                "Observability evaluators, SOAR playbooks, ITSI KPIs, "
+                "Edge Hub source configurations. Absent for SPL-only UCs."
+            ),
+            "items": {
+                "type": "object",
+                "required": ["product", "type", "title", "body"],
+                "properties": {
+                    "product": {"type": "string"},
+                    "type": {"type": "string"},
+                    "language": {"type": "string"},
+                    "title": {"type": "string"},
+                    "body": {"type": "string"},
+                    "docsUrl": {"type": "string"},
+                },
+            },
+        },
         "spl": {"type": "string"},
         "cimSpl": {"type": "string"},
         "implementation": {"type": "string"},
@@ -371,6 +403,7 @@ def get_use_case_markdown(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
     _add_fact("Wave", uc.get("wave"))
     _add_fact("Pillar", uc.get("splunkPillar") or uc.get("pillar"))
     _add_fact("Monitoring type", uc.get("monitoringType"))
+    _add_fact("Implemented in", uc.get("products"))
     _add_fact("App / TA", uc.get("app"))
     _add_fact("Data sources", uc.get("dataSources"))
     _add_fact("CIM models", uc.get("cimModels"))
@@ -423,6 +456,12 @@ def get_use_case_markdown(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
     _add_text_section("Value", uc.get("value"))
     _add_code_section("SPL", uc.get("spl"))
     _add_code_section("CIM SPL (tstats)", uc.get("cimSpl"))
+    for artifact in uc.get("productArtifacts") or []:
+        if not isinstance(artifact, dict):
+            continue
+        kind = str(artifact.get("type") or "").replace("-", " ")
+        heading = f"{artifact.get('product', '')} {kind}: {artifact.get('title', '')}".strip()
+        _add_code_section(heading, artifact.get("body"), str(artifact.get("language") or "text"))
     _add_text_section(
         "Implementation",
         uc.get("detailedImplementation") or uc.get("implementation"),

@@ -310,6 +310,12 @@ function waveBadge(w) {
   if (!WAVE_LABELS[key]) return '';
   return '<span class="c-badge c-badge-wave-' + esc(key) + '" title="' + esc(WAVE_TOOLTIPS[key]) + '">' + esc(WAVE_LABELS[key]) + '</span>';
 }
+// Product badge — only for use cases not implemented on the Splunk
+// platform (the build emits uc.prd / uc.prdn only when non-default).
+function productBadge(uc) {
+  if (!uc || !Array.isArray(uc.prdn) || !uc.prdn.length) return '';
+  return '<span class="c-badge c-badge-product" title="Implemented in ' + esc(uc.prdn.join(', ')) + '">' + esc(uc.prdn[0]) + '</span>';
+}
 // Reverse-prereq index: { 'UC-X.Y.Z': ['UC-A.B.C', ...] } where the listed
 // UCs declare the key as a prerequisite. Built lazily on first use so the
 // initial DATA scan in buildIndex() stays untouched, then memoised.

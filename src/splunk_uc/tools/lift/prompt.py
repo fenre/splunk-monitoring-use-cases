@@ -19,6 +19,7 @@ import json
 import sys
 from pathlib import Path
 
+from splunk_uc import products
 from splunk_uc.audits._template_fingerprints import detect_template_flags
 from splunk_uc.tools.lift._common import (
     DEFAULT_CONTENT_ROOT,
@@ -40,8 +41,8 @@ the use case below to the target tier without violating the firewall.
 
 * `description`: >= 80 chars, shares <= 60% word stems with `value`.
 * `value`: >= 80 chars, distinct from `description`.
-* `dataSources`: >= 80 chars; must contain a Splunkbase ID, a sourcetype, and a named extracted field.
-* `detailedImplementation`: >= 500 chars (Silver) / >= 1500 chars (Gold-v2); >= 6 distinct product-specific indicators (sourcetype=, index=, /api/, modular input, time bound, RBAC role, etc.).
+{datasources_rule}
+{detailed_rule}
 * `knownFalsePositives`: >= 4 distinct named scenarios; each must reference a system/process by name AND a distinguish or suppress pattern.
 * `references`: >= 4 entries with non-empty `url` and `title`. Prefer high-provenance sources (vendor docs, official Splunk docs).
 * `controlTest.positiveScenario` and `negativeScenario`: differ by >= 30 chars.
@@ -68,6 +69,7 @@ the use case below to the target tier without violating the firewall.
 # FIREWALL — DO NOT TOUCH
 
 * `spl`, `cimSpl` — never. SPL changes are out of scope for this loop.
+* `products`, `productArtifacts` — never. Where and how the UC is implemented stays.
 * `id`, `title` — never. Identity is immutable.
 * `monitoringType`, `splunkPillar` — never. Classification stays.
 * `criticality`, `difficulty` — never. Classification stays.
@@ -100,7 +102,7 @@ Rules:
   the entire current value.
 * Do NOT invent vendors/products that do not appear in the original
   UC's `dataSources` or `app`.
-* Do NOT change SPL. Do NOT change classification.
+* Do NOT change SPL or product artifacts. Do NOT change classification.
 * Save the diff to `/tmp/lift-{uc_id}.diff.json` and return only that
   path. Do nothing else.
 """
@@ -129,6 +131,41 @@ Adapt scenarios from this pack — customize for the UC title and SPL; never pas
 {pack_excerpt}
 
 """
+
+
+SPLUNK_PLATFORM_DATASOURCES_RULE = (
+    "* `dataSources`: >= 80 chars; must contain a Splunkbase ID, a sourcetype, "
+    "and a named extracted field."
+)
+SPLUNK_PLATFORM_DETAILED_RULE = (
+    "* `detailedImplementation`: >= 500 chars (Silver) / >= 1500 chars (Gold-v2); "
+    ">= 6 distinct product-specific indicators (sourcetype=, index=, /api/, "
+    "modular input, time bound, RBAC role, etc.)."
+)
+OTHER_PRODUCT_DATASOURCES_RULE = (
+    "* `dataSources`: >= 80 chars; name the {product} objects the UC reads "
+    "(as they appear in `productArtifacts`), not Splunk sourcetypes."
+)
+OTHER_PRODUCT_DETAILED_RULE = (
+    "* `detailedImplementation`: >= 500 chars (Silver) / >= 1500 chars (Gold-v2); "
+    "step 2 is headed \"{section}\" and explains the `productArtifacts` entries; "
+    "product-specific detail comes from {product} documentation ({docs_url})."
+)
+
+
+def _rubric_rules(sidecar: dict[str, object]) -> tuple[str, str]:
+    """Data-source and implementation rubric lines for the UC's product."""
+    if products.applies(sidecar, "splReferences"):
+        return SPLUNK_PLATFORM_DATASOURCES_RULE, SPLUNK_PLATFORM_DETAILED_RULE
+    row = products.product(products.primary_product_id(sidecar))
+    return (
+        OTHER_PRODUCT_DATASOURCES_RULE.format(product=row["name"]),
+        OTHER_PRODUCT_DETAILED_RULE.format(
+            product=row["name"],
+            section=products.implement_section(sidecar),
+            docs_url=row["docsUrl"],
+        ),
+    )
 
 
 def _build_handcraft_section(flags: list[str]) -> str:
@@ -210,6 +247,11 @@ def main(argv: list[str] | None = None) -> int:
     pack_id = args.domain_pack or infer_pack_id(sidecar_path)
     domain_pack_section, resolved_pack = _build_domain_pack_section(pack_id, args.packs_dir)
 
+    try:
+        datasources_rule, detailed_rule = _rubric_rules(sidecar_data)
+    except KeyError as exc:
+        print(f"lift-prompt: unknown product {exc}", file=sys.stderr)
+        return 1
     sidecar_json = json.dumps(sidecar_data, indent=2, sort_keys=True)
     gap_json = json.dumps(report.to_json(), indent=2, sort_keys=True)
     print(
@@ -218,6 +260,8 @@ def main(argv: list[str] | None = None) -> int:
             target_tier=target_tier.value,
             sidecar_json=sidecar_json,
             gap_json=gap_json,
+            datasources_rule=datasources_rule,
+            detailed_rule=detailed_rule,
             handcraft_section=handcraft_section,
             domain_pack_section=domain_pack_section,
             domain_pack_id=resolved_pack or "",

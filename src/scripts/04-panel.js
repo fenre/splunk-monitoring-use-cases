@@ -13,6 +13,7 @@ function fillDetailPane(e) {
   html += '<div class="dp-badges">';
   html += critBadge(uc.c) + ' ' + diffBadge(uc.f);
   if (uc.wv && WAVE_LABELS[uc.wv]) html += ' ' + waveBadge(uc.wv);
+  if (uc.prdn && uc.prdn.length) html += ' ' + productBadge(uc);
   if (uc._qt) {
     var tierLabel = uc._qt === 'gold' ? 'Deep' : uc._qt === 'silver' ? 'Solid' : uc._qt === 'bronze' ? 'Basic' : 'Stub';
     html += ' <span class="uc-card-depth depth-' + esc(uc._qt) + '">' + esc(tierLabel) + '</span>';
@@ -43,7 +44,7 @@ function fillDetailPane(e) {
   }
 
   var isThin = !uc._qt || uc._qt === 'none' || uc._qt === 'bronze';
-  if (isThin && !uc.md && !uc.q) {
+  if (isThin && !uc.md && !uc.q && !(uc.pra && uc.pra.length)) {
     html += '<div class="dp-thin"><div class="dp-thin-title">This use case needs more detail</div><p>Help improve it — <a href="' + esc(githubIssueUrlForEntry(e)) + '" target="_blank" rel="noopener">suggest edits on GitHub</a>.</p></div>';
   }
 
@@ -182,6 +183,16 @@ function fillDetailPane(e) {
   function copyBlock(label, text, id) {
     if (!text) return '';
     return '<div class="dp-section"><div class="dp-section-title">' + label + '</div><div class="code-wrap"><pre class="c-spl-block" id="' + id + '">' + esc(text) + '</pre><button type="button" class="copy-btn" onclick="copyCode(this)">Copy</button></div></div>';
+  }
+  if (Array.isArray(uc.prdn) && uc.prdn.length) {
+    html += '<div class="dp-section"><div class="dp-section-title">Implemented in</div><div class="dp-section-body">' + esc(uc.prdn.join(', ')) + '</div></div>';
+  }
+  if (Array.isArray(uc.pra)) {
+    uc.pra.forEach(function(a, ai) {
+      if (!a || !a.body) return;
+      var kind = String(a.type || '').replace(/-/g, ' ');
+      html += copyBlock(esc(kind.charAt(0).toUpperCase() + kind.slice(1)) + (a.title ? ': ' + esc(a.title) : ''), a.body, 'copy-pra-' + ai);
+    });
   }
   html += copyBlock('SPL query', uc.q, 'copy-q');
   html += copyBlock('tstats query', uc.qs, 'copy-qs');
