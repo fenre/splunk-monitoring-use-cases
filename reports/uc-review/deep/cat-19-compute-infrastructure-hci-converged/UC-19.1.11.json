@@ -1,0 +1,134 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "a4c3bd7a7e99625b7363996333d4644a0edfee60b5163c25b4dcf160d1fafbaa",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.11.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The add-on assigns every event the sourcetype `cisco:ucs` and encodes the class in `source` (`cisco:ucs:lsServer`, `cisco:ucs:faultInst`, and so on). The text also tells readers to prefer these non-existent sourcetypes 'per Splunkbase 2731 field guidance', which is the opposite of what the add-on documentation says.",
+      "field": "dataSources",
+      "quote": "the sourcetypes `cisco:ucs:inventory` (XML inventory MO snapshots; you filter `classId=\"lsServer\"` for the Service Profile object), `cisco:ucs:audit` (UCSM audit-style lifecycle and operator actions on the same MO classes), and `cisco:ucs:faults`",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feeds as `sourcetype=cisco:ucs` with `source=cisco:ucs:lsServer`, `source=cisco:ucs:faultInst` and, for audit, the source for the UCSM audit class (for example `aaaModLR`) once a Template includes it. Remove the claim that `cisco:ucs:inventory`/`cisco:ucs:audit` are the shipped names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The add-on documentation installs to `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` and Splunkbase lists the package as `Splunk_TA_cisco-ucs`. The hyphen is the canonical name, not a quirk.",
+      "field": "app",
+      "quote": "The on-disk directory name and canonical app id use an underscore. Older local packages may still list a hyphen in the filename; that is a packaging quirk",
+      "severity": "blocker",
+      "suggested_fix": "State that the app folder and id are `Splunk_TA_cisco-ucs`. Cite the current 4.3.3 release and its compatibility range."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on has no separate inventory, audit and faults inputs. You add a Manager (host and credentials), build Templates listing class IDs (for example lsServer, faultInst, aaaModLR), and create Inputs that reference `servers` and `templates`, with default sourcetype `cisco:ucs`. Following Step 1 as written would not produce the data the search expects.",
+      "field": "detailedImplementation",
+      "quote": "enable the modular inputs the vendor documents for inventory poller, audit log (or audit-equivalent) pull, and faults; bind each to `index = cisco_ucs` (or your standard name) and keep the sourcetype the TA assigns (`cisco:ucs:inventory`, `cisco:ucs:audit`, `cisco:ucs:faults`). A representative pattern is to copy the stanza names from `default/inputs.conf` ... fill `url = https://<ucsm-fqdn>`",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite Step 1 around Managers, Templates and Inputs as documented. Validate with `index=cisco_ucs sourcetype=cisco:ucs | stats count by source`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Rex",
+      "explanation": "The companion search's `rex` has no named capture group. Splunk's rex command requires at least one, so the search errors out instead of returning the cause histogram.",
+      "field": "detailedImplementation",
+      "quote": "| rex field=dn \"^org-root/.*?/ls-[^/]+\"\n| where match(lower(dn), \"/ls-\")",
+      "severity": "blocker",
+      "suggested_fix": "Drop the rex line (the following `where match(...)` already filters to profile DNs) or give it a named group, for example `(?<sp_key>org-root/(?:.+/)?ls-[^/]+)`."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "UCSM audit records (`aaaModLR`) usually carry attributes such as `affected`, `ind` (creation/modification/deletion), `descr`, `user`, `txId` and `cause`, not a result or outcome field. If so, `audit_fail` never evaluates to 1 and half the detection is dead.",
+      "field": "detailedImplementation",
+      "quote": "`audit_fail` encodes: audit side red conditions—HTTP-like failure tokens in the normalized `result` field, profile DNs, and action verbs for associate, modify, decommission, or disassociate",
+      "severity": "needs_verification",
+      "suggested_fix": "Pull one real audit event from the add-on and list its attributes. Then describe the audit branch in terms of the fields that actually exist, or state that association failures are detected from lsServer state and faultInst only."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "`inaccessible` is documented as a fault (fltLsServerInaccessible) and an operational condition. It may not be a value of lsServer `assocState`, whose usual values are associated, associating, disassociating, failed and unassociated.",
+      "field": "detailedImplementation",
+      "quote": "inventory-side red conditions—`failed` and `inaccessible` states",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the lsServer assocState and operState enums in the UCSM MIM. If `inaccessible` belongs to operState, document it there."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "This introduces yet another sourcetype that neither the add-on nor the subcategory guide defines.",
+      "field": "detailedImplementation",
+      "quote": "add a `join` to `cisco:ucs:events` in a private fork if your site indexes FSM there",
+      "severity": "minor",
+      "suggested_fix": "Name the actual source for FSM data (for example a class such as `lsServer` FSM children captured via a Template) or remove the suggestion."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The text never names the Cisco fault that represents this condition, which would make validation and alerting concrete.",
+      "field": "detailedImplementation",
+      "quote": "Open the Faults summary for the same profile and read the `cause` and severity",
+      "severity": "minor",
+      "suggested_fix": "Name the relevant UCSM faults from the Cisco faults reference (fltLsServerAssociationFailed, fltLsServerConfigFailure, fltLsServerInaccessible) and their codes, verified against the reference."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The Server Management Guide reference points to the Cisco home path, and the Splunk reference points to the Search Reference index rather than a specific page.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual UCSM Server Management Guide chapter on service profiles and the specific Search Reference pages used (eval, rex, join)."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "A UC with non-existent sourcetypes and a companion search that does not run cannot have been verified against a live deployment.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set a non-verified status until validated."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters `sourcetype=\"cisco:ucs:inventory\"`, `sourcetype=\"cisco:ucs:audit\"` and `sourcetype=\"cisco:ucs:faults\"`. The Splunk Add-on for Cisco UCS emits `sourcetype=cisco:ucs` with class-specific `source` values (for example `cisco:ucs:lsServer`, `cisco:ucs:faultInst`), so the search returns nothing on a default install.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Rex",
+      "field": "spl",
+      "issue": "The fault join regex `^(?<sp_key>org-root/.*?/ls-[^/]+)` requires a sub-org segment between `org-root/` and `/ls-`, so faults on service profiles in the root org (`org-root/ls-NAME/fault-...`), the most common layout, never join and `cause_enum` stays empty. Use `^(?<sp_key>org-root/(?:.+?/)?ls-[^/]+)`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`first(inv_fail)`/`first(audit_fail)` take an arbitrary row per sp_dn rather than any failing row (use `max`). `latest(assoc)` and similar fields can be overwritten by empty strings from audit rows. The joined `fault_sev` and `fault_time` are computed but never shown in the final table.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0003-UC-19.1.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC explains the association-failure idea and its blast-radius logic well, but it is built on three sourcetypes the Splunk Add-on for Cisco UCS does not emit. It also gives an inputs.conf workflow that does not match the add-on, ships a companion search that fails as written, and keys the audit branch on fields UCSM audit records may not have.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.11",
+  "verdict": "incorrect"
+}

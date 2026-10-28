@@ -1,0 +1,130 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "776170918f757de1e4d9a3d5579d1c3c625cb51f61ed8ec9acd32b7433a7d68e",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.39.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The supplied `ceph_status_json.sh` does the opposite: on any failure it `exit 1`s with no stdout, so no event is indexed. The SPL's `coalesce('health.status', \"POLL_FAILED\")` only fires when a JSON event exists without health. A dead poller or a MON-quorum outage (where `ceph -s` times out) therefore produces silence rather than a critical row — the worst moment to go quiet.",
+      "field": "detailedImplementation",
+      "quote": "add a pre-flight in the poller: if the JSON is missing `monmap` + a parsable `health` block, emit a one-line `POLL_FAILED` so Splunk does not show a fake `HEALTH_OK`",
+      "severity": "major",
+      "suggested_fix": "Make the script print `{\"health\":{\"status\":\"POLL_FAILED\"},\"poll_error\":\"<reason>\"}` on timeout or parse failure. Alternatively, add a companion staleness alert (no `proxmox:ceph` event per cluster in the last 3× interval)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.ceph.com/en/latest/rados/operations/health-checks/",
+      "explanation": "`ceph -s` is answered by the monitors. With all MGRs down it still returns JSON, with health HEALTH_WARN (MGR_DOWN / 'no active mgr') and stale pgmap values. Losing MON quorum is what makes `ceph -s` hang or time out. The gotcha points operators at the wrong failure mode.",
+      "field": "detailedImplementation",
+      "quote": "All MGRs down makes `ceph -s` and JSON nonsense or empty",
+      "severity": "major",
+      "suggested_fix": "Write: 'Loss of MON quorum makes `ceph -s` time out (emit POLL_FAILED); loss of all MGRs yields HEALTH_WARN with MGR_DOWN and stale pgmap counters, so treat PG percentages as unreliable while MGR_DOWN is active.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "`pvecm status` reports Proxmox corosync cluster quorum. It does not show Ceph MON quorum or the Ceph fsid, so it cannot be used to cross-check either field. 'coroside' is also a typo for corosync.",
+      "field": "detailedImplementation",
+      "quote": "`pvecm status` for coroside membership — these must agree directionally with `quorum` length and `fsid` in Splunk",
+      "severity": "major",
+      "suggested_fix": "Cross-check with `ceph quorum_status -f json-pretty` (quorum_names) and `ceph fsid`. Mention `pvecm status` only as separate corosync context."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The scripted input runs as the forwarder's service user (usually `splunk`). The keyring written by root and PVE's `/etc/ceph/ceph.conf` (a symlink into `/etc/pve`, root:www-data, not world-readable) are both unreadable to that user. As written, `ceph -s` fails and the script exits silently.",
+      "field": "detailedImplementation",
+      "quote": "ceph auth get-or-create client.splunk_status mon \"allow r\" mgr \"allow r\" \\\n  -o /etc/ceph/ceph.client.splunk_status.keyring",
+      "severity": "major",
+      "suggested_fix": "Add the ownership step (`chown root:splunk` + `chmod 0640` on the keyring). Pass `--conf` to a minimal readable conf containing `mon_host`, or run the poller via a root cron/systemd timer that writes JSON to a file the UF monitors."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In current `ceph status` JSON, `fsid` is a top-level key and the status `monmap` summary carries `epoch`, `min_mon_release_name` and `num_mons`. `pgs_by_state` has been present since Luminous, not just Quincy+. The SPL's coalesce to `fsid` hides the first issue, but the prose misleads authors.",
+      "field": "dataSources",
+      "quote": "capturing `monmap` (`fsid`, `num_mons`) ... and `pgmap` (`num_pgs` and `pgs_by_state` array in Quincy+)",
+      "severity": "minor",
+      "suggested_fix": "List `fsid` as top-level, `monmap.num_mons`, `quorum[]`/`quorum_names[]`, and `pgmap.pgs_by_state[]` (Luminous+)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The default Splunk `syslog` sourcetype extractions name the daemon field `process`, not `program`. Splunk_TA_nix does not obviously add a `program` field to `sourcetype=syslog`, so the SPL's `program=ceph-osd` filter may match nothing unless a site transform creates it.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=syslog`** with `program` in {`ceph`, `ceph-mon`, `ceph-osd`, `ceph-mgr`} ... forwarded through **`Splunk_TA_nix`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the field name on a sample event. Either filter on `process` or ship a `props.conf` EXTRACT that creates `program` from the rsyslog tag."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The cluster log (`/var/log/ceph/ceph.log` on MON hosts) holds the clearest flap and health-transition lines, such as 'osd.N marked itself down', 'Health check failed: ... (OSD_DOWN)' and 'OSD_FLAPPING'. It is not tailed, so the flap counter relies on per-daemon logs only. Routing through rsyslog into a UF is also more complex than a UF `monitor` stanza.",
+      "field": "detailedImplementation",
+      "quote": "input(type=\"imfile\" File=\"/var/log/ceph/ceph-osd.*.log\" Tag=\"ceph-osd:\" readMode=\"0\")",
+      "severity": "minor",
+      "suggested_fix": "Add `/var/log/ceph/ceph.log` (Tag `ceph:`), or use UF `[monitor:///var/log/ceph/*.log]` with `sourcetype=ceph:log` and a host-from-forwarder default."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "Beyond the template wording already flagged, the logic is wrong. `num_osds > 0` and similar are divide-by-zero guards, not alert thresholds. `]` is a parsing artifact presented as a group-by field. The real triggers (HEALTH_WARN/ERR, quorum loss, OSD loss ≥10/25%, PG degraded ≥5/10%, flap_hits ≥3) are not stated. The same artifact appears in controlTest and knownFalsePositives.",
+      "field": "description",
+      "quote": "with thresholds `num_osds` > 0, `num_mons` > 0, `total_pg_count` > 0, or `flap_hits` >= 3. Groups `cluster_id`, `degraded_pg_count`, `total_pg_count` by `host`, `]`, `cluster_id`, `severity_bucket`",
+      "severity": "major",
+      "suggested_fix": "State the actual severity_bucket rules and the final grouping (`cluster_id`, `severity_bucket`). Remove the `]` token everywhere."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "'starts challenging others' is an obscure metaphor for monitor elections and OSD flapping. A lay reader will not connect it to a helper repeatedly dropping out and coming back.",
+      "field": "grandmaExplanation",
+      "quote": "If one storage helper drops out, starts challenging others, or the group cannot agree",
+      "severity": "minor",
+      "suggested_fix": "e.g. 'If one storage helper keeps dropping out and coming back, or the helpers cannot agree on who is in charge, things slow down and can stop.'"
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Spath",
+      "field": "spl",
+      "issue": "`spath` names JSON array values with a `{}` suffix, so the `quorum` array is extracted as `quorum{}`, not `quorum`. `isnotnull('quorum')` is therefore always false, giving `quorum_count=0` and `quorum_loss_pct=100` for every healthy cluster. That makes `severity_bucket=\"critical\"` on every JSON row. Use `mvcount('quorum{}')` or `spath path=quorum{} output=quorum`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`degraded_sum+tonumber(dN,10)` returns null whenever a state rex does not match, and nulls propagate through later additions. Unless all four exact states are present, degraded_pg_count becomes null and is then filled to 0. The rex also matches only the exact strings `active+degraded`, `active+undersized` etc., while real degraded PGs report compound states such as `active+undersized+degraded`. `pg_degraded_pct` will therefore almost always read 0. Use spath/mvexpand over `pgmap.pgs_by_state{}` with a `match(state_name,\"degraded|undersized|incomplete|remapped\")` sum.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Syslog rows are aggregated by `host`, and the cluster_id join only resolves hosts that run the JSON poller. Flap lines from other OSD nodes end up as separate `UNMAPPED-<host>` rows with no health context instead of joining the cluster row. The final `stats ... by cluster_id, severity_bucket` can also emit several rows per cluster, and `max(flap_score)` compares strings lexically ('none' > 'low' > 'high').",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The flap regex alternative `(?<![A-Za-z])boot(?![A-Za-z])` matches every routine OSD boot or start-up message, which inflates `flap_hits` after normal reboots or upgrades.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0032-UC-19.1.39",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 4
+  },
+  "summary": "Strong Ceph operational guidance (crash archive, clock skew, BlueFS spillover), but the SPL reads the `quorum` array under the wrong field name and so marks every cluster critical. The poller contract cannot produce the POLL_FAILED signal the text promises, and several validation steps (pvecm, MGR-down behaviour, file permissions on PVE) are inaccurate.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.39",
+  "verdict": "incorrect"
+}

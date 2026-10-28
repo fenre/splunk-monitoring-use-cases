@@ -1,0 +1,151 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "08e2f72f05154f8b0bb20b6f4696f6fbbbea109702d00445404e592e4728848a",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "explanation": "The fenced test copy reproduces the same multisearch whose nutanix:host leg runs `stats ... by cluster_uuid` and whose upgrade_history leg runs `sort 0 - _time | dedup cluster_uuid`. multisearch only accepts streaming subsearches, so pasting this copy into a notebook (as Step 2 tells you to) returns a search error rather than results.",
+      "field": "detailedImplementation",
+      "quote": "Fenced copy for test notebooks (must match the top-level spl field in this JSON file):",
+      "severity": "blocker",
+      "suggested_fix": "Once the canonical SPL is restructured (for example, put the host and history aggregation after the multisearch, or use append/union for the non-streaming legs), regenerate the fenced copy from it. Also add a line in Step 3 that dry-runs it against one cluster and checks it returns rows."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The cron expression runs once an hour, at minute 5. The implementation and evidence fields both say the search is scheduled every five minutes. Separately, alert.suppress.period = 3600s on an hourly search suppresses one run at most, so the throttle as described has no real effect.",
+      "field": "detailedImplementation",
+      "quote": "cron_schedule = 5 * * * *\ndispatch.earliest_time = -1h@h",
+      "severity": "major",
+      "suggested_fix": "Pick one cadence. Either use `*/5 * * * *` with a one-hour or longer suppression, or keep the hourly cron and change implementation and evidence to say hourly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "This is not a usable check. HEC errors in _internal are logged under component=HttpInputDataHandler (splunkd.log) or appear as HTTP status codes in the HEC access logs. The terms 'HEC 42' match nothing meaningful, so an empty result proves nothing about transport.",
+      "field": "detailedImplementation",
+      "quote": "(5) index=_internal log_level=error HEC 42 — proves transport when events vanish.",
+      "severity": "major",
+      "suggested_fix": "Replace it with `index=_internal sourcetype=splunkd component=HttpInputDataHandler (log_level=ERROR OR log_level=WARN)`, filtered on the poller's token name, and also check the poller's own log for non-200 HEC responses."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The LCM v4 paths use a beta namespace (v4.0.b1), which Nutanix has since superseded with GA v4 namespaces. The 'operations' resource with a type filter and the v1.0 genesis/lcm/inventory_status endpoint (including the POST-then-GET refresh pattern) could not be confirmed against the Nutanix API reference. A poller built from these paths may get 404s on current AOS/PC releases.",
+      "field": "detailedImplementation",
+      "quote": "nutanix:lcm:available_versions from GET /api/lcm/v4.0.b1/resources/entities ... nutanix:lcm:upgrade_history from GET /api/lcm/v4.0.b1/operations with $filter=type eq 'UPGRADE'",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the endpoints against the Nutanix v4 LCM API reference on nutanix.dev for the AOS/Prism Central release you target, pin the API version in the text, and cite the exact reference page."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase id 5076 is not in the repository's cached Splunkbase catalogue. That catalogue lists the Nutanix Prism Element add-on as 'TA for Nutanix Prism' (id 3103, folder TA-nutanix) and the Prism Central add-on as id 8349 (TA-nutanix-PC). The add-on name, folder and id here, also repeated in dataSources, references and the Prerequisites section, therefore look wrong, and the sourcetype names should be re-checked against the real add-on.",
+      "field": "app",
+      "quote": "Install Splunk_TA_nutanix (folder Splunk_TA_nutanix, [Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "major",
+      "suggested_fix": "Point to TA for Nutanix Prism (Splunkbase 3103, folder TA-nutanix) or whichever add-on is actually deployed, and align the nutanix:cluster/nutanix:host sourcetype names and coalesce lists with the fields that add-on emits."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The Python sketch is pasted as prose, not in a code fence, so indentation and the `#` comments will not render reliably. The sketch also builds the HEC payload and then stops ('then POST hec to ...'): it never sends the payload and never sets the Authorization: Splunk <token> header.",
+      "field": "detailedImplementation",
+      "quote": "Python sketch for the inventory POST/GET loop (headers simplified — follow your org’s real auth and TLS):\n\nimport json, ssl, time, urllib.request",
+      "severity": "minor",
+      "suggested_fix": "Wrap the sketch in a ```python fence and add the final urllib POST to /services/collector/event with the 'Authorization: Splunk <token>' header and a status-code check."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Troubleshooting treats inventory older than 24 hours as the problem, and Step 3 validates `ih<24`. The SPL only raises inventory staleness at more than 168 hours (medium), so operators get no alert in the window this step troubleshoots.",
+      "field": "detailedImplementation",
+      "quote": "LCM inventory older than 24h: re-run the POST/GET loop",
+      "severity": "minor",
+      "suggested_fix": "State the 168-hour alert threshold, and describe 24 hours as a healthy-cadence expectation rather than an alert condition, or align the two numbers."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This UC covers AHV clusters and explicitly excludes other hypervisors. Hyper-V, ITSI, Linux and ServiceNow are an unrelated hypervisor, optional routing targets, or a passing remark ('not whatever CentOS version'). These tags will surface the UC in unrelated equipment pickers.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\n    \"hyperv\",\n    \"itsi\",\n    \"linux\",\n    \"nutanix\",\n    \"servicenow\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Keep only nutanix."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "This is on-premises HCI lifecycle compliance for Prism Element clusters, not a cloud-security detection. The 'cloud' domain misfiles it in security-domain filters.",
+      "field": "securityDomain",
+      "quote": "\"securityDomain\": \"cloud\"",
+      "severity": "minor",
+      "suggested_fix": "Use the catalogue's infrastructure/endpoint domain value, or omit the field, consistent with sibling cat-19.2 UCs."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference titles promise specific documents (the AOS LTS/STS policy, REST context), but the URLs are site home pages for portal.nutanix.com, nutanix.dev and docs.splunk.com.",
+      "field": "references",
+      "quote": "\"title\": \"Nutanix — Portal documentation and AOS LTS/STS\",\n      \"url\": \"https://portal.nutanix.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Nutanix AOS release-model/EOL page, the LCM v4 API reference on nutanix.dev, and the Splunk HEC and multisearch documentation pages directly."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The canonical SPL fails at parse time (non-streaming commands inside multisearch), and the LCM endpoints are unconfirmed. 'Verified' implies the search was run against real data, which it cannot have been in this form.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the SPL has been fixed and run against a lab cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "The nutanix:host leg of the multisearch ends in `stats dc(hvk) ... by cluster_uuid`, and the upgrade_history leg uses `sort 0 - _time | dedup cluster_uuid`. multisearch requires every subsearch to be purely streaming, so the whole search errors and returns nothing. Move the per-host aggregation and latest-history selection after the multisearch (the stats latest(eval(...)) block can already handle it), or use append for those legs.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "field": "spl",
+      "issue": "`sort 0 - severity_bucket, cluster_name` sorts the bucket names as text in descending order (ok, medium, low, high, critical), so critical and high clusters land at the bottom of the alert table. Add a numeric rank (for example eval sev_rank=case(severity_bucket=\"critical\",4,...)) and sort on that.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The search starts with a `comment(...)` macro placed before the generating `| multisearch` command. Splunk documents that comments placed before a generating command can produce errors or incorrect results. Use triple-backtick comments after the first command, or drop the macro.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "The ncc_older fallback `tostring(ncc_version)<tostring(min_ncc_version)` compares versions as text ('4.10' sorts before '4.6'), and the `failed_check_count<8` cap means eight or more failed NCC checks produce no precheck warning at all.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0046-UC-19.2.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The governance design (per-cluster targets, an AOS support catalogue, N-minus policy, a 24-hour mixed-AHV rule and freeze demotion) is solid and Nutanix-specific. The SPL as written will not run, though: multisearch rejects the non-streaming stats, sort and dedup subsearches, and the final sort puts critical rows last. The schedule in the savedsearches fragment contradicts the stated five-minute cadence, one validation search is meaningless, and 'verified' status is claimed for a search that was never run. The description, value, KFP and controlTest fields are template residue, and the equipment tags are padded.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.10",
+  "verdict": "incorrect"
+}

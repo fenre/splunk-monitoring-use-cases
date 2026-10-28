@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "cac3f390ceae99805fac7286df8d28dbaa7f5e0e8dbef3957755f27a133baa5c",
+  "file": "content/cat-23-business-analytics/UC-23.6.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learning.sap.com/courses/cost-center-and-internal-order-accounting-in-sap-s-4hana/planning-on-cost-centers-and-internal-orders",
+      "explanation": "In S/4HANA neither ACDOCA nor ACDOCP has a CO `VERSN` field. ACDOCA holds actuals, and ACDOCP stores plan data by plan `CATEGORY` (e.g. PLN, with ACT01 mapped to legacy version 0). A SQL projection selecting `VERSN` will fail, and the SPL's `VERSN` filters will drop every row. detailedImplementation Step 1 repeats the claim.",
+      "field": "dataSources",
+      "quote": "`dbx:sap_acdoca` (universal journal actuals — ... `VERSN` = `000` for posted actuals ...) and `dbx:sap_acdocp` (plan versions in `VERSN` such as `100` AOP / `101`–`104` quarterly rolling forecast",
+      "severity": "blocker",
+      "suggested_fix": "Describe actuals as ACDOCA rows for the leading ledger (`RLDNR`) and plan rows as ACDOCP filtered by `CATEGORY`. Tell the reader to map the AOP and forecast categories to a `plan_version` column in SQL. Note that classic COSP/COSS `VERSN` applies only to ECC."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4045",
+      "explanation": "Splunkbase app 4045 is 'Angular Examples', a dashboard example app, not an SAP HANA add-on. The same wrong ID appears in references. Readers following the link install the wrong app.",
+      "field": "app",
+      "quote": "Splunk Add-on for SAP HANA ([Splunkbase 4045](https://splunkbase.splunk.com/app/4045))",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 4045 reference. If HANA diagnostics are needed, cite a verified Splunkbase listing or just DB Connect with the HANA JDBC driver."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "BSTAT is the document status (blank = normal, A = clearing document, V = parked, M = sample, and so on), not a clearing status. The SPL's `BSTAT!=\"A\"` therefore excludes clearing documents rather than 'statistical' or uncleared items, and the prose does not explain why.",
+      "field": "dataSources",
+      "quote": "`BSTAT` clearing status",
+      "severity": "minor",
+      "suggested_fix": "Call it 'document status (BSTAT)' and say which statuses the SQL should exclude (e.g. parked V/W, sample M) and why clearing docs (A) are dropped."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "In S/4HANA, classic KP06 planning writes to legacy CO totals, not ACDOCP, unless the plan is configured to write to ACDOCP. 'KP56' does not appear to be a standard planning transaction, and 'KSEN/KSEU' and 'MEC1' in the troubleshooting section also look doubtful.",
+      "field": "detailedImplementation",
+      "quote": "quarterly forecasts one-o-one through one-o-four when KP06/KP46/KP56 planners publish those slices",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which planning tools populate ACDOCP in the target release (SAP Analytics Cloud, Fiori Plan Cost Centers, or KP06 with ACDOCP integration). Fix or remove the unverified transaction codes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL window is fixed to the previous full month (`earliest=-1mon@mon latest=@mon`), so running it daily repeats last month and never shows month-to-date drift. detailedImplementation also stamps `_time` from 'ERP extraction timestamps', so the `_time` window will not line up with fiscal `GJAHR`/`POPER`. A once-a-year plan load would fall outside it entirely.",
+      "field": "cross_field",
+      "quote": "schedule this SPL daily once intraday postings settle",
+      "severity": "minor",
+      "suggested_fix": "Say that `_time` must be set from the posting date / fiscal period, or filter on `GJAHR`/`POPER` instead of `_time`. Align the schedule text with the window (monthly after close, or a month-to-date variant)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL covers a single month, so the three-month and year-to-date panels need differently scoped searches or a summary index that the UC does not describe.",
+      "field": "visualization",
+      "quote": "Trend chart of rolling three-month sum of signed variance ... Area chart of year-to-date cumulative actual versus plan per `dept`",
+      "severity": "minor",
+      "suggested_fix": "Say that the trend and YTD panels read from a monthly summary index populated by this search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an authoring agent, yet its core table fields and Splunkbase ID are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an S/4HANA controlling SME validates the SQL projections."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://community.sap.com/t5/technology-q-a/data-extraction-from-acdoca-and-acdocp-missing-field-quot-planning-version/qaq-p/12761970",
+      "field": "spl",
+      "issue": "`where tostring(VERSN) IN (\"000\",\"00\",\"0\")` and `where VERSN IN (\"100\",...,\"104\")` filter on a field that ACDOCA/ACDOCP do not have (ACDOCP uses `CATEGORY`), so unless the SQL fabricates `VERSN`, both legs return nothing.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "The plan subsearch sums `budget_amount` across all of VERSN 100–104 (AOP plus four quarterly forecasts) into one budget, so budget is roughly 5× the real plan whenever several versions exist. Select a single comparison version, e.g. via a macro/token.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the universal journal, revenue is posted as credits (negative HSL). With `account_type=\"REV\" AND variance_lc<0` flagged unfavourable, higher revenue (more negative actual) is treated as unfavourable. Check the sign convention and flip the revenue logic (or multiply REV by -1 first).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`materiality_floor_usd` is compared with `HSL`, which is in company-code (local) currency, so the floors are wrong for non-USD entities. Use `KSL` (group currency) or convert.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-23.6.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The variance logic and close-cycle troubleshooting are strong, but the UC is built on SAP fields that do not exist in S/4HANA. ACDOCA and ACDOCP carry no `VERSN`, and ACDOCP uses plan `CATEGORY` instead. The cited 'Splunk Add-on for SAP HANA' Splunkbase ID points to an unrelated app, and the search sums every plan version into one budget figure.",
+  "tier": "deep",
+  "uc_id": "UC-23.6.3",
+  "verdict": "incorrect"
+}

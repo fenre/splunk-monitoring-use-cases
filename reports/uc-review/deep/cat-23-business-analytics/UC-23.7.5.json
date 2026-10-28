@@ -1,0 +1,155 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "4bf60286eb95602847dfd561bfefa86e6696b930a98e24f420f931dd9f2d670d",
+  "file": "content/cat-23-business-analytics/UC-23.7.5.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.niceincontact.com/Documentation/YourFirstApp",
+      "explanation": "NICE CXone's current agent-state endpoint is `/incontactapi/services/v{n}/agents/states` on the cluster host `api-{cluster}.incontact.com`. `agent-states` is the Agent API session resource, which is something else. detailedImplementation repeats the wrong path, on `api.incontact.com`.",
+      "field": "dataSources",
+      "quote": "**NICE CXone** OAuth2 caller hitting **`/incontactapi/services/v22.0/agent-states`**",
+      "severity": "blocker",
+      "suggested_fix": "Use `GET https://api-{cluster}.incontact.com/incontactapi/services/v{version}/agents/states` (Real-Time Data API), and the Agent State History API for duration-bearing history."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "splunkbase.splunk.com/app/2814 returns 404 and the ID is not in data/splunkbase-catalog.json. No Splunk-built add-on with this name could be confirmed. The references entry for it also points only at the Splunkbase home page.",
+      "field": "app",
+      "quote": "optional **Splunk Add-on for Cisco Unified Contact Center** ([Splunkbase 2814](https://splunkbase.splunk.com/app/2814))",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the actual Splunkbase listing for UCCE/UCCX/Finesse data (if any). Otherwise remove the add-on and describe the Finesse REST collector as custom."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "There are three different alert definitions. The description says `scheduled_customer_seconds` > 0 / `staffed_agents` > 0 (these are divide-by-zero guards, not thresholds). The implementation says occupancy > 92% for two buckets or an adherence drop of 12 points. detailedImplementation says occupancy_pct > 92 AND traffic_erlangs/staffed_agents < 0.78. The SPL itself applies no threshold.",
+      "field": "cross_field",
+      "quote": "route **ITSI** or email digests when **`occupancy_pct`** exceeds **92%** for two consecutive buckets or **`adherence_pct`** drops more than twelve points beneath the prior week rolling median",
+      "severity": "major",
+      "suggested_fix": "Pick one alert condition, state it identically in description, implementation and detailedImplementation, and note that the base SPL is a reporting search that the alert wraps."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "In the SPL, busy_like_s = busy + ACW, so occupancy_pct = (busy+ACW)/(busy+ACW+avail) and occupancy_login_pct = busy_like/(busy_like+avail) are the same number. The claimed 'twin denominator philosophies' do not exist.",
+      "field": "detailedImplementation",
+      "quote": "**`occupancy_pct`** honors **`busy + ACW + available`** productive routing windows while **`occupancy_login_pct`** mirrors **`(busy + ACW)/(busy + ACW + available)`** variants",
+      "severity": "major",
+      "suggested_fix": "Either describe one occupancy metric, or define the second one with a real difference (for example, include break/system_unavailable seconds in a logged-in-time denominator) and say so."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL's lookup outputs `matched_inside_schedule`, not `actual_in_schedule_seconds`, so a lookup built from this spec gives a null numerator and 0% adherence. Adherence also comes entirely from the precomputed lookup (daily totals applied to every hourly row) rather than from the agent-state data.",
+      "field": "dataSources",
+      "quote": "(dimensions **`agent_uid`**, **`day_key`**, **`scheduled_customer_seconds`**, **`actual_in_schedule_seconds`**)",
+      "severity": "major",
+      "suggested_fix": "Align the column name with the SPL. Explain that adherence is imported from WFM per agent-day, and that hourly rows repeat the daily value."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Five9 agent state statistics are normally exposed via the Supervisor Web Services/statistics APIs, not Configuration (admin) Web Services, and the version string looks guessed. The Talkdesk `/data/v2/explore/queries`, Verint `/restapi/wfm/v1/` and Calabrio `/calabrio/api/v1/agents/{id}/states` paths are also unconfirmed.",
+      "field": "dataSources",
+      "quote": "**`five9:agent_state`** (SOAP **`getAgentStates`** via **`/configuration-webservices/services/v13_0_4/`**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path against the vendor's developer documentation, and remove or mark as examples any that cannot be confirmed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Maintenance windows and synthetic probes are not real causes of a misleading occupancy figure. The 14 real causes in detailedImplementation Step 5 (blended outbound, concurrent chat, ACW timer differences, unpaid-lunch mismatch, callback holds, DST bucket collisions) are not used here.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Agent Occupancy and Schedule Adherence' shifts `sessions_seen`, `offered_calls`, `staffed_agents` over `span=1h` while `team_uid`, `_time` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the top Step 5 causes and how to detect each one."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Naming real companies as examples of duplicate tenants is unsupported and distracting. The '6 KB/event/agent/minute' sizing at a 'fifteen-second cadence' also contradicts Pipeline B's 60–120 s polling.",
+      "field": "detailedImplementation",
+      "quote": "duplicate ingestion tenants (**Disney**, **Apple**, enterprise isolation duplicates)",
+      "severity": "minor",
+      "suggested_fix": "Use neutral wording ('multi-tenant or child-org duplicates') and give sizing consistent with the stated poll interval, or drop it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "`transaction` groups events into one record. It does not emit source→target pairs, so a sankey needs `streamstats`/`autoregress` to build `from_state,to_state` pairs with counts.",
+      "field": "visualization",
+      "quote": "built from sequential state pairs (`transaction` command on **`sess_uid`** sorted streams)",
+      "severity": "minor",
+      "suggested_fix": "Describe building transitions with `streamstats current=f last(canon_bucket) as prev by sess_uid` followed by `stats count by prev canon_bucket`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The air-traffic-control and bus metaphors are mixed and confusing. Occupancy and adherence are simple ideas that do not need them.",
+      "field": "grandmaExplanation",
+      "quote": "like air-traffic control: people should be ready when calls arrive, stick to the shift plan so buses stay predictable",
+      "severity": "minor",
+      "suggested_fix": "For example: 'We check how busy phone agents are each hour and whether they are working the shifts they were scheduled for, so managers can spot overloaded teams before people burn out.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent and there is no SME sign-off. The UC contains a wrong vendor API path and an unconfirmed add-on.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a WFM SME has validated the formulas against vendor supervisor reports."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Several references are landing pages (ICMI, documentation.five9.com, community.verint.com, talkdesk.mindtouch.us, the Splunkbase root) that do not back the specific API paths claimed.",
+      "field": "references",
+      "quote": "ICMI — Contact Center Trends & Benchmarks hub",
+      "severity": "minor",
+      "suggested_fix": "Link the exact API reference pages for each vendor endpoint used."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`occupancy_pct` and `occupancy_login_pct` compute the same ratio, because busy_like_s = busy_only_s + acw_s. One of the two outputs is redundant.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`lookup erlang_c_sl.csv staffed_heads AS staffed_agents traffic_erlangs AS traffic_erlangs` exact-matches continuous values (avg staffed agents and float Erlangs), so it will almost never hit and `erlang_sl_pct` falls back to the vendor SL every time. Rounding or binning is needed before the lookup.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The join key `team_uid` is built from different source fields on each side (team_id/skill_group_id/GroupId vs skill_cluster_id/routing_team_id), so the queue-plane join is likely to miss without a mapping lookup. staffed_agents/offered_calls are also dropped by the final `fields` even though the description lists them as outputs.",
+      "severity": "major"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "'Availability' does not describe a workforce occupancy/adherence KPI. Business/Capacity fits better.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0045-UC-23.7.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is ambitious and multi-vendor, with a useful list of contact-centre pitfalls. But it cites a wrong NICE CXone API path and an unverifiable Cisco add-on ID, its two 'different' occupancy formulas are the same, and the description, implementation and detailedImplementation give three different alert conditions.",
+  "tier": "deep",
+  "uc_id": "UC-23.7.5",
+  "verdict": "incorrect"
+}

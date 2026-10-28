@@ -1,0 +1,147 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ee64b0626746ad3dcb567290d8f2084dbf4fb486efbc68f38fb0754aad5fcd73",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.37.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/wiki/Proxmox_VE_API",
+      "explanation": "Proxmox VE API tokens are sent as `Authorization: PVEAPIToken=USER@REALM!TOKENID=UUID` (an equals sign after PVEAPIToken, not a space). The header as written is rejected with 401, so the poller will never authenticate. It also contradicts the earlier instruction to create a `splunk@pve` user by showing a `user@pam` token.",
+      "field": "detailedImplementation",
+      "quote": "The HTTP header is `Authorization: PVEAPIToken user@pam!tokenid=secret`.",
+      "severity": "blocker",
+      "suggested_fix": "Write the header as `Authorization: PVEAPIToken=splunk@pve!splunk-ro=<token-uuid>` and keep the realm consistent with the dedicated service user created earlier in the step."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/api-viewer/index.html",
+      "explanation": "In the PVE API viewer, `GET /cluster/tasks` ('List recent tasks (cluster wide)') takes no parameters. `typefilter`, `source` (archive/active/all), `since`, `until`, `vmid` and `statusfilter` belong to `GET /nodes/{node}/tasks`. The `since` watermark and the Step 3 check `pvesh get /cluster/tasks --typefilter vzdump` therefore do not work as written. /cluster/tasks returns only a recent cluster-wide window, so filter type=vzdump client-side, or poll each node's /nodes/{node}/tasks with typefilter=vzdump&since=<watermark>.",
+      "field": "detailedImplementation",
+      "quote": "calls `GET /api2/json/cluster/tasks` with a `typefilter` that includes `vzdump` and, depending on PVE build, a `source` that covers active plus archived task rows",
+      "severity": "major",
+      "suggested_fix": "Poll `GET /api2/json/nodes/{node}/tasks?typefilter=vzdump&source=all&since=<epoch>` for each node (discovered via /nodes), or call /cluster/tasks without parameters and filter `type == \"vzdump\"` in the poller. Update the Step 3 pvesh command to `pvesh get /nodes/<node>/tasks --typefilter vzdump --output-format json`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The node-level endpoint is the one that supports type filtering and history watermarks, so it should be the primary source, not the optional one. Polling both without dedup on `upid` double-counts failures in `failures_24h`.",
+      "field": "dataSources",
+      "quote": "`/api2/json/cluster/tasks` and optional `/api2/json/nodes/{node}/tasks`",
+      "severity": "minor",
+      "suggested_fix": "Make /nodes/{node}/tasks the primary endpoint and state that rows are deduplicated on `upid` before indexing (or `dedup upid` in the SPL)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "`splunk show passwd` is not a CLI command that reads secrets from storage/passwords. The wrapper also hard-codes the default `admin:changeme` credentials in a script on disk, which is a security anti-pattern. As written, the token variable will be empty.",
+      "field": "detailedImplementation",
+      "quote": "PVE_API_TOKEN=$(${SPLUNK_HOME}/bin/splunk show passwd -auth admin:changeme 2>/dev/null | grep proxmox_api_token | awk '{print $NF}')",
+      "severity": "major",
+      "suggested_fix": "Have the Python poller read the token from storage/passwords via the REST API using the session key Splunk passes to scripted inputs (`passAuth = splunk-system-user` in inputs.conf). Alternatively, read from a root-readable file outside the app. Never embed admin credentials."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "`host_segment = 3` takes the third path segment as host. For `/var/log/vzdump/qemu-100.log` that is `vzdump`, so every job-log event gets host=vzdump instead of the PVE node name. That breaks the node-level correlation with the API rows.",
+      "field": "detailedImplementation",
+      "quote": "[monitor:///var/log/vzdump/*.log]\\ndisabled = 0\\nsourcetype = proxmox:vzdump:job\\nindex = virtualization\\nhost_segment = 3",
+      "severity": "major",
+      "suggested_fix": "Remove `host_segment` so the forwarder's own hostname (the PVE node) is used, or set `host = <node>` explicitly."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Per-guest files under /var/log/vzdump/ (qemu-VMID.log, lxc-VMID.log) appear to prefix each line with a `YYYY-MM-DD HH:MM:SS` timestamp before `INFO:`/`ERROR:`. 'starting new backup job' and 'Backup of VM ... failed' are task-log lines rather than per-guest log lines. If so, the TIME_PREFIX never matches and the event breaker never fires.",
+      "field": "detailedImplementation",
+      "quote": "BREAK_ONLY_BEFORE = ^INFO:\\\\s+starting\\\\s+new\\\\s+backup\\\\s+job ... TIME_PREFIX = ^INFO:\\\\s+",
+      "severity": "needs_verification",
+      "suggested_fix": "Check a real qemu-<vmid>.log on PVE 8 and anchor TIME_PREFIX at `^` with TIME_FORMAT `%Y-%m-%d %H:%M:%S`. Break events on `INFO: Starting Backup of VM`, and match the failure extraction against strings that actually appear in per-guest logs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "With INDEXED_EXTRACTIONS=json, the idiomatic way to bind time is `TIMESTAMP_FIELDS = starttime`. The regex TIME_PREFIX also breaks if the poller emits keys in a different order or with quoting variations. INDEXED_EXTRACTIONS must also be deployed on the forwarder that reads the data, which the text does not mention.",
+      "field": "detailedImplementation",
+      "quote": "INDEXED_EXTRACTIONS = json\\nKV_MODE = none\\nTIME_PREFIX = \\\"starttime\\\"\\\\s*:\\\\s*",
+      "severity": "minor",
+      "suggested_fix": "Use `TIMESTAMP_FIELDS = starttime` with `TIME_FORMAT = %s`, and state that props.conf must be on the scripted-input forwarder."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Reading task history requires audit-level rights (Sys.Audit on /nodes, or task ownership). VM.Backup lets the token create backups, which a read-only monitoring account should not have, and it is not what controls task visibility.",
+      "field": "detailedImplementation",
+      "quote": "`VM.Backup` for job-level contract ... (g) Permissions: a token missing `VM.Backup` can yield empty or 403",
+      "severity": "minor",
+      "suggested_fix": "Grant `PVEAuditor` (Sys.Audit, VM.Audit, Datastore.Audit) on `/` to a privilege-separated token. Drop VM.Backup and correct the troubleshooting note in step (g)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "explanation": "The CIM Change model describes configuration and account changes (action, object, command). A failed backup task is not a change record, and the SPL does not map or tag events to Change. The listing will mislead users who try `tstats` from Change.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "major",
+      "suggested_fix": "Remove `Change` (and `Alerts` unless the saved search writes to an alert index). Proxmox task data has no natural CIM model, so leave cimModels empty or note 'none — custom sourcetype'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The UC has nothing to do with UPS hardware or SNMP. The `dell_emc` and `snmp` equipment tags are also unrelated to vzdump task polling.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `snmp_ups` from equipmentModels and `dell_emc`/`snmp` from equipment. Keep `proxmox`, `linux` and `syslog`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The evidence statement does not say what an auditor would see (e.g. a 24h table with zero failed vzdump rows per protected guest, or alert history with ticket IDs), so it does not prove backup-restore control operation.",
+      "field": "evidence",
+      "quote": "retained per your internal evidence policy",
+      "severity": "minor",
+      "suggested_fix": "Name the artifact, for example: 'daily export of the saved-search results plus alert/ticket history showing each failed vzdump UPID was remediated within the RPO from proxmox_backup_jobs.csv'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The lookup is keyed on `job_id`, but the SPL groups by `vmids` and never calls the lookup. Step 2 suggests `lookup proxmox_backup_jobs vmids OUTPUT`, yet the CSV has no vmids column, so the RPO linkage cannot work as described.",
+      "field": "implementation",
+      "quote": "load `proxmox_backup_jobs.csv` as a lookup",
+      "severity": "minor",
+      "suggested_fix": "Add a `vmid` column (one row per guest/job) or key the lookup on the job id recorded in the vzdump task, and show the exact lookup invocation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The `where status_norm != \"ok\"` filter counts tasks with status `WARNINGS` (backup completed with warnings) as failures. They get `other_error` and contribute to `failures_24h`, so a guest with repeated benign warnings can reach 'critical'. Consider bucketing WARNINGS separately. Also, multiple guests in one job share a single `id` list, so one failing guest keys the whole list.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`| sort -failures_24h, +severity_bucket` sorts severity_bucket alphabetically (critical, high, low, medium), not by severity rank.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0030-UC-19.1.37",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 4
+  },
+  "summary": "A detailed, operator-oriented runbook for vzdump failures, but the onboarding instructions contain a malformed PVE API token header, query parameters that /cluster/tasks does not accept, a non-functional credential wrapper, and a host_segment that mislabels hosts; CIM and equipment tags do not fit the content.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.37",
+  "verdict": "incorrect"
+}

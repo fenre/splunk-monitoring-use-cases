@@ -1,0 +1,141 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "ee4e593e07c2d192c48eb1530f7922f87391d57eeafb65668b18655c0c1daaad",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.30.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "No Splunk add-on has this name, and Splunkbase app 5380 (cited in dataSources, implementation and references) is 'Mattermost Alerts', an alert-action app that has nothing to do with VMware. The VMware vCenter collection add-on in the grounding guide is the Splunk Add-on for VMware, Splunkbase 3215.",
+      "field": "app",
+      "quote": "Splunk Add-on for VMware vSphere Forwarder",
+      "severity": "blocker",
+      "suggested_fix": "Replace every 'Splunk Add-on for VMware vSphere Forwarder (Splunkbase 5380)' in app, dataSources, implementation, detailedImplementation and references with 'Splunk Add-on for VMware (Splunkbase 3215)'. If the Metrics variant is intended, use 'Splunk Add-on for VMware Metrics (Splunkbase 5089)' instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware does not emit 'vmware:perf' or 'vmware:vc:event'. It writes performance data to per-group sourcetypes such as vmware:perf:datastore and vmware:perf:disk, and vCenter events to vmware:events. The same wrong names appear in implementation, visualization and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "sourcetype=vmware:perf and sourcetype=vmware:vc:event for datastore latency and resync or maintenance events",
+      "severity": "blocker",
+      "suggested_fix": "Use vmware:perf:datastore (and vmware:perf:disk if needed) for latency context, and vmware:events (plus vmware:tasks) for maintenance and resync events. Update the visualization drilldowns and the Step 1 props note to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/get-vsanruntimeinfo",
+      "explanation": "Get-VsanRuntimeInfo is a cluster-scoped cmdlet. Its only required parameter is -Cluster, so piping a VMHost object to it fails, and the per-host properties the script reads (ResyncIops, TrafficIops, ResyncLatencyUs) are not part of the documented cluster runtime output. dataSources repeats the same claim with 'from Get-VsanRuntimeInfo per host'.",
+      "field": "detailedImplementation",
+      "quote": "$ri = $h | Get-VsanRuntimeInfo",
+      "severity": "blocker",
+      "suggested_fix": "Call Get-VsanRuntimeInfo -Cluster $cl once per cluster. For per-host resync IOPS and latency, use Get-VsanStat (or the vSAN performance service) and document the actual property names after checking them with Get-Member in a lab."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The vSAN API and RVC call this per-component attribute bytesToSync, not BytesToResync. If the property name on the PowerCLI VsanResyncingComponent object differs, the poller sends nulls and the whole UC reports zero backlog. The script also reads $row.EntityRuntime.Host.Name and $row.RecoveryETA.TotalSeconds, which may not exist either.",
+      "field": "detailedImplementation",
+      "quote": "bytes_to_resync = [int64]$row.BytesToResync",
+      "severity": "needs_verification",
+      "suggested_fix": "Run Get-VsanResyncingComponent -Cluster $cl | Get-Member against a supported PowerCLI release and use the real property names for bytes to sync, recovery ETA and owning host in the script and dataSources."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The poller emits the maintenance state as host_maintenance_mode, but the SPL only coalesces MaintenanceMode, maintenance_mode, VsanMaintenanceMode, vsan_maintenance_mode and EnsureFullDataMigrationMode. maint_mode_list will therefore always be empty, which defeats the runbook step that tells operators to check maint_mode_list before raising a Sev-1.",
+      "field": "detailedImplementation",
+      "quote": "host_maintenance_mode=$mode",
+      "severity": "major",
+      "suggested_fix": "Emit the field as maintenance_mode (a name the SPL already reads), or ask the SPL owner to add host_maintenance_mode to the coalesce."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/326527/using-ruby-vsphere-console-rvc-for-vsan.html",
+      "explanation": "The Ruby vSphere Console runs on the vCenter Server Appliance, not on ESXi, and Broadcom has deprecated it in favour of PowerCLI, DCLI and the vCenter UI. A reader following this text would look for RVC on ESXi hosts. detailedImplementation repeats 'ESXi RVC snapshots'.",
+      "field": "dataSources",
+      "quote": "Splunk_TA_nix ingesting ESXi RVC output with sourcetype=vmware:rvc:vsan_resync",
+      "severity": "blocker",
+      "suggested_fix": "Say RVC runs on the vCenter Server Appliance, mark it as deprecated, or remove the tertiary RVC path."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The PowerCLI vSphere and vSAN command index lists Get-VsanEnterMaintenanceModeReport and Get-VsanEvacuationPlan but no Get-VsanClusterMaintenanceMode. Get-VsanClusterConfiguration exposing an AdaptiveResyncEnabled property is also unconfirmed, because adaptive resync has not been a user toggle since vSAN 6.7.",
+      "field": "detailedImplementation",
+      "quote": "When PowerCLI exposes Get-VsanClusterMaintenanceMode on your vCenter build",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm both cmdlet and property names in the PowerCLI reference. If they do not exist, describe how to read the vSAN decommission mode, for example from the vCenter maintenance-mode task or event, and drop or rework the adaptive-resync stream."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Appendices A to F are one-line placeholders that refer to content that does not exist. Later appendices such as M and N repeat or contradict scope already stated elsewhere. They add length without giving the reader anything to implement.",
+      "field": "detailedImplementation",
+      "quote": "Appendix E lists forbidden marketing language in internal wiki mirrors of this UC.",
+      "severity": "major",
+      "suggested_fix": "Delete appendices A to F and L. Keep only the material that is specific to this UC (collector sizing in G, poller health in J) and fold it into the Step sections."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The exclusions field takes ESA clusters out of scope, but the hardware field and Appendix M of detailedImplementation say ESA estates are supported and explain how to mix them with OSA.",
+      "field": "cross_field",
+      "quote": "Pure vSAN Express Storage Architecture clusters with materially different resync component accounting should carry a dedicated UC",
+      "severity": "minor",
+      "suggested_fix": "Pick one scope. Either drop the ESA exclusion, or remove ESA from the hardware field and Appendix M."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC carries status verified with a generic team handle as reviewer. Nothing records an SME sign-off, and the UC contains a wrong Splunkbase ID, wrong sourcetypes and an invalid cmdlet call.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME validates the poller and SPL against a live vSAN cluster."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "This HEC reference URL is truncated and points at the Getting Data In manual root rather than the HTTP Event Collector page.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "The search reads every poll in a two-hour window (earliest=-2h@h) and then runs stats sum(bytes_to_resync) BY cluster_id host_id without keeping only the latest poll per component. With the documented one-minute cadence, each component is counted up to about 120 times, so active_resync_gib and the 50 and 200 GiB thresholds apply to an inflated number, and the ETA is skewed by the same summing. latest=@h also snaps the end of the window to the top of the hour, so a */5 schedule ignores up to 59 minutes of the newest data. Fix: dedup or take latest per cluster_id, host_id and component (or use the most recent poll_utc) before summing, and use latest=now.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The maintenance coalesce does not include host_maintenance_mode, which is the field the documented poller emits, so maint_mode_list is always null.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0065-UC-19.2.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is well informed about vSAN resync, but the UC names a Splunk add-on that does not exist, cites a Splunkbase ID that belongs to an unrelated app, uses sourcetypes the real VMware add-on does not emit, and gives PowerCLI usage that does not match the cmdlet. The SPL also sums bytes across every poll in a two-hour window, which inflates the backlog figures the thresholds are applied to.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.30",
+  "verdict": "incorrect"
+}

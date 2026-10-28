@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d8097a948aca30b1a69945e0cd294ec279127c4ebed82799ec4cbc1eb0b35898",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.2.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' and 5380 is 'Mattermost Alerts'. The VMware add-on is Splunk Add-on for VMware (3215); the Nutanix add-on in the catalogue is TA for Nutanix Prism (3103). The wrong IDs repeat in dataSources, references and detailedImplementation.",
+      "field": "app",
+      "quote": "Splunk_TA_nutanix (5076) for Nutanix. Splunk Add-on for VMware vSphere (5380) optional for VMFS.",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk Add-on for VMware (3215) and TA for Nutanix Prism (3103) or the Prism Central TA (8349), or describe Nutanix collection as a custom poller."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware emits datastore inventory as `vmware:inv:datastore` (and performance as `vmware:perf:datastore`); `vmware:vsphere:datastore` is not one of its sourcetypes.",
+      "field": "dataSources",
+      "quote": "optional `vmware:vsphere:datastore` (Splunk Add-on for VMware vSphere, Splunkbase 5380)",
+      "severity": "blocker",
+      "suggested_fix": "Use `vmware:inv:datastore` from Splunk Add-on for VMware (3215) for VMFS capacity."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "vSAN space usage is normally read through the vSAN Management SDK (VsanSpaceReportSystem.QuerySpaceUsage) rather than a vSphere Automation REST path, and the listed Nutanix container fields (top-level `usage`, `effective_used_size_bytes`) and HyperFlex `dsName` / `usedCapacityInBytes` are not traceable to vendor API docs.",
+      "field": "dataSources",
+      "quote": "custom HEC `vmware:vsan:capacity` from vSphere REST `GET https://<vcenter>/api/vcenter/vsan/cluster/{cluster}/capacity` with `total_capacity_b`, `used_capacity_b`, `actual_used_capacity_b`, `slack_space_b`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each endpoint and field against the vSAN Management API, Prism v2 storage_containers (usage_stats.*) and HX Data Platform REST references, and name the real response paths."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The implementation field is a benefits statement with no steps (pollers, lookups, schedule, alert condition), and it calls the output a 'health score' that the spl does not compute.",
+      "field": "implementation",
+      "quote": "Delivers a single cross-vendor pool health score, tier and freeze aware, with a ticket payload that already contains `owner_email`",
+      "severity": "major",
+      "suggested_fix": "List the steps: deploy the four pollers or TAs, publish hci_pool_owner and hci_pool_growth_baseline, schedule every 10 minutes over -24h@h, and alert on severity_bucket critical/high."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description lists data-sanity filters as alert conditions; the spl alerts on used% at or above 90/80 or ETA within 7/14 days (critical/high), growth above 3× baseline at >50% used (medium) and ≥60% used (low).",
+      "field": "cross_field",
+      "quote": "alert when `pool_size_bytes` > 0, `pool_used_bytes` >= 0, `dgb_7d_roll` < 0, or `dgb_csv` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the used-percent and ETA thresholds and the lookup overrides that drive severity_bucket."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "`python.version` only applies to Python scripted inputs, not a .sh wrapper, and a scripted input whose stdout is indexed with `sourcetype=vmware:vsan:capacity` conflicts with the text saying the poller posts to HEC (risking double ingestion). `TRUNCATE=0` disables truncation entirely.",
+      "field": "detailedImplementation",
+      "quote": "[script://$SPLUNK_HOME/etc/apps/TA_hci_pool_cap/local/vsan_pool_hec.sh]\npython.version = python3",
+      "severity": "minor",
+      "suggested_fix": "Pick one path (scripted input writing to stdout, or a cron/HEC poller), drop python.version for shell scripts, and set a bounded TRUNCATE."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Wrong add-on IDs and a nonexistent sourcetype mean the UC cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until each vendor arm is tested against real data."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Cisco ACI fabric is unrelated to HCI pool capacity, and prerequisiteUseCases lists UC-19.1.1 (Cisco UCS server health), which this cross-vendor storage UC does not depend on.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_aci\"",
+      "severity": "minor",
+      "suggested_fix": "Replace cisco_aci with HyperFlex / Nutanix / Azure Stack HCI models and drop the UC-19.1.1 prerequisite."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Truncated HEC URL; no vendor API references for the four pool endpoints.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/\"",
+      "severity": "minor",
+      "suggested_fix": "Link Data/UsetheHTTPEventCollector plus the vSAN, Prism, HX and Get-Volume documentation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "Each arm uses `earliest=-24h@h`, but `streamstats window=2016 current=f first(pool_used_bytes) AS used_7d_ago` expects 7 days of 5-minute samples; with only 24h of data, used_7d_ago is just the oldest sample of the day, so dgb_7d_roll = (≈1 day of growth)/7 and understates the fallback baseline about 7×, inflating growth_burst_factor and the medium tier. Widen the search window or read the 7-day baseline from a summary index.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "During a change freeze, critical is demoted to medium even when the pool is ≥90% used or will be full within 7 days, which can suppress a real out-of-space page.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Comment macro restates sources and lookups rather than a short purpose line.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-19.2.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A coherent cross-vendor pool-capacity design with clear severity tiers, but it cites two Splunkbase IDs that belong to unrelated apps and a VMware sourcetype that does not exist, and its 7-day growth baseline cannot be computed from the 24-hour search window.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.2",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,129 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "017146826ac3fd4c8fb9ed39ade7d9827165f361ec93f33d25d200fa0bc4c693",
+  "file": "content/cat-23-business-analytics/UC-23.1.8.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "props.conf documentation warns against setting both KV_MODE=json and INDEXED_EXTRACTIONS=json on one sourcetype, because fields are extracted twice and become duplicated multivalue fields. That breaks the `coalesce`/`lower(trim())` normalisation in the SPL. INDEXED_EXTRACTIONS also does not apply to HEC `/services/collector/event` payloads.",
+      "field": "detailedImplementation",
+      "quote": "[web:form_event]\nKV_MODE = json\nINDEXED_EXTRACTIONS = json",
+      "severity": "blocker",
+      "suggested_fix": "For HEC event JSON use `KV_MODE = json` only (or INDEXED_EXTRACTIONS with `KV_MODE = none` for file-monitored JSON), and drop the TIMESTAMP_FIELDS line for HEC, where `time` comes from the envelope."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "The pattern `ddd-dd-dddd` is the US SSN format, not a phone number, so phone numbers pass through unredacted while the stanza name implies they are masked.",
+      "field": "detailedImplementation",
+      "quote": "SEDCMD-strip_phone = s/\\d{3}-\\d{2}-\\d{4}/###-##-####/g",
+      "severity": "major",
+      "suggested_fix": "Rename it to `SEDCMD-strip_ssn` and add a separate phone pattern (e.g. `\\d{3}[-. ]\\d{3}[-. ]\\d{4}`), or better, drop field values at the collector so PII never reaches Splunk."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://experienceleague.adobe.com/en/docs/marketo-developer/marketo/rest/lead-database/activities",
+      "explanation": "`/rest/v1/leads.json` returns lead records by filter. Form fills ('Fill Out Form' activities) come from the Activities endpoint `/rest/v1/activities.json` with a paging token and activity type IDs, so the cited endpoint never yields form-submit events.",
+      "field": "dataSources",
+      "quote": "`marketo:activity` rows from OAuth-backed polling against Marketo REST `/rest/v1/leads.json` joined with Form Submit activities",
+      "severity": "blocker",
+      "suggested_fix": "Use `GET /rest/v1/activities/pagingtoken.json` then `/rest/v1/activities.json?activityTypeIds=<Fill Out Form id>` (look up the type ID via `/rest/v1/activities/types.json`)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "DB Connect queries relational databases over JDBC; it cannot call Marketo's REST API. The same claim appears in detailedImplementation path (F) ('DB Connect JDBC plus REST wrappers').",
+      "field": "app",
+      "quote": "Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) for Marketo REST parity extracts",
+      "severity": "major",
+      "suggested_fix": "Use DB Connect only against a warehouse that already mirrors Marketo activities (Snowflake/BigQuery); otherwise use a REST poller (scripted/modular input) into HEC."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Dashboard Studio has no `splunk.matrix` visualization type.",
+      "field": "visualization",
+      "quote": "Dashboard Studio trellis heatmap (`splunk.matrix`) of form × field",
+      "severity": "major",
+      "suggested_fix": "Use `splunk.punchcard` or a `splunk.table` with heat-map column formatting for the form × field grid."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL ends in a `table`, not a notable-event action (which would need Enterprise Security), and the run counts are invented.",
+      "field": "evidence",
+      "quote": "emits per-form/field abandonment findings written to `notable`.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-form/field friction table (starters, completers, validation-error rate, dwell p95, recoverable revenue) archived per run, plus the Step 3 reconciliation against HubSpot/Hotjar totals."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The benchmark figure is unsourced and is presented as a published norm.",
+      "field": "detailedImplementation",
+      "quote": "Salesforce State of Marketing cited norms (~38 percent B2B average completion expectation)",
+      "severity": "minor",
+      "suggested_fix": "Cite the exact report page or remove the number."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "UC-23.1.6 covers mobile app crash rate, not in-app form abandonment.",
+      "field": "exclusions",
+      "quote": "Mobile app forms (use UC-23.1.6)",
+      "severity": "minor",
+      "suggested_fix": "Remove the pointer, or name the UC that actually covers in-app form analytics."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "BMC/EDAC hardware memory-error telemetry has nothing to do with browser form analytics (the same applies to `hardware_bmc` in equipment).",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_edac\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `hardware_bmc_edac` (and `hardware_bmc`)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified by an automated agent with no SME sign-off despite configuration and API errors.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft/community pending SME review."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "The first `join ... [ ... | transaction session_id maxspan=1800 ... | fields session_id session_outcome abandonment_field ue_join]` runs a 30-day transaction inside a subsearch, which is bound by subsearch row and time limits. Its outputs (`session_outcome`, `abandonment_field`) are never used by the later `stats`, so the 'which field did they abandon on' logic has no effect. The `streamstats ... list(field_name) as field_path` result is also unused.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Form-level `starters`/`completers` are joined onto every field × vendor × device × viewport row, so `revenue_recoverable=(starters-completers)*...` repeats the whole form's loss on each row, and summing it multiplies dollars. When `form_to_lead_value.csv` misses, it falls back to a hard-coded $125 lead value and 0.08 close rate, presenting invented money. Form-level events with `field_name=\"\"` also produce a blank-field row.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0007-UC-23.1.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Field-level form friction is well motivated and the troubleshooting is concrete, but the ingest guidance contains a documented props anti-pattern (KV_MODE=json plus INDEXED_EXTRACTIONS=json), a 'phone' SEDCMD that actually masks SSNs, the wrong Marketo endpoint, and DB Connect presented as a Marketo REST client. The SPL computes a session-outcome join it never uses and spreads form-level revenue across every field row, using hard-coded fallback economics.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.8",
+  "verdict": "incorrect"
+}

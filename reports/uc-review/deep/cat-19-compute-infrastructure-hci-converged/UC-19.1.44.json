@@ -1,0 +1,101 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "36fd11610ca4b555aebfa40e0c5ec0a374944821741fa3c4adf8fef66532e50a",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.44.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "`host_segment` takes the Nth path segment as `host`. For `/var/log/kolla/nova/<file>` the 4th segment is the literal `nova`, so every Kolla event gets `host=nova`. The SPL's `by _time, host` rollup and the per-host `streamstats` then merge all nodes into one.",
+      "field": "detailedImplementation",
+      "quote": "[monitor:///var/log/kolla/nova/*.log*]\ndisabled = 0\nindex = openstack\nhost_segment = 4",
+      "severity": "major",
+      "suggested_fix": "Remove `host_segment` and keep the forwarder's hostname, because Kolla bind-mounts the logs on each node. Use `host_segment` only where the hostname really is a path segment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "The wildcard stanza also matches `nova-scheduler.log`, `nova-conductor.log` and `nova-api.log`. Splunk monitors a file only once, so those files may be indexed under `openstack:nova:compute`, which defeats the `src_kind` split. Separately, `crcSalt = <SOURCE>` with the Kolla `*.log*` glob, which matches rotated `.log.1` files, makes Splunk re-index each rotated copy. Splunk advises against crcSalt=<SOURCE> for rolling logs.",
+      "field": "detailedImplementation",
+      "quote": "[monitor:///var/log/nova/*.log]\ndisabled = 0\nindex = openstack\nsourcetype = openstack:nova:compute\ncrcSalt = <SOURCE>\n\n[monitor:///var/log/nova/nova-scheduler.log]",
+      "severity": "major",
+      "suggested_fix": "Use explicit per-file stanzas, for example `nova-compute.log`, or a whitelist or blacklist on the wildcard. Drop `crcSalt = <SOURCE>`, and match only the live `*.log` files."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Line-breaking and the `req-` extraction are defined only for the umbrella `openstack:nova`. Four of the five monitor stanzas use `openstack:nova:compute`, `:scheduler`, `:conductor` and `:api`, which get default line-breaking. Python tracebacks would split into fragments and the class flags would misfire, which troubleshooting item (2) warns about.",
+      "field": "detailedImplementation",
+      "quote": "[openstack:nova]\nSHOULD_LINEMERGE = true\nLINE_BREAKER = ([\\r\\n]+)(?=(?:\\d{4}-\\d{2}-\\d{2}|[0-9\\-T:\\.Z]{4,}))",
+      "severity": "major",
+      "suggested_fix": "Apply the same props to every split sourcetype, for example with a `[source::/var/log/nova/*.log]` stanza or duplicated sourcetype stanzas. Prefer `SHOULD_LINEMERGE = false` with a timestamp-anchored `LINE_BREAKER` for the oslo.log format `YYYY-MM-DD HH:MM:SS.mmm PID LEVEL module [req-...]`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "For plain oslo.log file tails, none of these fields exist. The instance UUID appears inline as `[instance: <uuid>]`, and the SPL never extracts it with `rex`. As a result, `instance_id_sample` is empty for the main ingestion path.",
+      "field": "dataSources",
+      "quote": "Field names vary: request_id, instance_uuid vs `instance` vs `instance_id`, level vs log_level.",
+      "severity": "minor",
+      "suggested_fix": "Document the oslo.log default prefix and the inline `[instance: <uuid>]` token, and recommend an EXTRACT for it in props."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "NoValidHost is raised by the scheduler and logged by nova-conductor on controller nodes. The `host` for those rows is therefore a control-plane node, never a compute. Readers expecting 'on which host' to mean a compute will misread the critical tier.",
+      "field": "detailedImplementation",
+      "quote": "The 5m bin plus streamstats on nvh_bin approximates “three of four recent scheduling windows on this host had no_valid_host-class traffic.”",
+      "severity": "minor",
+      "suggested_fix": "State that no_valid_host rows are keyed on the conductor or scheduler host, and that the compute-side classes (build_abort, reschedule, cinder and neutron) carry the compute hostname."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output. The real benign causes appear only in troubleshooting: NoValidHost during aggregate or quota gating tests, Rally or Tempest boot storms, flavor or capacity exhaustion by design, and client 401s from expired tokens.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `dc` on `openstack:nova`** — Scheduled automation elevates `host` without crossing `nvh_n` > 0 ... **Synthetic probe on `_time`, `host`, `failure_class`**",
+      "severity": "major",
+      "suggested_fix": "List those nova-specific causes with how to recognise each, for example a Tempest project ID, an aggregate maintenance change, or 401s only on nova-api."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The detection reads only nova logs. RabbitMQ is the sibling UC-19.1.45, and Ansible is only a deployment tool mentioned in passing.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"ansible\", \"openstack\", \"rabbitmq\"]",
+      "severity": "minor",
+      "suggested_fix": "Keep `openstack` (and `linux`/`kvm` if desired), and remove `rabbitmq` and `ansible`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`is_ks` matches any `HTTP 401` or `Unauthorized` line, and `is_resched` matches any `re-?schedul` substring. These count ordinary client token expiry and informational scheduler lines as spawn failures. `msg=coalesce(message, body, _raw, ...)` never reaches `msg` or `payload`, because `_raw` is always set. Narrow the keystone and reschedule patterns to ERROR-level, spawn-adjacent lines.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Some class tokens look unverified: `NoMoreHosts`, `SpawnFailed` and `BuildError` do not appear to be nova exception names. The common terminal conductor message 'Exceeded maximum number of retries' (MaxRetriesExceeded) is not matched. Check against `nova/exception.py`.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-19.1.44",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The classification logic is detailed and the sibling boundaries are clear, but the collection config would mislabel data. `host_segment = 4` sets the Kolla host to `nova`, the `/var/log/nova/*.log` wildcard swallows the per-service stanzas, the props only cover the umbrella sourcetype, and `crcSalt = <SOURCE>` with a rotated-file glob re-indexes rotated logs. The per-host rollup the SPL depends on is therefore unreliable.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.44",
+  "verdict": "rewrite"
+}

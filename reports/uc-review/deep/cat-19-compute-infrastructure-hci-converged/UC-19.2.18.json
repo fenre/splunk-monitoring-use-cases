@@ -1,0 +1,139 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3024f81f793a5b105da5f19eec4d0b7f7cd376d7d5791352b354898bcc380ab9",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts' and 5076 is 'Fix hostnames on UFs'. The VMware add-on is 'Splunk Add-on for VMware' (3215); the Nutanix add-on in the catalogue is 'TA for Nutanix Prism' (3103). The same wrong IDs are in references and implementation.",
+      "field": "app",
+      "quote": "`Splunk Add-on for VMware vSphere` ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380)); `Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk Add-on for VMware (3215) and TA for Nutanix Prism (3103) / Prism Central TA (8349), with the sourcetypes those add-ons actually emit."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware writes vCenter events as `vmware:events` (index vmware-taskevent); `vmware:vc:event` does not exist, so the VMware arm would return nothing.",
+      "field": "dataSources",
+      "quote": "sourcetype vmware:vc:event for HostAddedEvent, HostRemovedEvent, EnteredMaintenanceModeEvent",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=vmware:events` and the add-on's event-type field for HostAddedEvent / HostRemovedEvent / EnteredMaintenanceModeEvent."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "The subcategory guide lists the Splunk Add-on for Cisco UCS audit sourcetype as `cisco:ucs:audit`; `ucsm:audit` appears nowhere in the grounding, so the optional UCS path would be empty.",
+      "field": "dataSources",
+      "quote": "optional ucsm:audit for UCS Manager blade insertion or removal",
+      "severity": "major",
+      "suggested_fix": "Use `cisco:ucs:audit` (Splunk_TA_cisco_ucs, 2731) or say the name is a custom one."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The HX Connect REST path and operation strings are not in the grounding (which lists /rest/clusters, /rest/health, /rest/nodes, /rest/datastores, /rest/alarms), and `nutanix:audit` with add_node/remove_node operations is attributed to a Nutanix TA without a source.",
+      "field": "dataSources",
+      "quote": "HX Connect audit from /rest/audit/events as hyperflex:audit:event for expand_cluster, add_node, remove_node, enter_maintenance",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the HyperFlex audit API in the HX Data Platform REST reference and the audit sourcetype/operation names the Nutanix TA produces; otherwise label them customer-defined."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This checklist (and 'joins hci_change_governance without the lookup command', plus the long 'Supplemental engineering notes' run-on) is authoring-prompt residue about how the sidecar was generated, not guidance for an implementer.",
+      "field": "detailedImplementation",
+      "quote": "Extended closing checklist: confirm both inputlookup joins remain inside join brackets with no standalone lookup command; confirm comment macro text references UC-19.2.18 explicitly; ... confirm no narrative field in the JSON uses asterisk emphasis",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the supplemental-notes paragraph; keep collection, search, validation and troubleshooting steps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "description lists expected_node_count>=0 as an alert condition and omits the maintenance-without-window and disk-expand-without-ticket indicators that drive critical in the spl; out-of-window above target is high, non-approved actor only warning.",
+      "field": "cross_field",
+      "quote": "alert when `expected_node_count` >= 0, `unauthorized_change_count_24h` > 0, `cmdb_topology_drift_count` > 0, or `non_approved_actor_count_24h` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the spl's severity ladder (critical: unauthorized change, maintenance or disk expansion without ticket; high: out-of-window above target or CMDB node-count drift; warning: non-approved actor; freeze demotes to info)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An SPL that cannot execute and wrong add-on IDs show it was not validated by an SME.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search runs against real vCenter/Prism data."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "No iLO data is used, and equipment lists vxrail although no VxRail-specific arm exists.",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_ilo\"",
+      "severity": "minor",
+      "suggested_fix": "Remove hardware_bmc_ilo and vxrail, or add the matching data path."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Generic Cisco developer portal root, not the HyperFlex API reference the text claims.",
+      "field": "references",
+      "quote": "\"url\": \"https://developer.cisco.com/docs/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific HX Data Platform REST API reference page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm ends with `stats ... BY cluster_id event_id vendor`; multisearch only accepts purely streaming subsearches, so Splunk rejects the search ('Multisearch subsearches may only contain purely streaming operations'). Use append/union or move the dedup stats after multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "field": "spl",
+      "issue": "The VMware arm searches `sourcetype=\"vmware:vc:event\"`, which the Splunk Add-on for VMware does not produce (it emits `vmware:events`).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "`join type=left max=0 cluster_id [| inputlookup change_tickets_24h]` fans each event out to one row per ticket on that cluster; an event inside ticket A's window is also compared with ticket B's row and counted as unauthorized, inflating unauthorized_change_count_24h and paging critical whenever a cluster has two or more tickets. Evaluate matches per event, then take max(has_matching_ticket) by event_id.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The Change query (object_category=\"configuration\" OR action=\"modified\") has no HCI scoping and returns every configuration change in the estate; it does not reproduce the topology-change detection.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`streamstats ... count AS ev_seq` is computed but never used; the comment macro is a long tunables note rather than a short description.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0052-UC-19.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A worthwhile governance idea (correlate node add/remove and maintenance with change tickets), but the SPL will not run because multisearch arms contain stats, the VMware sourcetype and add-on IDs are wrong, and the implementation text is padded with generation checklists.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.18",
+  "verdict": "incorrect"
+}

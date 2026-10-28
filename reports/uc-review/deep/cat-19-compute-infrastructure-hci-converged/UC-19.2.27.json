@@ -1,0 +1,119 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9b094ac6200f90a93a8370198fd1b4047d8f600ab5d2b9425cfc86c1dd86c8f9",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.27.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware writes vCenter events to vmware:events, not vmware:vc:event. Splunkbase 5380 is 'Mattermost Alerts', not a VMware forwarder add-on. Both errors repeat in app, references, and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Splunk Add-on for VMware (Splunkbase 3215, https://splunkbase.splunk.com/app/3215) for `vmware:vc:event` ... Also Splunk Add-on for VMware vSphere Forwarder (Splunkbase 5380",
+      "severity": "blocker",
+      "suggested_fix": "Use sourcetype vmware:events from Splunkbase 3215 (or vmware_inframon:events from 5089), and drop every 5380 reference."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/7-0/release-notes/vmware-vsan-701-release-notes.html",
+      "explanation": "vSAN 7.0 Update 1 is the release that introduced the deterministic reserved capacity for internal operations and host rebuilds, replacing the old fixed ~25–30% slack guidance. The text moves that feature to 7.0 U3 and 8.0 and invents an 'SPBM-driven auto reservation' for 7.0 U1.",
+      "field": "detailedImplementation",
+      "quote": "on 7.0 U1 the platform moved to SPBM-driven, policy-mixed auto reservation ... On 7.0 U3 and 8.0 you see operations reserve and host-rebuild reserve as separate accounting items",
+      "severity": "blocker",
+      "suggested_fix": "Say that from vSAN 7.0 U1, reserved capacity is split into an operations reserve and a host-rebuild reserve and calculated deterministically, and that before that release the guidance was 25–30% slack."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "vSAN space usage is normally read through the vSAN Management SDK (VsanSpaceReportSystem.VsanQuerySpaceUsage), not a public vSphere Automation REST path. This endpoint, /cluster/{cluster}/host, /health, /api/vcenter/vsan/clusters, and event IDs such as com.vmware.vsan.health.test.cn.clusteryellowred.* all look invented.",
+      "field": "dataSources",
+      "quote": "REST: `GET https://<vcenter>/api/vcenter/vsan/cluster/{cluster}/capacity` (vSphere 7.0 U2+)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the vSAN Management API reference. Either cite the real method names or present these paths as wrapper endpoints of a customer-built poller."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Troubleshooting items g through m refer to host_rebuild_pct, largest_host_used_bytes, eta_to_full_h, dedup_ratio_drift, and dedup_ratio_baseline, none of which the SPL produces (it uses eta_full_days and dedup_drift). They also suggest widening a match() regex the SPL does not use (it uses like()), and cite unrelated controller-HCL test IDs.",
+      "field": "detailedImplementation",
+      "quote": "check `largest_host_used_bytes` in the HEC body ... `eta_to_full_h` jumps from null to 168h ... `dedup_ratio_drift` ... widen the `match()` regex",
+      "severity": "major",
+      "suggested_fix": "Rewrite items g through m to use the SPL's field names and the like() filter, or delete them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "This leaks an authoring instruction into reader-facing text. The snippet also calls undefined helpers and mixes a SOAP session key with the legacy /rest base path.",
+      "field": "detailedImplementation",
+      "quote": "Python (outline, ~90 lines, no inline comments in production code per your build rule",
+      "severity": "minor",
+      "suggested_fix": "Drop the build-rule aside, and either complete the helper functions or label the snippet as pseudocode that uses /api/session and the vmware-api-session-id header."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description and controlTest list null guards as triggers. The real alerts are a red health test, usable_used_pct at or above t_crit (default 90), negative host-rebuild headroom, or an ETA to full under 7 days (critical), with lower bands at 80 and 70.",
+      "field": "cross_field",
+      "quote": "alert when `total_bytes` > 0, `total_bytes` > 0, `reserved_bytes` >= 0, or `usable_capacity_bytes` > 0",
+      "severity": "major",
+      "suggested_fix": "State the severity ladder from the SPL in the description and controlTest."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "azure, github, and the equipment model cisco_aci have nothing to do with vSAN capacity.",
+      "field": "equipment",
+      "quote": "\"azure\",\n    \"cisco\",\n    \"github\",",
+      "severity": "minor",
+      "suggested_fix": "Keep vmware (and vxrail if intended), and remove azure, github, and cisco_aci."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The HEC reference is truncated, and there is no VMware or Broadcom reference for the vSAN capacity or reserve model the UC relies on.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Link the HEC page and the Broadcom TechDocs page on vSAN capacity reservations."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, yet it cites an unrelated app and sourcetype and relies on REST paths that cannot be confirmed, so no SME verification is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the poller contract is confirmed against vCenter."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`dedup_enabled` defaults to \"true\" when the field is missing, so every cluster reports dedup_enabled=1. `headroom_for_host_rebuild_bytes` subtracts the largest host's raw capacity rather than the data it holds, which overstates the rebuild requirement on lightly used hosts.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The base search pulls vmware:vsan:health and vmware:vsan:diskgroup over 25 hours only to drop them at the next `where sourcetype=\"vmware:vsan:capacity\"`. The health data is fetched again in the join subsearch, so the base search does unnecessary work.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0062-UC-19.2.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The capacity reasoning is strong: usable versus raw capacity, host-rebuild headroom, and a worked example. But the UC cites Splunkbase 5380 (an unrelated app), a vmware:vc:event sourcetype the VMware add-on does not emit, and wrong vSAN reserve-model history. The REST endpoints look invented, and the troubleshooting section refers to fields the SPL never produces.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.27",
+  "verdict": "incorrect"
+}

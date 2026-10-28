@@ -1,0 +1,130 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "289c1f2397f30facdd64e2b80d2066aad0b2541ecb3c7a539711824258c4411c",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.29.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/sw/mib/b-series/b_UCS_MIBRef/b_UCS_MIBRef_chapter_0100.html",
+      "explanation": "Cisco documents memoryUnitEnvStats as DIMM temperature statistics. Per-DIMM ECC counters are in the memoryErrorStats class (eccSinglebitErrors, eccMultibitErrors, mismatchErrors, addressParityErrors) at dn `…/memarray-N/mem-M/error-stats`. The fields `correctable`/`uncorrectable`/`corrErrCnt` do not exist on the cited classes.",
+      "field": "dataSources",
+      "quote": "per-DIMM or array-level **cumulative** **correctable** / **uncorrectable** **counters** in `cisco:ucs:stats` for `classId` in **`memoryUnitEnvStats`**, **`memoryArrayEnvStats`**",
+      "severity": "blocker",
+      "suggested_fix": "Collect memoryErrorStats and use eccSinglebitErrors (correctable) and eccMultibitErrors (uncorrectable). Note that the dn ends in `/error-stats`, below the mem-M DIMM."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-3/b_cisco_ucs_faults_and_error_messages_reference-4-3/m_sem-faults_4-3.html",
+      "explanation": "F0184 fltMemoryUnitDegraded (cause equipment-degraded) is the correctable-ECC fault and is missing. F0185 is fltMemoryUnitInoperable (equipment-inoperable), F0186 is fltMemoryUnitThermalThresholdNonCritical (DIMM temperature), and F0461 is SEL log capacity very-low on the management controller. The `dimm-correctable`/`dimm-uncorrectable` cause strings are not UCSM causes.",
+      "field": "dataSources",
+      "quote": "**code** values such as **F0185** / **F0186** / **F0461**",
+      "severity": "blocker",
+      "suggested_fix": "Use F0184 (degraded, correctable ECC) and F0185 (inoperable). Use causes equipment-degraded/equipment-inoperable on moClass memory:Unit. Drop F0186 and F0461."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS writes everything as sourcetype `cisco:ucs`, with the class in source `cisco:ucs:<classId>`. dataSources, implementation and detailedImplementation (validation searches by `classId`) all assume sourcetypes that do not exist. The repository guide has the same error.",
+      "field": "cross_field",
+      "quote": "sourcetype `cisco:ucs:faults` **or** `cisco:ucs:stats` (same index; dual feed)",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=cisco:ucs source=cisco:ucs:memoryErrorStats` and `source=cisco:ucs:faultInst`, and validate with `| stats count by source`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on's app directory is `Splunk_TA_cisco-ucs` (hyphen), so the `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco_ucs/default/inputs.conf` path in Step 1 does not exist. The add-on also uses Manager/Template/Input objects, not separate \"fault\" and \"statistics\" stanzas.",
+      "field": "app",
+      "quote": "On-disk and canonical app id is `Splunk_TA_cisco_ucs` (underscore).",
+      "severity": "blocker",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs`, and describe adding faultInst and memoryErrorStats to a collection Template bound to an Input."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "clarity",
+      "explanation": "This sentence repeats 14 times, and \"Document every pager tune in the runbook, not in chat.\" repeats 17 times. This is generation padding that buries the actual guidance.",
+      "field": "detailedImplementation",
+      "quote": "(Expansion — keep lookup and Cisco field notes in your runbook: document DIMM lot, BMC level, and MCE host-side triage for the same `dimm_dn` when UCSM and ESXi disagree.)",
+      "severity": "major",
+      "suggested_fix": "Keep one instance of each and delete the rest."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The X410c compute node shipped as M7. There is no evident X410c M6 or HBM2-equipped variant, so this exclusion looks invented. The hardware field likewise lists X410c M6/M7 and UCSM-managed X-Series, which requires UCSM 4.3(2a)+.",
+      "field": "exclusions",
+      "quote": "HBM2 / on-package memory on some **X410c M6** class designs",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco X410c data sheet. Remove the HBM2/M6 references if unsupported, and state the UCSM 4.3(2a) prerequisite for X-Series."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios do not name ECC-specific false positives. The real ones are already in Step 5 (counter reset on CIMC/BIOS update or clear-statistics, ADDDC/chipkill-corrected bursts within vendor limits, duplicate faults from API plus syslog) but not here.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Blade Server ECC Memory Error Rate (Cisco UCS)' shifts `corr_fault_count_24h`, `uncorr_fault_count_24h`, `sev_n` over `span=15m`",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 gotchas into knownFalsePositives, each with its suppression."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The link is the cisco.com home page, not the faults reference.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Faults Reference (codes and causes, including memory-related faults)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCS Manager Faults and Error Messages Reference (4.3) and the UCS Enhanced Memory Error Management TechNote."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified although the stat class and fault codes are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set to draft until validated against memoryErrorStats events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://raw.githubusercontent.com/cisco/cisco-mibs/main/ucs-mibs/CISCO-UNIFIED-COMPUTING-MEMORY-MIB.my",
+      "field": "spl",
+      "issue": "The SPL filters memoryunitenvstats/memoryarrayenvstats and coalesces non-existent `correctable`/`uncorrectable` fields, defaulting to 0. It therefore measures nothing: ECC counters are eccSinglebitErrors/eccMultibitErrors on memoryErrorStats.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-3/b_cisco_ucs_faults_and_error_messages_reference-4-3/m_sem-faults_4-3.html",
+      "field": "spl",
+      "issue": "The fault subsearch matches F0186 (DIMM thermal) and F0461 (SEL log capacity) as memory errors and misses F0184 (correctable-ECC degraded). Invented causes such as dimm-correctable never match.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The `dimm_dn` rex on stats rows is anchored with `$` at `/mem-\\d+`, but stats objects are children of the DIMM (…/mem-M/error-stats or /env-stats), so no stats row survives `where isnotnull(dimm_dn)`. The sourcetypes cisco:ucs:stats/faults are also not produced by the add-on (sourcetype cisco:ucs).",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0021-UC-19.1.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC reads ECC counters from memoryUnitEnvStats/memoryArrayEnvStats, which in UCSM are DIMM temperature and environmental classes. The ECC counters live in memoryErrorStats (eccSinglebitErrors/eccMultibitErrors). The fault codes are also wrong: F0186 is a DIMM thermal fault, F0461 is SEL log capacity, and the correctable-ECC fault F0184 is missing. On top of the add-on sourcetype and app-name errors seen across this category, detailedImplementation ends in repeated filler lines.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.29",
+  "verdict": "incorrect"
+}

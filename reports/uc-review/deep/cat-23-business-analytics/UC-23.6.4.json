@@ -1,0 +1,109 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "1237bbaa442cdb5ac9f95bf00ae9db045891b3f07a7f0232eddab51196ccc514",
+  "file": "content/cat-23-business-analytics/UC-23.6.4.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation describe an hourly rate compared against a 28-day median, and visualization describes trend lines. The SPL is a single `earliest=-24h` roll-up by psp/brand/region with no time bucketing, no baseline and no threshold, so nothing in it can fire that alert.",
+      "field": "cross_field",
+      "quote": "Alert when blended hourly authorization-rate drops twelve percentage points beneath trailing twenty-eight-day median per PSP-region tuple",
+      "severity": "major",
+      "suggested_fix": "Either describe the shipped search as a 24-hour leakage report, or document the separate alert search (`bin _time span=1h`, `stats` per psp/region, `eventstats median` over a 28-day summary, `where success_rate < median-12`)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "overclaiming",
+      "explanation": "The 96% target, the '95–97% Stripe benchmark corridor' in visualization/detailedImplementation, and 'prepaid plastics ... twenty-five to thirty-five percent lower authorization-rate' are presented as industry facts. The only Stripe citation is a general newsroom update, and these figures sit well above commonly reported card-not-present approval rates.",
+      "field": "implementation",
+      "quote": "comparing PSP cohorts versus ninety-six percent aspirational benchmark for card-not-present excellence",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite a specific Stripe/Adyen/Visa source for each benchmark, or present them as illustrative internal targets the merchant must set."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Stripe cannot add the `Authorization: Splunk <token>` header HEC requires, and signature validation must happen before Splunk. A relay or middleware between Stripe and HEC is therefore required. The text half-implies a direct connection. Stripe webhooks also originate from Stripe's published webhook IP ranges, not from a `hooks.stripe.com` sender.",
+      "field": "dataSources",
+      "quote": "normalized sourcetype `stripe:event` via Splunk HTTP Event Collector tokens terminated on Heavy Forwarder collectors accepting TLS from `hooks.stripe.com`",
+      "severity": "minor",
+      "suggested_fix": "State that a small webhook relay verifies `Stripe-Signature`, flattens `data.object`, and forwards to HEC. Allow-list Stripe's published webhook IPs rather than a hostname."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Worldpay endpoint path and the Braintree webhook kind `payment_method_nonce_revoked` have no supporting reference and may not exist in those APIs. Braintree documents kinds such as `payment_method_revoked_by_customer`.",
+      "field": "dataSources",
+      "quote": "Worldpay FIS Card-Online Authorization REST `/payments/{paymentId}` snapshots ... `payment_method_nonce_revoked`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the Worldpay (Access Worldpay / FIS) API reference and Braintree's webhook-kind list, and correct or remove."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Neither threshold appears in the SPL, so the reader cannot tell which literals the macros are meant to replace.",
+      "field": "detailedImplementation",
+      "quote": "macro-wrap thresholds (`stripe_benchmark_floor`, `margin_pct_gate`) inside `macros.conf`",
+      "severity": "minor",
+      "suggested_fix": "Name the actual tunables in the SPL (`recover_pct` default 0.35, the soft/hard regexes) or add the threshold to the search."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Microsoft 365 has no role in PSP authorization telemetry.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `m365`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an authoring agent with no SME sign-off, and the search has unit and double-counting defects.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a payments engineer validates it against real PSP webhook payloads."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Stripe emits both `payment_intent.succeeded` and `charge.succeeded` (and `payment_intent.payment_failed` + `charge.failed`) for the same payment, and Adyen sends AUTHORISATION and CAPTURE for one transaction. Without `dedup txn_key`, or restricting to one event family per PSP, `attempts`, `auths_ok` and leakage are double-counted.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`amt` sums Stripe `amount` and Adyen `value` (minor units, e.g. cents) together with PayPal/Braintree decimal amounts, across currencies, so `revenue_leakage_soft`, `challenge_amt` and `hard_decline_amt` are not in any consistent unit. Normalize to major units and a reporting currency first.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Adyen notifications carry `eventCode` and `success` fields. The SPL reads `event_type`/`type`/`notification_event` and `success_flag`/`outcome_status`/`auth_result`, so unflattened Adyen events would get a null `authorized_flag` and be dropped. Check the field names against the actual normalized payload.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "Performance/Availability/Reliability fits poorly for a revenue-leakage KPI. 'Business' (as used by sibling 23.6.x UCs) is the closer classification.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-23.6.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The PSP event vocabulary is mostly accurate and the troubleshooting is genuinely useful. However, the search double-counts Stripe events and mixes minor-unit and decimal amounts. The prose describes a baseline-drop alert and benchmark corridors that the SPL does not implement and that are not sourced.",
+  "tier": "deep",
+  "uc_id": "UC-23.6.4",
+  "verdict": "rewrite"
+}

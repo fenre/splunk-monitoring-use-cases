@@ -1,0 +1,86 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c210c00c1f10cd4d04116e454c91b199c5dd8dcea3d36ea45a0dc686f0a524ed",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.6.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://community.spiceworks.com/t/cluster-aware-updating-fails-2016-servers/675755",
+      "explanation": "Real CAU log excerpts show 1007 as 'CAU run {GUID} on cluster X failed', 1013 as 'CAU run failed on node X', 1015 as 'Failed to acquire lock on node' and 1019 as 'Canceling CAU run as patching failed on ... (MaxFailedNodes) nodes'. Treating 1007 as node-completed success and 1015 as a PostUpdateScript event inverts the meaning, and the actual run-failure ID is missed.",
+      "field": "dataSources",
+      "quote": "(IDs **1001** CAU run started, **1002** completed successfully, **1003** failed, **1006** node update started, **1007** node update completed, **1008** node update failed ... **1011**/**1012** **`PreUpdateScript`**, **1015**/**1016** **`PostUpdateScript`**, **1023** **`Suspend-ClusterNode -Drain`** timeout exceeded, **1027** **`Resume-ClusterNode`** fault",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild the ID table from Event Viewer output on a lab CAU run, at minimum 1007 run failed, 1013 node failed, 1015 lock contention and 1019 MaxFailedNodes cancel. Remove 1023/1027 unless a real event export shows them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The phrasing is figurative word salad. It does not plainly say that the check flags failed or cancelled cluster patch runs and nodes that could not be emptied before restart.",
+      "field": "grandmaExplanation",
+      "quote": "so uneven patch footing and stuck drain moments surface early before everyday apps hitch when picky workloads refuse to slide elsewhere.",
+      "severity": "major",
+      "suggested_fix": "For example: 'When a cluster patches itself one server at a time, we flag runs that fail or get cancelled, and servers that could not hand off their workloads before restarting.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Nothing in the SPL checks a patch window. No maintenance-window lookup, schedule or deadline comparison is involved, so 'patch-window compliance' is not measured.",
+      "field": "description",
+      "quote": "Primary focus: Window Compliance.",
+      "severity": "minor",
+      "suggested_fix": "Either describe the detection as CAU run and node failure triage, or add a documented lookup of approved windows and compare run start times against it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent, but its event catalogue disagrees with observed CAU events.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until validated against a real CAU run."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "field": "spl",
+      "issue": "sourcetype=\"WinEventLog:Microsoft-Windows-ClusterAwareUpdating/Admin\" will not match on Splunk_TA_windows 5.0+, which indexes all event logs as sourcetype WinEventLog/XmlWinEventLog with the channel in source.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://community.spiceworks.com/t/cluster-aware-updating-fails-2016-servers/675755",
+      "field": "spl",
+      "issue": "The urgent list keys on 1003/1008/1023/1027 and omits 1007 (run failed) and 1013 (node failed) as they appear in real CAU logs, so genuine run failures are missed.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "run_status is set with coalesce(Status,\"\"), so it is the empty string rather than null when Status is absent. `coalesce(run_status,json_Status)` therefore always returns run_status, and the Get-CauReport Summary_Status path is never used. Use nullif() or omit the \"\" default.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "cluster_key falls back to ComputerName, so WinEventLog rows group per node rather than per cluster, and reporting_hosts and posture fragment across nodes of the same cluster.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0085-UC-19.3.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The CAU narrative and cmdlet coverage are useful, but the event-ID catalogue does not match the messages CAU actually logs. In real CAU logs, 1007 is a run failure, 1013 a node failure, 1015 a lock-acquire failure and 1019 a MaxFailedNodes cancellation. The SPL's sourcetype filter and status coalesce also prevent it from firing as intended.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.6",
+  "verdict": "incorrect"
+}

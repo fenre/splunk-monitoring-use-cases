@@ -1,0 +1,117 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "aed46fc072e985926e853683a9be086498bcce665b3b738b9dbe9ffddd5b1bf1",
+  "file": "content/cat-23-business-analytics/UC-23.1.3.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunk Add-on for NGINX is Splunkbase 3258 (also the ID in the subcategory's primaryAppTa); 4767 is not that add-on. The wrong ID is repeated in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "Splunk Add-on for NGINX ([Splunkbase 4767](https://splunkbase.splunk.com/app/4767))",
+      "severity": "blocker",
+      "suggested_fix": "Replace 4767 with 3258 everywhere (app, dataSources, implementation, detailedImplementation, references)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-23-business-analytics/UC-23.5.6.json",
+      "explanation": "None of the cited UCs cover the stated scope: UC-23.6.4 is Payment Processing Success Rate, UC-23.5.5 is Perfect Order Rate, UC-23.7.5 is Agent Occupancy and Schedule Adherence, UC-23.5.6 is Production Throughput vs Forecast Capacity.",
+      "field": "exclusions",
+      "quote": "(covered by UC-23.6.4). Backend microservice latency tracked in APM, not in this UC (covered by UC-23.5.5). ... (UC-23.7.5). B2B portal SLAs measured in UC-23.5.6",
+      "severity": "blocker",
+      "suggested_fix": "Point exclusions at the UCs that actually cover mobile RUM (e.g. UC-23.1.6 for mobile app health), APM latency, and B2B SLAs after looking them up, or drop the cross-references."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunkbase 5715 is not in the cached catalogue, Splunk RUM is an Observability Cloud product rather than a Splunkbase app, and no 'Splunk APM Add-on' with a `splunk:rum:webvitals` sourcetype that replays RUM into Enterprise indexes is documented in the grounding.",
+      "field": "app",
+      "quote": "optional Splunk Real User Monitoring ([Splunkbase 5715](https://splunkbase.splunk.com/app/5715)) ... optional Splunk APM Add-on for Splunk Enterprise when Observability traces feed Enterprise indexes.",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify what Splunkbase 5715 is and whether a supported path exists to land Splunk RUM data in Splunk Enterprise indexes (and its sourcetype); otherwise describe RUM as an Observability Cloud alternative queried there, not in this SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL joins on `session_id` across the full 30-day window with no time window, so there is no thirty-minute join; the real attribution risk is session_id mismatch across redirects and the subsearch result limit. Step 2's 'duplicate retries widen totals rather than multiply sessions' also misdescribes `max()` per metric.",
+      "field": "detailedImplementation",
+      "quote": "Conversion attribution lag: purchases firing beyond conservative thirty-minute joins drop out",
+      "severity": "major",
+      "suggested_fix": "Describe the join as session_id-keyed over 30 days, warn about subsearch row limits for high order volume, and say `max()` keeps the worst value per metric per session so duplicate beacons do not double-count."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Invented artefacts (APM span tag, saved search `web_vitals_revenue_correlation_v3`, CHG registers) unrelated to what this HEC-beacon report produces.",
+      "field": "evidence",
+      "quote": "Splunk APM trace export (`apm.service=storefront-web`, span tag `web.vitals.lcp_ms`) cross-referenced with revenue events for 13 months.",
+      "severity": "major",
+      "suggested_fix": "Describe the weekly output table (page_template × lcp_bucket with sessions, CVR, revenue_uplift_potential) and the Step 3 reconciliation against PageSpeed/CrUX and commerce revenue totals."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Generic, partly malformed scenarios (`session_id]`, `span=1h` not in SPL). The real distortions are already in Step 5: synthetic/Lighthouse beacons, prerender/bfcache zero LCP, sendBeacon loss on iOS, geo and connection-type confounding, experiments, CDN HIT vs origin divergence.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `session_id]` without crossing `lcp_ms` <= 2500 for UC-23.1.3.",
+      "severity": "major",
+      "suggested_fix": "Replace with those concrete causes and how to filter each (user-agent exclusion, navigation-type markers, geo/connection segmentation)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified by an automated agent with no SME sign-off despite a wrong Splunkbase ID and wrong cross-references.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft/community pending human SME review."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Specific loss percentage with no source; also 'example June twenty twenty-one routing shifts' is vague.",
+      "field": "detailedImplementation",
+      "quote": "`navigator.sendBeacon` during unload on Safari iOS releases prior to fifteen reportedly drops thirty to forty percent of terminal posts",
+      "severity": "minor",
+      "suggested_fix": "Drop the percentage or cite a source; keep the `pagehide`/`visibilitychange` advice."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`case(lcp_ms<=2500,...,inp_ms<=200,...,1=1,\"Poor\")` sends sessions where the metric is null to the `1=1` branch, so every session with no LCP beacon, or with no user interaction (web-vitals does not report INP when there is no interaction), is bucketed 'Poor' and `cwv_pass=0`. This inflates the Poor cohort and `revenue_uplift_potential`. Guard with `isnull(x), \"No data\"` first.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "`join type=left session_id [search ... earliest=-30d | stats ... by session_id]` is subject to subsearch result limits (default 50,000 rows); a store with more than 50k ordering sessions in 30 days silently loses purchases, understating conversions. Prefer a single `stats` over both sourcetypes keyed by session_id.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "Title says 'Real-Time' but the SPL is a 30-day aggregate and implementation schedules weekly steering extracts; nothing is real-time.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0003-UC-23.1.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Core Web Vitals thresholds and Apache/NGINX timing facts are accurate and the troubleshooting is rich, but the NGINX add-on is cited with the wrong Splunkbase ID, every exclusion points at an unrelated sibling UC, the SPL buckets sessions with no INP/LCP as 'Poor', and the 'Real-Time' framing contradicts a 30-day weekly report.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.3",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,149 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9a4e44b45d550664d7199d827761570db8ba204d38a567a5208c7d597396e15c",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5380/",
+      "explanation": "Splunkbase 5380 is the archived 'Mattermost Alerts' app, not a VMware add-on. The VMware collection add-on is the Splunk Add-on for VMware (3215), which the subcategory guide uses for vSAN.",
+      "field": "app",
+      "quote": "Splunk Add-on for VMware vSphere or Forwarder ([Splunkbase 5380](https://splunkbase.splunk.com/app/5380))",
+      "severity": "blocker",
+      "suggested_fix": "Replace with 'Splunk Add-on for VMware (Splunkbase 3215)' and, if needed, the VMware Metrics (5089) / vCenter Logs (5601) / ESXi Logs (5603) add-ons from data/splunkbase-catalog.json."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5076/",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). No Splunk_TA_nutanix exists. The Nutanix add-ons on Splunkbase are TA-nutanix (TA for Nutanix Prism, 3103) and TA-nutanix-PC (Prism Central, 8349). The guide's coverage matrix lists Nutanix Prism as 'Custom REST modular input'.",
+      "field": "app",
+      "quote": "Splunk_TA_nutanix ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Name 'TA for Nutanix Prism (TA-nutanix, Splunkbase 3103)' or 'TA for Nutanix Prism Central (TA-nutanix-PC, 8349)' or a custom REST input, and only list sourcetypes those add-ons actually emit. The same fix applies to the dataSources and detailedImplementation mentions."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/vsan-management-api/latest",
+      "explanation": "vSAN resync, object-health and runtime data come from the vSAN Management API, which is a SOAP/vmodl API on the /vsanHealth endpoint (VsanVcClusterHealthSystem, VsanObjectSystem / QuerySyncingVsanObjects). It is not exposed as /api/vcenter/vsan/cluster/{cluster}/... REST resources. The Python poller in detailedImplementation and the Step 3 cURL calls those same non-existent paths.",
+      "field": "dataSources",
+      "quote": "vCenter REST `GET /api/vcenter/vsan/cluster/{cluster}/runtime-info` ... (`.../resyncing-objects` ...) ... `/api/vcenter/vsan/cluster/{cluster}/health`",
+      "severity": "blocker",
+      "suggested_fix": "Collect with pyVmomi plus the vSAN Management SDK (VsanVcClusterHealthSystem.VsanQueryVcClusterHealthSummary for objectHealth, and VsanVcObjectSystem / QuerySyncingVsanObjects or PowerCLI Get-VsanResyncingComponent / Get-VsanResyncingOverview for resync). Rewrite the poller and the cURL validation to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "explanation": "The Splunk Add-on for VMware sends vCenter events and tasks as vmware:events and vmware:tasks. No add-on emits vmware:vc:event, so the VMware event branch, and with it is_start/resync_t0, never matches anything.",
+      "field": "dataSources",
+      "quote": "`vmware:vc:event` (Splunkbase 5380) for resync start/complete style events",
+      "severity": "major",
+      "suggested_fix": "Use sourcetype=vmware:events (and vmware:tasks) from the Splunk Add-on for VMware, and name the actual vSAN event types you match, or drop the event-based start time."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article?articleNumber=326929",
+      "explanation": "The real vSAN object health states are healthy, datamove, nonavailabilityrelatedreconfig, nonavailabilityrelatedincompliance, reducedavailabilitywithactiverebuild, reducedavailabilitywithnorebuild(-delaytimer), inaccessible, and others. There is no bare 'reduced' or 'nonAvailability' counter. Broadcom documents datamove and the nonavailability-related states as 'not at risk', yet the UC counts them as exposed. It also omits inaccessible, the most severe state.",
+      "field": "detailedImplementation",
+      "quote": "buckets objects into `healthy` rows plus stress states: `nonAvailabilityRelatedReconfiguration`, `nonAvailabilityRelatedIncompliance`, `dataMove` ... and `reduced` ... treat `reduced` plus non-availability family counts ... as exposed objects",
+      "severity": "major",
+      "suggested_fix": "Define exposed objects as reducedavailabilitywithactiverebuild + reducedavailabilitywithnorebuild + reducedavailabilitywithnorebuilddelaytimer + inaccessible, using the real state names. Treat datamove and nonavailability-related states as informational."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These Nutanix alert identifiers and the v1 curator/jobs REST path could not be found in public Nutanix alert or API references. They look invented, but this is not confirmed.",
+      "field": "dataSources",
+      "quote": "`RebuildSlowProgress` / `OplogStoreDriveCriticallyLow` / `RfReplication` alerts; `nutanix:cluster:curator` from a custom HEC poller to `/PrismGateway/services/rest/v1/curator/jobs`",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with alert IDs (A1xxxx/A13xxx) and REST endpoints taken from the Nutanix alert reference and Prism v2/v3/v4 API documentation, or describe Curator scan status as gathered from the Curator page (port 2010) or NCC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The prose says the SPL handles long rebuilds, SLA breaches and completion resets. In fact the SPL looks back only 2 hours (earliest=-2h@h), so time_in_rebuild_h can never exceed about 2 hours, and it never uses resync_t1/is_complete to reset the start time. Troubleshooting item (j) describes a reset mechanism that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "which is why the canonical SPL keeps raw samples and then smooths a windowed minimum start time and a `streamstats` delta of remaining bytes",
+      "severity": "major",
+      "suggested_fix": "State that rebuild start must be persisted, for example in a summary index or KV store state lookup holding first-seen-active time per cluster, and that the 2-hour window alone cannot measure multi-hour SLAs. Remove claims of completion-based resets that the search does not do."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC uses wrong Splunkbase IDs, a non-existent TA name, invented vSAN REST endpoints and a sourcetype no add-on emits, so it cannot have been verified against a live environment.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the data sources and SPL are validated."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "Curator job history is not under Hardware > Diagram in Prism. It lives on the Curator diagnostics page (CVM port 2010) or in NCC/CLI output, so this validation path would confuse operators.",
+      "field": "detailedImplementation",
+      "quote": "Nutanix: Prism, Home, Data Resiliency tile, then Hardware, Diagram, Curator job history",
+      "severity": "minor",
+      "suggested_fix": "Point to the Data Resiliency widget plus the Curator status page (http://<cvm>:2010) or 'curator_cli display_data_reduction_report' / NCC checks."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The UC covers Nutanix, HyperFlex and Azure Stack HCI equally, but equipmentModels lists only VMware.",
+      "field": "equipmentModels",
+      "quote": "\"vmware_vcenter\", \"vmware_vsphere\"",
+      "severity": "minor",
+      "suggested_fix": "Add the matching Nutanix, Cisco HyperFlex and Azure Stack HCI model slugs, or narrow the UC's scope."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/search-reference/9.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "All VMware sourcetypes share one stream per cluster. vmware:vsan:cluster, vmware:vsan:health and event rows set bytes_rem=0 through coalesce(...,\"0\"), so streamstats deltas between a resync row and the next health row yield huge false throughput (prev_bytes - 0). max(inst_thr) then drives eta_h toward zero, and latest(bytes_rem) depends on which sourcetype arrived last. Restrict the bytes and throughput calculations to the resync sourcetype (null rather than 0 elsewhere) and split streamstats by sourcetype.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Lookback is earliest=-2h@h and rebuild_start is the minimum _time in that window, so time_in_rebuild_h is capped at about 2 hours. With the default max_acceptable_rebuild_h=24, the 'high' (>SLA) and 'critical' (>2x SLA) duration arms can never fire.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Severity is inverted for slow rebuilds. 'medium' requires throughput_gbps>=e_thr, and 'low' only applies in the first 10 minutes. An active rebuild running below expected throughput, past 10 minutes, with no other flag falls through to 'ok', which is exactly the stalled-rebuild case the UC claims to catch.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The Azure arm sets cur_ft=0 whenever any storage job has bytes remaining, including routine Rebalance/Optimize jobs, so every pool rebalance pages as 'critical'. The HyperFlex arm sets exp_obj=1 for any cisco:hyperflex:alarm event regardless of content, so unrelated alarms raise 'high'. It also sets exp_rf and cur_rf from the same field, so an RF breach can never be detected.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "field": "spl",
+      "issue": "The VMware arm searches sourcetype vmware:vc:event, which the Splunk Add-on for VMware does not emit (it uses vmware:events), so the event-based start-time logic is dead code.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0078-UC-19.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The rebuild-progress idea is sound and the grandma text is good, but the UC rests on wrong Splunkbase IDs, a non-existent Nutanix TA name, invented vCenter REST paths for vSAN resync and health, and the wrong vCenter event sourcetype. The SPL's severity logic is broken in several places, for example SLA breaches can never fire inside a 2-hour window. Marking it verified overclaims.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.9",
+  "verdict": "incorrect"
+}

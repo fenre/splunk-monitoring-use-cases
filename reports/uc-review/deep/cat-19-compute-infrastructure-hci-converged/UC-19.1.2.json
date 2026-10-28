@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8219adba790412a6adcbd45262438a2c64d4ccad23fa4f4d98c018c4a5e2d861",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ls/LsServer.html",
+      "explanation": "On lsServer, `assocState` takes associated, associating, disassociating, failed or unassociated. `configState` takes applied, applying, failed-to-apply or not-applied. `pending-reboot` is a value of `operState`. `establishing` and `unsupported-config` are not valid for these fields.",
+      "field": "detailedImplementation",
+      "quote": "the association to a physical node (`associated`, `unassociated`, `establishing`, and failure classes such as `failed`) and the push state of the policy bundle (`applied`, `not-applied`, `pending-reboot`, `failed-to-apply`, `applying`, `unsupported-config`)",
+      "severity": "blocker",
+      "suggested_fix": "Correct the enum lists. Explain that pending-reboot and pending-reassociation come from `operState`, and include `operState` in the data-source field list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS gives all data the single sourcetype `cisco:ucs`, with `source=cisco:ucs:<classId>` (here `cisco:ucs:lsServer`). It ships neither `cisco:ucs:inventory` nor `cisco:ucs:audit`.",
+      "field": "dataSources",
+      "quote": "`index=cisco_ucs` and sourcetype `cisco:ucs:inventory` from **Splunk_TA_cisco_ucs**",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `sourcetype=cisco:ucs source=cisco:ucs:lsServer`, or document a deliberate local sourcetype override on the input. Update the Step 1 probes to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The Splunkbase catalog and the add-on docs both give the app id as `Splunk_TA_cisco-ucs`, with a hyphen.",
+      "field": "app",
+      "quote": "The on-disk and canonical add-on id uses an underscore; older download bundles may still show a hyphen in the filename.",
+      "severity": "blocker",
+      "suggested_fix": "State the app id as `Splunk_TA_cisco-ucs`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "With the current SPL, the PendingReboot bucket can never be populated, because it tests `configState` for an `operState` value.",
+      "field": "visualization",
+      "quote": "Timechart of daily `Drifted` and `PendingReboot` rows during a template roll-out",
+      "severity": "minor",
+      "suggested_fix": "Keep the panel only after the PendingReboot logic is based on `operState`."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The reference links to the Cisco home page, not the guide it names.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager Server Management Guide, Release 4.2 (Service Profiles)\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual UCSM 4.2 Server Management Guide service-profile chapter."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The sourcetype and several enum values do not match the product, so the UC cannot have been validated against live data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been checked against a real lsServer feed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ls/LsServer.html",
+      "field": "spl",
+      "issue": "The `compliance` case tests `confg=\"pending-reboot\"` and `confg=\"unsupported-config\"`, which are not configState values. It also tests `assoc=\"establishing\"/\"throttled\"/\"removing\"`, which are not assocState values. PendingReboot can never fire, and real `associating`/`disassociating` profiles fall into Unknown. Use `operState` for pending-reboot.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "`sourcetype=\"cisco:ucs:inventory\"` is not emitted by the add-on; all events are `sourcetype=cisco:ucs`, with the class in `source`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats ... by org, name, dn, compliance` gives one row per state seen in 24 hours. A profile that was Drifted earlier and is Compliant now still produces a Drifted row, and the alert fires on it. Take the latest state per `dn` first (for example `stats latest(compliance) ... by dn`).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `org` regex `^org-root/(.+)/ls-[^/]+$` does not match profiles directly under root (`org-root/ls-X`), so `org` ends up as the full dn for those profiles.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-19.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A clearly written service-profile posture UC whose state vocabulary is partly invented. `pending-reboot` is an `operState` value, not a `configState` value, and `establishing`, `throttled`, `removing` and `unsupported-config` are not lsServer enums. It also relies on a `cisco:ucs:inventory` sourcetype and an underscore app directory that the add-on does not ship.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.2",
+  "verdict": "incorrect"
+}

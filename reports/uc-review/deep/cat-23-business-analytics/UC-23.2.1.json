@@ -1,0 +1,137 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "99ff69c0395ca1fcd597dac42bcb605eadfaea60711d81212ad56671df88b2ed",
+  "file": "content/cat-23-business-analytics/UC-23.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4146 is the community Webtools Add-on (TA-webtools); the Splunk Add-on for Salesforce is Splunkbase 3549. The same wrong ID is repeated in `implementation` (\"`Splunk_TA_salesforce` (4146)\") and `detailedImplementation` Prerequisites.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Salesforce (Splunkbase 4146)\", \"url\": \"https://splunkbase.splunk.com/app/4146\"",
+      "severity": "blocker",
+      "suggested_fix": "Change the reference to https://splunkbase.splunk.com/app/3549 and replace every '4146' next to Splunk_TA_salesforce in implementation and detailedImplementation with 3549."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-salesforce/SourceTypes/",
+      "explanation": "The Splunk Add-on for Salesforce collects the output of SOQL object queries as well as EventLogFile data, and supports any standard or custom object (sourcetype `sfdc:<object_name>`, checkpointed on LastModifiedDate). detailedImplementation repeats the false claim: \"It is not a substitute for pulling Opportunity rows\". Readers are steered into building a custom poller when a supported input exists.",
+      "field": "dataSources",
+      "quote": "that add-on does not emit full Opportunity rows",
+      "severity": "blocker",
+      "suggested_fix": "State that the Splunk Add-on for Salesforce (3549) can collect Opportunity via an object input (sourcetype sfdc:Opportunity or similar), and present the custom Bulk API 2.0 poller as an alternative for very large orgs or when Bulk API is required, not as the only way."
+    },
+    {
+      "confidence": 0.88,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-salesforce/SourceTypes/",
+      "explanation": "The Splunk Add-on for Salesforce does not emit these sourcetypes; it uses `sfdc:logfile` for EventLogFile data and `sfdc:<object_name>` (for example `sfdc:LoginHistory`) for object queries. The category guide's sourcetype list carries the same wrong names, so a reader searching for them will find nothing.",
+      "field": "dataSources",
+      "quote": "for `salesforce:event:LoginHistory` and `salesforce:event:ApiEvent`",
+      "severity": "blocker",
+      "suggested_fix": "Replace with `sfdc:logfile` (EventLogFile, including ApiEvent/Login event types) and `sfdc:LoginHistory`; correct docs/guides/business-analytics.md as well."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/create-dashboards-and-reports/dashboard-studio/10.3.2512/configuration-options-reference/visualization-configuration-options",
+      "explanation": "Dashboard Studio has no `splunk.funnel` or `splunk.gauge` type (gauges are `splunk.fillergauge` / `splunk.markergauge`). The funnel by `StageName` and the rep table by `OwnerId` also cannot be fed by the SPL, which aggregates only by `ForecastCategoryName` and `_time`.",
+      "field": "visualization",
+      "quote": "Use Dashboard Studio: `splunk.funnel` with opportunity counts by `StageName` ... trellised `splunk.gauge` of pipeline coverage",
+      "severity": "blocker",
+      "suggested_fix": "Use `splunk.column` or `splunk.bar` for the stage funnel (with a separate `stats count by StageName` search), `splunk.markergauge` for coverage, and add a separate search grouped by OwnerId for the rep table."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/query_create_job.htm",
+      "explanation": "`queryAll` also returns records deleted by merge or delete. The SOQL does not select `IsDeleted` and the SPL never filters on it, so deleted opportunities are counted as open pipeline or won revenue.",
+      "field": "detailedImplementation",
+      "quote": "{\"operation\":\"queryAll\",\"query\":\"SELECT Id, StageName, Amount, ... FROM Opportunity WHERE LastModifiedDate > ...\"}",
+      "severity": "major",
+      "suggested_fix": "Use `operation: query`, or keep `queryAll` but add `IsDeleted` to the SELECT list and say the SPL must drop `IsDeleted=true` rows."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.salesforce.com/docs/atlas.en-us.api_asynch.meta/api_asynch/query_create_job.htm",
+      "explanation": "Bulk API 2.0 query job states are UploadComplete, InProgress, Aborted, JobComplete and Failed; `JobInProgress` and `InvalidJob` are not query job states.",
+      "field": "detailedImplementation",
+      "quote": "Poll ... until `state` is **JobComplete** (or handle **Failed** and **InvalidJob** ...) ... jobs that remain **JobInProgress** longer than 30 minutes",
+      "severity": "minor",
+      "suggested_fix": "Use `InProgress` and handle `Failed` and `Aborted`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The text says the script posts each row to HEC, yet the scripted-input stanza sets sourcetype and index as if stdout were indexed. The `props.conf` LINE_BREAKER/TIME_FORMAT also does not apply to events sent to the HEC /event endpoint with an explicit `time`. A reader cannot tell which path carries the data and may index everything twice.",
+      "field": "detailedImplementation",
+      "quote": "[script://$SPLUNK_HOME/etc/apps/TA_custom_salesforce_opp/bin/poll_opportunities_to_hec.py] ... sourcetype = salesforce:opportunity",
+      "severity": "minor",
+      "suggested_fix": "Pick one path: either the script prints events to stdout (keep sourcetype/index in inputs.conf) or it posts to HEC (sourcetype/index come from the HEC token or payload and the props timestamp settings are not needed). Explain which one."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "This is not a valid way to find ingestion gaps. `date_mday` is only populated when Splunk extracts a timestamp from raw text, and splitting by day-of-month adds nothing to a 1-day timechart.",
+      "field": "detailedImplementation",
+      "quote": "run `| timechart count by date_mday span=1d` on `LastModifiedDate`",
+      "severity": "minor",
+      "suggested_fix": "Use `index=business sourcetype=salesforce:opportunity | timechart span=1d count` and look for zero buckets, or compare `_indextime` with `_time`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The schedule says week-over-week but the comparison is quarter-over-quarter, so the trigger condition is ambiguous.",
+      "field": "detailedImplementation",
+      "quote": "schedule a week-over-week saved search on **win_rate**; if the quarter-over-quarter delta exceeds **15** percentage points",
+      "severity": "minor",
+      "suggested_fix": "State a single comparison window, for example a weekly run that compares the current quarter-to-date win rate with the prior quarter."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent, not by an SME, and it contains factual errors about the Salesforce add-on and Dashboard Studio.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until a human SME validates it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Each Opportunity modification is ingested as a new event (LastModifiedDate watermark), but the SPL sums `pipeline_amt`/`won_amt` over every event in 90 days with no `dedup Id` or `latest(...) by Id`. An opportunity edited ten times is counted ten times, which inflates total_pipeline, won_revenue and pipeline_coverage.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'Pipeline Velocity and Forecast Accuracy', but the SPL computes neither: there is no velocity formula (opportunities × win rate × deal size ÷ cycle length) and no comparison of forecast (Commit/Best Case) against actual closed-won revenue. Either retitle the UC (for example 'Pipeline Coverage and Win Rate') or extend the SPL.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "pipeline_coverage is open pipeline divided by trailing-90-day won revenue. The usual coverage ratio, and the 3x rule cited in the prose, divides open pipeline by remaining quota or target, so the below_3x flag does not mean what the prose says.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0009-UC-23.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Bulk API 2.0 ingestion walkthrough is detailed and mostly accurate, but the UC misidentifies the Splunk Add-on for Salesforce (wrong Splunkbase ID, wrong sourcetypes, and a false claim that it cannot pull Opportunity rows), names Dashboard Studio visualizations that do not exist, and its SPL delivers neither velocity nor forecast accuracy as the title promises.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.1",
+  "verdict": "incorrect"
+}

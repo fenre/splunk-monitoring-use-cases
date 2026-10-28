@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e9067f2576d242a7354aae0fbd752f55213adea11bc0a0ba168a06de4c115a6f",
+  "file": "content/cat-23-business-analytics/UC-23.7.1.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/ServiceNow/Configureinputs",
+      "explanation": "Splunk_TA_snow inputs are `[snow://<name>]` stanzas with parameters such as `table`, `timefield` and `filter_data`, configured on the add-on's Inputs page. There is no `servicenow_record_input` type, and the filter setting is `filter_data`, not `sysparm_query`. The same wrong name appears in `app`.",
+      "field": "detailedImplementation",
+      "quote": "Stanzas of type `servicenow_record_input` must name the **instance** URL, **OAuth** client/secret, **table** (for example `incident`, `task_sla`, `sn_customerservice_case`), a **sysparm_query**",
+      "severity": "blocker",
+      "suggested_fix": "Describe `[snow://incident]`, `[snow://task_sla]` and `[snow://sn_customerservice_case]` stanzas in Splunk_TA_snow/local/inputs.conf (or Splunk Add-on for ServiceNow > Inputs), using `table`, `timefield = sys_updated_on`, `filter_data` and `duration`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description says results are grouped by `task` and alert whenever ticket_count > 0, which would fire on every run. The SPL groups only by priority_label and account_dim, and detailedImplementation sets the real alert at P1/P2 with sla_compliance_pct < 90. controlTest and knownFalsePositives repeat the ticket_count > 0 threshold.",
+      "field": "cross_field",
+      "quote": "grouped by `task`, `priority_label`, `account_dim`. Outputs `sla_breaches`, `avg_mttr_business_s` each `the scheduled window`; alert when `ticket_count` > 0.",
+      "severity": "major",
+      "suggested_fix": "State that the search reports SLA compliance % and business-hours MTTR per priority and account for resolved/closed tickets over 30 days, and alerts when P1/P2 compliance falls below the contracted target (example 90%)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Maintenance windows, synthetic probes and onboarding bursts are infrastructure boilerplate; none is a real cause of a misleading SLA breach rate. The genuine causes are already in detailedImplementation: SLA engine lag before has_breached flips, SLA pauses, schedule/calendar changes, reopen-driven new task_sla rows, and parent/child double counting.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'On-Time Resolution and SLA Breach Rate for CSM Service Work' shifts `sla_breaches`, `avg_mttr_business_s` over `span=1h` while `task`, `priority_label`, `account_dim` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with those ServiceNow-specific causes and how to check each one (task_sla stage/pause duration, cmn_schedule change history, reopen_count)."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The ServiceNow Table API's default sysparm_limit is generally documented as much larger (10,000), and the add-on has its own record-count setting. The 200-row figure looks wrong.",
+      "field": "detailedImplementation",
+      "quote": "the Table API returns up to 200 rows per page by default",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ServiceNow Table API reference for the default sysparm_limit and the Splunk_TA_snow docs for the per-request record count, then state those values."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "After the final `stats ... by priority_label, account_dim`, neither `number` nor `sys_id` exists in the result table. The drilldown, and the `incident.do?sys_id=$row.sys_id$` link in detailedImplementation, need a second search.",
+      "field": "visualization",
+      "quote": "a drilldown to a simple XML or Studio **event** panel of underlying **number** values",
+      "severity": "minor",
+      "suggested_fix": "Describe the drilldown as a secondary search filtered on the clicked priority_label/account_dim that lists number and sys_id."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "`tstats ... by _time` without `span` buckets per second, so the result is unusable for spotting ingestion gaps.",
+      "field": "detailedImplementation",
+      "quote": "| tstats count where index=business sourcetype=\"snow:incident\" by _time",
+      "severity": "minor",
+      "suggested_fix": "Use `| tstats count where index=business sourcetype=\"snow:incident\" by _time span=1h`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent and there is no SME sign-off. The MTTR math also cannot work with Table API duration strings (see the SPL flag).",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until the search has been validated against a live ServiceNow instance."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Check Point firewall equipment has nothing to do with ServiceNow SLA reporting.",
+      "field": "equipment",
+      "quote": "\"checkpoint\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `checkpoint` and keep `servicenow`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The URL points at the add-on's troubleshooting page, not at inputs or field mapping.",
+      "field": "references",
+      "quote": "Splunk Docs — Splunk Add-on for ServiceNow (inputs and field mapping)",
+      "severity": "minor",
+      "suggested_fix": "Link the Configure inputs page and the sourcetypes page of the Splunk Add-on for ServiceNow docs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/ServiceNow/ServiceNowDocs/blob/australia/markdown/api-reference/scripts/r_ScriptingOfFieldTypes.md",
+      "field": "spl",
+      "issue": "`mttr_business_s=tonumber(business_duration)` and `tonumber(calendar_duration)`: ServiceNow duration fields come back from the Table API as date-times offset from 1970-01-01 (for example \"1970-01-01 08:00:00\"), not as numbers. tonumber() therefore returns null, and avg/p95 MTTR will be empty. Use the integer-seconds fields business_stc / calendar_stc, or `strptime(business_duration,\"%Y-%m-%d %H:%M:%S\")` while making sure the parse is done in UTC.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The task_sla subsearch keeps only `latest(has_breached)` per task. Most tickets carry several task_sla rows (response and resolution SLAs, and new rows after a reopen), so breached_flag reflects whichever SLA row updated last. It should filter to the resolution SLA definition, or use max(has_breached). `join` is also capped at the subsearch row limit for 30 days of task_sla.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`state_n IN (6,7)` is right for incident (Resolved/Closed), but `sn_customerservice_case` uses different state values (Closed is commonly 3, and 7 is Cancelled). Check the CSM case state choices: as written, closed cases may be missed and cancelled cases counted.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0042-UC-23.7.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation and visualization are concrete and mostly useful, but the SPL treats ServiceNow duration fields as seconds when the Table API returns them as 1970-epoch date strings, and the add-on's input type is named wrongly. The templated description, value and false-positive text contradict the real alert threshold.",
+  "tier": "deep",
+  "uc_id": "UC-23.7.1",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,194 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3ac1adb7c791ff7e5d9666048a3b825d9c90918117e86a79e02c151c1994ab07",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.28.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5380",
+      "explanation": "Splunkbase app 5380 is 'Mattermost Alerts', and app 5076 (titled here as the Nutanix add-on) is 'Fix hostnames on UFs'. Neither is a VMware or Nutanix add-on. The Nutanix TA (Splunk_TA_nutanix, 'TA for Nutanix Prism') is app 3103; the Splunk Add-on for VMware is app 3215. The same wrong IDs propagate into dataSources.",
+      "field": "references",
+      "quote": "Splunk Add-on for VMware (Splunkbase 5380)",
+      "severity": "blocker",
+      "suggested_fix": "Replace with 'TA for Nutanix Prism (Splunkbase 3103)' -> https://splunkbase.splunk.com/app/3103 and 'Splunk Add-on for VMware (Splunkbase 3215)' -> https://splunkbase.splunk.com/app/3215; update the IDs in dataSources and app accordingly."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "There is no 'Splunk Add-on for VMware vSphere Forwarder' and no vmware:vc:event sourcetype. The Splunk Add-on for VMware emits vCenter events and tasks as vmware:events and vmware:tasks.",
+      "field": "dataSources",
+      "quote": "vmware:vc:event from Splunk Add-on for VMware vSphere Forwarder (Splunkbase 5380)",
+      "severity": "blocker",
+      "suggested_fix": "Use 'vmware:events (and vmware:tasks) from the Splunk Add-on for VMware (Splunkbase 3215)' for storage-policy change correlation; make the same change in app, implementation and the Step 3 correlation text."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/8-0/vsan-administration/increasing-space-efficiency-in-a-vsan-cluster/using-raid-5-6-erasure-coding-in-vsan-cluster.html",
+      "explanation": "vSAN OSA RAID-5 is 3+1 (1.33x overhead, minimum 4 hosts/fault domains); RAID-6 is 4+2 (1.5x, minimum 6). ESA uses 2+1 (3 hosts) or 4+1 (6 hosts). A 4+1 stripe cannot fit on 4 fault domains, so the sentence is internally contradictory, and since exclusions place ESA out of scope, the OSA 3+1 geometry is the one this UC must model.",
+      "field": "detailedImplementation",
+      "quote": "VMware vSAN RAID-5 erasure is commonly described as a four plus one scheme and requires at least four fault domains",
+      "severity": "blocker",
+      "suggested_fix": "State: 'vSAN OSA RAID-5 is a 3+1 stripe (1.33x) requiring at least four fault domains; RAID-6 is 4+2 (1.5x) requiring at least six. ESA adaptive RAID-5 (2+1 / 4+1) is handled by the sibling UC.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/8-0/vsan-administration/increasing-space-efficiency-in-a-vsan-cluster/using-raid-5-6-erasure-coding-in-vsan-cluster.html",
+      "explanation": "Same geometry error as detailedImplementation: OSA RAID-5 is 3+1; 4+1 exists only on ESA with six or more hosts, which the exclusions put out of scope.",
+      "field": "hardware",
+      "quote": "RAID-5 four-plus-one and RAID-6 four-plus-two erasure policies",
+      "severity": "major",
+      "suggested_fix": "Write 'RAID-5 (3+1 on OSA) and RAID-6 (4+2) erasure policies on the documented minimum of four and six hosts respectively'."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "These are parsing guards and the RF2/RF3 branch conditions, not alert thresholds. The real conditions are fault_domain_count < fault_domain_required (critical), rwaf_estimated > target_max_rwaf (high) and |capacity_drift_pct| > target_max_capacity_drift_pct (warning). 'Capacity Tradeoff activity' is meaningless.",
+      "field": "description",
+      "quote": "pages when `pftt` >= 2, `pftt` >= 1, `vsan_log` > 0, or `vsan_phys` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the actual logic: flags HCI storage policies/containers whose erasure geometry needs more fault domains than the cluster has, whose estimated rebuild read amplification exceeds the per-row cap (default 2.25), or whose physical/logical overhead drifts more than 5% from the scheme's expected ratio, across vSAN, Nutanix, HyperFlex and Azure Stack HCI."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "SPBM capability names in PowerCLI rule sets are VSAN.hostFailuresToTolerate, VSAN.replicaPreference and VSAN.proportionalCapacity; 'numberOfFailuresToTolerate' is not the capability name, and replicaPreference values are strings like 'RAID-5/6 (Erasure Coding) - Capacity' where RAID-5 vs RAID-6 is determined by the FTT value, not by the string.",
+      "field": "dataSources",
+      "quote": "Get-SpbmStoragePolicy fields including numberOfFailuresToTolerate, replicaPreference, proportionalCapacity",
+      "severity": "needs_verification",
+      "suggested_fix": "Document that the exporter must flatten AnyOfRuleSets into hostFailuresToTolerate and replicaPreference fields and derive RAID-5 vs RAID-6 from FTT=1 vs FTT=2 when replicaPreference is erasure coding."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Prism v2.0 storage_containers endpoint returns erasure_code, replication_factor and usage stats in the entity body; an 'include=' field-selection parameter is not documented. Likewise the HX Connect path '/rest/clusters/{cid}/storage' does not match the documented HX REST layout (/coreapi/v1/clusters/{cuuid}/...). Both look invented.",
+      "field": "dataSources",
+      "quote": "/PrismGateway/services/rest/v2.0/storage_containers/?include=ec_strip_size",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the documented endpoints (GET /PrismGateway/services/rest/v2.0/storage_containers/ and the HX coreapi cluster storage/stats resources) and name the actual response fields used."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The 'Long-form engineering notes for audits' block and Supplements A-H are generic filler (GDPR, divestiture, legal discovery, air-gapped bundling, intern training) that pad the field without adding monitoring guidance.",
+      "field": "detailedImplementation",
+      "quote": "Supplement A: when a storage admin changes proportionalCapacity",
+      "severity": "major",
+      "suggested_fix": "Delete the long-form notes and Supplements A-H; keep only items that change how this search is built or interpreted (e.g. proportionalCapacity and compression toggles affecting drift)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL hard-codes earliest=-7d@h in every arm (needed for the 168-row streamstats window), so the scheduling guidance contradicts the search. The cron is also written as six fields ('0 star-slash-6 star star star star') where Splunk cron takes five.",
+      "field": "detailedImplementation",
+      "quote": "with earliest minus twenty-four hours at hour snapping",
+      "severity": "minor",
+      "suggested_fix": "Say 'cron 0 */6 * * *, time range governed by the embedded earliest=-7d@h latest=@h'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/azure-stack/hci/concepts/fault-tolerance",
+      "explanation": "Storage Spaces Direct single parity needs three servers; dual parity and mirror-accelerated parity need four. The exclusions repeat the 'until four nodes exist' claim for single parity.",
+      "field": "hardware",
+      "quote": "single-parity, dual-parity, and mirror-accelerated parity volumes on at least four nodes",
+      "severity": "minor",
+      "suggested_fix": "State 'single parity on three or more nodes; dual parity and mirror-accelerated parity on four or more'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Cisco ACI is a data-centre fabric, not HyperFlex; it has no role in this storage-policy UC. HyperFlex and Azure Stack HCI models are absent.",
+      "field": "equipmentModels",
+      "quote": "cisco_aci",
+      "severity": "minor",
+      "suggested_fix": "Replace cisco_aci with the HyperFlex equipment model slug and add an Azure Stack HCI model if one exists in the taxonomy."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The vSAN RAID-5/6 and Cisco HyperFlex references are bare homepages (techdocs.broadcom.com/, cisco.com/c/en/us/) that do not support the titles given.",
+      "field": "references",
+      "quote": "https://techdocs.broadcom.com/",
+      "severity": "minor",
+      "suggested_fix": "Link the Broadcom 'Using RAID 5 or RAID 6 Erasure Coding' page and a specific HyperFlex data platform / replication factor document."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "On-prem HCI storage-policy capacity monitoring is not a cloud security-domain detection; the field is misleading for filtering.",
+      "field": "securityDomain",
+      "quote": "cloud",
+      "severity": "minor",
+      "suggested_fix": "Use the infrastructure/endpoint-style domain the catalogue uses for on-prem platform health, or omit if not applicable."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot execute (stats inside multisearch), references point at unrelated Splunkbase apps and a non-existent sourcetype; nothing indicates it was run against real data.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the SPL and data sources are validated."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm contains `bin` and `stats`; multisearch requires purely streaming subsearches, so the search errors before producing any result. Restructure as append/union or do the per-arm normalisation with streaming evals and run a single stats after multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/8-0/vsan-administration/increasing-space-efficiency-in-a-vsan-cluster/using-raid-5-6-erasure-coding-in-vsan-cluster.html",
+      "field": "spl",
+      "issue": "vSAN RAID-5 is mapped to EC-4+1 (ec_data_blocks=4, expected overhead 1.25). OSA RAID-5 is 3+1 (1.33x) needing 4 fault domains; with fault_domain_required = data+parity+1 the search requires 6 for RAID-5 and 7 for RAID-6 (VMware requires 4 and 6), so valid vSAN EC clusters are flagged critical, and the 1.25 vs 1.33 baseline produces a constant ~6.7% drift that exceeds the 5% default warning.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "RAID-5 vs RAID-6 is inferred from like(ftml,\"%raid-6%\") on replicaPreference, but SPBM reports erasure coding as 'RAID-5/6 (Erasure Coding) - Capacity' with the level set by FTT; that string never matches %raid-6%, so RAID-6 (FTT=2) policies fall into the RAID-5 branch. Use pftt to split erasure-coded policies.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "fault_domain_count defaults to tonumber(\"0\") on vSAN policy rows and on Nutanix rows lacking the field; `coalesce(fault_domain_count, fdom_peak)` never replaces 0 (not null), and capacity rows carry a different container_id, so every EC policy/container row gets 0 < fault_domain_required and pages critical. Default to null and fill from the cluster-level capacity row by cluster_id.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "vSAN capacity rows (container_id vSAN_CLUSTER_CAPACITY) fall through to ec_scheme RF2 via the default 'RAID-1'/pftt=1 and are compared against a 2.0 expected ratio using cluster-wide physical/logical usage, while policy rows have no usage data (ratio null). Drift is therefore computed on the wrong entity for vSAN. HyperFlex sets used_logical_gb from total_bytes (raw capacity), so its 'overhead ratio' is a utilisation percentage, not physical/logical.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The final stats renames latest(capacity_drift_pct_ma7) to capacity_drift_pct, but the post-join eval overwrites it with the instantaneous drift whenever ratios exist, so the 168-hour smoothing described in the docs is effectively discarded.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "Azure parity geometry uses ec_data_blocks = PhysicalDiskRedundancy+1 (single) / +2 (dual) and a fixed 4+2 for MAP, ignoring the exported NumberOfDataColumns, so expected overhead and rwaf do not reflect the real column layout.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0063-UC-19.2.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The EC-versus-RF idea is sound and the grandma explanation is faithful, but the vSAN erasure-coding geometry is wrong (OSA RAID-5 is 3+1 on 4 hosts, not 4+1), the Splunkbase references point at unrelated apps (5076 = Fix hostnames on UFs, 5380 = Mattermost Alerts), vmware:vc:event is not a Splunk Add-on for VMware sourcetype, and the SPL cannot run as written (stats inside multisearch arms) and would mark every EC row critical because fault_domain_count defaults to 0. Description is template residue with null-guard thresholds, detailedImplementation carries filler supplements, and status 'verified' overclaims.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.28",
+  "verdict": "incorrect"
+}

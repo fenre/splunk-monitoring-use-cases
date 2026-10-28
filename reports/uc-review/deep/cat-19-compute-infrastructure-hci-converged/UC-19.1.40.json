@@ -1,0 +1,111 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "9fa41cf877db6e8ce08003d106b1967b8d0689ab70bfca37d03b12f6a14104a5",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.40.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://forum.proxmox.com/threads/howto-monitoring-replication.41960/",
+      "explanation": "`/cluster/replication` returns only the job configuration: id, guest, schedule, target, type and jobnum. The runtime status fields (`last_sync`, `last_try`, `next_sync`, `duration`, `fail_count`, `error`) come from the node-local endpoint `GET /nodes/{node}/replication` or `/nodes/{node}/replication/{id}/status`. The status field is `next_sync`, not `next_run`.",
+      "field": "dataSources",
+      "quote": "from a scripted `GET /api2/json/cluster/replication` poll, carrying API keys such as `id`, `guest`, `source`, `target`, `state`, `error`, `fail_count`, `last_sync`/`last_try`/`next_run`",
+      "severity": "blocker",
+      "suggested_fix": "Document polling `GET /api2/json/nodes/{node}/replication` on every node that is a replication source, or the per-job `/status` endpoint. Optionally join the configuration from `/cluster/replication` for the schedule. Rename `next_run` to `next_sync`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/wiki/Proxmox_VE_API",
+      "explanation": "The poller has two errors. Proxmox requires the header value `PVEAPIToken=USER@REALM!TOKENID=UUID`, with `=` after `PVEAPIToken` and not a space, so this request fails with 401. It also queries the configuration-only endpoint, so even a successful call would return no sync status. Step 3's `pvesh get /cluster/replication` check has the same endpoint problem.",
+      "field": "detailedImplementation",
+      "quote": "headers={\"Authorization\": f\"PVEAPIToken {TOKEN_ID}={sec}\"},\n    )\n    with urllib.request.urlopen(req, timeout=25) as r:\n        return json.load(r)\ndef main() -> None:\n    doc = fetch(\"/api2/json/cluster/replication\")",
+      "severity": "blocker",
+      "suggested_fix": "Use `f\"PVEAPIToken={TOKEN_ID}={sec}\"`. Iterate over the nodes from `/nodes` and fetch `/nodes/{node}/replication`. In Step 3, validate with `pvesh get /nodes/<node>/replication/<id>/status` or `pvesr status`. Also note that the PVE self-signed certificate needs a CA bundle or an explicit SSL context."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "`INDEXED_EXTRACTIONS` and `TIMESTAMP_FIELDS` are props.conf settings, not transforms.conf settings. The props stanza shown also sets `DATETIME_CONFIG = NONE`, which forces index time and contradicts the advice to stamp from `_poll_time`.",
+      "field": "detailedImplementation",
+      "quote": "If `_time` is not automatic from JSON, add `INDEXED_EXTRACTIONS` in `local/transforms.conf` to stamp `_time` from `_poll_time` as epoch",
+      "severity": "major",
+      "suggested_fix": "Either keep `DATETIME_CONFIG = NONE` and accept index time, or in props.conf set `TIME_PREFIX = \"_poll_time\":` with `TIME_FORMAT = %s`, or `INDEXED_EXTRACTIONS = json` with `TIMESTAMP_FIELDS = _poll_time`. Remove the transforms.conf reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Disabling a job stops it from running; it does not make the job fail. No error string or ERROR state appears, so this test cannot prove the failure path. At most, lag grows, and only if the poll still reports disabled jobs.",
+      "field": "detailedImplementation",
+      "quote": "verify that a forced failure (`pvesr disable 105-0` in a lab) produces non-empty `err_msg` or a move to `ERROR` on the next schedule",
+      "severity": "major",
+      "suggested_fix": "Force a real failure in a lab instead, for example by blocking SSH or the migration network to the target node, or by filling the target pool. Use `pvesr disable` only to test the lag path."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "My understanding is that since PVE 7.1, replication jobs are run by the `pvescheduler` daemon and the old `pvesr.timer` and `pvesr.service` units are gone. If so, the journal path described here does not exist on the PVE 7.x and 8.x versions this UC targets.",
+      "field": "detailedImplementation",
+      "quote": "Journal ship stops after a `pve-manager` upgrade: confirm `pvesr.timer` and `pvesr.service` still emit under `journalctl -u`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the PVE 7.1 release notes and the scheduler docs. If confirmed, collect `journalctl -u pvescheduler` and `/var/log/pve/replicate/<jobid>` instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output and describe no real pvesr cause. Real benign triggers appear only in the troubleshooting section: guest migration reversing the job direction, quorum loss pausing the scheduler, the first full sync after a job is created, and snapshot overlap that leaves a transient WARNING.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `avg` on `proxmox:replication`** — Scheduled automation elevates `_time` without crossing `dur_std` > 0 ... **Synthetic probe on `job_id`, `_time`, `source`, `target`**",
+      "severity": "major",
+      "suggested_fix": "Replace the list with pvesr-specific benign causes, for example a long first full sync, a job re-pointed after HA migration, a target node in maintenance, or an interval CSV that does not match the real schedule. Give the triage step for each."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "`imfile` is an rsyslog module, not a Splunk forwarder or Splunk_TA_nix feature. The dataSources text has the same mix-up ('A forwarder may also `imfile`'). A UF would use a `[monitor://]` stanza.",
+      "field": "app",
+      "quote": "plus the Splunk Add-on for Unix and Linux as `Splunk_TA_nix` ... when you ship optional `imfile`/`syslog` tails from nodes",
+      "severity": "minor",
+      "suggested_fix": "Say to tail `/var/log/pve/replicate/*` with a UF `monitor` stanza, or with rsyslog `imfile` to a syslog receiver. Drop the claim that Splunk_TA_nix does this."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The link is the OpenZFS homepage, not the zfs-send or zfs-recv manual page the title names.",
+      "field": "references",
+      "quote": "\"title\": \"OpenZFS — zfs(8) manual (send and receive)\",\n      \"url\": \"https://openzfs.org/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the zfs-send(8) and zfs-recv(8) pages on openzfs.github.io."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`eventstats ... as crit_sum by guest` runs after the 5-minute `stats`, so it sums critical rows across all bins in the search window. One job that stays critical for two bins sets `dual_direction_critical`. This contradicts the narrative's 'same window' and 'every-direction down' meaning; add `_time` to the `by` clause or use `dc(target)`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`proxmox:replication:log` events carry no `last_sync`, so `last_sync_epoch` falls back to 0 and `lag_sec` to 999999999. Every log row is therefore at least `warning`. Separately, `eval source=coalesce(source, ...)` collides with the Splunk `source` metadata field, which inputs.conf sets to `pve_replication_api`, so the node name may be lost.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-19.1.40",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The implementation is detailed but polls the wrong Proxmox endpoint. `/cluster/replication` returns only job configuration, with no `last_sync`, `fail_count`, `error` or `duration`. The poller also sends a malformed API-token header, so the documented pipeline cannot produce the fields the detection relies on.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.40",
+  "verdict": "incorrect"
+}

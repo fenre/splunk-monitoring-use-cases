@@ -1,0 +1,129 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "12a08b5a45e48ef14a6f377396e6e906cc5b1d6c1fd36b247ec95fe6424836c7",
+  "file": "content/cat-23-business-analytics/UC-23.9.3.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.epa.gov/system/files/documents/2023-03/ghg_emission_factors_hub.pdf",
+      "explanation": "WARM factors are net lifecycle values in MTCO2E per short ton and include avoided upstream emissions; recycling is negative, e.g. corrugated −3.14. They are not Scope 3 Category 5 inventory factors and not per metric tonne, so `cat5_co2e_kg` comes out with the wrong sign and about 10% off. EPA publishes separate Scope 3 Cat 5 factors in Table 9 of the GHG Emission Factors Hub.",
+      "field": "dataSources",
+      "quote": "Lookup `lookups/warm_factors.csv` keyed on normalized `material_type` and `disposal_method` supplying `mtco2e_per_tonne` from EPA WARM v15-class factors",
+      "severity": "blocker",
+      "suggested_fix": "Source Cat 5 factors from the EPA GHG Emission Factors Hub (Scope 3 Category 5 table, MTCO2E per short ton), convert to per-metric-tonne (÷0.907185) in the lookup, and name the column accordingly. Keep WARM only for an optional 'avoided emissions' metric reported separately."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "dataSources, implementation and the troubleshooting step ('Hazardous kilograms collapse after Stericycle credential rotation') all depend on Stericycle, but the SPL never searches `stericycle:manifest`. Hazardous mass therefore comes only from material-type strings in general MSW feeds.",
+      "field": "dataSources",
+      "quote": "`sourcetype=\"stericycle:manifest\"` from Stericycle `/api/v1/customers/{id}/manifests` for RCRA-aligned manifests",
+      "severity": "major",
+      "suggested_fix": "Either note that the SPL needs an extra append for `stericycle:manifest`, or remove the Stericycle hazardous-kg claims from the prose."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "No public documentation confirms any of these hauler endpoints. WM's developer API exposes customer and service resources, but a manifests path is unconfirmed, and Republic and Stericycle publish no public manifest APIs.",
+      "field": "dataSources",
+      "quote": "Rubicon `/api/v3/sites/{site_id}/services/{service_id}/pickups` ... Waste Management `https://api.wm.com/v1/services/{customer_id}/manifests` ... Republic Services `/api/v2/customer/{cust_id}/services/manifest` ... Stericycle `/api/v1/customers/{id}/manifests`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm each endpoint against the hauler's contracted API documentation, or describe them generically ('hauler portal export or contracted API')."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL aggregates to one row per site_id with no time dimension and no per-material weights; `materials` and `landfill_kg` are dropped by the final table. None of these panels can be drawn from its output.",
+      "field": "visualization",
+      "quote": "stacked bar chart of waste-stream composition (material_type buckets) by site_id; ... trend line of rolling ninety-day diversion_rate by region ... heatmap of site_id × material_type",
+      "severity": "major",
+      "suggested_fix": "Either describe panels built from the per-site output (diversion_rate vs target, hazardous_pct, cat5_co2e_kg), or document the companion searches (by site_id, material_type, or timechart) the panels need."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The 'Annex VII' movement form comes from the EU Waste Shipment Regulation and covers green-listed (non-hazardous) waste. Hazardous transboundary shipments use Basel/EU notification and movement documents.",
+      "field": "detailedImplementation",
+      "quote": "Basel Annex VII identifiers absent on international hazardous rows",
+      "severity": "minor",
+      "suggested_fix": "Refer to notification/movement document IDs for hazardous cross-border shipments, and to the EU WSR Annex VII form only for green-listed waste."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The app field states Splunk ES is not required, and HashiCorp Vault is never named; the credential-vault examples are CyberArk and AWS Secrets Manager.",
+      "field": "equipment",
+      "quote": "\"hashicorp\", \"splunk_es\" ... \"equipmentModels\": [\"hashicorp_vault\"]",
+      "severity": "major",
+      "suggested_fix": "Remove splunk_es, hashicorp and hashicorp_vault."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generic template text. The real distortions are listed in Step 5: denominator gaps giving 100% diversion at small sites, manifest replay duplication, sensor flatlines, region-code mismatches, and C&D spikes.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `site_id`, `material_type`, `_time`** — Health checks in `business` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the KFPs from the Step 5 causes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the TRUE tiering and WARM misuse show no sustainability-SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-uc-23.9.3-gold\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an EHS or sustainability SME signs off."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "It is unclear whether this means dispatch TTL, max runtime or the search time range.",
+      "field": "detailedImplementation",
+      "quote": "into a saved report `waste_diversion_site_scorecard` with a fourteen-hundred-second window or better on the first run",
+      "severity": "minor",
+      "suggested_fix": "Name the setting explicitly (e.g. `dispatch.max_time = 1400` in savedsearches.conf) or drop it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://true.gbci.org/true-certification-zero-waste",
+      "field": "spl",
+      "issue": "`true_certification_status` maps diversion_rate to Platinum (100%), Gold (99%), Silver (95%) and Bronze (90%). TRUE has no Bronze level; its levels are Certified, Silver, Gold and Platinum, awarded on rating-system points, and every level requires ≥90% diversion over 12 months. Replace this with a binary 'meets TRUE 90% diversion prerequisite' flag and source the level from `true_certification_target` in the lookup.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.epa.gov/system/files/documents/2024-01/warm_management_practices_v16_dec.pdf",
+      "field": "spl",
+      "issue": "`weight_kg/1000*mtco2e_per_tonne*1000` treats WARM factors as per metric tonne, but WARM and the EPA Cat 5 factors are per short ton, so results are about 10% off. WARM net factors are also negative for recycling, which turns Cat 5 'emissions' negative.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `iot:bin_weight` branch sums every fill-weight reading per day; with five-minute cadence the same contents are counted many times. Those bins are also emptied by the haulers whose manifests are appended, which double-counts mass. Use per-pickup net weight (the drop at `last_pickup_timestamp`) and do not union IoT mass with hauler manifests for the same bins.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In the IoT branch, `material_type IN (\"cardboard\",...)` runs before `lower()` normalisation and before `material_synonyms.csv` mapping, so vendor tokens like `OCC` or `Cardboard` default to landfill. Normalise first.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0054-UC-23.9.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The diversion logic, governance and troubleshooting are concrete, but the SPL invents a TRUE 'Bronze' tier and maps TRUE levels to diversion percentages, when TRUE levels are points-based. It also applies WARM factors as if they were per metric tonne Scope 3 Cat 5 factors, and double-counts IoT bin weights. The Stericycle hazardous feed described throughout is not searched at all.",
+  "tier": "deep",
+  "uc_id": "UC-23.9.3",
+  "verdict": "incorrect"
+}

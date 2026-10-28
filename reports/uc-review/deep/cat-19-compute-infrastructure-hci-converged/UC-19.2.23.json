@@ -1,0 +1,121 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "3254a41537569c006a0be3883ecf30b16a366e9682ca87ea2e351ea5676cb372",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.23.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/7-0/release-notes/vmware-vsan-701-release-notes.html",
+      "explanation": "VMware introduced the shared witness in vSAN 7.0 Update 1, and it serves two-node clusters (up to 64), not stretched clusters. dataSources and detailedImplementation repeat the same error ('8.0 U2+ shared witness').",
+      "field": "hardware",
+      "quote": "vSphere 8.0 U2 introduced a shared-witness OVA that can arbitrate for multiple stretched clusters",
+      "severity": "blocker",
+      "suggested_fix": "Say the shared witness arrived in vSAN 7.0 U1 for two-node clusters, and make the shared_witness_id and serving_clusters fields conditional on two-node topologies."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/7-0/vsan-planning-and-deployment/working-with-virtual-san-stretched-cluster/deploying-a-witness-appliance.html",
+      "explanation": "The witness appliance sizes are Tiny, Medium, Large, and Extra Large, and they are defined by component limits (750, 21,833, 45,000, and 64,000). There is no 'small' size.",
+      "field": "hardware",
+      "quote": "small (about 8 GB RAM to the guest), medium (16 GB), and large (32 GB)",
+      "severity": "minor",
+      "suggested_fix": "List Tiny, Medium, Large, and Extra Large with their component limits as documented."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware (3215) writes vCenter events to sourcetype vmware:events (vmware_inframon:events in the Metrics add-on). vmware:vc:event is not a sourcetype it emits. The same name appears in app, exclusions, and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "Gap-filling: `vmware:vc:event` from the Splunk Add-on for VMware",
+      "severity": "blocker",
+      "suggested_fix": "Replace vmware:vc:event with vmware:events in every field."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Witness configuration is normally exposed through the vSAN Management SDK (for example the VsanVcStretchedClusterSystem witness-host methods), not a public vSphere Automation REST path. This endpoint looks invented, and the event IDs esx.problem.vob.vsan.witness.* and com.vmware.vc.HA.WitnessHostNotFound also need checking.",
+      "field": "dataSources",
+      "quote": "calls `GET /api/vcenter/vsan/cluster/{cluster}/witness` and related stretched-cluster health on vCenter 7.0 U2+",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the vSAN Management API reference and name the real method or REST path and the real vCenter event type IDs. Otherwise describe the poller output as a customer-defined contract."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "In the SPL, fault_domain_count_l >= 0 is a null guard, not a trigger. The real triggers are quorum not met, witness disconnected or not found, inaccessible objects, unhealthy witness disk or host, heartbeat older than 300 s, and fault_domain_count not equal to 3. The description and controlTest misstate them.",
+      "field": "cross_field",
+      "quote": "pages when `fault_domain_count_l` >= 0, or `heartbeat_age` > 300",
+      "severity": "major",
+      "suggested_fix": "List the critical, high, medium, and low conditions from the severity_bucket case() in the description and controlTest."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is authoring meta-commentary that does not tell the reader what is out of scope; the same note repeats in dataSources and the SPL comment. 'AHCI' also appears to be a typo for Azure Stack HCI.",
+      "field": "exclusions",
+      "quote": "Boilerplate `vsan:witness` in older templates is not a real Splunk sourcetype",
+      "severity": "minor",
+      "suggested_fix": "Drop the boilerplate note and write 'Azure Stack HCI'."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "This sentence has no meaning for vSAN, and 'nested witness in Amazon EC2' in hardware is also doubtful. Neither helps an implementer.",
+      "field": "detailedImplementation",
+      "quote": "If you add Azure-style witness on Outposts, keep the same sourcetype",
+      "severity": "minor",
+      "suggested_fix": "Remove both, or replace them with VMware-supported witness placements such as VMware Cloud on AWS or a VCPP-hosted witness."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The HEC reference is truncated to a directory, and the VMware docs link points to retired docs.vmware.com content (now on techdocs.broadcom.com).",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Link the HEC page (Data/UsetheHTTPEventCollector) and the Broadcom TechDocs page on the vSAN witness appliance."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot run as written and several version facts are wrong, so no SME verification is evident behind the 'verified' status.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until the search has been run against a real stretched or two-node cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "Statements such as `eval crit_q=(quorum!=\"met\")`, `eval crit_w=(...)`, and `eval low_hb=(...)` assign a bare Boolean expression to a field. The Search Reference says the result of an eval expression cannot be a Boolean, so the search errors before it returns results. Wrap each one as if(<cond>,1,0).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`quorum!=\"met\"` is true when the poller omits quorum (an empty string), so any feed that lacks that customer-defined field turns every row critical. The vsan_object_health comparisons are also exact, case-sensitive matches on hyphenated strings such as 'Reduced-Availability-No-Rebuild', which the poller must reproduce exactly.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0058-UC-19.2.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is detailed and well structured, but the SPL assigns bare Boolean expressions with eval, which Splunk rejects. It also misstates shared-witness history and witness appliance sizing, and names a VMware add-on sourcetype that does not exist. The description and false-positive text are template residue with thresholds that do not match the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.23",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,141 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f7c9d2bb485add94d957d3cdaba3a391c531ccf72c2b373e13f8b2d8ffd64712",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.6.json",
+  "findings": [
+    {
+      "confidence": 0.97,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5076/",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). Nutanix's Splunkbase add-ons are 'TA for Nutanix Prism' (3103) and 'TA for Nutanix Prism Central' (8349); no Splunk_TA_nutanix exists. The same ID appears in dataSources, detailedImplementation and hardware.",
+      "field": "app",
+      "quote": "Splunk_TA_nutanix ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Name TA for Nutanix Prism (Splunkbase 3103) or TA for Nutanix Prism Central (8349), and confirm which sourcetype carries storage-container replication_factor (not necessarily nutanix:storage_container)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/vsan-management-api/latest",
+      "explanation": "The vSphere Automation REST API has no vsan/cluster/{cluster}/storage-policies or /objects resources. vSAN object compliance comes from the SOAP vSAN Management API (VsanObjectSystem, VsanVcClusterHealthSystem) and SPBM (pbm) on vCenter. /api/vcenter/storage/policies lists policy IDs and names but not rule details such as FTT or FTM.",
+      "field": "dataSources",
+      "quote": "custom HEC poller of vCenter REST `GET /api/vcenter/vsan/cluster/{cluster}/storage-policies` ... `GET /api/vcenter/vsan/cluster/{cluster}/objects` with pagination",
+      "severity": "blocker",
+      "suggested_fix": "Collect policies with PowerCLI Get-SpbmStoragePolicy (rule sets for hostFailuresToTolerate / replicaPreference) and object compliance with Get-SpbmEntityConfiguration or the pyVmomi vSAN SDK (VsanQueryObjectIdentities / QueryVsanObjects). Document the real field names those return."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The vCenter session endpoints are POST /api/session (vSphere 7.0 U2+) or the legacy POST /rest/com/vmware/cis/session; '/rest/com/sessions' does not look like either.",
+      "field": "detailedImplementation",
+      "quote": "`urllib.request` for `POST /rest/com/sessions` (and refresh on HTTP 401)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the vSphere Automation API reference and use POST /api/session with basic auth, reading the vmware-api-session-id token."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "In vSAN, PFTT is the site-level (stretched cluster) failures to tolerate (0 or 1), and SFTT is the secondary or local FTT inside each site. For standard clusters the setting is 'failures to tolerate' (hostFailuresToTolerate 0–3). The text and SPL treat PFTT as the generic FTT and SFTT as an add-on for erasure coding, which mixes up the two.",
+      "field": "dataSources",
+      "quote": "`pftt` (0–3), `sftt` for stretch",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the vSAN storage policy rule reference. Model hostFailuresToTolerate (FTT) and replicaPreference (RAID-1 vs RAID-5/6) for standard clusters, and site disaster tolerance plus local FTT for stretched clusters."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The VMware and Cisco references point at site home pages (techdocs.broadcom.com/, cisco.com/c/en/us/), so a reader cannot check any claimed field or rule.",
+      "field": "references",
+      "quote": "\"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "major",
+      "suggested_fix": "Link the specific vSAN storage policy rules page, the HyperFlex data-protection/replication-factor page, and the Microsoft 'Fault tolerance and storage efficiency' page for S2D."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template filler and name no real cause of a false RF-compliance alert.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster_name`, `policy_or_container_name`, `vendor`, `policy_id`** — Health checks in `hci` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes. Objects temporarily non-compliant during resync after host maintenance. Policies with force provisioning applied during an outage. Lookup names that do not match after a container or policy rename. Approved RF2 exceptions on HyperFlex clusters built before the RF3 standard."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "LOOKUP-<name> is props.conf syntax for an automatic lookup. transforms.conf defines a lookup with a [rf_policy] stanza and filename = rf_policy.csv.",
+      "field": "detailedImplementation",
+      "quote": "`transforms.conf` defines `rf_policy` = `LOOKUP-rf_policy` to `lookups/rf_policy.csv`",
+      "severity": "minor",
+      "suggested_fix": "Show `[rf_policy]\\nfilename = rf_policy.csv\\ncase_sensitive_match = false` in transforms.conf. LOOKUP- is not needed because the search uses inputlookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No add-on has that name; the vCenter inventory collector is the Splunk Add-on for VMware (Splunkbase 3215).",
+      "field": "app",
+      "quote": "Optional: Splunk Add-on for vSphere (inventory) to enrich `cluster_name` strings",
+      "severity": "minor",
+      "suggested_fix": "Say 'Splunk Add-on for VMware (Splunkbase 3215), vmware:inv:* sourcetypes'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Alert destinations and ITSI are not monitored equipment, and securityDomain 'cloud' does not fit on-premises HCI storage policy. Nutanix, HyperFlex and Azure Stack HCI models are missing from equipmentModels.",
+      "field": "equipment",
+      "quote": "\"pagerduty\",\n    \"servicenow\"",
+      "severity": "minor",
+      "suggested_fix": "Remove pagerduty, servicenow and itsi from equipment, add the Nutanix Prism equipmentModels, and use an infrastructure security domain."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL would fail on an undefined eval function, and the vSAN collection endpoints do not exist, so the UC cannot have been run end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until someone has run the search on real data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/TextFunctions",
+      "field": "spl",
+      "issue": "The sev0 case uses `tolower(tostring(compliance_class))`. Splunk eval has no tolower function (the text function is lower()), so the search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The vSAN mapping `_vsan_rf=if(RAID-5 OR RAID-6, 2+sftt, 1+pftt)` gives a non-stretched RAID-6 policy (FTT=2) actual_rf=2, the same as RAID-5 (FTT=1). RAID-6 objects then show false rf_drift against a min_required_rf of 3. It also takes PFTT, which is the stretched-cluster site tolerance, as the main FTT.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The vmware:vsan:object subsearch counts non-compliant objects by policy_id only. vSAN policies are vCenter-wide, so every cluster row with that policy gets the full vCenter-wide count and can be raised to critical for objects in other clusters. Add cluster_name to the stats and the join.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The HyperFlex arm searches index=cisco, while dataSources and the guide use index=hyperflex. The force-provisioning subsearch groups by a raw cluster_name without the coalesce applied in the main arm, so it misses events that carry clusterName.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0075-UC-19.2.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The policy-versus-reality framing and the per-vendor RF primer are useful. But the Nutanix Splunkbase ID points to an unrelated app, the vSAN REST endpoints and session path in the poller are not real vSphere Automation APIs, and the SPL calls an eval function that does not exist (tolower). The vSAN RAID-5/RAID-6 mapping to actual_rf is also wrong.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.6",
+  "verdict": "incorrect"
+}

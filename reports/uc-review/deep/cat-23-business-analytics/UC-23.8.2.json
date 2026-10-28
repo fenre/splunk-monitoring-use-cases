@@ -1,0 +1,113 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "5cdfbb9545eb936a1daa3b5f7d42a2e13bf5d4c434a9962aaf5ed86b1f643336",
+  "file": "content/cat-23-business-analytics/UC-23.8.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `entity` split and no anomaly detection. It returns one row for the previous calendar month with revenue_per_FTE, cost_per_transaction, automation_rate and exception_rate, and the '> 0' conditions are only divide-by-zero guards. Alerting lives elsewhere (detailedImplementation: automation drop greater than 5 points MoM).",
+      "field": "cross_field",
+      "quote": "Detects Productivity Metrics anomalies for UC-23.8.2 with window `the scheduled window` on `index=business` sourcetype `dbx:erp_orders`. Combines `monthly_revenue`, `headcount`, `opex_operations` by `entity` and compares against `headcount` > 0, `transactions` > 0, `total_steps` > 0, or `monitored_steps` > 0.",
+      "severity": "major",
+      "suggested_fix": "Describe the single-row monthly KPI rollup and its four ratios. State the alert rule (MoM automation_rate drop > 5 points) and note that it needs a separate MoM comparison search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios reference `host` and hourly spans that a monthly ERP/HR rollup never uses. The real distortions are in Step 5: headcount denominator drift (unpaid leave, contingent workers), automation taxonomy churn, and cost-centre reorganizations.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Operational Efficiency and Productivity Metrics' shifts `monthly_revenue`, `headcount`, `opex_operations` over `span=1h` while `host` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the three Step 5 causes and their reconciliation searches."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources puts app:process_event in index=automation, but the SPL's exception_rate branch searches `index=business sourcetype=\"app:process_event\"`, and the order-to-cash transaction search also expects it in business. As documented, exception_rate will be null.",
+      "field": "dataSources",
+      "quote": "Automation telemetry lands in `index=automation` (`uipath:robot:execution`, `automation_anywhere:execution`) or bespoke `app:process_event` via Splunk HTTP Event Collector",
+      "severity": "major",
+      "suggested_fix": "Pick one index for app:process_event and state it consistently in dataSources and detailedImplementation (the SPL must then be aligned by a human)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "`transaction` duration is in seconds, so the `_h` names are wrong; the code divides by 86400 to get days. Also, `startswith=\"OrderCreated\"`/`endswith=\"OrderInvoiced\"` will not match dbx:erp_orders rows unless those strings appear in _raw.",
+      "field": "detailedImplementation",
+      "quote": "| stats median(duration) as p50_oc_h, perc95(duration) as p95_oc_h",
+      "severity": "minor",
+      "suggested_fix": "Rename to p50_oc_s/p95_oc_s, and filter on an explicit event_type field (for example `startswith=eval(event_type=\"OrderCreated\")`)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL looks up cost_center_mapping.csv by cost_center only, so period-effective mappings (the stated fix for reorganizations) are not applied.",
+      "field": "detailedImplementation",
+      "quote": "finance operations owns `cost_center_mapping.csv` rows keyed by `(period,cost_center)` with `operational_function`",
+      "severity": "minor",
+      "suggested_fix": "Either document a single-key mapping, or show the lookup as `lookup cost_center_mapping.csv period cost_center OUTPUT operational_function`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "UiPath process performance reporting is usually in UiPath Insights dashboards rather than an Orchestrator 'Reports → Process Performance' menu. UiPath job states are Successful/Faulted/Stopped, so a `fail.*` status match would miss them if UiPath events feed exception_rate.",
+      "field": "detailedImplementation",
+      "quote": "compare blended automation percentages against UiPath Orchestrator **Reports → Process Performance** for the same interval",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current UiPath Orchestrator/Insights UI path and job-state values, and state them exactly."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent with no SME sign-off, and the index mismatch means part of the SPL cannot work as documented.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until FP&A/operations have validated the KPI definitions."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The Splunk docs root and the UiPath automation-cloud root are generic landing pages that do not back the specific claims (Orchestrator job APIs, appendcols/transaction behaviour).",
+      "field": "references",
+      "quote": "Splunk Enterprise Documentation",
+      "severity": "minor",
+      "suggested_fix": "Link the UiPath Orchestrator Jobs API page and the Splunk appendcols/transaction search reference pages."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Headcount is `dc(wid)` over a full month of daily HRIS snapshots, so it counts everyone active on any day of the month (leavers and joiners together). This inflates the revenue_per_FTE denominator. Use the period-end snapshot (`latest` per wid, or earliest=@mon-1d window) or an average of daily counts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The exception_rate branch searches `index=business sourcetype=\"app:process_event\"`, while the automation branch and dataSources place app:process_event in index=automation. One of the two will be empty.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`automation_rate` counts every execution event in index=automation. For uipath:robot:execution events, automated is essentially always \"yes\", so the rate trends toward 100% unless manual-step events are also ingested. The denominator semantics need to be defined.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-23.8.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation is substantive and specific (ingest paths, reconciliation checks, real troubleshooting). However, the description and false positives are template text that misstates the output, and the SPL has consistency gaps: process_event is searched in two different indexes, headcount is counted across a whole month of snapshots, and failure statuses may not match.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.2",
+  "verdict": "rewrite"
+}

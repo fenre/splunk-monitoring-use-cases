@@ -1,0 +1,140 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "082c3788e61e8bdb2fcdfb0582f51cc51429609e85d5163e5551d9aedb3aa00f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/3103",
+      "explanation": "Splunkbase app 5076 is 'Fix hostnames on UFs', not a Nutanix add-on. Splunk_TA_nutanix ('TA for Nutanix Prism') is app 3103. The same wrong ID appears in dataSources, in the references entry 'Splunk Add-on for Nutanix Prism (Splunkbase 5076)', and in Step 1 item 4.",
+      "field": "app",
+      "quote": "`Splunk_TA_nutanix` ([Splunkbase 5076](https://splunkbase.splunk.com/app/5076))",
+      "severity": "blocker",
+      "suggested_fix": "Replace every 5076 with 3103 (https://splunkbase.splunk.com/app/3103) and title the reference 'TA for Nutanix Prism (Splunkbase 3103)'."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The vSAN performance service is exposed through the vSAN Management API (VsanPerformanceManager.VsanPerfQueryPerf, used through pyVmomi with the vSAN SDK bindings), not through a vCenter Automation REST perf-query resource. Entity reference types are 'cluster-domclient', 'host-domclient', 'disk-group' and 'virtual-machine'. The 'vm:*' prefix used here and in the SPL `match(entity, \"^vm:\")` would never match, so the per-VM scope would silently fall into 'other'.",
+      "field": "detailedImplementation",
+      "quote": "`POST https://<vcenter>/api/vcenter/vsan/clusters/{cluster}/perf-query`",
+      "severity": "needs_verification",
+      "suggested_fix": "Document the poller as a pyVmomi call to VsanPerfQueryPerf with querySpecs entityRefId values such as 'cluster-domclient:<cluster-uuid>', 'host-domclient:<host-uuid>', 'disk-group:<uuid>' and 'virtual-machine:<vm-uuid>', and map the returned metrics (latencyAvgRead, latencyAvgWrite, iopsRead, iopsWrite) to the HEC contract names."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-server/storage/storage-qos/storage-qos-overview",
+      "explanation": "Storage QoS is enabled automatically on Storage Spaces Direct and Scale-Out File Server clusters. Get-StorageQosFlow lists all VHD flows, including flows under the default (no-policy) PolicyId, so a missing policy does not make it return nothing. 'Get-StoragePerformanceHistory' is also not a documented cmdlet; the performance-history cmdlet is Get-ClusterPerformanceHistory (alias Get-ClusterPerf).",
+      "field": "detailedImplementation",
+      "quote": "that cmdlet only returns flows with an active Storage QoS policy",
+      "severity": "minor",
+      "suggested_fix": "Say that Get-StorageQosFlow returns per-flow InitiatorLatency and IOPS for every VHD by default, drop 'Get-StoragePerformanceHistory', and use Get-ClusterPerformanceHistory for cluster, node and volume series. Note that its raw latency values must be converted to milliseconds before HEC."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The CIM Performance.Storage dataset carries read_ops, write_ops, read_latency, write_latency and latency, but not an 'iops' field. Grouping 'by Performance.name' references a field the CIM Performance model does not define (it would normally be dest or Performance.Storage.storage).",
+      "field": "detailedImplementation",
+      "quote": "avg(Performance.Storage.latency) AS mlat\n    sum(Performance.Storage.iops) AS miops",
+      "severity": "needs_verification",
+      "suggested_fix": "Use read_ops and write_ops (summed per sample, then averaged), group by Performance.dest, and confirm the field list against the CIM Performance data model reference before publishing."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "`lr > 0` and `lw > 0` are Nutanix unit-fallback guards, not alert conditions. The real alert ladder is p95 above 1x, 2x or 4x the per-cluster tier threshold (medium, high, critical), any max latency over 100 ms (critical), and a 24-hour trend rise (low). The description also names only `index=vmware`, although the search covers Nutanix, HyperFlex and Azure Stack HCI.",
+      "field": "description",
+      "quote": "alert when `read_max_ms` > 100, `write_max_ms` > 100, `lr` > 0, or `lw` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the actual logic: per cluster, host, VM or disk group, compare 30-minute read and write p95 latency with tier-based thresholds from latency_baseline (with hybrid, all-flash and NVMe defaults). Page critical at 4x threshold or any max over 100 ms, high at 2x, medium at 1x, and low when p95 is still under threshold but more than 10% above the 24-hour p95. Coverage is vSAN, Nutanix, HyperFlex and Azure Stack HCI."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The search's `iops_total` is `sum(iops_total)` across every sample in the 30-minute window, so it is roughly 60 times the real IOPS rate at 30-second sampling and varies with poll cadence. The saturation 'knee' scatter would be plotted on a meaningless x-axis.",
+      "field": "visualization",
+      "quote": "scatter of `iops_total` versus `read_p95_ms`",
+      "severity": "minor",
+      "suggested_fix": "Plot average or p95 IOPS per sample once the SPL computes it, or state that iops_total is a window sum."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "ITSI is an optional premium app, already listed under premiumApps, not monitored equipment. equipmentModels lists only VMware models, although Nutanix, HyperFlex and Azure Stack HCI are primary sources.",
+      "field": "equipment",
+      "quote": "itsi",
+      "severity": "minor",
+      "suggested_fix": "Remove 'itsi' from equipment and add Nutanix, HyperFlex and Azure Stack HCI equipment-model slugs where the taxonomy has them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The HEC reference URL is truncated to a directory, and the HyperFlex reference is the bare cisco.com/c/en/us/ homepage. Neither supports its title.",
+      "field": "references",
+      "quote": "https://docs.splunk.com/Documentation/Splunk/latest/Data/",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector and a specific HyperFlex REST API or HX Connect performance document. Add the vSAN performance service API reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The search fails at parse or run time (non-streaming `table` inside multisearch) and the Nutanix Splunkbase ID points at an unrelated app, so the UC cannot have been verified end to end.",
+      "field": "status",
+      "quote": "verified",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the SPL is fixed and run against real vSAN and Nutanix data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/table",
+      "field": "spl",
+      "issue": "Every multisearch arm ends with `| table ...`. table is a non-streaming (transforming) command, and multisearch only accepts purely streaming subsearches, so the search errors. Replace each `table` with `fields` (streaming) inside the arms.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(iops_total)` aggregates instantaneous IOPS across all samples in the 30-minute window, so iops_total is inflated by the sample count (about 60x at 30-second polling) and is not comparable across vendors with different cadences. Use avg() or perc95() of per-sample IOPS.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The 24-hour baseline join is keyed on cluster_name only and pools every vSAN entity type (cluster, host, disk-group, VM) and every Nutanix row into one p95 per cluster. HyperFlex and Azure sources are missing from it. trend_up therefore compares host, VM and disk-group rows with a mixed cluster-wide baseline, and HyperFlex and Azure rows never get a trend band. Add scope (and host_name) to the baseline by-clause and include all four sourcetypes.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The vSAN per-VM scope test `match(entity, \"^vm:\")` does not match vSAN perf entity refs, which use the 'virtual-machine:' prefix. Per-VM rows would be labelled 'other'.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The eval function is written `toString(...)` throughout while the documented function is `tostring`. If eval function names are case-sensitive on the target Splunk version, every arm fails with an unsupported-function error. Normalise to lowercase `tostring`.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "For Nutanix and HyperFlex, latency_max_*_ms is set to the average latency, so the 'max latency over 100 ms' critical rule only fires on a 100 ms average for those vendors. That is inconsistent with the vSAN semantics. The Azure arm labels InitiatorName (the VM or initiator) as host_name and applies one Latency value to both read and write.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0064-UC-19.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 4
+  },
+  "summary": "Strong latency-first rationale, tier guidance and validation steps, but the SPL cannot run: every multisearch arm ends in `table`, which is non-streaming. The Nutanix TA is cited as Splunkbase 5076, which is 'Fix hostnames on UFs' (the correct ID is 3103). The vSAN perf-query REST path and entity naming look invented, `sum(iops_total)` over 30 minutes of samples inflates IOPS, and the Azure Storage QoS and performance-history guidance needs correction. Status 'verified' overclaims.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.3",
+  "verdict": "incorrect"
+}

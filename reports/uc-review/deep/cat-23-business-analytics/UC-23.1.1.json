@@ -1,0 +1,106 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "5a1f8b95a2040d87046f388b2d078bf4d582380f1a03bd331db4e2babc10c6e2",
+  "file": "content/cat-23-business-analytics/UC-23.1.1.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://httpd.apache.org/docs/current/mod/mod_logio.html",
+      "explanation": "In Apache, `combinedio` is the mod_logio 'Combined I/O' nickname (combined plus `%I %O` byte counters), not a cookie-bearing format. Telling readers to 'enable combined or combinedio' to get `access_combined_wcookie` will produce logs without the cookie field, so the session-key `rex` never fires.",
+      "field": "detailedImplementation",
+      "quote": "LogFormat \"%h %l %u %t \\\\\"%r\\\\\" %>s %b \\\\\"%{Referer}i\\\\\" \\\\\"%{User-agent}i\\\\\" \\\\\"%{Cookie}i\\\\\"\" combinedio",
+      "severity": "blocker",
+      "suggested_fix": "Name the cookie format something distinct (e.g. `combined_cookie`) and drop the claim that `combinedio` carries `%{Cookie}i`; if `combinedio` is mentioned at all, describe it as combined + `%I %O` bytes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-apache-web-server/Sourcetypes/",
+      "explanation": "`access_combined` and `access_combined_wcookie` are Splunk's built-in pretrained sourcetypes; the Splunk Add-on for Apache Web Server (3186) defines `apache:access`, `apache:access:kv`, `apache:access:json`, `apache:access:combined` and `apache:error`. Calling `access_combined_wcookie` 'Splunkbase-canonical' and saying the TA supplies its field extractions (dataSources and detailedImplementation Prerequisites) is wrong; installing 3186 does not change how these sourcetypes parse.",
+      "field": "dataSources",
+      "quote": "the Apache Web Server add-on (3186) installed on the parsing tier so `access_combined` / `access_combined_wcookie` get field keys",
+      "severity": "blocker",
+      "suggested_fix": "State that `access_combined`/`access_combined_wcookie` are Splunk pretrained sourcetypes that need no add-on, and that the Apache TA's own sourcetypes are `apache:access:kv`/`apache:access:json`/`apache:access:combined` (with different field names such as `url`, `http_user_agent`). Either drop 3186 from `app` or explain when to use its sourcetypes instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` and `value` describe anomaly alerting, but the SPL is a 7-day funnel report with no threshold or alert condition; `detailedImplementation` Step 2 itself says alerting is optional and threshold-driven by the business.",
+      "field": "cross_field",
+      "quote": "Surfaces Funnel Analysis anomalies ... Alerting on Website, Conversion, Funnel, Analysis",
+      "severity": "major",
+      "suggested_fix": "Describe it as a funnel report: distinct visitors per ordered stage (landing → confirmation) over the last 7 days with step-to-step drop-off %, optionally alerted when a named stage's drop-off exceeds an agreed band."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic and partly meaningless for a funnel report (`span=1h` is not in the SPL, 'elevates ua_low' is nonsensical). The real distortions are already listed in detailedImplementation Step 5: unfiltered bots, NAT/proxy fingerprint collisions, SPA URL collapse, CDN cache hits hiding traffic from origin, redirect double-counting, consent-banner changes, and non-prod hosts.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `ua_low` without crossing `prior_step_visitors` > 0 for UC-23.1.1. Compare `_time` minute against the job schedule.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the concrete causes from Step 5 (bots, NAT collisions, SPA collapse, CDN HIT share, 302 chains, consent relaunch, staging hosts) and how to recognise each."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Boilerplate evidence text with invented artefacts (saved search `cs_funnel_v3_drop_alert`, panel `ConversionFunnelExec`, notable events that imply Enterprise Security) that a marketing funnel report does not produce.",
+      "field": "evidence",
+      "quote": "ServiceNow CHG number, marketing flight register row, and notable-event timeline retained for 13 months in `index=audit` with `data_classification=evidence`.",
+      "severity": "major",
+      "suggested_fix": "Describe evidence a funnel report actually yields: the scheduled report's weekly output (stage counts and drop-off %), the reconciliation note against GA4/Adobe from Step 3, and the version of the `case()` route map in use."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "`verified` is asserted by an automated agent reviewer with no SME sign-off, while the UC contains factual errors in SPL and product facts.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft/community until a human SME validates the SPL and sourcetype guidance."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "UC-23.1.2 is built on Shopify checkout webhooks, not Stripe, and the SPL uses only origin `access_combined*` logs (edge and HEC `web:event` are optional companions in dataSources), so 'Apache/Nginx + edge logs only' does not match the search.",
+      "field": "exclusions",
+      "quote": "Server-side eligibility for promotion logic is monitored elsewhere (UC-23.1.2 cart abandonment / Stripe webhooks). ... analytics are scoped to Apache/Nginx + edge logs only.",
+      "severity": "minor",
+      "suggested_fix": "Reference UC-23.1.2 as Shopify checkout-based cart abandonment and scope this UC to origin combined access logs, with edge/HEC as optional companion panels."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The SPL has no `bin`/time split; it aggregates the whole 7-day window per stage, so the time-zone troubleshooting note refers to a daily series that the search does not produce (only the visualization's line chart would).",
+      "field": "detailedImplementation",
+      "quote": "the daily `bin` of funnel counts appears shifted",
+      "severity": "minor",
+      "suggested_fix": "Tie the note to the separate daily confirmation-stage line chart, or show the `timechart span=1d` search that panel needs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`streamstats current=t window=1 last(distinct_visitors) as prior_step_visitors` includes only the current row in a 1-row window, so `prior_step_visitors` always equals `distinct_visitors` and `step_delta_pct` is always 0. The previous stage requires `current=f window=1`. Secondary: `rex ... max_match=0` can make `sid_pair`/`visit_key` multivalue when several session cookies are present, inflating `dc(visit_key)`.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0001-UC-23.1.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is substantive and mostly well reasoned, but the SPL's step-over-step comparison is broken (prior step always equals current step), the TA/sourcetype relationship and the Apache `combinedio` LogFormat are stated wrongly, and description/value/KFP/evidence are template residue that frame a dashboard report as an alert.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.1",
+  "verdict": "incorrect"
+}

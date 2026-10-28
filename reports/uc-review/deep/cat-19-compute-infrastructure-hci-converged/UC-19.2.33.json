@@ -1,0 +1,111 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e3c33ccdd99591c4c4e1a9235558a6ad617df0214c175bb59f1ea2c1651c42d0",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.33.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://lists.proxmox.com/pipermail/pve-devel/2023-June/057548.html",
+      "explanation": "PVE has never had a /cluster/ceph/pools endpoint; /cluster/ceph only exposes flags, metadata and status. Pools are listed per node at GET /api2/json/nodes/{node}/ceph/pool. The older /nodes/{node}/ceph/pools path was deprecated and removed in PVE 8. The reference poller in detailedImplementation calls the nonexistent path, so the primary sourcetype would never be populated.",
+      "field": "dataSources",
+      "quote": "`proxmox:ceph:pool` (PVE `GET /api2/json/cluster/ceph/pools`",
+      "severity": "blocker",
+      "suggested_fix": "Use GET /api2/json/nodes/{node}/ceph/pool (any node with Ceph installed) in dataSources, the poller and the Step 1 and Step 3 curl examples."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/wiki/Proxmox_VE_API",
+      "explanation": "PVE expects the header 'Authorization: PVEAPIToken=USER@REALM!TOKENID=SECRET', with '=' after PVEAPIToken; dataSources even shows this form, but the code sends a space. Also, 'pveum user token add' creates a privilege-separated token by default. Because the ACL is granted only to the user (pveum acl modify / -user splunk_reader@pve -role PVEAuditor), the token itself has no permissions. The documented setup therefore fails with 401 or returns empty data.",
+      "field": "detailedImplementation",
+      "quote": "headers={\"Authorization\": \"PVEAPIToken \" + TOK}",
+      "severity": "blocker",
+      "suggested_fix": "Build the header as 'PVEAPIToken=' + TOK. Either create the token with '--privsep 0', or grant PVEAuditor on / to the token ID 'splunk_reader@pve!splunk_token' as well as the user."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.ceph.com/en/latest/rados/operations/health-checks/",
+      "explanation": "Ceph has no POOL_NEARFULL or POOL_BACKFILLFULL health checks. The pool check is POOL_NEAR_FULL, and both POOL_NEAR_FULL and POOL_FULL are mainly quota-driven (mon_pool_quota_warn_threshold and mon_pool_quota_crit_threshold). The backfill condition at placement-group level is PG_BACKFILL_FULL. Step 4 repeats the BACKFILLFULL routing.",
+      "field": "dataSources",
+      "quote": "health.checks for POOL_NEARFULL, POOL_BACKFILLFULL, POOL_FULL, OSD_NEARFULL, OSD_BACKFILLFULL, OSD_FULL",
+      "severity": "blocker",
+      "suggested_fix": "List the real check IDs: OSD_NEARFULL, OSD_BACKFILLFULL, OSD_FULL, POOL_NEAR_FULL, POOL_FULL and PG_BACKFILL_FULL. Note that the POOL_* checks reflect quotas unless the OSD ratios are hit."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The poller forwards the raw /cluster/ceph/status JSON, but the SPL reads health_status or health__status, nearfull_pool_count, nearfull_osd_count and mon_quorum_lost, none of which exist in that payload. With JSON extraction the field is health.status. ceph_health therefore always falls back to HEALTH_OK and the nearfull counts to 0, which disables the critical HEALTH_ERR tier and the count-based tiers.",
+      "field": "detailedImplementation",
+      "quote": "se = dict(status)\n    se[\"cluster_name\"] = CLUSTER",
+      "severity": "major",
+      "suggested_fix": "Have the poller emit normalized fields: health_status from health.status, nearfull_osd_count and nearfull_pool_count from the health.checks summary counts, and mon_quorum_lost by comparing quorum_names to monmap. Document them in dataSources."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "GET /nodes/{node}/ceph/osd returns the CRUSH tree as an object (root with nested children), not a flat list of OSDs, so 'for o in oj' would iterate over dict keys. The fields listed in dataSources (kb_used, utilization, var) come from 'ceph osd df', not this endpoint.",
+      "field": "detailedImplementation",
+      "quote": "path = \"/api2/json/nodes/%s/ceph/osd\" % (urllib.parse.quote(nname, safe=\"\"),)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the response shape in the PVE API viewer for your version and walk the tree to the leaf OSD nodes, or use the Splunk_TA_nix 'ceph osd df --format=json' path as the primary OSD source."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The poller posts to the HEC /services/collector/event endpoint. INDEXED_EXTRACTIONS is a structured-data setting that I believe is not applied to /event payloads, and KV_MODE=none switches off search-time JSON extraction, so these sourcetypes may end up with no extracted fields.",
+      "field": "detailedImplementation",
+      "quote": "KV_MODE = none\nINDEXED_EXTRACTIONS = json",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the HEC and structured-data docs. Use KV_MODE = json for /event data, or post to the /raw endpoint if indexed extraction is required."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "HashiCorp Vault is only mentioned as a secret store. The equipment tags 'hashicorp' and 'nutanix' are also unrelated to Proxmox Ceph capacity, and there is no Proxmox or Ceph model listed.",
+      "field": "equipmentModels",
+      "quote": "\"hashicorp_vault\"",
+      "severity": "minor",
+      "suggested_fix": "Remove hashicorp_vault and the hashicorp and nutanix tags, and add the catalogue's Proxmox and Ceph model slugs if they exist."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic team reviewer, but the reference poller calls a nonexistent endpoint with a malformed auth header, so it cannot have been run end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft until the poller and SPL are tested against a PVE 8 Ceph cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The OSD branch normalizes utilization with if(osd_tu>1, osd_tu/100, osd_tu), but 'ceph osd df' reports utilization in percent. Any OSD under 1% (for example a newly added, nearly empty OSD at 0.97%) is read as a fraction (0.97, which is 97%) and drives a critical severity. The pool branch has the same ambiguity for percent_used. The unit should be fixed per source, not guessed from magnitude.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "ceph_health coalesces health__status and health_status but not 'health.status', the name JSON extraction produces for the PVE /cluster/ceph/status payload, so HEALTH_ERR is never seen unless the poller renames it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0068-UC-19.2.33",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The Ceph background is solid: the nearfull, backfillfull, full and failsafe ratios and the point about OSD skew are both correct. The data path, however, is wrong in several places: the pool endpoint does not exist, the reference poller's API-token header is malformed, the token would have no permissions, and some health-check names are invented. In addition, the SPL reads status fields that the poller never produces.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.33",
+  "verdict": "incorrect"
+}

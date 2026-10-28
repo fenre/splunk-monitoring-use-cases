@@ -1,0 +1,183 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e11c7eea22826d12a167b7b09dcda2ec66e61fb80a17fc410c977eddfafe2eb9",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.35.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "explanation": "The search only reads earliest=-2h@h, which is roughly 24 to 36 five-minute polls. So window=288 never reaches 24 hours back, and first() returns the value from about 2 hours ago. The search still divides that delta by 24, which understates the shrink rate by about 10x and overstates eta_to_full_h by the same factor. The 'eta_to_full_h<24' high-severity branch therefore rarely fires.",
+      "field": "detailedImplementation",
+      "quote": "The streamstats window approximates 24 hours of five minute polls for eta_to_full_h.",
+      "severity": "blocker",
+      "suggested_fix": "State that the ETA needs a 24h search window, or a summary index or lookup holding the free_capacity_gb value from 24h ago. Alternatively, derive the rate from the actual time delta between the first and latest sample, divided by (now - first _time) in hours, instead of a fixed 24."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The where sourcetype=\"openstack:cinder:pool\" right after multisearch discards every quota and service event, so they do not participate in anything. Service state comes only from the separate join subsearch, and quota data is never used. The text presents dead code as a feature, and the comment in dataSources calling quota 'PRIMARY' is misleading.",
+      "field": "detailedImplementation",
+      "quote": "then the where clause filters the numeric pipeline to pool events so the quota and service streams still participate in the same time picker for investigations even when the final table is pool-centric",
+      "severity": "major",
+      "suggested_fix": "Say plainly that the quota stream is not used by this search and is for a separate dashboard panel only. Describe service state as coming from the join subsearch alone. Recommend dropping the quota and service legs of the multisearch."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/api-ref/block-storage/v3/index.html",
+      "explanation": "get_pools?detail=true returns capacity values nested under 'capabilities'. With the props shown (INDEXED_EXTRACTIONS=json), they extract as capabilities.total_capacity_gb, capabilities.free_capacity_gb and so on. The SPL coalesce list only checks total_capacity_gb, totalCapacityGb and similar names, never the dotted ones. Unflattened events therefore default total to \"0\", free_pct and over_sub_ratio become null, and every pool silently lands in 'ok'.",
+      "field": "detailedImplementation",
+      "quote": "Flatten capabilities to snake_case in the poller or rely on the SPL coalesce list.",
+      "severity": "major",
+      "suggested_fix": "Require the poller to flatten capabilities.* into top-level snake_case fields. Remove the 'or rely on the SPL coalesce list' option unless the dotted names are added."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/cinder/latest/admin/over-subscription.html",
+      "explanation": "Cinder documents several conditions the text omits. The capacity filter only applies max_over_subscription_ratio when thin_provisioning_support is True and the ratio is greater than 1.0. The cinder.conf default is 20.0, and the value may be 'auto', which is dynamically calculated. The runbook and search treat the ratio as applying to every pool and fall back to 1.0 when it is missing or non-numeric. As a result, 'auto' pools and thick pools are misclassified.",
+      "field": "detailedImplementation",
+      "quote": "When that ratio is greater than max_over_subscription_ratio, the scheduler stops new placements",
+      "severity": "major",
+      "suggested_fix": "Add the thin-only and >1.0 conditions and the 'auto' case. Note that tonumber(\"auto\") is null, so 'auto' pools need explicit handling rather than a silent 1.0 fallback."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The text and visualization both stress disabled services and disabled_reason. The search, however, only tests state=\"down\" and ignores status=\"disabled\", so a disabled cinder-volume never raises severity.",
+      "field": "detailedImplementation",
+      "quote": "A backend can have free space while a cinder-volume worker is down or disabled, which blocks placement regardless of the array.",
+      "severity": "minor",
+      "suggested_fix": "Either state that disabled services are display-only, or describe the check as covering state=down OR status=disabled."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "min_free_pct and expansion_planned_date are required columns but are never used. The free-percent thresholds are hard-coded at 5, 10, 20 and 30, so a per-pool min_free_pct has no effect.",
+      "field": "detailedImplementation",
+      "quote": "Maintain lookups/openstack_cinder_owner.csv with at least: cluster_name (OpenStack region or cell), pool_name (from get_pools), expected_max_over_sub, min_free_pct, business_service, owner_email, change_freeze_until, expansion_planned_date.",
+      "severity": "minor",
+      "suggested_fix": "Mark min_free_pct and expansion_planned_date as informational, or say that the thresholds are fixed and the column is reserved for future use."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The text mixes two delivery models. A scripted input writes to stdout and is indexed using the stanza's index and sourcetype, while the text also says the script POSTs to HEC. Doing both double-ingests the data, and the reader is not told which model to use. The poller also has to inject a region field, because neither get_pools nor os-services returns one, yet the SPL keys the join and lookup on region.",
+      "field": "detailedImplementation",
+      "quote": "Python 3 poller uses stdlib ssl.create_default_context ... POST each pool line to HEC with the shown sourcetype. inputs.conf can run the poller on a five-minute interval ... [script://$SPLUNK_HOME/etc/apps/TA_openstack_cinder/local/cinder_pool_poll.py]",
+      "severity": "minor",
+      "suggested_fix": "Pick one model: a scripted input with stdout, or a cron or systemd poller that posts to HEC. State that the poller must add a region or cluster_name field to every pool and service line."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Snapping to @h gives a window of 2 to 3 hours depending on run time. Combined with max(isdown) in the service join, a cinder-volume that was briefly down at any point in that window keeps every pool in the region 'critical' for up to 3 hours after recovery.",
+      "field": "implementation",
+      "quote": "schedule the saved search every 5–10 minutes with `earliest=-2h@h`",
+      "severity": "minor",
+      "suggested_fix": "Use a non-snapped window such as earliest=-2h for the pool stream, and evaluate only the latest service state per host for the down check."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "NEARFULL is a Ceph health state, not a Cinder pool state, and 'active/active backend' does not describe a capacity remedy. Also, over_sub_ratio is computed, not defaulted, so it does not get 'stuck at 1.0'. The value that defaults to 1.0 is max_over_sub_w.",
+      "field": "detailedImplementation",
+      "quote": "(1) a single pool in NEARFULL: add an active/active backend, expand the array, or move tenants after consent; ... (b) over_sub_ratio stuck at 1.0: driver conflation of fields",
+      "severity": "minor",
+      "suggested_fix": "Use Cinder wording (for example 'pool below the critical free_pct threshold'). Say that max_over_sub_w falls back to 1.0 when the driver omits max_over_subscription_ratio."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The sidecar has no equipmentModels or other field carrying these tags, so the sentence refers to metadata that does not exist on this UC.",
+      "field": "hardware",
+      "quote": "The structured tags `openstack_2023_1` and `openstack_2024_1` line up with the 2023.1 Antelope and 2024.1 Caracal style release families",
+      "severity": "minor",
+      "suggested_fix": "Remove the sentence, or add the tags to the structured field they are meant to live in."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Hyper-V and Proxmox are not OpenStack Cinder backends or control planes in the scope this UC describes ('KVM-based OpenStack clusters'). The exclusions explicitly push Proxmox to UC-19.2.33.",
+      "field": "equipment",
+      "quote": "\"hyperv\", ... \"proxmox\"",
+      "severity": "minor",
+      "suggested_fix": "Drop hyperv and proxmox. Keep openstack, ceph, netapp, dell_emc and linux."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "spelling",
+      "explanation": "Mojibake: an em dash was decoded as 'â'. This occurs in every Step heading and in the arrow characters ('?detail=true â HEC').",
+      "field": "detailedImplementation",
+      "quote": "Step 1 â Configure data collection",
+      "severity": "minor",
+      "suggested_fix": "Replace the broken characters with an em dash or ASCII hyphen, and with '->' for the arrows."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The HEC reference URL is truncated to the Data manual root and does not land on the 'Use the HTTP Event Collector' page its title promises. The app field has the full URL.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHEC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic project handle, yet it contains a non-functional 24h ETA, dead multisearch legs, and coalesce names that do not match the documented get_pools shape. These would not survive a real test against Cinder.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"@splunk-monitoring-use-cases\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until a named reviewer has run the poller and search against a real get_pools response."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "streamstats window=288 first(free_capacity_gb) only sees about 2 to 3 hours of data (earliest=-2h@h), but free_delta_24h is divided by 24. The shrink rate is therefore understated and eta_to_full_h is inflated roughly 10x, so the 'eta_to_full_h<24' branch is effectively dead.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.openstack.org/api-ref/block-storage/v3/index.html",
+      "field": "spl",
+      "issue": "Missing capacity fields are coalesced to \"0\". If free_capacity_gb is absent but total is present, free_pct=0 and the pool is marked critical. If total is absent (including the unflattened capabilities.* names, which are not in the coalesce list), free_pct and over_sub_ratio are null and the pool falls silently to 'ok'. The missing-field case needs an explicit 'unknown' severity instead.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.openstack.org/cinder/latest/admin/over-subscription.html",
+      "field": "spl",
+      "issue": "max_over_subscription_ratio defaults to \"1\" and tonumber(\"auto\") is null, which also falls back to 1.0. thin_provisioning_support is never checked. Cinder only enforces the ratio for thin pools with ratio >1.0, the config default is 20.0, and 'auto' is valid. Thin pools using 'auto' or an unreported ratio are therefore marked critical as soon as provisioned >= total.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The quota and service multisearch legs are discarded immediately by where sourcetype=\"openstack:cinder:pool\". The service join uses max(isdown) over a 2 to 3 hour window per region, so one cinder-volume that was briefly down marks every pool in the region critical long after recovery. Missing service data is coalesced to \"up\", which fails open.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The medium branch fires when over_sub_drift > -0.5, so any pool running within 0.5 of its expected ratio is always 'medium'. The lookup outputs min_free_pct and expansion_planned_date but never uses them. The comment string contains mojibake ('â').",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0070-UC-19.2.35",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Cinder API endpoints and the separation of pool physics from quota math are sound, but detailedImplementation describes search behaviour the SPL does not have. The ETA is called a 24h trend over a 2h window, the quota and service streams are said to participate when they are filtered out, and the coalesce list is said to cover unflattened get_pools JSON when it does not. Over-subscription handling also ignores Cinder's documented defaults and the 'auto' and thin-only semantics.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.35",
+  "verdict": "incorrect"
+}

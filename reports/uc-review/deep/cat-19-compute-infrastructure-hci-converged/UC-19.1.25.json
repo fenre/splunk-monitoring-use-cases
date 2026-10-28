@@ -1,0 +1,137 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f0b74e63ba1617fc00e9fb1bcda2129e2963304ea52ddf83c65dd7bbabd74591",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.25.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS assigns every event the sourcetype `cisco:ucs` and puts the class in the source (`cisco:ucs:<classId>`, e.g. `cisco:ucs:faultInst`, `cisco:ucs:etherPIo`). There are no stats/inventory/faults/events sourcetypes. This affects dataSources, exclusions, implementation and the detailedImplementation validation searches. The repository guide repeats the same names, so fix it too.",
+      "field": "cross_field",
+      "quote": "sourcetypes: `cisco:ucs:stats` from the Cisco UCS statistics modular input ... `cisco:ucs:inventory` ... `cisco:ucs:faults` ... `cisco:ucs:events` (optional)",
+      "severity": "blocker",
+      "suggested_fix": "Describe the data as `sourcetype=cisco:ucs` with `source=cisco:ucs:equipmentIOCard`, `cisco:ucs:faultInst`, `cisco:ucs:firmwareRunning`, `cisco:ucs:equipmentChassis`, etc., and change discovery searches to `| stats count by source`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on does not use a `ciscoucs://` stanza or keys such as xml_url, enable_stats, enable_faults, fault_interval, inventory_interval or stats_classes. It is configured with Managers (splunk_ta_cisco_ucs_servers.conf), Templates listing classIDs (splunk_ta_cisco_ucs_templates.conf, `content =`), and Inputs that bind `servers`, `templates`, `interval`, `sourcetype` and `index` in inputs.conf.",
+      "field": "detailedImplementation",
+      "quote": "[ciscoucs://prod_ucsm_x_ifm]\nindex = cisco_ucs\ndisabled = 0\nxml_url = https://ucsm.example.com/nuova\n...\nenable_stats = 1\n...\nstats_classes = equipmentChassis,...",
+      "severity": "blocker",
+      "suggested_fix": "Replace Step 1 with the Manager → Template → Input workflow: a template whose content lists equipmentChassis, equipmentIOCard, equipmentIOCardStats, etherPIo, faultInst, firmwareRunning, and an input that references it with an interval of 300 s."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on's app directory is `Splunk_TA_cisco-ucs` (hyphen), both in the Splunkbase catalog and in the add-on's own configuration paths. The UC asserts the opposite, so `local/` paths built from this text point at a directory that does not exist.",
+      "field": "app",
+      "quote": "canonical app directory id uses an underscore, not a hyphen",
+      "severity": "blocker",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs` everywhere (app, detailedImplementation paths)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/GUI-User-Guides/Infrastructure-Mgmt/4-3/b_UCSM_GUI_Infrastructure_Management_Guide_4_3/b_UCSM_GUI_Infrastructure_Management_Guide_chapter_0101.html",
+      "explanation": "UCS Manager supports the X9508 chassis and its IFMs only from release 4.3(2a); earlier X-Series domains are Intersight Managed Mode only. A reader on 4.2 would expect data that cannot exist.",
+      "field": "hardware",
+      "quote": "Requires UCSM 4.2+ for XML class polling (Splunk 2731).",
+      "severity": "blocker",
+      "suggested_fix": "State that UCSM 4.3(2a) or later is required for UCSM-managed X9508/IFM, and that older X-Series domains are IMM-only (see UC-19.1.22)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In the UCSM object model fabricEthLanEp is normally the LAN-cloud uplink port on the Fabric Interconnect (dn under `fabric/lan/A|B/...`), the northbound path UC-19.1.5 covers, not an IFM-to-FI link. Its rows also cannot pass the SPL's `sys/chassis-N` filter.",
+      "field": "detailedImplementation",
+      "quote": "fabricEthLanEp* covers the chassis-fabric LAG end-point",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the UCSM XML API model for fabricEthLanEp and fabricEthLanEpStats DNs. If they are FI uplinks, drop them from this UC's scope and use the IOM/IFM host/network port classes (e.g. etherPIo under sys/chassis-N/slot-M) for the IFM-to-FI path."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These classIds are not among the classes the add-on documents, and IOM port counters in UCSM are typically etherTxStats/etherRxStats under the IOM port DN. They may be invented.",
+      "field": "dataSources",
+      "quote": "etherIomStats, etherIomTxStats, etherIomRxStats",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm in the add-on's template metric picker or the UCSM XML API class list; replace them with documented classes if they do not exist."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios talk about count shifts, batch max values and synthetic probes that this search does not compute. The real false-positive causes (rolling IFM firmware upgrades, reseats or RMAs causing operState flips, admin-down maintenance) appear only in detailedImplementation troubleshooting.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'UCS X-Series Intelligent Fabric Module (IFM) Health (UCSM, UCSX-9508)' shifts `A`, `B` over `span=1h` while `chassis_id`, `s`, `dn` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "List IFM-specific causes: staged IFM firmware activation (A≠B mid-wave), IFM reseat or RMA port flaps, chassis decommission or acknowledge, and admin-disabled server ports."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "\"HBM\" is unexplained and does not relate to an IFM. Related claims such as \"early 2.x families added or renamed MO classes\" are unsupported asides.",
+      "field": "detailedImplementation",
+      "quote": "(6) HBM: newer UCSX-I-9108-100G builds can expose more metrics in UCSM",
+      "severity": "minor",
+      "suggested_fix": "Remove the HBM paragraph and the unsupported release-history claims, or replace them with cited facts."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is the root of Cisco DevNet docs, not the UCSM XML API reference.",
+      "field": "references",
+      "quote": "https://developer.cisco.com/docs/",
+      "severity": "minor",
+      "suggested_fix": "Link the UCS Manager 4.3 I/O Module Management guide and the add-on's Sources/ConfigureInputs pages instead."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated uplift handle although the input stanza and sourcetypes do not match the add-on documentation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to draft until validated against a UCSM 4.3(2a)+ X9508 domain."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters on sourcetype=\"cisco:ucs:stats\"/\"cisco:ucs:faults\"/\"cisco:ucs:inventory\", but the add-on writes sourcetype `cisco:ucs` with the class in `source` (cisco:ucs:<classId>). As written, it returns nothing on a default install.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "fabricEthLanEp/fabricEthLanEpStats rows are required to match `^sys/chassis-(\\d+)` before the fe_bad test. If, as usual, these MOs live under fabric/lan/..., the fe_bad branch can never fire. Verify the DN and drop or re-key the branch.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort 0 - _time, severity_bucket` sorts the bucket alphabetically as a tie-breaker, so critical rows are not prioritised. `fault_hit` also treats UCS `condition` severity as a warning.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0018-UC-19.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The IFM-health logic is thoughtful, but it is built on add-on facts that the Splunk Add-on for Cisco UCS documentation contradicts: the sourcetype names, the input stanza and keys, the app directory name, and the UCSM release that supports X-Series. A reader following the text would configure inputs that do not exist and search sourcetypes the add-on never writes.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.25",
+  "verdict": "incorrect"
+}

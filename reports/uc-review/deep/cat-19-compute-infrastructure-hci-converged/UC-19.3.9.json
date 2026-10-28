@@ -1,0 +1,109 @@
+{
+  "confidence": 0.9,
+  "content_sha256": "7e26b4671760e583eee29ad123e133a9d0342dca2778c10ac9ff2fd51498032f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.9.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "explanation": "In ovirt-engine's AuditLogType enum, USER_ADD_PERMISSION=850, USER_REMOVE_PERMISSION=852, USER_ADD_ROLE=854, USER_REMOVE_ROLE=858, USER_RUN_VM=32 and USER_ADD_CLUSTER=809. 34 is USER_ADD_VM, 516 is VDS_CPU_RETRIEVE_FAILED, 43 is USER_UPDATE_VDS, 890 is HOST_UPGRADE_FINISHED_MANUAL_HA and 893 is USER_START_CLUSTER_UPGRADE_FAILED. No USER_ACTIVATED_HOST or USER_DEACTIVATED_HOST constants exist. Operators validating against these numbers would chase the wrong events.",
+      "field": "detailedImplementation",
+      "quote": "Tie **`USER_ADD_PERMISSION(852)`** spikes ... **`USER_REMOVE_CLUSTER(813)`** ... **`USER_DEACTIVATED_HOST(516)`** ... **`USER_RUN_VM(34)`** ... **`USER_REMOVE_PERMISSION(854)`**",
+      "severity": "blocker",
+      "suggested_fix": "Take every name(number) pair directly from AuditLogType.java, and use the real host constants (for example USER_VDS_MAINTENANCE(600) and the activate equivalents) after checking them."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogSeverity.java",
+      "explanation": "AuditLogSeverity is NORMAL=0, WARNING=1, ERROR=2, ALERT=10. With the stated mapping, analysts would misread ERROR rows and look for a non-existent 20.",
+      "field": "detailedImplementation",
+      "quote": "`psql`** checks **`severity`** integers (**`0` normal, `10` error, `20`** alert)",
+      "severity": "blocker",
+      "suggested_fix": "State 0=normal, 1=warning, 2=error, 10=alert."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Bold and code markers are unbalanced throughout Steps 3–5, so the rendered text alternates between bold and code mid-phrase and is hard to read.",
+      "field": "detailedImplementation",
+      "quote": "Paste `spl`** into hourly governance searches plus fifteen-minute SOC sweeps; macro-wrap **`index` when `virtualization_lab`** clones",
+      "severity": "major",
+      "suggested_fix": "Strip the stray ** and backtick markers, and format only identifiers (field names, event names, paths) as code."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "On oVirt 4.4/4.5 engines, Apache logs typically go to /var/log/httpd/ssl_access_log, and the VM Portal lives under /ovirt-engine/web-ui/ (userportal was the legacy GWT portal). The detailedImplementation's 'mod_proxy_ajp to 8080' also conflicts with the engine's AJP port, 8702.",
+      "field": "dataSources",
+      "quote": "**`/var/log/httpd/ovirt-engine/access.log`** distinguishing **`/ovirt-engine/webadmin/`** AdministrationPortal versus **`/ovirt-engine/userportal/`** VM Portal",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the httpd log path, the VM Portal URI and the AJP port on an oVirt 4.5 engine and correct all three."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Microsoft Exchange has nothing to do with oVirt engine auditing.",
+      "field": "equipment",
+      "quote": "\"exchange\"",
+      "severity": "minor",
+      "suggested_fix": "Remove exchange."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 833 is titled 'Splunk Add-on for Unix and Linux'.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Linux** ([**Splunk_TA_nix**, Splunkbase **833**]",
+      "severity": "minor",
+      "suggested_fix": "Use the exact Splunkbase name."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent, yet its event-ID pairs disagree with the oVirt source code.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an SME validates the search against real engine.log samples."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "field": "spl",
+      "issue": "privileged_motion requires both evt and evt_num to match, and most pairs are wrong: USER_RUN_VM/34 (real 32), USER_ADD_CLUSTER/811 (809), USER_ADD_PERMISSION/852 (850), USER_REMOVE_PERMISSION/854 (852), USER_ADD_ROLE/890 (854), USER_REMOVE_ROLE/893 (858), and the non-existent USER_ACTIVATED_HOST/43 and USER_DEACTIVATED_HOST/516. The permission, role, cluster-create, VM power-on and host lanes therefore never fire. Match on the symbolic name alone, or correct the numbers.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "`coalesce(principal, user_name, 'unknown_principal')` uses single quotes, which eval treats as a field reference, not a string literal. The fallback is null, and principal_norm becomes null for unparsed rows, which stats then drops. Use \"unknown_principal\".",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "`earliest=-24h` is placed after the BY clause of tstats. Time bounds belong in the WHERE clause, so check that this parses. The query also assumes the custom ovirt:engine sourcetype is CIM-tagged for Authentication, and no tags or eventtypes are documented for that.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0088-UC-19.3.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC parses engine.log EVENT_ID tuples correctly in principle, but most of its AuditLogType name/number pairs are wrong. Examples: USER_RUN_VM is 32 not 34, USER_ADD_PERMISSION is 850 not 852, and USER_ADD_ROLE is 854 not 890; USER_ACTIVATED_HOST and USER_DEACTIVATED_HOST do not exist. Because the SPL requires both name and number to match, the permission, role, cluster and host lanes never fire. The detailed implementation is also littered with broken bold/code markup.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.9",
+  "verdict": "incorrect"
+}

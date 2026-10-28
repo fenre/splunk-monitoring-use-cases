@@ -1,0 +1,144 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "3877a82fd2f76be53bd8a6fed932b466e23c49a48bce1a3de45d08b3fcfc0f27",
+  "file": "content/cat-23-business-analytics/UC-23.5.7.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://community.sap.com/t5/enterprise-resource-planning-q-a/cancellation-of-credit-memo/qaq-p/5426033",
+      "explanation": "In standard SAP SD, billing type S2 is 'Cancellation of Credit Memo', i.e. a reversal of a G2 credit. The returns billing type is RE ('Credit for Returns'). detailedImplementation repeats the error ('**`S2`** (return billing)'), so readers will extract credit-memo reversals as returns and miss RE billing documents.",
+      "field": "dataSources",
+      "quote": "**`VBRK-FKART`** (**`S2`**/**`G2`** credit memo indicators alongside **`RE`** sales-doc traces)",
+      "severity": "blocker",
+      "suggested_fix": "Describe G2 (credit memo) and RE (credit for returns) as return-credit billing types. Treat S2 as a cancellation that offsets a prior G2. Verify against the customer's VOFA configuration."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://shopify.dev/docs/apps/build/orders-fulfillment/returns-apps",
+      "explanation": "Shopify has no REST Admin endpoint for returns. Returns are managed only through the GraphQL Admin API (`Return` object, `read_returns` scope), and only refunds are exposed in REST. The same endpoint is repeated in detailedImplementation, and the 'Shopify Admin API — Return resource' reference points at the generic REST root.",
+      "field": "dataSources",
+      "quote": "**Shopify Admin REST** `GET /admin/api/2024-04/returns.json`",
+      "severity": "blocker",
+      "suggested_fix": "Use the GraphQL Admin API `returns`/`return` queries (or `returns/*` webhooks) for return records, and REST `orders/{id}/refunds.json` only for refunds. Point the reference at https://shopify.dev/docs/api/admin-graphql/latest/objects/Return."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Most vendor topic names and REST paths look guessed and have no references: Loop's `bonus_credit.applied` event and `X-Loop-Hmac-Sha256` header, Happy Returns `/v2/returns`, Optoro `/api/v1/returns`. The evidence field even relies on `bonus_credit.applied` parity.",
+      "field": "dataSources",
+      "quote": "webhook topics such as **`return.created`**, **`return.completed`**, **`bonus_credit.applied`** ... Narvar Returns REST **`/v1/returns`** ... Happy Returns `/v2/returns` ... Optoro disposition routing **`/api/v1/returns`** ... AfterShip Returns REST `/v1/returns`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each topic, header and path against the vendor developer docs (docs.loopreturns.com, Narvar, AfterShip Returns API, Optoro). Keep only the verified ones and add references for them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL aggregates `by stack_lane` only, with no time dimension and no `reason_std` split. A stack_lane × reason_std heatmap and a trend line cannot be built from its output, and `sku_touchpoints` is a single distinct count per lane, not a rankable SKU list.",
+      "field": "visualization",
+      "quote": "categorical heatmap **`stack_lane`** × **`reason_std`** highlighting **`bracketing_lines`** dominance; **`splunk.line`** trending **`pool_reverse_cost`** versus **`landfill_proxy_lines`**",
+      "severity": "major",
+      "suggested_fix": "Describe panels the output supports (a table or bar chart of cost, refund and margin-leak per `stack_lane`). Say that heatmaps and trends need separate searches (`stats ... by stack_lane reason_std`, `timechart`)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation describe Finance lookups driving cost assumptions. The SPL uses no lookup and hardcodes defaults (2.25 min, $21.50/h, $5.75 inspection, $1.10 repack, 12% recovery). None of the prose explains the alert thresholds that actually fire (`avg_margin_leak_pct > 28`, `bracketing_lines > 800`, `pool_reverse_cost > 250000`, `landfill_proxy_lines > 120`, `bench_gap_pct > 12`).",
+      "field": "cross_field",
+      "quote": "publish Finance lookups (`reverse_labor_rates.csv`, `liquidation_recovery_pct.csv`) syncing **`loaded_labor_usd_hr`** assumptions",
+      "severity": "major",
+      "suggested_fix": "Document the hardcoded defaults and the five alert thresholds explicitly, and present the lookups as an optional refinement the SPL does not yet use."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The troubleshooting and validation sections repeatedly pad sentences with sibling cross-references ('uniquely here versus uniquely there', UC-23.5.1/3/4/5, UC-23.2.1, UC-23.7.4) that add no implementation value. Several bullets become unreadable as a result.",
+      "field": "detailedImplementation",
+      "quote": "identical reconciliation ethos UC-23.5.2 rolling-average anomalies cite though anchored toward unrestricted quantity narratives uniquely elsewhere",
+      "severity": "major",
+      "suggested_fix": "Strip all sibling comparisons and reduce each troubleshooting bullet to cause → symptom → fix in one or two plain sentences."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "There are many precise industry statistics with no citation: Appriss fraud splits (3.5% receipt fraud here, then 'three-point-zero percent receiptless-return slices' later), a Shopify 21% reverse-cost figure, Gartner 12–18% corridors, Coresight 30% bracketing, Optoro's 9.5 billion pounds of landfill, NRF 17% holiday averages. Some contradict each other.",
+      "field": "detailedImplementation",
+      "quote": "**Appriss** indexes referencing wardrobing nine-point-seven percent, receipt-fraud three-point-five percent slices",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the specific NRF/Appriss 'Consumer Returns in the Retail Industry' report year for each number, or remove the figures. Make sure the 16.5% NRF and 21% Shopify constants in the SPL have a reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "TIME_PREFIX is an unquoted regex. Wrapping it in double quotes adds literal quote characters, so the prefix will not match `\"event_sent_at\":\"`.",
+      "field": "detailedImplementation",
+      "quote": "TIME_PREFIX = \"event_sent_at\\\":\\\"\"",
+      "severity": "minor",
+      "suggested_fix": "Use `TIME_PREFIX = \"event_sent_at\"\\s*:\\s*\"` without outer quotes, or set `TIMESTAMP_FIELDS` with `INDEXED_EXTRACTIONS = json`. Check the actual Loop payload's timestamp field name."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "`/services/rest/record/v1/...` is the SuiteTalk REST Web Services endpoint, not SuiteScript (SuiteScript RESTlets use `/app/site/hosting/restlet.nl`).",
+      "field": "detailedImplementation",
+      "quote": "NetSuite **`ReturnAuthorization`** / **`CreditMemo`** SuiteScript REST `/services/rest/record/v1/returnAuthorization`",
+      "severity": "minor",
+      "suggested_fix": "Say 'SuiteTalk REST Web Services record API'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an authoring agent with no SME sign-off, despite the SAP and Shopify errors above.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a retail-finance SME validates the cost model and the source mappings."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://community.sap.com/t5/enterprise-resource-planning-q-a/cancellation-of-credit-memo/qaq-p/5426033",
+      "field": "spl",
+      "issue": "`sap_credit_doc=if(fkart IN (\"S2\",\"G2\"),1,0)` counts S2 credit-memo cancellations as return credits and ignores RE (credit for returns), so SAP return value is wrong in both directions.",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises a 'Returns Rate', but the SPL computes no rate of returned orders against total orders. It only aggregates refund and cost for return-bearing events, with no shipped-order denominator. Rename the UC or add a returns-rate calculation.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search reads all of `index=business` with no sourcetype filter, and the `where gross_rev_order>0 OR ...` clause admits any event with an order subtotal. Ordinary sales orders are swept into 'Other_returns_plane' and costed as returns. Restrict to the return sourcetypes before costing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Per-return costs are applied per event without deduplication, so one return seen as Loop `return.created` + `return.completed` + WMS event + SAP credit is costed four times. For liquidate/destroy dispositions `adj_unit_loss` is also added twice in `total_reverse_cost`. Dedup on return/order key and fix the double addition.",
+      "severity": "major"
+    },
+    {
+      "field": "difficulty",
+      "issue": "Marked 'beginner', but the UC needs multi-vendor webhook ingestion, ERP JDBC extracts and a heuristic cost model. That is at least intermediate, likely advanced.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0035-UC-23.5.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC is ambitious but unreliable. It treats SAP billing type S2 (credit-memo cancellation) as a return credit and cites a Shopify REST returns endpoint that does not exist. The search computes no returns rate at all, and the detailedImplementation is buried in repetitive sibling cross-references and unsourced industry statistics.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.7",
+  "verdict": "incorrect"
+}
