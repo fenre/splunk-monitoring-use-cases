@@ -33,6 +33,7 @@ We use the [MADR 3.0](https://adr.github.io/madr/) template (simplified).
 | [ADR-0014](0014-per-uc-thresholds-field.md) | Add a structured per-UC `thresholds` field (P12 first cut; unblocks the content-quality lift-loop rubric) | Proposed |
 | [ADR-0015](0015-cost-field-group.md) | Add optional per-UC `cost` field group for Splunk licensing-impact ranking (Lane F schema head) | Accepted |
 | [ADR-0016](0016-permanent-uc-identifiers.md) | Permanent UC identifiers with append-only ledger (supersedes ADR-0005 gap-free rule) | Accepted |
+| [ADR-0017](0017-splunk-product-per-use-case.md) | Record the Splunk product each use case is implemented in, through a product registry | Accepted |
 
 ## When to write an ADR
 
