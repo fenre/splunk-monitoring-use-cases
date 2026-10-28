@@ -7,6 +7,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 from splunk_uc.id_ledger import (
     IDENTITY_BASELINE_REF,
@@ -19,7 +20,7 @@ from splunk_uc.id_ledger import (
 )
 
 
-def _canonical_json(doc: dict) -> str:
+def _canonical_json(doc: dict[str, Any]) -> str:
     # Entries are already emitted in sorted id order; avoid sort_keys on the
     # full document so entry object key order stays human-readable.
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"

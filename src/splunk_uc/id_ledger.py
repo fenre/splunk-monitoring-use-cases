@@ -89,7 +89,8 @@ def catalogue_index(content_dir: Path | None = None) -> dict[str, CatalogueUC]:
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    data: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    return data
 
 
 def load_ledger(path: Path | None = None) -> dict[str, Any]:
@@ -269,7 +270,8 @@ def _git_last_payload(uc_id: str) -> dict[str, Any] | None:
     """Best-effort last committed payload for a removed identifier."""
     matches = list(CONTENT.glob(f"cat-*/UC-{uc_id}.json"))
     if matches:
-        return json.loads(matches[0].read_text(encoding="utf-8"))
+        payload: dict[str, Any] = json.loads(matches[0].read_text(encoding="utf-8"))
+        return payload
     proc = subprocess.run(
         [
             "git",
@@ -323,9 +325,10 @@ def _git_last_payload(uc_id: str) -> dict[str, Any] | None:
     if blob.returncode != 0:
         return None
     try:
-        return json.loads(blob.stdout)
+        committed: dict[str, Any] = json.loads(blob.stdout)
     except json.JSONDecodeError:
         return None
+    return committed
 
 
 def discover_removed_ids(catalogue: dict[str, CatalogueUC]) -> set[str]:
@@ -545,8 +548,12 @@ def build_ledger_document(
         and previous.get("entries") == entries
         and previous.get("catalogueVersion") == version
     )
-    generated_at = previous["generatedAt"] if unchanged else _utc_now()
-    commit = previous["catalogueCommit"] if unchanged else _git_short_head()
+    if previous is not None and unchanged:
+        generated_at = previous["generatedAt"]
+        commit = previous["catalogueCommit"]
+    else:
+        generated_at = _utc_now()
+        commit = _git_short_head()
 
     return {
         "$schema": "../schemas/id-ledger.schema.json",
