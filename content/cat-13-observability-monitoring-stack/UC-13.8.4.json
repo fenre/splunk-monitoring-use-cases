@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.4",
+  "title": "Failed Agent Requests Recorded with Status Code 500",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Fault",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Trace `status_code` set by `conclude(conclude_all=True, status_code=500)` in the request handler's exception path",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Makes sure a request that raises an exception still reaches Splunk Agent Observability as a concluded trace with `status_code=500`, instead of being lost or merging into the next request's trace.",
+  "value": "Failed requests are the ones an investigation needs most. Recording them with a 500 status keeps them countable by the Status Code alert (UC-13.8.10) and stops a batch loop from attaching the next request's spans to a still-open trace.",
+  "implementation": "Wrap the request handler so any exception calls `conclude(conclude_all=True, status_code=500)` and `flush()` before re-raising. Test the path offline with `ingestion_hook` so the real stream gets no junk traces.",
+  "visualization": "Agent Stream trace table filtered to status code 500.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Client-side validation errors that the agent handles and answers normally are not failures and should not be marked 500.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nWrap the request handler. On exception call `conclude(conclude_all=True, status_code=500)` and `flush()` before re-raising. Otherwise the trace is lost, and in a batch loop the next request's spans can attach to the still-open trace.\n\nStep 2 — Configure in Splunk Agent Observability\n\nIn the Agent Stream trace table, filter or sort by status code to see failed requests next to their span trees.\n\nStep 3 — Validate\n\nTest the exception path offline with `SplunkAOLogger(ingestion_hook=captured.append)` and assert `captured[0].traces[0].status_code == 500`. Then force one failure against a test stream and confirm the trace shows status 500. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nPair this with the Status Code alert (UC-13.8.10) so a rise in 500s notifies the owning team.\n\nStep 5 — Troubleshooting\n\nSpans from two requests in one trace: an earlier request left its trace open. Check every exit path of the handler concludes with `conclude_all=True`. Missing failed traces: the exception path raised before any agent span was added, so the trace had no spans (see UC-13.8.2).",
+  "grandmaExplanation": "When the assistant trips over a problem, we still write down what happened and mark it as failed, instead of losing the note.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Conclude the trace with status 500 on exceptions",
+      "body": "def handle(logger, user_text, user_id):\n    logger.start_trace(input=user_text, name=\"request\", metadata={\"consumer\": user_id})\n    try:\n        answer = run_agent(logger, user_text, user_id)\n        logger.conclude(output=answer, conclude_all=True)\n        return answer\n    except Exception:\n        logger.conclude(conclude_all=True, status_code=500)\n        logger.flush()\n        raise",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

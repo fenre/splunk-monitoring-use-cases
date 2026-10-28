@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_250 pages indexed; 135 have at least one inbound link; 460 unique source→target edges._
+_251 pages indexed; 135 have at least one inbound link; 461 unique source→target edges._
 
 ---
 
@@ -225,6 +225,7 @@ _No inbound links yet._
 
 - [`AGENTS.md`](../AGENTS.md)
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md)
+- [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/use-case-fields.md`](use-case-fields.md)
 
@@ -920,6 +921,10 @@ _No inbound links yet._
 ## `docs/guides/siem-soar.md`
 
 - [`docs/guides/industry-verticals.md`](guides/industry-verticals.md)
+
+## `docs/guides/splunk-agent-observability.md`
+
+_No inbound links yet._
 
 ## `docs/guides/splunk-itsi.md`
 

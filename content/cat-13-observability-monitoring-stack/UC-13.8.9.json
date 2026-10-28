@@ -1,0 +1,48 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.9",
+  "title": "Agent Latency Alert on the Agent Stream",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Built-in Latency metric computed by Splunk Agent Observability from the traces in the Agent Stream; no evaluator is needed",
+  "app": "Splunk Agent Observability",
+  "description": "Notifies the owning team when agent requests in a Splunk Agent Observability Agent Stream get slower than the agreed response time, using the built-in Latency alert.",
+  "value": "Slow agents frustrate users before they fail outright. A latency alert tells the team while they can still find the slow model call or tool in the span tree.",
+  "implementation": "On the Agent Stream's Alerts tab, add a Latency alert with aggregation max or average, a threshold set from the stream's normal range, and a window. Route it to the owning team by email, Slack incoming webhook or generic HTTP webhook.",
+  "visualization": "Alerts tab history for the stream; Latency over time in the console.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability documentation",
+      "url": "https://agent-observability-docs.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Long-running requests that are slow by design (for example report generation) raise the average. Put them in their own Agent Stream if their normal latency differs a lot.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`.\n\nStep 2 — Configure in Splunk Agent Observability\n\nOpen the Agent Stream, go to the Alerts tab and add an alert. Each alert is an evaluator or a built-in metric (Status Code, Cost, Latency, Trace Count), an aggregation (average, min, max, count or sum), a threshold and a window. Notifications go to email, a Slack incoming webhook or a generic HTTP webhook. Alerts never block a request. A generic HTTP webhook receives a body with `event` (`alert.triggered`), `conditions[].observed_value`, `dedup_key`, `deep_link` and any `metadata` configured on the webhook. Webhook auth is none, bearer or HTTP basic, and the credential is write-only after save.\n\nStep 3 — Validate\n\nSet a deliberately low threshold on a test stream, send a request, and confirm the notification arrives with a working `deep_link`. Then set the real threshold. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nWrite the threshold and window into the team's runbook next to the alert, and review them after the first month of alerts. Use the `deep_link` in the notification to open the traces behind it.\n\nStep 5 — Troubleshooting\n\nNo notification: check the destination (email address, Slack incoming webhook URL, or webhook auth). Alert fires on every window: the threshold is inside the stream's normal latency range.",
+  "grandmaExplanation": "We set a timer on the assistant's answers and get a message when it starts taking too long.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "stream-alert",
+      "language": "text",
+      "title": "Latency alert on the Agent Stream",
+      "body": "Where: Agent Stream > Alerts tab > add alert\nMetric: Latency\nAggregation: max or average\nCondition: Latency above the agreed response-time target for the window\nWindow: match the team's response time; a shorter window alerts sooner and is noisier\nNotification: email, Slack incoming webhook, or generic HTTP webhook\nNotes: Use average for a general slowdown and max to catch single very slow requests.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

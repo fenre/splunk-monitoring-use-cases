@@ -1,0 +1,51 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.6",
+  "title": "Tool Span to LLM Tool Call Linkage",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Spans read back with `AgentStream.get(...).get_spans(limit=...)`: tool span `tool_call_id` and LLM span `output_tool_calls`",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Checks that every tool span in Splunk Agent Observability ties back to the LLM turn that chose it: the tool span's `tool_call_id` must equal an `id` in the parent LLM span's `output_tool_calls`.",
+  "value": "Investigators can only explain a bad tool run if they can see which model turn asked for it and with what arguments. Broken linkage makes Tool Selection Quality results (UC-13.8.13) hard to act on.",
+  "implementation": "Put the model's chosen tool calls in the LLM span output as an assistant message with `tool_calls` and pass `finish_reason`. Log each tool span at the tool loop's call site with `tool_call_id=call.id`. Periodically read spans back and flag tool spans whose `tool_call_id` matches no LLM tool call.",
+  "visualization": "Span tree in the trace view; read-back script output listing unlinked tool spans.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Tool calls the application makes on its own (not chosen by the model) have no LLM tool call to match. Give them a distinct span name and exclude them from the check.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nIn an OpenAI tool loop, put the chosen calls in the LLM span output as `{\"role\": \"assistant\", \"content\": ..., \"tool_calls\": [{\"id\", \"function\": {\"name\", \"arguments\"}}]}` and pass `finish_reason`; `tool_calls` there marks the turn that chose a tool. History items that are `ChatCompletionMessage` objects go in as `m.model_dump(exclude_none=True)`. Log tool spans in the loop, not inside the tool dispatcher: the loop has `call.id`, and importing the logger into the tools module tends to create a circular import.\n\nStep 2 — Configure in Splunk Agent Observability\n\nOpen a trace with a tool call. The tool span should sit under the agent span, after the LLM span whose output lists the call.\n\nStep 3 — Validate\n\nRun the read-back check on a test stream after a request that calls a tool. In query results the tool span's `tool_call_id` equals the `id` in the parent LLM span's `output_tool_calls`. The read-back field shapes come from field testing on `splunk-ao` 0.6.1; recheck them on newer SDK versions. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nSchedule the check daily from the team's job runner and track the unlinked count per release.\n\nStep 5 — Troubleshooting\n\nEvery tool span unlinked: the LLM span output does not include `tool_calls`, or `tool_call_id` was not passed to `add_tool_span`. Empty read-back: allow 30 to 60 seconds of indexing lag.",
+  "grandmaExplanation": "For each tool the assistant used, we check we can point to the moment it decided to use it, so we can explain its choices later.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Read-back check for unlinked tool spans",
+      "body": "import json\nfrom splunk_ao import AgentStream\n\ns = AgentStream.get(name=stream_name, project_name=project_name)\nspans = s.get_spans(limit=200)\n\nchosen = set()\nfor sp in spans:\n    calls = sp.get(\"output_tool_calls\")\n    if calls:\n        for c in (json.loads(calls) if isinstance(calls, str) else calls):\n            chosen.add(c[\"id\"])\n\nunlinked = [sp for sp in spans if sp.get(\"tool_call_id\") and sp[\"tool_call_id\"] not in chosen]\nprint(f\"{len(unlinked)} tool spans with no matching LLM tool call\")",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

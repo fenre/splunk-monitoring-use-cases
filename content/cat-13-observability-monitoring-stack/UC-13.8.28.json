@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.28",
+  "title": "Observe-Mode Rollout for New Agent Controls",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Change",
+    "Governance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Agent Control observe decisions, recorded as control spans on the request traces",
+  "app": "Splunk Agent Observability Agent Control (agent-control-sdk)",
+  "description": "Rolls out a new Agent Control with decision observe first, so it records matches and lets the step run, then switches it to steer or deny once the matches look right.",
+  "value": "A control that blocks good requests breaks the agent for users. Observing first shows what the control would have caught, at no risk to traffic.",
+  "implementation": "Create the control with decision observe and attach it. Review the matching traces for the agreed period, adjust the pattern, then change the decision to steer or deny. The attached clone applies without a redeploy.",
+  "visualization": "Control spans with observe decisions, reviewed in the trace view.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Agent Control overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/agent-control/overview"
+    }
+  ],
+  "knownFalsePositives": "Low-traffic steps may show no matches during the observe period; that is not proof the pattern is right.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_agent_control"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback). Agent Control is a separate server and a separate install (`agent-control-sdk`, plus `agent-control-evaluators`; one of those packages is still named `agent-control-evaluator-galileo`, the platform's old name).\n\nStep 1 — Instrument the agent\n\nThe app calls `agent_control.init` and decorates the step with `@control(step_name=...)`. There are two ways to bind a control, and a tenant uses one of them. The Splunk Agent Observability docs pass the resolved `agent_stream_id` (not the stream name) as `target_id` and attach the control to the stream in the console. The SDK path calls `init(agent_name=...)`, creates a policy, adds the control to it, and assigns the policy to that agent name. If the repo already has an example, follow it. Run the decorated step inside an open trace so the control span lands on that trace.\n\nStep 2 — Configure in Splunk Agent Observability\n\nA control has a scope (step type `llm` or `tool`, step name, and stage `pre` or `post`), a condition (a selector path such as `input` or `output` plus a check from the control server's catalog: regex, list, JSON, SQL, Luna-2 or custom), and an action. Actions, strictest first: deny, steer, observe; deny wins over steer over observe. Regex patterns are RE2, so there is no lookahead. Write the pattern as the thing to catch: the engine has no \"unless\". `observe` records the match and lets the step run.\n\nStep 3 — Validate\n\nConfirm observe decisions appear as control spans on test traces while the step still runs. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nMake observe-first the default for every new control in the team's change process.\n\nStep 5 — Troubleshooting\n\nSwitched to deny but nothing changed: the decision was edited on the original control, not on the stream's clone.",
+  "grandmaExplanation": "Before letting a new guard stop anything, we let it just watch and take notes for a while, to check it would stop the right things.",
+  "prerequisiteUseCases": [
+    "UC-13.8.26"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "agent-control",
+      "language": "text",
+      "title": "Observe-first rollout plan",
+      "body": "1. Create the control with decision=observe and attach it to the stream.\n2. Review matching traces for the agreed period.\n3. Adjust the pattern (RE2; write it as the thing to catch).\n4. Change the decision to steer or deny on the attached control.\n   Attaching cloned the control: edit the clone on the stream, not only the original (see UC-13.8.30).\n5. Record the change and the review evidence.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/agent-control/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "run"
+}

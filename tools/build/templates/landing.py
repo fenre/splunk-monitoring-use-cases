@@ -123,8 +123,9 @@ def _render_hero(
 <h1>{_helpers.escape(ctx.site_tagline or "Splunk monitoring use cases")}</h1>
 <p class="lede">A vendor-neutral catalog of <strong>{total_uc:,}</strong> Splunk
 detection, monitoring, and compliance use cases, grouped across
-<strong>{total_cat}</strong> domains{regs_clause}. Every use case ships with reusable SPL,
-CIM mappings, equipment tagging, and a permanent URL.</p>
+<strong>{total_cat}</strong> domains{regs_clause}. Splunk platform use cases ship with
+reusable SPL and CIM mappings; use cases implemented in other Splunk products ship with
+that product's configuration. Every use case has equipment tagging and a permanent URL.</p>
 <p class="hero-cta">
 <a class="cta primary" href="{_helpers.attr(ctx.site_url)}/browse/">Browse the catalog →</a>
 <a class="cta" href="{_helpers.attr(ctx.site_url)}/regulation/">Regulations</a>

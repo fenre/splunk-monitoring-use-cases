@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.35",
+  "title": "Per-Trace Agent Cost from Model Pricing",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Cost"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Token counts on LLM spans (`num_input_tokens`, `num_output_tokens`, `total_tokens`) and the org Model Pricing table",
+  "app": "Splunk Agent Observability",
+  "description": "Shows what each agent request cost by multiplying the token counts on its LLM spans by the org Model Pricing table in Splunk Agent Observability, and keeps that table current.",
+  "value": "Per-request cost tells the team which prompts, tools or models are expensive, which is where optimisation pays off. A stale price table makes every figure wrong.",
+  "implementation": "Log `model` and token counts on every LLM span. Ask an admin to add a Model Pricing row for each model string the agents use, and review prices when the provider changes them. New prices apply to new traces only.",
+  "visualization": "Cost column in the Agent Stream trace table.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability documentation",
+      "url": "https://agent-observability-docs.splunk.com/"
+    },
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Historical traces keep the old price after a change. The documentation does not say what an unpriced model displays; when a model shows 0.0, report its token counts instead.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`. The `model` string must match the Model Pricing row exactly. OpenTelemetry ingest uses `gen_ai.usage.*` instead of the SDK token fields.\n\nStep 2 — Configure in Splunk Agent Observability\n\nAdmins open the org Model Pricing table and add or update a row per model string.\n\nStep 3 — Validate\n\nCompare the cost of one trace with its token counts times the listed price. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nReview Model Pricing when a provider changes prices or the agents adopt a new model.\n\nStep 5 — Troubleshooting\n\nCost shows 0.0 or nothing: the model string has no row, or token counts are missing on the LLM span.",
+  "grandmaExplanation": "We work out what each answer cost from how many words the assistant read and wrote, using a price list that we keep up to date.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "model-pricing",
+      "language": "text",
+      "title": "Model Pricing maintenance",
+      "body": "Where: org Model Pricing table (admins edit it)\nRows: one per model string logged on LLM spans\nFormula: per-trace cost = LLM span token counts x Model Pricing for that model\nChange rule: new prices apply to new traces only; historical traces keep the old price\nSeparate: evaluator spend is on the Integration Costs page; SaaS billing to Splunk (spans ingested, Luna tokens) is a third number. Do not add them together.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

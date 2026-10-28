@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.36",
+  "title": "Agent Token Spend by Consumer",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Cost",
+    "Analytics"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Trace and agent span metadata key `consumer`, and per-trace cost and token counts",
+  "app": "Splunk Agent Observability",
+  "description": "Shows who is spending tokens on an agent by filtering the Splunk Agent Observability trace table on a `consumer` metadata key set on the trace and on the agent spans.",
+  "value": "Shared agents need chargeback or at least a conversation with the heaviest users. A consumer key on every trace makes that a filter rather than a project.",
+  "implementation": "Set `metadata={\"consumer\": user_id}` on `start_trace` and on the agent spans. Filter the trace table by `consumer` and sort by cost or tokens. Use an internal user or team id, not raw PII.",
+  "visualization": "Trace table filtered by consumer, sorted by cost; token totals per consumer.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Some consoles show metadata on the span rather than the trace row; set it on both so the filter works either way.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nSet tags and metadata on `start_trace` and on the spans; `conclude()` has no metadata argument. Keys and values are strings, 256 characters, flat. Trace-level metadata did not appear on the trace record in field testing; span metadata did.\n\nStep 2 — Configure in Splunk Agent Observability\n\nIn the trace table, add `consumer` as a column and filter on it.\n\nStep 3 — Validate\n\nSend requests as two test consumers and confirm the filter separates them. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nShare a monthly spend-by-consumer view with the agent's budget owner.\n\nStep 5 — Troubleshooting\n\nFilter returns nothing: the key is only on the trace; add it to the agent spans too. In read-back results metadata is the JSON string `user_metadata_splunk_ao.metadata`.",
+  "grandmaExplanation": "We label each question with who asked it, so we can see who uses the assistant most and what that costs.",
+  "prerequisiteUseCases": [
+    "UC-13.8.35"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Consumer metadata on trace and agent spans",
+      "body": "meta = {\"consumer\": team_or_user_id}  # internal id, not raw PII; flat strings up to 256 characters\nlogger.start_trace(input=user_text, name=\"request\", metadata=meta)\nlogger.add_agent_span(input=user_text, name=\"answer\", metadata=meta)",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

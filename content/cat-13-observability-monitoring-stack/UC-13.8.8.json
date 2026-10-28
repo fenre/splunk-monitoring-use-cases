@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.8",
+  "title": "Conversation Sessions for Multi-Turn Agents",
+  "criticality": "low",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Operations",
+    "Analytics"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Sessions created by `SplunkAOLogger.start_session(name, external_id, metadata)` and the traces logged after it",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Groups the traces of one conversation into a Splunk Agent Observability session with `start_session`, using `external_id` so a returning user resumes the same session.",
+  "value": "Lets reviewers read a conversation in order and see where it went wrong, instead of piecing together unrelated auto-sessions, one per trace.",
+  "implementation": "Call `start_session(name, external_id, metadata)` when a conversation starts, using the application's conversation id as `external_id`, then log each turn as a trace. Without it, each trace gets an automatic session.",
+  "visualization": "Sessions view in the console, one row per conversation.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Session metadata shows on the Sessions view, not in the trace detail; that is expected and not a missing-metadata problem.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nA session groups traces (one conversation). Omit it and each trace gets an auto session. `external_id` resumes a conversation.\n\nStep 2 — Configure in Splunk Agent Observability\n\nOpen the Sessions view for the stream and check that one conversation shows as one session with its traces in order.\n\nStep 3 — Validate\n\nRun a two-turn conversation against a test stream and confirm both traces land in one session. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nUse sessions when reviewing conversations flagged by evaluators, and keep the same `external_id` scheme across services that handle one conversation.\n\nStep 5 — Troubleshooting\n\nOne session per turn: `start_session` is called per request instead of per conversation, or the LangChain invoke starts its own session (UC-13.8.7).",
+  "grandmaExplanation": "We keep all the back-and-forth of one chat together, like stapling the pages of one letter, so it can be read in order.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Start or resume a session per conversation",
+      "body": "logger.start_session(\n    name=\"support-chat\",\n    external_id=conversation_id,  # resumes the conversation when it returns\n    metadata={\"channel\": \"web\"},\n)\nfor user_text in turns:\n    logger.start_trace(input=user_text, name=\"turn\", metadata={\"consumer\": user_id})\n    ...\n    logger.conclude(output=answer, conclude_all=True)",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

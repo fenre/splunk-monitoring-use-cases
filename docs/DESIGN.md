@@ -36,7 +36,7 @@ Every architectural claim in this document is linked to a concrete file in the r
 
 The product is a curated, machine-readable, versioned catalog of IT monitoring and detection use cases, together with a static single-page web dashboard and a set of downstream integrations (Splunk TA, ITSI content pack, Enterprise Security content pack, OpenAPI feed, LLM-readable indices).
 
-The current scope is Splunk-native content: every use case carries a ready-to-run SPL query, CIM data model mappings where applicable, and a TA/App reference. The same information architecture, build pipeline, and runtime are deliberately designed to carry a non-Splunk payload (KQL for Sentinel, DQL for Datadog, SignalFlow for Splunk Observability Cloud<sup class="ref">[<a href="#ref-11">11</a>]</sup>, YARA-L for Chronicle) without structural changes; see [§14 Replication guide](#14-replication-guide).
+The current scope is Splunk-native content: use cases implemented on the Splunk platform carry a ready-to-run SPL query, CIM data model mappings where applicable, and a TA/App reference; use cases implemented in another Splunk product (for example Splunk Agent Observability) carry that product's configuration in `productArtifacts` instead of SPL (see [ADR-0017](adr/0017-splunk-product-per-use-case.md)). The same information architecture, build pipeline, and runtime are deliberately designed to carry a non-Splunk payload (KQL for Sentinel, DQL for Datadog, SignalFlow for Splunk Observability Cloud<sup class="ref">[<a href="#ref-11">11</a>]</sup>, YARA-L for Chronicle) without structural changes; see [§14 Replication guide](#14-replication-guide).
 
 The scope explicitly excludes:
 
@@ -832,6 +832,7 @@ This list is exhaustive for the purpose of adding content, automations, or expor
 - [`docs/adr/0011-schema-lineage-governance.md`](adr/0011-schema-lineage-governance.md)
 - [`docs/adr/0012-sample-data-canonical-shape.md`](adr/0012-sample-data-canonical-shape.md)
 - [`docs/adr/0016-permanent-uc-identifiers.md`](adr/0016-permanent-uc-identifiers.md)
+- [`docs/adr/0017-splunk-product-per-use-case.md`](adr/0017-splunk-product-per-use-case.md)
 - [`docs/architecture.md`](architecture.md)
 - [`docs/catalog-schema.md`](catalog-schema.md)
 - [`docs/implementation-ordering.md`](implementation-ordering.md)

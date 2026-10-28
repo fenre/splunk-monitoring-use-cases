@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.22",
+  "title": "Evaluator Set Drift on an Agent Stream",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Configuration",
+    "Change"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "The stream's enabled evaluator list from `get_metrics()` compared with the team's expected list",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Detects evaluators silently turned off on an Agent Stream. `enable_evaluators` replaces the stream's whole set, so a script that adds one evaluator can disable the others.",
+  "value": "Quality, safety and privacy checks stop without any error when they drop out of the set. Comparing the live set with the expected list catches it the same day.",
+  "implementation": "Keep the expected evaluator list per stream in configuration. Always pass the full list to `enable_evaluators`. Run a daily check that compares `get_metrics()` with the expected list and reports any difference.",
+  "visualization": "Check output listing missing or unexpected evaluators per stream.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Evaluators overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "knownFalsePositives": "A planned change to the evaluator set shows as drift until the expected list is updated in the same change.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nNo new instrumentation. The check uses the SDK with the same project and stream settings as the agent.\n\nStep 2 — Configure in Splunk Agent Observability\n\nEvaluators are defined for the organization and turned on per Agent Stream, in the console (Configure Evaluators) or with `enable_evaluators`. That SDK call replaces the stream's set: anything left out is turned off. Evaluators run after the trace is stored, on a sample. A 10% rate stores every trace and scores one in ten, and a sampled trace is scored by every enabled evaluator. There is no documented default sample rate, so set it explicitly.\n\nStep 3 — Validate\n\nOn a test stream, enable two evaluators, then call `enable_evaluators` with one and confirm the check reports the other as missing. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nRun the check daily and after every change to evaluator configuration.\n\nStep 5 — Troubleshooting\n\n`get_metrics()` returns names the expected list does not use: align the expected list with the names it returns (for example `tool_selection_quality`).",
+  "grandmaExplanation": "We keep a checklist of the reviewers that should be watching the assistant and check every day that none has been sent home by mistake.",
+  "prerequisiteUseCases": [
+    "UC-13.8.13"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Compare the stream's evaluators with the expected set",
+      "body": "from splunk_ao import AgentStream\n\nEXPECTED = {\"tool_selection_quality\"}  # the full set this stream should have\n\ns = AgentStream.get(name=stream_name, project_name=project_name)\nlive = set(s.get_metrics())\nmissing, extra = EXPECTED - live, live - EXPECTED\nif missing or extra:\n    print(f\"evaluator drift on {stream_name}: missing={sorted(missing)} extra={sorted(extra)}\")",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

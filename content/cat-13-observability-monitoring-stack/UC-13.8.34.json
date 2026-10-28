@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.34",
+  "title": "Agent Credential Hygiene for Splunk Agent Observability",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Configuration",
+    "DevSecOps"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Agent source code and deployment configuration, scanned in CI for `SPLUNK_AO_*` usage and literal keys",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Checks that agent code uses only ingest credentials from the environment and never holds Splunk Agent Observability console logins (`SPLUNK_AO_USER`, `SPLUNK_AO_PASSWORD`, `SPLUNK_AO_USER_ID`) or hardcoded keys.",
+  "value": "Console logins in agent code give anyone with the code a person's access to every project they can see. Keeping them out limits a code leak to ingest rights.",
+  "implementation": "In CI, fail the build when agent code references `SPLUNK_AO_USER`, `SPLUNK_AO_PASSWORD` or `SPLUNK_AO_USER_ID`, or contains a literal key. Supply `SPLUNK_AO_API_KEY` or `SPLUNK_AO_O11Y_TOKEN` from the deployment's secret store.",
+  "visualization": "CI check result per change.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Test fixtures that mention the variable names in documentation strings can match; scope the scan to runtime code.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\n`SPLUNK_AO_USER`, `SPLUNK_AO_PASSWORD` and `SPLUNK_AO_USER_ID` are console login. They do not route traces. Never put them in agent code, and never hardcode keys.\n\nStep 2 — Configure in Splunk Agent Observability\n\nNothing to configure in the console. Issue ingest credentials per deployment and store them in the secret store.\n\nStep 3 — Validate\n\nAdd a test change that references `SPLUNK_AO_PASSWORD` and confirm CI fails. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nRun the check on every change to agent repositories.\n\nStep 5 — Troubleshooting\n\nTraces stop after the change: the deployment has no ingest credential. Set `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL` (on-prem) or `SPLUNK_AO_REALM` plus `SPLUNK_AO_O11Y_TOKEN` (SaaS).",
+  "grandmaExplanation": "We make sure the assistant's program never carries a person's password, only its own delivery pass kept in a safe.",
+  "prerequisiteUseCases": [],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "text",
+      "title": "CI rule for Splunk Agent Observability credentials",
+      "body": "Fail when runtime code references: SPLUNK_AO_USER, SPLUNK_AO_PASSWORD, SPLUNK_AO_USER_ID (console login only; they do not route traces)\nFail when runtime code contains a literal API key or token\nAllow from the environment: SPLUNK_AO_PROJECT, SPLUNK_AO_AGENT_STREAM, SPLUNK_AO_API_KEY + SPLUNK_AO_CONSOLE_URL (on-prem), SPLUNK_AO_REALM + SPLUNK_AO_O11Y_TOKEN (SaaS)\nSet SPLUNK_AO_API_URL only when deriving it from the console URL is wrong",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

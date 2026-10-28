@@ -34,8 +34,9 @@ Add two optional fields at schema version **1.9.0**:
   Enterprise and Splunk Cloud Platform, where SPL runs.
 - **`productArtifacts[]`** — `{product, type, language, title, body, docsUrl?}`
   for non-SPL implementation artifacts. `type` uses each product's own object
-  names (`detector`, `evaluator`, `stream-alert`, `agent-control`, `playbook`,
-  `service`, `kpi`, `aggregation-policy`, `source-configuration`).
+  names (`detector`, `evaluator`, `stream-alert`, `agent-control`,
+  `instrumentation`, `experiment`, `access`, `model-pricing`, `tokenomics`,
+  `playbook`, `service`, `kpi`, `aggregation-policy`, `source-configuration`).
 
 SPL stays in `spl`; the locked `catalog.json` key `q` is unchanged. In
 `catalog.json` the new fields are `prd` and `pra`, emitted only when the value
@@ -134,6 +135,7 @@ lockstep.
 
 - [`AGENTS.md`](../../AGENTS.md)
 - [`CONTRIBUTING.md`](../../CONTRIBUTING.md)
+- [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/use-case-fields.md`](../use-case-fields.md)
 

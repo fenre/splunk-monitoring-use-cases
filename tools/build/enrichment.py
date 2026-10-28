@@ -2223,6 +2223,53 @@ EQUIPMENT = [
         ]
     },
     {
+        "id": "splunk_ao",
+        "label": "Splunk Agent Observability",
+        "kind": "splunk-platform",
+        "vendor": "Splunk",
+        "tas": [
+            "Splunk Agent Observability",
+            "splunk-ao",
+            "SplunkAOLogger"
+        ],
+        "models": [
+            {
+                "id": "sdk",
+                "label": "splunk-ao Python SDK",
+                "tas": [
+                    "SplunkAOLogger",
+                    "splunk-ao Python SDK"
+                ]
+            },
+            {
+                "id": "agent_control",
+                "label": "Agent Control",
+                "tas": [
+                    "Agent Control",
+                    "agent-control-sdk"
+                ]
+            },
+            {
+                "id": "luna",
+                "label": "Luna evaluators",
+                "tas": [
+                    "Luna Prompt Injection",
+                    "Luna Toxicity",
+                    "Luna Sexism",
+                    "Luna PII",
+                    "Luna Context Adherence"
+                ]
+            },
+            {
+                "id": "tokenomics",
+                "label": "Tokenomics",
+                "tas": [
+                    "Tokenomics"
+                ]
+            }
+        ]
+    },
+    {
         "id": "juniper",
         "label": "Juniper Networks",
         "kind": "equipment",
@@ -5818,8 +5865,10 @@ def write_llms_txt(data, cat_meta, files, total_uc):
         "",
         f"> A curated catalog of {total_uc}+ IT infrastructure monitoring use cases for Splunk, "
         f"organized across {len(data)} technology domains. Each use case includes criticality, "
-        "SPL queries, CIM data model mappings, implementation guidance, equipment tagging, "
-        "and visualization recommendations.",
+        "implementation guidance, equipment tagging, and visualization recommendations. "
+        "Use cases implemented on the Splunk platform include SPL queries and CIM data model "
+        "mappings; use cases implemented in another Splunk product (such as Splunk Agent "
+        "Observability) include that product's configuration as productArtifacts instead.",
         "",
         "This repository provides ready-to-use Splunk monitoring content for servers, "
         "virtualization, cloud, containers, networking, security, databases, IoT/OT, "

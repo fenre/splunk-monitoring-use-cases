@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.3",
+  "title": "Trace Export Health and Swallowed Flush Errors",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Availability",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SplunkAOLogger.export_health` (`ExportHealth(healthy, consecutive_failures, last_failure)`) and the error callback passed to `flush(on_error=callback)`",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Watches whether the Splunk Agent Observability receiver is acknowledging the agent's trace export, using `logger.export_health` and a `flush(on_error=...)` callback, so export failures reach the agent's own logs instead of being swallowed.",
+  "value": "Without a callback, flush errors are logged as a warning and swallowed, so an expired token or unreachable endpoint can stop all tracing unnoticed. Surfacing them lets the team fix the credential before the gap matters.",
+  "implementation": "After each `flush()` in batch jobs, and periodically in long-running services, read `logger.export_health` and pass an `on_error` callback to `flush`. Log or alert from the application when `healthy` is false or `consecutive_failures` rises.",
+  "visualization": "Application log line or health endpoint field showing export health and consecutive failures.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "`export_health` reports whether the receiver acknowledged data. It does not report traces dropped for having no spans (see UC-13.8.2), so a healthy value does not prove every request was recorded.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\n`logger.export_health` returns `ExportHealth(healthy, consecutive_failures, last_failure)`. `flush(on_error=callback)` surfaces flush errors; without the callback they are logged as a warning and swallowed.\n\nStep 2 — Configure in Splunk Agent Observability\n\nNothing to configure in the console. Expose the health value through the application's own logs or health endpoint.\n\nStep 3 — Validate\n\nPoint a test process at a wrong `SPLUNK_AO_API_URL` and confirm the callback fires and `healthy` turns false. Restore the setting and confirm it recovers. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nAlert from the application's existing monitoring when `consecutive_failures` keeps rising. In batch jobs, check health after the final `flush()` and fail the job if export failed.\n\nStep 5 — Troubleshooting\n\nCredential error on SaaS: check `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`. On on-prem, check `SPLUNK_AO_API_KEY`; the SDK derives the API host by replacing `console` with `api` in `SPLUNK_AO_CONSOLE_URL`, and `SPLUNK_AO_API_URL` is only needed when that derivation is wrong.",
+  "grandmaExplanation": "We check that the notes the assistant writes are actually reaching the place that stores them, and shout if the delivery keeps failing.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Surface export failures from the logger",
+      "body": "import logging\n\nlog = logging.getLogger(\"agent.tracing\")\n\ndef on_flush_error(err):\n    log.error(\"Splunk Agent Observability flush failed: %s\", err)\n\nlogger.flush(on_error=on_flush_error)\n\nhealth = logger.export_health  # ExportHealth(healthy, consecutive_failures, last_failure)\nif not health.healthy:\n    log.error(\"trace export unhealthy: %s consecutive failures, last: %s\",\n              health.consecutive_failures, health.last_failure)",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}
