@@ -30,7 +30,13 @@ UC_FILENAME_RE = re.compile(r"^UC-(\d+\.\d+\.\d+)\.json$")
 ID_PATTERN = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 
 # Catalogue version from which the permanent-identity guarantee is enforced in CI.
-IDENTITY_GUARANTEE_SINCE = "8.25.0"
+IDENTITY_GUARANTEE_SINCE = "8.26.0"
+# Last release before enforcement. Revision 1 of every identifier present in that
+# release is hashed from the tagged content, not from later edits.
+IDENTITY_BASELINE_VERSION = "8.25.0"
+IDENTITY_BASELINE_REF = "v8.25.0"
+IDENTITY_BASELINE_COMMIT = "088a1ea33f294395d3fd5289a6f374b66de7a122"
+UNKNOWN_VERSION = "unknown"
 IDENTITY_POLICY_STATEMENT = (
     "An identifier, once published, permanently refers to one use case. "
     "It is never reused and never reassigned to different content. "
@@ -101,6 +107,7 @@ def identity_guarantee_metadata() -> dict[str, str]:
     """Machine-readable identity contract for catalog.json and API manifests."""
     return {
         "identityGuaranteeSince": IDENTITY_GUARANTEE_SINCE,
+        "identityBaselineVersion": IDENTITY_BASELINE_VERSION,
         "identityPolicy": IDENTITY_POLICY_STATEMENT,
         "identityPolicyDoc": "/docs/adr/0016-permanent-uc-identifiers.md",
         "identityLedgerPath": "/data/id-ledger.json",
@@ -144,7 +151,7 @@ def merge_fingerprint_revisions(
     prior_entry: dict[str, Any],
     current_fp: str,
     catalogue_version: str,
-    catalogue_commit: str,
+    catalogue_commit: str | None = None,
 ) -> list[dict[str, Any]]:
     """Append a revision when content changes; never shorten the list."""
     revisions = list(entry_fingerprint_revisions(prior_entry))
@@ -206,6 +213,56 @@ def _git_short_head() -> str:
     if proc.returncode == 0:
         return proc.stdout.strip()
     return "unknown"
+
+
+def load_baseline_payloads(ref: str = IDENTITY_BASELINE_REF) -> dict[str, dict[str, Any]] | None:
+    """UC sidecars as published at the identity baseline tag, keyed by id.
+
+    Returns ``None`` when the ref is not resolvable (shallow clone, test repo).
+    """
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "--name-only", ref, "content"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if listing.returncode != 0:
+        return None
+    paths = [
+        line
+        for line in listing.stdout.splitlines()
+        if UC_FILENAME_RE.match(Path(line).name)
+    ]
+    batch = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=REPO_ROOT,
+        input="".join(f"{ref}:{p}\n" for p in paths).encode("utf-8"),
+        capture_output=True,
+        check=False,
+    )
+    if batch.returncode != 0:
+        return None
+    out: dict[str, dict[str, Any]] = {}
+    data = batch.stdout
+    pos = 0
+    while pos < len(data):
+        header_end = data.index(b"\n", pos)
+        header = data[pos:header_end].split()
+        if len(header) < 3 or header[1] != b"blob":
+            pos = header_end + 1
+            continue
+        size = int(header[2])
+        body = data[header_end + 1 : header_end + 1 + size]
+        pos = header_end + 1 + size + 1
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            continue
+        uc_id = str(payload.get("id", "")).strip()
+        if uc_id:
+            out[uc_id] = payload
+    return out
 
 
 def _git_last_payload(uc_id: str) -> dict[str, Any] | None:
@@ -312,40 +369,46 @@ def discover_removed_ids(catalogue: dict[str, CatalogueUC]) -> set[str]:
     return removed
 
 
-def _catalogue_generated_at(catalogue: dict[str, CatalogueUC]) -> str:
-    """Deterministic timestamp from newest sidecar mtime (not wall clock)."""
-    latest = 0.0
-    for uc in catalogue.values():
-        try:
-            latest = max(latest, uc.path.stat().st_mtime)
-        except OSError:
-            continue
-    if latest <= 0:
-        latest = 0.0
-    return datetime.fromtimestamp(latest, tz=UTC).replace(microsecond=0).isoformat().replace(
-        "+00:00", "Z"
-    )
+_OPTIONAL_ENTRY_NOTES = (
+    "firstSeenVersionSource",
+    "firstSeenVersionNote",
+    "removedInVersionNote",
+    "contentFingerprintNote",
+)
+
+_BASELINE_FIRST_SEEN_NOTE = (
+    f"Present at the v{IDENTITY_BASELINE_VERSION} identity baseline; "
+    "earlier first-publication version was not reconstructed."
+)
+_PRE_BASELINE_REMOVAL_NOTE = (
+    f"Removed on or before the v{IDENTITY_BASELINE_VERSION} identity baseline; "
+    "the exact release was not reconstructed."
+)
 
 
-def build_ledger_document(
-    *,
-    catalogue: dict[str, CatalogueUC] | None = None,
-    previous: dict[str, Any] | None = None,
+def _id_sort_key(uc_id: str) -> tuple[int, ...]:
+    return tuple(map(int, uc_id.split(".")))
+
+
+def _utc_now() -> str:
+    return datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _carry_notes(prior: dict[str, Any], entry: dict[str, Any]) -> None:
+    for key in _OPTIONAL_ENTRY_NOTES:
+        if prior.get(key):
+            entry[key] = prior[key]
+
+
+def _active_entry(
+    uc_id: str,
+    fp: str,
+    prior: dict[str, Any],
+    baseline: dict[str, dict[str, Any]] | None,
+    version: str,
 ) -> dict[str, Any]:
-    catalogue = catalogue or catalogue_index()
-    previous_entries = ledger_entries_by_id(previous) if previous else {}
-    removed_ids = discover_removed_ids(catalogue)
-    version = read_catalogue_version()
-    now = _catalogue_generated_at(catalogue)
-    commit = _git_short_head()
-
-    entries: list[dict[str, Any]] = []
-
-    for uc_id in sorted(catalogue.keys(), key=lambda x: tuple(map(int, x.split(".")))):
-        uc = catalogue[uc_id]
-        fp = content_fingerprint(uc.payload)
-        prior = previous_entries.get(uc_id, {})
-        revisions = merge_fingerprint_revisions(prior, fp, version, commit)
+    if prior:
+        revisions = merge_fingerprint_revisions(prior, fp, version)
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "active",
@@ -353,59 +416,156 @@ def build_ledger_document(
             "fingerprintRevisions": revisions,
             "firstSeenVersion": prior.get("firstSeenVersion") or version,
         }
-        if not prior.get("firstSeenVersion"):
-            entry["firstSeenVersionSource"] = "catalogue-seed"
-            entry["firstSeenVersionNote"] = (
-                "Bulk-seeded when the identity ledger was introduced; "
-                "per-ID first-publication version was not reconstructed."
-            )
-        entries.append(entry)
+        _carry_notes(prior, entry)
+        return entry
+    if baseline is not None and uc_id in baseline:
+        base_fp = content_fingerprint(baseline[uc_id])
+        revisions = [
+            _revision_record(base_fp, IDENTITY_BASELINE_VERSION, IDENTITY_BASELINE_COMMIT)
+        ]
+        if base_fp != fp:
+            revisions.append(_revision_record(fp, version))
+        return {
+            "id": uc_id,
+            "status": "active",
+            "contentFingerprint": fp,
+            "fingerprintRevisions": revisions,
+            "firstSeenVersion": IDENTITY_BASELINE_VERSION,
+            "firstSeenVersionSource": "identity-baseline",
+            "firstSeenVersionNote": _BASELINE_FIRST_SEEN_NOTE,
+        }
+    return {
+        "id": uc_id,
+        "status": "active",
+        "contentFingerprint": fp,
+        "fingerprintRevisions": [_revision_record(fp, version)],
+        "firstSeenVersion": version,
+    }
 
-    for uc_id in sorted(removed_ids, key=lambda x: tuple(map(int, x.split(".")))):
-        if uc_id in catalogue:
-            continue
-        prior = previous_entries.get(uc_id, {})
-        payload = _git_last_payload(uc_id)
-        fp = content_fingerprint(payload) if payload else latest_fingerprint(prior)
-        if not fp:
-            fp = UNKNOWN_FINGERPRINT
-        revisions = merge_fingerprint_revisions(prior, fp, version, commit)
+
+def _removed_entry(
+    uc_id: str,
+    prior: dict[str, Any],
+    baseline: dict[str, dict[str, Any]] | None,
+    version: str,
+) -> dict[str, Any]:
+    if prior and str(prior.get("status")) == "removed":
+        return prior
+    if prior:
+        revisions = entry_fingerprint_revisions(prior)
         entry: dict[str, Any] = {
             "id": uc_id,
             "status": "removed",
-            "contentFingerprint": fp,
+            "contentFingerprint": latest_fingerprint(prior),
             "fingerprintRevisions": revisions,
-            "firstSeenVersion": prior.get("firstSeenVersion") or "unknown",
-            "removedInVersion": prior.get("removedInVersion") or version,
+            "firstSeenVersion": prior.get("firstSeenVersion") or version,
+            "removedInVersion": version,
         }
-        if not prior.get("firstSeenVersion"):
-            entry["firstSeenVersionSource"] = "git-reconstruction"
-            entry["firstSeenVersionNote"] = (
-                "Removal inferred from git history and/or cat-25 remap; "
-                "exact first-publication version may be ambiguous."
-            )
-        if fp == UNKNOWN_FINGERPRINT and not payload and not latest_fingerprint(prior):
-            entry["contentFingerprintNote"] = (
-                "Fingerprint unavailable — git history did not yield a parseable sidecar; "
-                "sentinel hash of empty title+spl recorded."
-            )
-        entries.append(entry)
+        _carry_notes(prior, entry)
+        return entry
+
+    payload = _git_last_payload(uc_id)
+    fp = content_fingerprint(payload) if payload else UNKNOWN_FINGERPRINT
+    if baseline is not None and uc_id in baseline:
+        base_fp = content_fingerprint(baseline[uc_id])
+        revisions = [
+            _revision_record(base_fp, IDENTITY_BASELINE_VERSION, IDENTITY_BASELINE_COMMIT)
+        ]
+        if payload and base_fp != fp:
+            revisions.append(_revision_record(fp, version))
+        entry = {
+            "id": uc_id,
+            "status": "removed",
+            "contentFingerprint": revisions[-1]["contentFingerprint"],
+            "fingerprintRevisions": revisions,
+            "firstSeenVersion": IDENTITY_BASELINE_VERSION,
+            "firstSeenVersionSource": "identity-baseline",
+            "firstSeenVersionNote": _BASELINE_FIRST_SEEN_NOTE,
+            "removedInVersion": version,
+        }
+        return entry
+
+    pre_baseline = baseline is not None
+    revision_version = UNKNOWN_VERSION if pre_baseline else version
+    entry = {
+        "id": uc_id,
+        "status": "removed",
+        "contentFingerprint": fp,
+        "fingerprintRevisions": [_revision_record(fp, revision_version)],
+        "firstSeenVersion": UNKNOWN_VERSION,
+        "firstSeenVersionSource": "git-reconstruction",
+        "firstSeenVersionNote": (
+            "Removal inferred from git history and/or cat-25 remap; "
+            "exact first-publication version may be ambiguous."
+        ),
+    }
+    if pre_baseline:
+        entry["removedInVersionNote"] = _PRE_BASELINE_REMOVAL_NOTE
+    else:
+        entry["removedInVersion"] = version
+    if not payload:
+        entry["contentFingerprintNote"] = (
+            "Fingerprint unavailable — git history did not yield a parseable sidecar; "
+            "sentinel hash of empty title+spl recorded."
+        )
+    return entry
+
+
+def build_ledger_document(
+    *,
+    catalogue: dict[str, CatalogueUC] | None = None,
+    previous: dict[str, Any] | None = None,
+    baseline: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build the ledger, appending to ``previous`` when given.
+
+    ``baseline`` (sidecars at the identity baseline tag) is only consulted for
+    identifiers with no prior row, i.e. when seeding the ledger from scratch.
+    Header timestamps and commit are carried over unchanged when the entries
+    and catalogue version are unchanged, so ``--check`` is reproducible.
+    """
+    catalogue = catalogue or catalogue_index()
+    previous_entries = ledger_entries_by_id(previous) if previous else {}
+    version = read_catalogue_version()
+
+    removed_ids = discover_removed_ids(catalogue)
+    removed_ids.update(uc_id for uc_id in previous_entries if uc_id not in catalogue)
+
+    entries: list[dict[str, Any]] = []
+    for uc_id in sorted(catalogue.keys(), key=_id_sort_key):
+        fp = content_fingerprint(catalogue[uc_id].payload)
+        entries.append(
+            _active_entry(uc_id, fp, previous_entries.get(uc_id, {}), baseline, version)
+        )
+    for uc_id in sorted(removed_ids - set(catalogue), key=_id_sort_key):
+        entries.append(_removed_entry(uc_id, previous_entries.get(uc_id, {}), baseline, version))
+
+    unchanged = (
+        previous is not None
+        and previous.get("entries") == entries
+        and previous.get("catalogueVersion") == version
+    )
+    generated_at = previous["generatedAt"] if unchanged else _utc_now()
+    commit = previous["catalogueCommit"] if unchanged else _git_short_head()
 
     return {
         "$schema": "../schemas/id-ledger.schema.json",
         "schemaVersion": "1.1.0",
-        "generatedAt": now,
+        "generatedAt": generated_at,
         "catalogueCommit": commit,
         "catalogueVersion": version,
         "identityGuaranteeSince": IDENTITY_GUARANTEE_SINCE,
+        "identityBaselineVersion": IDENTITY_BASELINE_VERSION,
+        "identityBaselineCommit": IDENTITY_BASELINE_COMMIT,
         "hashAlgorithm": "sha256",
         "fingerprintFields": ["title", "spl"],
         "seedPolicy": {
-            "activeFirstSeenVersion": "bulk-seed",
+            "activeFirstSeenVersion": "identity-baseline",
             "note": (
-                "Active entries inherit firstSeenVersion from catalogue seed at ledger "
-                "introduction unless a prior ledger row existed. Removed entries are "
-                "reconstructed from git and remap manifests where possible."
+                f"Identifiers present at v{IDENTITY_BASELINE_VERSION} start with a revision "
+                "hashed from that tag; later edits are appended as new revisions. "
+                "Identifiers added after the baseline start at the release that adds them. "
+                "Removed entries are reconstructed from git and remap manifests where possible."
             ),
         },
         "entryCount": len(entries),

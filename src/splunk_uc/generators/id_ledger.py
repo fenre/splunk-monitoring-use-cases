@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 from splunk_uc.id_ledger import (
+    IDENTITY_BASELINE_REF,
     LEDGER_PATH,
     build_ledger_document,
     catalogue_index,
+    load_baseline_payloads,
     load_ledger,
     validate_ledger_revision_monotonicity,
 )
@@ -32,11 +34,32 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Recompute the ledger and fail if data/id-ledger.json would change.",
     )
+    parser.add_argument(
+        "--reseed",
+        action="store_true",
+        help=(
+            f"Rebuild every row from the {IDENTITY_BASELINE_REF} tag instead of appending "
+            "to the committed ledger. Revision history must still not shrink."
+        ),
+    )
     args = parser.parse_args(argv)
 
     catalogue = catalogue_index()
     previous = load_ledger() if LEDGER_PATH.is_file() else None
-    generated = build_ledger_document(catalogue=catalogue, previous=previous)
+    baseline = None
+    if args.reseed or previous is None:
+        baseline = load_baseline_payloads()
+        if baseline is None:
+            print(
+                f"FAIL: cannot read {IDENTITY_BASELINE_REF}; fetch tags before seeding the ledger",
+                file=sys.stderr,
+            )
+            return 1
+    generated = build_ledger_document(
+        catalogue=catalogue,
+        previous=None if args.reseed else previous,
+        baseline=baseline,
+    )
     revision_issues = validate_ledger_revision_monotonicity(previous, generated)
     rendered = _canonical_json(generated)
 

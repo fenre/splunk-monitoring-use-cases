@@ -73,7 +73,9 @@ def _write_ledger(fake_repo: pathlib.Path, entries: list[dict[str, Any]]) -> Non
         "generatedAt": "2026-09-01T00:00:00Z",
         "catalogueCommit": "abc1234",
         "catalogueVersion": "9.9.9",
-        "identityGuaranteeSince": "8.25.0",
+        "identityGuaranteeSince": "8.26.0",
+        "identityBaselineVersion": "8.25.0",
+        "identityBaselineCommit": id_ledger.IDENTITY_BASELINE_COMMIT,
         "hashAlgorithm": "sha256",
         "fingerprintFields": ["title", "spl"],
         "entryCount": len(normalized),
@@ -274,6 +276,111 @@ class TestGenerateIdLedger:
         removed_ids = {e["id"] for e in doc["entries"] if e["status"] == "removed"}
         assert active_ids == {"1.1.2"}
         assert removed_ids == {"1.1.1"}
+
+    def test_baseline_seed_records_tag_content_as_revision_one(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1", title="Rewritten title", spl="index=new")
+        _write_uc(cat, "1.1.2")
+        _write_uc(cat, "1.1.3", title="Added after baseline")
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        baseline = {
+            "1.1.1": {"id": "1.1.1", "title": "Original title", "spl": "index=old"},
+            "1.1.2": {"id": "1.1.2", "title": "Test UC", "spl": "index=x"},
+        }
+        doc = id_ledger.build_ledger_document(baseline=baseline)
+        by_id = {e["id"]: e for e in doc["entries"]}
+
+        rewritten = by_id["1.1.1"]["fingerprintRevisions"]
+        assert [r["catalogueVersion"] for r in rewritten] == [
+            id_ledger.IDENTITY_BASELINE_VERSION,
+            "9.9.9",
+        ]
+        assert rewritten[0]["contentFingerprint"] == id_ledger.content_fingerprint(
+            baseline["1.1.1"]
+        )
+        assert rewritten[0]["catalogueCommit"] == id_ledger.IDENTITY_BASELINE_COMMIT
+
+        assert len(by_id["1.1.2"]["fingerprintRevisions"]) == 1
+        assert by_id["1.1.2"]["firstSeenVersion"] == id_ledger.IDENTITY_BASELINE_VERSION
+        assert by_id["1.1.3"]["firstSeenVersion"] == "9.9.9"
+        assert "firstSeenVersionSource" not in by_id["1.1.3"]
+
+    def test_removal_before_baseline_omits_removed_in_version(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _make_cat(fake_repo, 1)
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: {"1.1.9"})
+        monkeypatch.setattr(id_ledger, "_git_last_payload", lambda _uc_id: None)
+        doc = id_ledger.build_ledger_document(baseline={})
+        (entry,) = doc["entries"]
+        assert entry["status"] == "removed"
+        assert "removedInVersion" not in entry
+        assert entry["removedInVersionNote"]
+
+    def test_regeneration_keeps_notes_and_undiscovered_removals(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        fp = id_ledger.content_fingerprint({"title": "Test UC", "spl": "index=x"})
+        removed_row = {
+            "id": "1.1.5",
+            "status": "removed",
+            "contentFingerprint": fp,
+            "fingerprintRevisions": [{"contentFingerprint": fp, "catalogueVersion": "unknown"}],
+            "firstSeenVersion": "unknown",
+            "removedInVersionNote": "before baseline",
+        }
+        previous = {
+            "generatedAt": "2026-09-01T00:00:00Z",
+            "catalogueCommit": "abc1234",
+            "catalogueVersion": "9.9.9",
+            "entries": [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": fp,
+                    "fingerprintRevisions": [{"contentFingerprint": fp, "catalogueVersion": "8.25.0"}],
+                    "firstSeenVersion": "8.25.0",
+                    "firstSeenVersionSource": "identity-baseline",
+                    "firstSeenVersionNote": "note",
+                },
+                removed_row,
+            ],
+        }
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        doc = id_ledger.build_ledger_document(previous=previous)
+        by_id = {e["id"]: e for e in doc["entries"]}
+        assert by_id["1.1.1"]["firstSeenVersionSource"] == "identity-baseline"
+        assert by_id["1.1.5"] == removed_row
+        assert doc["generatedAt"] == "2026-09-01T00:00:00Z"
+        assert doc["catalogueCommit"] == "abc1234"
+
+    def test_header_refreshes_when_entries_change(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1", title="Edited")
+        previous = {
+            "generatedAt": "2026-09-01T00:00:00Z",
+            "catalogueCommit": "abc1234",
+            "catalogueVersion": "9.9.9",
+            "entries": [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "a" * 64,
+                    "fingerprintRevisions": [{"contentFingerprint": "a" * 64, "catalogueVersion": "8.25.0"}],
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        }
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        doc = id_ledger.build_ledger_document(previous=previous)
+        assert doc["generatedAt"] != "2026-09-01T00:00:00Z"
+        assert len(doc["entries"][0]["fingerprintRevisions"]) == 2
 
 
 class TestMigrationBlastGuard:
