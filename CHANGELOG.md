@@ -29,6 +29,18 @@ the release notes block in `index.html` by hand.
   doc), and prose that configures another product while the SPL reads its
   mirrored data. Reviewed verdicts go in `data/product-fit-review.json`.
 
+### Changed
+
+- **15 Splunk Edge Hub use cases now list `products: [splunk-edge-hub,
+  splunk-platform]`** (UC-14.3.1–14.3.7, 14.3.20, 14.3.32, 14.3.42, 14.5.2–14.5.4,
+  14.5.9, 14.5.13). Each carries the Edge Hub OS Datastreamer configuration as
+  a `source-configuration` artifact and searches the documented indexes
+  (`edge_hub_data`, `edge_hub_status`, `edge_hub_logs`, `edge_hub_opcua`,
+  `edge_hub_modbus`) instead of the hyphenated `edge-hub-*` names. Metrics
+  indexes are queried with `mstats`, log searches group on the documented
+  `priority` field, and the universal forwarder claim is gone (Edge Hub OS does
+  not support one). Identifiers are unchanged; the ledger appends a revision.
+
 ## [8.26.0] - 2026-10-28
 
 ### Added
