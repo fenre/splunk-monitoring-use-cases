@@ -46,12 +46,16 @@ Re-run `calibrate score` after the maintainer completes the 40 spot-checks.
    fallback), but it also fails the finding-recall gate. Triage records are
    therefore used for routing and as a second opinion, never as the final
    word on a UC.
-3. **Deep review covers every UC.** With 83% of UCs needing a correctness
-   review, any routing rule with acceptable recall sends about 97% of UCs to
-   deep review anyway, so triage cannot cut heavy-model volume on this
-   corpus. Run `deep --all` per category in priority order; keep triage for
-   incremental re-reviews of edited UCs and for cat-25 if budget forces a
-   cheaper first pass there.
-4. **Fix the grounding before the full run.** Several blockers trace back to
+3. **Deep review covers every operational UC.** With 83% of UCs needing a
+   correctness review, any routing rule with acceptable recall sends about
+   97% of UCs to deep review anyway, so triage cannot cut heavy-model volume
+   on this corpus. Run `deep --all` per category in priority order; keep
+   triage for incremental re-reviews of edited UCs.
+4. **Personal & Hobbyist Monitoring (cat-25, the fun category) is deferred.**
+   6,431 UCs, about 65M input tokens, stay out of the full run until the
+   operational catalogue is reviewed. Unscoped `deep`, `triage` and `plan`
+   skip that category. `--category cat-25` or `--include-fun` puts it back.
+   The five calibration records already written stay in the ledger.
+5. **Fix the grounding before the full run.** Several blockers trace back to
    wrong Splunkbase IDs in `docs/guides/*.md`; correcting those guides first
    keeps the deep reviewer from being misled and fixes many UCs at once.

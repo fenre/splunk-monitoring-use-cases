@@ -320,6 +320,20 @@ def test_needs_review_skips_current_records(tmp_path: Path) -> None:
     assert runner.needs_review(path, uc, "triage", root=root, force=True)
 
 
+def test_without_fun_categories_drops_cat25_unless_named() -> None:
+    fun = (
+        Path("/x/content/cat-25-personal-hobbyist-monitoring/UC-25.1.1.json"),
+        {"id": "25.1.1"},
+    )
+    ops = (
+        Path("/x/content/cat-15-data-center-physical-infrastructure/UC-15.1.1.json"),
+        {"id": "15.1.1"},
+    )
+    assert runner.without_fun_categories([fun, ops]) == [ops]
+    assert runner.without_fun_categories([fun, ops], include_fun=True) == [fun, ops]
+    assert runner.without_fun_categories([fun, ops], category="cat-25") == [fun, ops]
+
+
 def test_triage_batches_priority_and_cat25_last(tmp_path: Path) -> None:
     root = tmp_path / "l"
     a = (

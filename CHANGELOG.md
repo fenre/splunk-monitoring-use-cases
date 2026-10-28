@@ -36,6 +36,10 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
+  (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
+  triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
+  includes it.
 - CI caps v2 template families and text-quality major findings at the
   2026-10-26 baseline, and schema-validates the review ledger.
 
