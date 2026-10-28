@@ -22,6 +22,21 @@ the release notes block in `index.html` by hand.
   `products` and `productArtifacts`; `catalog.json` carries `prd`, `prdn`, and
   `pra` only for non-default products. UCs without `products` are unchanged —
   the existing catalogue builds byte-identical.
+- **Subcategory 13.8 Splunk Agent Observability: 37 draft use cases**
+  (UC-13.8.1–13.8.37) implemented in Splunk Agent Observability, the first
+  use cases with no SPL. They cover trace instrumentation with
+  `SplunkAOLogger`, stream alerts (Latency, Status Code, Trace Count, Cost),
+  evaluators (Tool Selection Quality, Tool Error, the five SaaS Luna judges,
+  custom LLM-as-a-judge, Experiments), Agent Control (deny, steer, observe
+  rollout, fail-closed, clone governance), access reviews, Model Pricing and
+  Tokenomics. Each carries its configuration in `productArtifacts`; the
+  registry adds the `instrumentation`, `experiment`, `access`,
+  `model-pricing` and `tokenomics` artifact types. New guide
+  `docs/guides/splunk-agent-observability.md`, equipment slug `splunk_ao`, and
+  source record `splunk-agent-observability`. All 37 are `status: draft`:
+  they were written from the product documentation without tenant access.
+  `AGENTS.md`, `docs/DESIGN.md`, `docs/PITCH.md`, `llms.txt` and the landing
+  page no longer say every use case has SPL.
 
 ## [8.26.0] - 2026-10-28
 
