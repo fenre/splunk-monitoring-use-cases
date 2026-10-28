@@ -66,6 +66,19 @@ old hashes unverifiable. Moving a use case to another product keeps its
 identifier (same intent) and appends a fingerprint revision, recorded in a
 `bulk_fingerprint_change` manifest under `data/uc-id-migrations/`.
 
+**Finding use cases that fake another product.** `audit-uc-product-fit`
+reports a use case when its SPL only hard-codes rows (`| makeresults` with no
+data read), when it reads a sourcetype or index that
+[`data/product-fit-rules.json`](../../data/product-fit-rules.json) attributes
+to another product but that product's documentation does not name as a
+default ingest path, or when the SPL reads that product's data while the
+implementation prose configures one of its objects. Each rule cites a product
+skill or vendor document. Candidates are reviewed into
+[`data/product-fit-review.json`](../../data/product-fit-review.json)
+(`migrate`, `keep`, or `needs-sme-review`; only reviewed verdicts with evidence
+are migrated). The audit is warn-only until the migrations land, then runs
+with `--strict`.
+
 ## Consequences
 
 **Positive:** Use cases for Splunk Observability Cloud, Splunk Agent
@@ -84,6 +97,7 @@ lockstep.
 - Types: [`tools/build/models.py`](../../tools/build/models.py), [`src/splunk_uc/models/use_case.py`](../../src/splunk_uc/models/use_case.py)
 - Registry accessor: [`src/splunk_uc/products.py`](../../src/splunk_uc/products.py)
 - Field reference: [`docs/use-case-fields.md`](../use-case-fields.md), [`docs/catalog-schema.md`](../catalog-schema.md)
+- Product-fit audit: [`src/splunk_uc/audits/uc_product_fit.py`](../../src/splunk_uc/audits/uc_product_fit.py), rules and review schemas under [`schemas/`](../../schemas/)
 
 ## Alternatives considered
 

@@ -133,6 +133,7 @@ All audits are in `.github/workflows/validate.yml`. Key steps:
 
 - UC ID uniqueness and permanent-identity ledger (`audit-uc-ids`, `data/id-ledger.json`)
 - UC identifier blast-radius guard (`audit-uc-id-migration-blast` — bulk remaps require a manifest)
+- Product fit (`audit-uc-product-fit --check`, warn-only — UCs whose SPL fakes another Splunk product; verdicts in `data/product-fit-review.json`)
 - UC structure and required fields
 - Non-technical view sync
 - Changelog cross-references
