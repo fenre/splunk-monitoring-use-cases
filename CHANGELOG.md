@@ -40,6 +40,14 @@ the release notes block in `index.html` by hand.
   indexes are queried with `mstats`, log searches group on the documented
   `priority` field, and the universal forwarder claim is gone (Edge Hub OS does
   not support one). Identifiers are unchanged; the ledger appends a revision.
+- **UC-10.7.4 and UC-22.7.6 now list `products: [splunk-soar,
+  splunk-platform]`** and carry a `forwarder-group` artifact (new SOAR artifact
+  type in `data/splunk-products.json`). Both search `index=phantom_playbook_run`,
+  the index the SOAR forwarder writes Playbook run records to, and group by the
+  numeric `playbook` ID instead of the undocumented `playbook_name` field.
+  UC-22.7.6 resolves names through a `soar_playbook_names.csv` lookup built from
+  `index=phantom_playbook`. The modular-input and `inputs.conf` text is replaced
+  with the SOAR forwarder group steps.
 
 ## [8.26.0] - 2026-10-28
 
