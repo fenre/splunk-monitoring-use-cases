@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_248 pages indexed; 133 have at least one inbound link; 449 unique source→target edges._
+_249 pages indexed; 134 have at least one inbound link; 454 unique source→target edges._
 
 ---
 
@@ -121,9 +121,9 @@ _No inbound links yet._
 
 ## `docs/adr/0005-uc-id-x-y-z-scheme.md`
 
-- [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0007-json-as-source-of-truth.md`](adr/0007-json-as-source-of-truth.md)
 - [`docs/adr/0009-generated-artefact-policy.md`](adr/0009-generated-artefact-policy.md)
+- [`docs/adr/0016-permanent-uc-identifiers.md`](adr/0016-permanent-uc-identifiers.md)
 - [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/0006-single-file-design-doc.md`
@@ -210,6 +210,14 @@ _No inbound links yet._
 ## `docs/adr/0015-cost-field-group.md`
 
 - [`docs/adr/README.md`](adr/README.md)
+
+## `docs/adr/0016-permanent-uc-identifiers.md`
+
+- [`AGENTS.md`](../AGENTS.md)
+- [`docs/DESIGN.md`](DESIGN.md)
+- [`docs/adr/0005-uc-id-x-y-z-scheme.md`](adr/0005-uc-id-x-y-z-scheme.md)
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/url-scheme.md`](url-scheme.md)
 
 ## `docs/adr/README.md`
 

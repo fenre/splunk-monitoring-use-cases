@@ -52,7 +52,7 @@ for the build stages.
 
 ## Identity scheme
 
-- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide; permanent from v8.25.0 (see [ADR-0016](docs/adr/0016-permanent-uc-identifiers.md) and `data/id-ledger.json`). Gaps are expected.
+- **UC-ID:** `UC-X.Y.Z` (Category.Subcategory.Index). Unique repo-wide; permanent from v8.26.0, with v8.25.0 as the recorded baseline (see [ADR-0016](docs/adr/0016-permanent-uc-identifiers.md) and `data/id-ledger.json`). Gaps are expected.
 - **Category folders:** `cat-NN-kebab-case` (zero-padded category number).
 - **JSON sidecar IDs:** `X.Y.Z` (no `UC-` prefix in the `id` field; the prefix is display-only).
 
@@ -242,6 +242,10 @@ Design + plan: [`docs/superpowers/specs/2026-05-17-content-quality-lift-loop-des
 <a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <a id="ref-7"></a>**[7]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+
+### Related repository documents
+
+- [`docs/adr/0016-permanent-uc-identifiers.md`](docs/adr/0016-permanent-uc-identifiers.md)
 
 ### Cited by
 

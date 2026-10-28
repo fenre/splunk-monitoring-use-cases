@@ -488,7 +488,7 @@ def get_use_case_markdown(*, catalog: Catalog, uc_id: str) -> dict[str, Any]:
     lines.append("")
     lines.append(
         f"Source: [Splunk Monitoring Use Cases]({site_url}/) — "
-        f"licensed MIT. UC IDs are permanent from catalogue version 8.25.0 "
+        f"licensed MIT. UC IDs are permanent from catalogue version 8.26.0 "
         f"onward: an ID always refers to the same use case, is never reused, "
         f"and gaps in numbering are expected. See "
         f"[/llms.txt]({site_url}/llms.txt) for the catalogue index "
