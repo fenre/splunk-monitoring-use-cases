@@ -35,7 +35,8 @@ Add two optional fields at schema version **1.9.0**:
 - **`productArtifacts[]`** — `{product, type, language, title, body, docsUrl?}`
   for non-SPL implementation artifacts. `type` uses each product's own object
   names (`detector`, `evaluator`, `stream-alert`, `agent-control`, `playbook`,
-  `service`, `kpi`, `aggregation-policy`, `source-configuration`).
+  `forwarder-group`, `service`, `kpi`, `aggregation-policy`,
+  `source-configuration`).
 
 SPL stays in `spl`; the locked `catalog.json` key `q` is unchanged. In
 `catalog.json` the new fields are `prd` and `pra`, emitted only when the value
