@@ -244,7 +244,8 @@ audit-text-quality: ## Deterministic UC text-quality pre-pass -> reports/uc-revi
 # --- UC text-quality review (docs/uc-text-review-rubric.md) ---
 # Model tiers need `pip install cursor-sdk` and CURSOR_API_KEY. Pass
 # CAT=cat-NN to scope a run and ARGS="--dry-run" (or --limit N, --model ID)
-# to adjust it.
+# to adjust it. Unscoped runs skip cat-25 (the fun category); CAT=cat-25
+# or ARGS=--include-fun includes it.
 UC_REVIEW := $(PYTHON) scripts/uc_review_runner.py
 UC_REVIEW_SCOPE = $(if $(CAT),--category $(CAT),)
 

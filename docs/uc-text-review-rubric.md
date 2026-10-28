@@ -37,7 +37,10 @@ Deep-review routing: a UC goes to `deep` when any of these hold:
 - it is in cat-22 and carries a `compliance[]` claim
 
 Calibration on 2026-10-26 found that 83% of UCs need a deep correctness
-review, so in practice the deep tier runs on every UC (`deep --all`); see
+review, so in practice the deep tier runs on every operational UC
+(`deep --all`). cat-25 Personal & Hobbyist Monitoring (the fun category) is
+deferred until that run is done; pass `--category cat-25` or `--include-fun`
+to include it. See
 [`reports/uc-review/calibration/decision.md`](../reports/uc-review/calibration/decision.md).
 
 <!-- rubric:begin -->

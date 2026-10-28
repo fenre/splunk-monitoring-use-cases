@@ -19,6 +19,11 @@ Subcommands::
     route    [--category cat-NN] print which UCs the deep tier would take, and why
     deep     [--category cat-NN] [--uc UC-X.Y.Z ...]
     adjudicate [--category cat-NN]
+
+Unscoped triage, route, deep, adjudicate, export and plan skip cat-25
+(Personal & Hobbyist Monitoring, the fun category). Pass ``--category cat-25``
+or ``--include-fun`` to include it. Named ``--uc`` / ``--uc-list`` selections
+are kept either way.
     calibrate select             write the stratified 150-UC calibration set
     calibrate run --tier deep|triage [--model ID]
     calibrate score --candidate-model ID
@@ -77,12 +82,18 @@ def _entries(args: argparse.Namespace) -> list[runner.Entry]:
             row["uc_id"] if isinstance(row, dict) else row for row in payload.get("ucs", payload)
         ]
         return [resolve_uc(uid) for uid in ids]
-    entries = list(iter_sidecars(category=getattr(args, "category", None)))
+    category = getattr(args, "category", None)
+    entries = list(iter_sidecars(category=category))
     sub = getattr(args, "subcategory", None)
     if sub:
         prefix = f"{sub}."
         entries = [(p, uc) for p, uc in entries if str(uc.get("id", "")).startswith(prefix)]
-    return entries
+    named = bool(getattr(args, "uc", None) or getattr(args, "uc_list", None))
+    return runner.without_fun_categories(
+        entries,
+        category=category,
+        include_fun=named or getattr(args, "include_fun", False),
+    )
 
 
 def _progress(done: int, total: int, outcome: runner.BatchOutcome) -> None:
@@ -252,7 +263,9 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
     for path, uc in iter_sidecars():
         by_category.setdefault(path.parent.name, []).append((path, uc))
 
+    include_fun = getattr(args, "include_fun", False)
     rows = []
+    deferred = []
     for category, entries in by_category.items():
         pending = [
             (p, uc)
@@ -262,22 +275,28 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
         chars = sum(len(build_prompt("deep", [entry])) for entry in pending)
         critical = sum(1 for _, uc in entries if uc.get("criticality") == "critical")
         verified = sum(1 for _, uc in entries if uc.get("status") == "verified")
-        rows.append(
-            {
-                "category": category,
-                "ucs": len(entries),
-                "deep_reviewed": len(entries) - len(pending),
-                "deep_pending": len(pending),
-                "critical": critical,
-                "verified": verified,
-                "prompt_chars": chars,
-                "approx_input_tokens": chars // 4,
-                "command": f"python3 scripts/uc_review_runner.py deep --all --category {category[:6]}",
-            }
-        )
+        row = {
+            "category": category,
+            "ucs": len(entries),
+            "deep_reviewed": len(entries) - len(pending),
+            "deep_pending": len(pending),
+            "critical": critical,
+            "verified": verified,
+            "prompt_chars": chars,
+            "approx_input_tokens": chars // 4,
+            "command": f"python3 scripts/uc_review_runner.py deep --all --category {category[:6]}",
+        }
+        if runner.is_fun_category(category) and not include_fun:
+            row["reason"] = (
+                "Personal & Hobbyist Monitoring (the fun category) is deferred "
+                "until the operational catalogue is reviewed."
+            )
+            deferred.append(row)
+        else:
+            rows.append(row)
     rows.sort(
         key=lambda r: (
-            r["category"].startswith("cat-25-"),
+            runner.is_fun_category(r["category"]),
             -(r["critical"] + r["verified"]) / max(1, r["ucs"]),
             r["category"],
         )
@@ -286,8 +305,10 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
     plan = {
         "$comment": (
             "Full-run plan for the UC review deep tier (scripts/uc_review_runner.py plan). "
-            "Order: categories with the highest share of critical + verified UCs first, cat-25 last; "
-            "within a category the runner orders UCs critical, verified, high, medium, low. "
+            "Order: categories with the highest share of critical + verified UCs first. "
+            "cat-25 Personal & Hobbyist Monitoring is listed under deferred and is not "
+            "in the totals; pass --include-fun to put it back in the run. "
+            "Within a category the runner orders UCs critical, verified, high, medium, low. "
             "Token counts are prompt characters / 4 and exclude model output and tool use."
         ),
         "deep_model": runner.default_model("deep", config=config).label,
@@ -296,6 +317,7 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
         "deep_pending": sum(r["deep_pending"] for r in rows),
         "approx_input_tokens": total_tokens,
         "categories": rows,
+        "deferred": deferred,
         "after_each_category": [
             "python3 scripts/uc_review_runner.py adjudicate --category cat-NN",
             "python3 -m splunk_uc generate-uc-review-report",
@@ -304,9 +326,11 @@ def cmd_plan(args: argparse.Namespace, config: dict[str, Any]) -> int:
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+    deferred_ucs = sum(r["ucs"] for r in deferred)
     print(
         f"Wrote {out}: {plan['deep_pending']} UCs pending deep review, "
-        f"~{total_tokens / 1e6:.1f}M input tokens",
+        f"~{total_tokens / 1e6:.1f}M input tokens"
+        + (f"; {deferred_ucs} fun-category UCs deferred" if deferred_ucs else ""),
         file=sys.stderr,
     )
     return 0
@@ -476,6 +500,11 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--dry-run", action="store_true", help="Render prompts only; no model calls")
         if scope:
             p.add_argument("--category", help="Category prefix, e.g. cat-15")
+            p.add_argument(
+                "--include-fun",
+                action="store_true",
+                help="Include cat-25 Personal & Hobbyist (skipped unless --category cat-25)",
+            )
             p.add_argument("--subcategory", help="Subcategory id, e.g. 15.1")
             p.add_argument("--uc", nargs="*", help="Explicit UC ids")
             p.add_argument(
@@ -517,6 +546,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("plan", help="Render outstanding deep prompts and write the full-run plan")
     p.add_argument("--out", default=str(REVIEW_ROOT / "full-run-plan.json"))
+    p.add_argument(
+        "--include-fun",
+        action="store_true",
+        help="Include cat-25 Personal & Hobbyist in the run totals",
+    )
 
     p = sub.add_parser("ingest", help="Validate and persist reply files from an export manifest")
     p.add_argument("--manifest", required=True)

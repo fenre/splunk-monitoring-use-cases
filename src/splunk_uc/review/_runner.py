@@ -509,6 +509,26 @@ def append_run_log(lines: Iterable[dict[str, Any]], *, root: Path = REVIEW_ROOT)
 # --------------------------------------------------------------------------
 
 CRITICALITY_RANK = {"critical": 0, "high": 2, "medium": 3, "low": 4}
+# Personal & Hobbyist Monitoring — the catalogue's fun category. Deferred
+# from the full review until the operational categories are done.
+FUN_CATEGORY_PREFIX = "cat-25-"
+
+
+def is_fun_category(category: str) -> bool:
+    return category.startswith(FUN_CATEGORY_PREFIX)
+
+
+def without_fun_categories(
+    entries: Iterable[Entry],
+    *,
+    category: str | None = None,
+    include_fun: bool = False,
+) -> list[Entry]:
+    """Drop cat-25 unless the caller named that category or opted in."""
+    rows = list(entries)
+    if include_fun or (category or "").startswith("cat-25"):
+        return rows
+    return [(path, uc) for path, uc in rows if not is_fun_category(category_of(path))]
 
 
 def priority_key(uc: dict[str, Any], path: Path) -> tuple[int, int, str]:
@@ -516,7 +536,7 @@ def priority_key(uc: dict[str, Any], path: Path) -> tuple[int, int, str]:
     rank = CRITICALITY_RANK.get(str(uc.get("criticality")), 5)
     if uc.get("status") == "verified" and rank > 1:
         rank = 1
-    last = 1 if category_of(path).startswith("cat-25-") else 0
+    last = 1 if is_fun_category(category_of(path)) else 0
     return (last, rank, category_of(path))
 
 

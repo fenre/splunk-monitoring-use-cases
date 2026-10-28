@@ -99,7 +99,7 @@ flowchart LR
 
    Otherwise switch to the fallback triage model.
 3. **Pilot:** cat-15 (117 UCs) end to end, through both tiers and the report, before scaling.
-4. **Full Tier 1 run:** order by criticality and `verified` first, then category. cat-25 runs last.
+4. **Full Tier 1 run:** order by criticality and `verified` first, then category. cat-25 (the fun category) is deferred until the operational catalogue is reviewed.
 5. **Tier 2 routing:** a UC goes to deep review if any of these hold:
    - `criticality=critical`
    - `status=verified`
@@ -188,11 +188,14 @@ What ran, and where it deviated from the plan above.
   (`--max-any-v2`, `--max-major`, ledger schema validation). First fix batch
   on cat-15 in a stacked PR (scripted families plus a findings-driven lift
   of UC-15.1.1).
-- **Full run — not executed here:** 16,391 UCs remain for the deep tier
-  (about 181M input tokens; `reports/uc-review/full-run-plan.json` lists the
-  per-category order and commands). It needs `CURSOR_API_KEY` for the SDK
-  runner. Apply the scripted families before the full run, because any
-  content edit marks existing review records stale.
+- **Full run — not executed here, and cat-25 is out of scope for now.**
+  Personal & Hobbyist Monitoring (6,431 UCs, about 65M input tokens) is
+  deferred. The operational catalogue still pending is 9,965 UCs, about
+  116M input tokens (`reports/uc-review/full-run-plan.json`). Unscoped
+  runner commands skip cat-25; `--category cat-25` or `--include-fun`
+  includes it. The run needs `CURSOR_API_KEY` for the SDK runner. Apply
+  the scripted families before the full run, because any content edit
+  marks existing review records stale.
 
 ---
 
