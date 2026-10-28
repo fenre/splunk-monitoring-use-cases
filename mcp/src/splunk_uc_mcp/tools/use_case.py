@@ -128,8 +128,7 @@ GET_USE_CASE_OUTPUT_SCHEMA: dict[str, Any] = {
             "items": {"type": "string"},
             "description": (
                 "Splunk products the UC is implemented in, primary first "
-                "(ids from data/splunk-products.json, e.g. "
-                "``splunk-observability-cloud``). Absent means the UC is "
+                "(ids from data/splunk-products.json). Absent means the UC is "
                 "implemented as SPL on the Splunk platform (Splunk "
                 "Enterprise / Splunk Cloud Platform)."
             ),
