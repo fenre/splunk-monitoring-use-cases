@@ -111,6 +111,7 @@ The positional `UC-X.Y.Z` string remains the public identifier for now. Opaque
 - [`AGENTS.md`](../../AGENTS.md)
 - [`docs/DESIGN.md`](../DESIGN.md)
 - [`docs/adr/0005-uc-id-x-y-z-scheme.md`](0005-uc-id-x-y-z-scheme.md)
+- [`docs/adr/0017-splunk-product-per-use-case.md`](0017-splunk-product-per-use-case.md)
 - [`docs/adr/README.md`](README.md)
 - [`docs/url-scheme.md`](../url-scheme.md)
 

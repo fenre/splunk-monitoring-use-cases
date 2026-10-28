@@ -19,13 +19,24 @@ Use cases in this repo support the following optional fields. All are optional u
 | Detailed implementation | **Detailed implementation:** | Optional. Multi-line step-by-step instructions; shown in the dashboard as “View more detailed instructions”. If omitted, `tools/build/build.py` generates a standard set from the other fields. |
 | Script example | **Script example:** | Optional. For scripted-input use cases: add a code block after this line with the script. Shown in the modal and in detailed instructions. See [Implementation guide](implementation-guide.md). |
 | Visualization | **Visualization:** | Suggested dashboards/charts. |
-| CIM Models | **CIM Models:** | Splunk CIM<sup class="ref">[<a href="#ref-3">3</a>]</sup> data model names the use case relies on (comma-separated, e.g. `Performance`, `Network_Traffic`, `Change`). See [CIM and data models](cim-and-data-models.md). |
+| CIM Models | **CIM Models:** | Splunk CIM<sup class="ref">[<a href="#ref-4">4</a>]</sup> data model names the use case relies on (comma-separated, e.g. `Performance`, `Network_Traffic`, `Change`). See [CIM and data models](cim-and-data-models.md). |
 | Premium Apps | **Premium Apps:** | Optional. Splunk premium products required for this use case when applicable (e.g. `Splunk Enterprise Security`, `Splunk ITSI`, `Splunk SOAR`). Omit when the use case works with Splunk Enterprise or Cloud alone. |
 | Equipment Models | **Equipment Models:** | Optional. Specific hardware models the use case applies to (e.g. `Cisco Catalyst 9300, Catalyst 9500, ISR 4321, Meraki MX68`). Searchable in the UI — users can type a model number to find relevant use cases. Place after `App/TA`. |
 | Data model acceleration | **Data model acceleration:** | Optional. Short note for implementers (e.g. "Enable for Performance, Network_Traffic" or "Required for tstats; summary range ≥30d"). Shown with CIM in the dashboard; [DMA docs](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels). |
 | Schema | **Schema:** or **OCSF:** | Optional. Schema context: `CIM`, `OCSF`, or e.g. `OCSF: authentication` when the use case aligns with [OCSF](https://schema.ocsf.io/). |
 | CIM SPL | **CIM SPL:** | tstats/accelerated query (optional). Requires the listed CIM models to be populated and accelerated. |
 | Monitoring type | **Monitoring type:** | Availability, Performance, Security, etc. (comma-separated). |
+
+## Splunk product (optional, uc.schema 1.9.0+)
+
+Every UC is implemented in one or more Splunk products. Products are defined once in [`data/splunk-products.json`](../data/splunk-products.json) (schema [`schemas/splunk-products.schema.json`](../schemas/splunk-products.schema.json)); see [ADR-0017](adr/0017-splunk-product-per-use-case.md).
+
+| Field | JSON key | Description |
+|-------|----------|-------------|
+| Products | `products` | Product ids, primary first. Omit for the registry's `defaultProduct` (the Splunk platform: SPL on Splunk Enterprise / Splunk Cloud Platform). The primary product decides which fields are required (`requires`), which field changes count as a new detection in the identifier ledger (`fingerprintFields`), and which section heading the gold profile expects in `detailedImplementation` (`qualityProfile.implementSection`). |
+| Product artifacts | `productArtifacts` | Configuration that implements the UC in a non-SPL product. Each item: `product` (one of `products`), `type` (one of that product's `artifactTypes`), `language` (`signalflow`, `spl`, `python`, `json`, `yaml`, `text`), `title`, `body`, and an optional `docsUrl`. Rendered as copyable code blocks on the UC page and markdown twin. |
+
+`spl` and `cimModels` are required only when the primary product lists them in `requires`. SPL audits, saved-search exports, and dashboard generation run only for UCs whose products enable them in the registry.
 
 ## Quality metadata (optional, v5.1+)
 
@@ -161,25 +172,28 @@ Structured metadata for ranking or filtering UCs by Splunk licensing impact. All
 
 <a id="ref-2"></a>**[2]** Splunk Inc. (2026). *Search Reference: SPL Commands and Functions*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/WhatsInThisManual
 
-<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
+<a id="ref-3"></a>**[3]** Splunk Inc. (2026). *Splunk Cloud Platform Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud
 
-<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+<a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
 
-<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Enterprise Security Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ES
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunk IT Service Intelligence Administration Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/ITSI
 
 <details>
 <summary>Additional online sources cited in the document body (3)</summary>
 
-<a id="ref-6"></a>**[6]** docs.splunk.com. *DMA docs*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels
+<a id="ref-7"></a>**[7]** docs.splunk.com. *DMA docs*. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Acceleratedatamodels
 
-<a id="ref-7"></a>**[7]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
+<a id="ref-8"></a>**[8]** schema.ocsf.io. *OCSF*. Retrieved May 11, 2026, from https://schema.ocsf.io/
 
-<a id="ref-8"></a>**[8]** github.com. *Splunk Security Essentials*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
+<a id="ref-9"></a>**[9]** github.com. *Splunk Security Essentials*. Retrieved May 11, 2026, from https://github.com/splunk/security_content
 
 </details>
 
 ### Related repository documents
 
+- [`docs/adr/0017-splunk-product-per-use-case.md`](adr/0017-splunk-product-per-use-case.md)
 - [`docs/cim-and-data-models.md`](cim-and-data-models.md)
 - [`docs/grandma-explanations.md`](grandma-explanations.md)
 - [`docs/implementation-guide.md`](implementation-guide.md)

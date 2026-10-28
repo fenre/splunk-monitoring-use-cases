@@ -97,6 +97,9 @@ Each element of `u` is a **use case**. The **UC-ID** is the use case’s `i` and
 | `rby` | string | **Reviewer:** GitHub handle or `N/A` (optional, v5.1+). |
 | `wv` | string | **Wave:** `crawl` \| `walk` \| `run` (optional, v1.4+). Groups UCs into implementation phases; see [Implementation ordering](use-case-fields.md#implementation-ordering-optional-v14) for authoring guidance. |
 | `pre` | array | **Prerequisite UCs:** upstream UC IDs in `UC-X.Y.Z` form, e.g. `["UC-1.1.1", "UC-13.1.1"]` (optional, v1.4+). Deduplicated and sorted by the build. |
+| `prd` | array | **Products:** Splunk product ids the UC is implemented in, primary first (ids from [`data/splunk-products.json`](../data/splunk-products.json)). Emitted only when the UC is not plain Splunk platform SPL; absent means the registry's default product (`defaultProduct`). Authored as `products` (uc.schema 1.9.0+). |
+| `prdn` | array | **Product names:** display names for `prd`, same order. Emitted only alongside `prd`. |
+| `pra` | array | **Product artifacts:** `[{ "product", "type", "language", "title", "body", "docsUrl" }, …]` — the configuration that implements the UC in a non-SPL product (detector, evaluator, playbook, …). Authored as `productArtifacts`; heavy field, stripped from the thin catalog. |
 
 ### Runtime / enrichment-only fields
 

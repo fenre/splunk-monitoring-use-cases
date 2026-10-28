@@ -76,7 +76,7 @@ for the build stages.
 
 1. **Schema:** Every UC JSON sidecar must validate against `schemas/uc.schema.json`.
 2. **Quality tiers:** Gold / Silver / Bronze — see `.cursor/rules/gold-standard-authoring.mdc` and `docs/gold-standard-template.md`.
-3. **Required fields (JSON):** `id`, `title`, `criticality`, `difficulty`, `monitoringType`, `value`, `app`, `dataSources`, `spl`, `implementation`, `visualization`, `cimModels`, `grandmaExplanation`.
+3. **Required fields (JSON):** `id`, `title`, `criticality`, `difficulty`, `monitoringType`, `value`, `app`, `dataSources`, `spl`, `implementation`, `visualization`, `cimModels`, `grandmaExplanation`. `spl` and `cimModels` are required by the default product (Splunk platform); a UC implemented in another Splunk product sets `products` and `productArtifacts`, and its required fields come from that product's `requires` in [`data/splunk-products.json`](data/splunk-products.json) ([ADR-0017](docs/adr/0017-splunk-product-per-use-case.md)).
 4. **grandmaExplanation:** Every UC carries a plain-language `ge` field; generate with `python -m splunk_uc generate-grandma-explanations` (legacy `python3 -m splunk_uc generate-grandma-explanations` shim still works during soak).
 5. **Validation:** Run `make audit` (or `python3 -m splunk_uc audit-uc-structure --full`) and `make build` before committing.
 
@@ -246,6 +246,7 @@ Design + plan: [`docs/superpowers/specs/2026-05-17-content-quality-lift-loop-des
 ### Related repository documents
 
 - [`docs/adr/0016-permanent-uc-identifiers.md`](docs/adr/0016-permanent-uc-identifiers.md)
+- [`docs/adr/0017-splunk-product-per-use-case.md`](docs/adr/0017-splunk-product-per-use-case.md)
 
 ### Cited by
 

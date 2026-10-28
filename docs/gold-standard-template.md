@@ -81,6 +81,13 @@ Specific, actionable instructions:
   - When would you add filters or change the `by` clause?
 - **Pipeline walkthrough** for complex SPL
 
+For a UC whose primary product is not the Splunk platform, this step is named
+by that product's `qualityProfile.implementSection` in
+[`data/splunk-products.json`](../data/splunk-products.json) (for example
+"Create the detector" for Splunk Observability Cloud<sup class="ref">[<a href="#ref-5">5</a>]</sup>) and walks through the
+`productArtifacts` instead of SPL. Fields the product does not require (for
+example `cimModels` outside the Splunk platform) are not tier requirements.
+
 ### Step 3 — Validate
 
 How to verify the data is correct and complete:
@@ -132,7 +139,7 @@ UC-5.13.1 "Device Health Score Overview" demonstrates Gold quality:
 - **grandmaExplanation** is jargon-free: "We watch the health of every network
   device managed by Catalyst Center..."
 - **wave** is `crawl` with empty `prerequisiteUseCases` (foundational UC)
-- **references** link to Splunkbase<sup class="ref">[<a href="#ref-5">5</a>]</sup>, vendor API docs, and the integration guide
+- **references** link to Splunkbase<sup class="ref">[<a href="#ref-6">6</a>]</sup>, vendor API docs, and the integration guide
 
 Read the full file at `content/cat-05-network-infrastructure/UC-5.13.1.json`.
 
@@ -175,7 +182,9 @@ consolidation in the PR description.
 
 <a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Common Information Model Add-on Manual*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/CIM
 
-<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
+<a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Observability Cloud Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/observability/en/
+
+<a id="ref-6"></a>**[6]** Splunk Inc. (2026). *Splunkbase — the Splunk app marketplace*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://splunkbase.splunk.com/
 
 ### Cited by
 
