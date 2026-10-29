@@ -72,6 +72,21 @@ the release notes block in `index.html` by hand.
   a credit memo; Shopify returns are GraphQL-only; `append` truncates on
   `maxtime`; the SEC climate rule is stayed; WattTime tokens last about
   thirty minutes. Searches were left unchanged.
+- Corrected Splunkbase citations that were still wrong in reviewed use cases.
+  Universal Forwarder is not Splunkbase 617. Cisco ACI collection is Cisco
+  DC Networking (7777); TA_cisco-ACI (1897) is deprecated. NSX is the VMware
+  NSX add-on (6805, `TA-nsx`). VMware is Splunkbase 3215. Nutanix is
+  TA-nutanix (3103) or TA-nutanix-PC (8349). REST API Modular Input is 1546.
+  Kubernetes collection cited as Splunkbase 5167 is the Splunk OpenTelemetry
+  Collector for Kubernetes (6264). VMware ESXi logs are Splunkbase 5603.
+  The UCS add-on folder is `Splunk_TA_cisco-ucs`. Searches were left unchanged.
+- Corrected category 15 facts the review still found in the prose: the
+  saved-search capability is `schedule_search`; syslog listeners are `tcp`
+  or `udp` (not `splunktcp`); index access for viewers is
+  `srchIndexesAllowed`; app install uses `admin` or `sc_admin`; APC runtime
+  is TimeTicks; outlet current is `rPDU2OutletMeteredStatusCurrent`; InRow
+  temperatures are the PowerNet-MIB `airIRRCUnitStatus*TempUS` objects;
+  Meraki is Splunkbase 5580. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
