@@ -207,6 +207,15 @@ the release notes block in `index.html` by hand.
   There is no `vmware:vmware:vsphere:vcenter` sourcetype. Hubble verdicts
   use `FORWARDED`, not `ALLOWED`. NDO APIs are under `/mso/api/v1/`.
   Searches were left unchanged.
+- Category 3 collector sentences that still named the wrong add-on.
+  Splunk Connect for Docker (4496) forwards container stdout and stderr
+  to HEC. It has no modular input for `docker events` or `docker stats`.
+  There is no `Splunk_TA_docker` and no `Splunk_TA_falco` in the
+  Splunkbase catalogue. Falco JSON is Falcosidekick HEC. Splunk_TA_nix
+  (833) emits `df`, `cpu`, `ps`, and `linux_secure`. It does not emit
+  `linux:df`, `linux:cgroup`, `audit:json`, or eBPF sourcetypes, and it
+  has no journald input. Journald is the platform `[journald://]` input.
+  auditd is `linux_audit`. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
