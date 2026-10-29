@@ -146,6 +146,16 @@ the release notes block in `index.html` by hand.
   is the deprecated Cisco ACI add-on; current ACI collection is Cisco DC
   Networking (7777). Splunk Connect for Syslog is Splunkbase 4740.
   Splunkbase 1546 is REST API Modular Input. Searches were left unchanged.
+- Corrected more category 19 object and API names. Intersight sourcetypes
+  are a fixed list on Splunkbase 7828, not one name per managed object.
+  Chassis inlet temperature is on the fan or IOM stats, not
+  `equipmentChassisStats`. LVM thin pools are `lv_attr` type `t`. A
+  two-hour search cannot estimate a 24-hour fill time. oVirt low-space
+  events are 26, 201, and 1403. VxRail disks are `GET /rest/vxm/v1/disks`.
+  Azure Local registration is `Get-AzureStackHCI`. Dedup savings come from
+  `Get-DedupVolume`. `Get-StorageJob` has no `EtaSecondsRemaining`.
+  UCS `assocState` does not include `establishing` or `pending-reboot`.
+  Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
