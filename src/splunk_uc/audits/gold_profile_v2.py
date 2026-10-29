@@ -50,6 +50,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from splunk_uc import products
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_DIR = REPO_ROOT / "content"
 
@@ -258,11 +260,14 @@ def audit_uc_v2(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
             f"dataSources {len(ds)} chars (need >= {V2_THRESHOLDS['datasources_min_chars']})"
         )
         out["score"] -= 5
-    if not _has_splunkbase_or_hec(ds + " " + (uc.get("app", "") or ""), filepath):
-        gaps.append("dataSources/app does not name a Splunkbase ID")
-        out["score"] -= 5
-    if not _has_sourcetype(ds + " " + (uc.get("spl", "") or "")):
-        warns.append("dataSources/spl does not name a sourcetype explicitly")
+    # Splunkbase / sourcetype provenance only exists for data ingested into
+    # the Splunk platform; other products' UCs have neither.
+    if products.applies(uc, "splReferences"):
+        if not _has_splunkbase_or_hec(ds + " " + (uc.get("app", "") or ""), filepath):
+            gaps.append("dataSources/app does not name a Splunkbase ID")
+            out["score"] -= 5
+        if not _has_sourcetype(ds + " " + (uc.get("spl", "") or "")):
+            warns.append("dataSources/spl does not name a sourcetype explicitly")
 
     # description vs value distinct ------------------------------------
     desc = uc.get("description", "") or ""

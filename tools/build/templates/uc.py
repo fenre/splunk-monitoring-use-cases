@@ -24,6 +24,7 @@ from __future__ import annotations
 from typing import Any
 
 from build.models import CatalogCategory, CatalogSubcategory, CatalogUC
+from splunk_uc import products as _products
 
 from . import _css, _helpers
 
@@ -87,8 +88,8 @@ def render_html(
             site_url=ctx.site_url,
             date_modified=str(uc.get("reviewed") or ctx.generated_at[:10]),
             keywords=keywords,
-            code_sample=str(uc.get("q") or "") or None,
-            code_sample_language="spl",
+            code_sample=_code_sample(uc)[0],
+            code_sample_language=_code_sample(uc)[1],
         ),
         _helpers.jsonld_howto(
             name=title,
@@ -104,6 +105,7 @@ def render_html(
             _section_quick_facts(uc, cat_name, sub_name),
             _section_prerequisites(uc),
             _section_implementation_ordering(uc, ctx=ctx),
+            _section_products(uc),
             _section_spl(uc),
             _section_dma_spl(uc),
             _section_implementation(uc),
@@ -341,6 +343,7 @@ def render_markdown_twin(
     _add_fact("Wave", uc.get("wv"))
     _add_fact("Monitoring type", uc.get("mtype"))
     _add_fact("Pillar", uc.get("pillar"))
+    _add_fact("Implemented in", _product_names(uc))
     _add_fact("App / TA", uc.get("t"))
     _add_fact("Data sources", uc.get("d"))
     _add_fact("CIM models", uc.get("a"))
@@ -411,6 +414,12 @@ def render_markdown_twin(
     _add_text_section("Value", uc.get("v"))
     _add_code_section("SPL", uc.get("q"), "spl")
     _add_code_section("CIM SPL (tstats)", uc.get("qs"), "spl")
+    for artifact in _products.artifacts_of(uc):
+        _add_code_section(
+            _artifact_heading(artifact),
+            artifact.get("body"),
+            str(artifact.get("language") or "text"),
+        )
     _add_text_section("Implementation", uc.get("m"))
     _add_text_section("Detailed implementation", uc.get("md"))
     _add_text_section("Visualization", uc.get("z"))
@@ -676,6 +685,75 @@ def _render_uc_chip(
         + inner_wave
         + "</a></li>"
     )
+
+
+def _code_sample(uc: CatalogUC) -> tuple[str | None, str]:
+    spl = str(uc.get("q") or "")
+    if spl:
+        return spl, "spl"
+    for artifact in _products.artifacts_of(uc):
+        body = str(artifact.get("body") or "")
+        if body:
+            return body, str(artifact.get("language") or "text")
+    return None, "spl"
+
+
+def _product_names(uc: CatalogUC) -> list[str]:
+    """Product names for display; empty for the default product."""
+    ids = _products.non_default_products(uc) or []
+    names: list[str] = []
+    for pid in ids:
+        try:
+            names.append(str(_products.product(pid)["name"]))
+        except KeyError:
+            names.append(pid)
+    return names
+
+
+def _artifact_heading(artifact: dict[str, Any]) -> str:
+    pid = str(artifact.get("product") or "")
+    try:
+        product_name = str(_products.product(pid)["shortName"])
+    except KeyError:
+        product_name = pid
+    kind = str(artifact.get("type") or "").replace("-", " ")
+    title = str(artifact.get("title") or "").strip()
+    return f"{product_name} {kind}: {title}" if title else f"{product_name} {kind}"
+
+
+def _section_products(uc: CatalogUC) -> str:
+    ids = _products.non_default_products(uc)
+    if not ids:
+        return ""
+    links: list[str] = []
+    for pid in ids:
+        try:
+            row = _products.product(pid)
+        except KeyError:
+            links.append(_helpers.escape(pid))
+            continue
+        links.append(
+            '<a href="' + _helpers.attr(str(row["docsUrl"])) + '" rel="noopener">'
+            + _helpers.escape(str(row["name"])) + "</a>"
+        )
+    parts = [
+        "<section><h2>Implemented in</h2><p>" + ", ".join(links) + "</p>",
+    ]
+    for artifact in _products.artifacts_of(uc):
+        lang = str(artifact.get("language") or "text")
+        parts.append("<h3>" + _helpers.escape(_artifact_heading(artifact)) + "</h3>")
+        docs = str(artifact.get("docsUrl") or "")
+        if docs:
+            parts.append(
+                '<p><a href="' + _helpers.attr(docs) + '" rel="noopener">Product documentation</a></p>'
+            )
+        parts.append(
+            '<pre><code class="lang-' + _helpers.attr(lang) + '">'
+            + _helpers.escape(str(artifact.get("body") or ""))
+            + "</code></pre>"
+        )
+    parts.append("</section>")
+    return "\n".join(parts)
 
 
 def _section_spl(uc: CatalogUC) -> str:

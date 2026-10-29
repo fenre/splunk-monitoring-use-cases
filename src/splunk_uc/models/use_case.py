@@ -116,6 +116,8 @@ class UseCaseDict(TypedDict, total=False):
     # (``"type": "string"``) — naming indexes, sourcetypes, or CIM
     # nodes in prose. Not a JSON array.
     dataSources: str
+    products: list[str]
+    productArtifacts: list[dict[str, Any]]
     spl: str
     cimModels: list[str]
     grandmaExplanation: str

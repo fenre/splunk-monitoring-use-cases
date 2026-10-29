@@ -25,6 +25,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
+from splunk_uc import products
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_DIR = REPO_ROOT / "content"
 REPORT_DIR = REPO_ROOT / "reports"
@@ -61,6 +63,19 @@ GOLD_REQUIRED = SILVER_REQUIRED | {
     "visualization",
     "equipmentModels",
 }
+
+# Fields that carry the implementation itself. The tier sets above list
+# ``spl`` (the Splunk-platform implementation); for a UC whose primary
+# product implements it some other way, ``tier_required`` swaps in that
+# product's ``requires`` from ``data/splunk-products.json``.
+IMPLEMENTATION_FIELDS = frozenset({"spl", "productArtifacts"})
+
+
+def tier_required(uc: dict[str, Any], base: set[str]) -> set[str]:
+    """``base`` with its implementation fields replaced by the UC's product's."""
+    product_fields = set(products.requires(uc)) & IMPLEMENTATION_FIELDS
+    return (set(base) - IMPLEMENTATION_FIELDS) | product_fields
+
 
 BRONZE_MIN_LENGTHS = {
     "description": 40,
@@ -123,9 +138,18 @@ PRODUCT_SPECIFIC_INDICATORS = [
 ]
 
 
-def _count_sections(text: str) -> int:
-    """Count how many of the 5-step section patterns appear."""
-    return sum(1 for p in SECTION_PATTERNS if p.search(text))
+def _count_sections(text: str, uc: dict[str, Any] | None = None) -> int:
+    """Count how many of the 5-step section patterns appear.
+
+    With ``uc``, the build step (pattern 3) also accepts the primary
+    product's ``qualityProfile.implementSection`` heading.
+    """
+    count = sum(1 for p in SECTION_PATTERNS if p.search(text))
+    if uc is not None and not SECTION_PATTERNS[2].search(text):
+        heading = products.implement_section(uc)
+        if re.search(re.escape(heading), text, re.IGNORECASE):
+            count += 1
+    return count
 
 
 def _boilerplate_ratio(text: str) -> float:
@@ -231,9 +255,13 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
         v = uc.get(key, "")
         return isinstance(v, str) and len(v) >= min_len
 
+    bronze_required = tier_required(uc, BRONZE_REQUIRED)
+    silver_required = tier_required(uc, SILVER_REQUIRED)
+    gold_required = tier_required(uc, GOLD_REQUIRED)
+
     # Bronze check
     bronze_ok = True
-    for field in sorted(BRONZE_REQUIRED):
+    for field in sorted(bronze_required):
         if not _has_field(field):
             bronze_ok = False
             gaps.append(f"Missing field: {field}")
@@ -252,7 +280,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     # Silver check
     silver_ok = True
-    for field in sorted(SILVER_REQUIRED - BRONZE_REQUIRED):
+    for field in sorted(silver_required - bronze_required):
         if not _has_field(field):
             silver_ok = False
             gaps.append(f"For Silver: missing {field}")
@@ -268,7 +296,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     detailed = uc.get("detailedImplementation", "")
     if isinstance(detailed, str) and detailed:
-        sections = _count_sections(detailed)
+        sections = _count_sections(detailed, uc)
         if sections < 3:
             silver_ok = False
             gaps.append(f"For Silver: detailedImplementation has {sections}/3 required sections")
@@ -279,7 +307,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
 
     # Gold check
     gold_ok = silver_ok
-    for field in sorted(GOLD_REQUIRED - SILVER_REQUIRED):
+    for field in sorted(gold_required - silver_required):
         if not _has_field(field):
             gold_ok = False
             gaps.append(f"For Gold: missing {field}")
@@ -293,7 +321,7 @@ def audit_uc(uc: dict[str, Any], filepath: Path) -> dict[str, Any]:
         gaps.append("For Gold: need at least 2 references")
 
     if isinstance(detailed, str) and detailed:
-        sections = _count_sections(detailed)
+        sections = _count_sections(detailed, uc)
         if sections < 4:
             gold_ok = False
             gaps.append(f"For Gold: detailedImplementation has {sections}/5 expected sections")

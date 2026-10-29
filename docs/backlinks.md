@@ -7,7 +7,7 @@
 
 Sorted by target path. Linking pages appear in alphabetical order.
 
-_249 pages indexed; 134 have at least one inbound link; 454 unique source→target edges._
+_250 pages indexed; 135 have at least one inbound link; 460 unique source→target edges._
 
 ---
 
@@ -209,6 +209,7 @@ _No inbound links yet._
 
 ## `docs/adr/0015-cost-field-group.md`
 
+- [`docs/adr/0017-splunk-product-per-use-case.md`](adr/0017-splunk-product-per-use-case.md)
 - [`docs/adr/README.md`](adr/README.md)
 
 ## `docs/adr/0016-permanent-uc-identifiers.md`
@@ -216,8 +217,16 @@ _No inbound links yet._
 - [`AGENTS.md`](../AGENTS.md)
 - [`docs/DESIGN.md`](DESIGN.md)
 - [`docs/adr/0005-uc-id-x-y-z-scheme.md`](adr/0005-uc-id-x-y-z-scheme.md)
+- [`docs/adr/0017-splunk-product-per-use-case.md`](adr/0017-splunk-product-per-use-case.md)
 - [`docs/adr/README.md`](adr/README.md)
 - [`docs/url-scheme.md`](url-scheme.md)
+
+## `docs/adr/0017-splunk-product-per-use-case.md`
+
+- [`AGENTS.md`](../AGENTS.md)
+- [`CONTRIBUTING.md`](../CONTRIBUTING.md)
+- [`docs/adr/README.md`](adr/README.md)
+- [`docs/use-case-fields.md`](use-case-fields.md)
 
 ## `docs/adr/README.md`
 

@@ -585,6 +585,7 @@ def _patch_main_dependencies(
     monkeypatch.setattr(mts, "_check_tools_surface", fake_tools_surface)
     monkeypatch.setattr(mts, "_check_manifest", fake_manifest)
     monkeypatch.setattr(mts, "_check_runtime_schemas", fake_runtime)
+    monkeypatch.setattr(mts, "_check_product_fields", lambda issues: None)
 
 
 def test_main_clean(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -666,6 +667,78 @@ def test_main_aggregates_all_issue_sources(
     assert "- surface-1" in err
     assert "- manifest-1" in err
     assert "- runtime-1" in err
+
+
+# --------------------------------------- _check_product_fields -------------
+_ARTIFACT_REQUIRED = ["product", "type", "language", "title", "body"]
+
+
+def _stub_product_schemas(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+    output_properties: dict[str, Any],
+) -> None:
+    (tmp_path / "schemas").mkdir()
+    (tmp_path / "schemas" / "uc.schema.json").write_text(
+        json.dumps(
+            {
+                "properties": {
+                    "products": {"type": "array"},
+                    "productArtifacts": {
+                        "type": "array",
+                        "items": {"required": _ARTIFACT_REQUIRED},
+                    },
+                }
+            }
+        )
+    )
+    monkeypatch.setattr(mts, "REPO_ROOT", tmp_path)
+    tools_mod = types.ModuleType("splunk_uc_mcp.tools")
+    tools_mod.GET_USE_CASE_OUTPUT_SCHEMA = {"properties": output_properties}  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "splunk_uc_mcp.tools", tools_mod)
+
+
+def test_check_product_fields_clean(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    _stub_product_schemas(
+        monkeypatch,
+        tmp_path,
+        {
+            "products": {"type": "array"},
+            "productArtifacts": {"type": "array", "items": {"required": _ARTIFACT_REQUIRED}},
+        },
+    )
+    issues: list[str] = []
+    mts._check_product_fields(issues)
+    assert issues == []
+
+
+def test_check_product_fields_flags_missing_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    _stub_product_schemas(monkeypatch, tmp_path, {})
+    issues: list[str] = []
+    mts._check_product_fields(issues)
+    assert any("'products'" in i for i in issues)
+    assert any("'productArtifacts'" in i for i in issues)
+
+
+def test_check_product_fields_flags_required_key_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
+) -> None:
+    _stub_product_schemas(
+        monkeypatch,
+        tmp_path,
+        {
+            "products": {"type": "array"},
+            "productArtifacts": {"type": "array", "items": {"required": ["product"]}},
+        },
+    )
+    issues: list[str] = []
+    mts._check_product_fields(issues)
+    assert len(issues) == 1
+    assert "required keys" in issues[0]
 
 
 # --------------------------------------- dispatcher entry-point smoke -------

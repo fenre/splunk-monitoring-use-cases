@@ -43,6 +43,8 @@ Every UC validates against [`schemas/uc.schema.json`](schemas/uc.schema.json). T
 | `cimModels` | Model name(s), `[]` if none |
 | `grandmaExplanation` | 20–400 char plain-language one-liner (run `make sync-generated` if missing) |
 
+`spl` and `cimModels` are required because the default product, the Splunk platform, requires them. A UC implemented in another Splunk product lists it in `products` (primary first) and carries that product's configuration in `productArtifacts`; the fields each product requires come from its `requires` list in [`data/splunk-products.json`](data/splunk-products.json). See [ADR-0017](docs/adr/0017-splunk-product-per-use-case.md).
+
 Optional: `mitreAttack`, `cimSpl`, `references`, `wave`, `prerequisiteUseCases`, equipment tags, compliance entries. See [`docs/use-case-fields.md`](docs/use-case-fields.md) for the full authoring contract.
 
 ### Template
@@ -161,6 +163,10 @@ See [`docs/gold-standard-template.md`](docs/gold-standard-template.md) for the c
 <a id="ref-4"></a>**[4]** Splunk Inc. (2026). *Splunk Cloud Platform App Vetting requirements*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/SplunkCloud/latest/Service/SplunkCloudservice
 
 <a id="ref-5"></a>**[5]** Splunk Inc. (2026). *Splunk Enterprise Documentation*. Splunk LLC, a Cisco company. Retrieved May 11, 2026, from https://docs.splunk.com/Documentation/Splunk
+
+### Related repository documents
+
+- [`docs/adr/0017-splunk-product-per-use-case.md`](docs/adr/0017-splunk-product-per-use-case.md)
 
 ### Cited by
 

@@ -225,6 +225,29 @@ def _check_runtime_schemas(issues: list[str]) -> None:
                 )
 
 
+def _check_product_fields(issues: list[str]) -> None:
+    """``get_use_case`` must expose the UC schema's product fields (ADR-0017)."""
+    from splunk_uc_mcp.tools import GET_USE_CASE_OUTPUT_SCHEMA
+
+    uc_schema = json.loads((REPO_ROOT / "schemas" / "uc.schema.json").read_text(encoding="utf-8"))
+    uc_props = uc_schema.get("properties", {})
+    out_props = GET_USE_CASE_OUTPUT_SCHEMA.get("properties", {})
+    for field in ("products", "productArtifacts"):
+        if field not in uc_props:
+            continue
+        if field not in out_props:
+            issues.append(f"get_use_case: outputSchema is missing {field!r} (uc.schema.json has it)")
+    uc_required = set(uc_props.get("productArtifacts", {}).get("items", {}).get("required", []))
+    out_required = set(
+        out_props.get("productArtifacts", {}).get("items", {}).get("required", [])
+    )
+    if uc_required and uc_required != out_required:
+        issues.append(
+            "get_use_case: productArtifacts item required keys "
+            f"{sorted(out_required)} drift from uc.schema.json {sorted(uc_required)}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -249,6 +272,7 @@ def main(argv: list[str] | None = None) -> int:
     _check_tools_surface(issues)
     _check_manifest(issues)
     _check_runtime_schemas(issues)
+    _check_product_fields(issues)
 
     if issues:
         print("MCP drift guard: FAIL", file=sys.stderr)

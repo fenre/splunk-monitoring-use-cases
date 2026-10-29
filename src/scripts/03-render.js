@@ -23,7 +23,7 @@ function renderUCCard(uc) {
   var cb = '<label class="uc-select-cb" data-uc-select="' + esc(uc.i) + '" title="Select for data sizing estimate"><input type="checkbox"' + cbChecked + '></label>';
   var html = '<div class="uc-card uc-clickable" data-uc-id="' + esc(uc.i) + '">' + cb;
   html += '<div class="uc-card-top">' + ucCritDotHtml(uc.c) + '<div style="flex:1;min-width:0"><span class="uc-card-title">' + esc(uc.n) + '</span><div style="margin-top:3px"><span class="uc-card-id">UC-' + esc(uc.i) + '</span></div></div>';
-  html += diffBadge(uc.f);
+  html += diffBadge(uc.f) + productBadge(uc);
   html += '</div>';
   if (uc.v) html += '<p class="uc-card-val">' + esc(stripMd(uc.v)) + '</p>';
   var ta = (uc.t || '').replace(/`/g, '');

@@ -65,6 +65,7 @@ _UC_HEAVY_FIELDS = frozenset({
     "dma",       # data-model accelerator hints
     "schema",    # JSON-Schema overrides
     "screenshots",  # PNG/SVG references; not used in cards
+    "pra",       # product artifacts (detector programs, playbooks, ...)
 })
 
 # Inside ``sapp`` (Splunkbase apps), keep only the ids/names + presence of

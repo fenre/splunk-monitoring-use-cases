@@ -12,6 +12,17 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+### Added
+
+- **Splunk product per use case (ADR-0017).** `data/splunk-products.json`
+  defines the Splunk products a UC can be implemented in (Splunk platform,
+  Agent Observability, Observability Cloud, ITSI, SOAR, Edge Hub): required
+  fields, which audits and exports apply, ledger fingerprint fields, and the
+  gold-profile implementation heading. uc.schema 1.9.0 adds optional
+  `products` and `productArtifacts`; `catalog.json` carries `prd`, `prdn`, and
+  `pra` only for non-default products. UCs without `products` are unchanged —
+  the existing catalogue builds byte-identical.
+
 ## [8.26.0] - 2026-10-28
 
 ### Added

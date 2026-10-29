@@ -35,6 +35,8 @@ from string import Template
 from typing import Any
 from xml.sax.saxutils import escape as xml_escape
 
+from splunk_uc import products
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_ROOT = REPO_ROOT / "content"
 TEMPLATE_DIR = REPO_ROOT / "templates" / "dashboards"
@@ -513,6 +515,9 @@ def emit_all(
             uc = load_uc(path)
         except (OSError, json.JSONDecodeError, ValueError) as exc:
             report.errors.append(f"{path}: {exc}")
+            report.skipped += 1
+            continue
+        if not products.exports(uc, "dashboards"):
             report.skipped += 1
             continue
 

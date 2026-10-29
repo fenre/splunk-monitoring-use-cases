@@ -227,6 +227,20 @@ class CostImpact(TypedDict, total=False):
     estimated_by: Literal["maintainer", "ai-advisory", "vendor", "customer-report"]
 
 
+class ProductArtifact(TypedDict, total=False):
+    """One entry in a UC's ``productArtifacts`` array (schema v1.9.0).
+
+    ``product`` and ``type`` come from ``data/splunk-products.json``.
+    """
+
+    product: str
+    type: str
+    language: Literal["signalflow", "spl", "python", "json", "yaml", "text"]
+    title: str
+    body: str
+    docsUrl: str
+
+
 class TaLinkEntry(TypedDict, total=False):
     """Wire-format shape of ``CatalogUC.ta_link``.
 
@@ -292,6 +306,8 @@ class UseCase(TypedDict, total=False):
     app: str
     splunkbaseApps: list[SplunkbaseAppEntry]
     premiumApps: list[str | PremiumAppEntry]
+    products: list[str]
+    productArtifacts: list[ProductArtifact]
     spl: str
     cimSpl: str
     cimModels: list[str]
@@ -351,6 +367,9 @@ class CatalogUC(TypedDict, total=False):
     ``pillar``     ``splunkPillar``       Computed if absent (security/obs/both)
     ``regs``       compliance[].regulation Set of unique regulation ids
     ``cmp``        compliance[]          Per-clause assurance summary
+    ``prd``        ``products``           Emitted only when not the default
+    ``prdn``       (computed)            Product short names for ``prd`` (badges)
+    ``pra``        ``productArtifacts``   Emitted only when present
     ``escu``       (computed)            True when app field includes ESCU/ES
     ``escu_rba``   (computed)            True for risk-based-alerting ESCU UCs
     ``_qs``        (computed)            Quality-score depth indicator (internal)
@@ -378,7 +397,10 @@ class CatalogUC(TypedDict, total=False):
     premium: list[str | PremiumAppEntry]
     pk: list[str]  # Canonical premium-app product labels (drives advanced filter).
 
-    # SPL.
+    # Product / SPL.
+    prd: list[str]
+    prdn: list[str]
+    pra: list[ProductArtifact]
     q: str
     qs: str
     a: list[str]

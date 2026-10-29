@@ -63,6 +63,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
+from splunk_uc import products
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -474,6 +476,8 @@ def _compliance_savedsearches_sections(
 ) -> list[tuple[str, list[tuple[str, str]]]]:
     sections: list[tuple[str, list[tuple[str, str]]]] = []
     for uc in ucs:
+        if not products.exports(uc, "savedSearches"):
+            continue
         sections.append(_uc_to_unified_savedsearch(uc, frameworks))
     sections.sort(key=lambda s: s[0])
     return sections

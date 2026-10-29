@@ -48,6 +48,8 @@ SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "controlTest",
     "dataSources",
     "app",
+    "products",
+    "productArtifacts",
     "spl",
     "description",
     "value",

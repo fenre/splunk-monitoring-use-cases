@@ -29,6 +29,8 @@ from pathlib import Path
 from string import Template
 from typing import Any
 
+from splunk_uc import products
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CONTENT_DIR = REPO_ROOT / "content"
 TEMPLATE_DIR = REPO_ROOT / "templates" / "alert-actions"
@@ -77,6 +79,7 @@ class UcRecord:
     regulatory_tags: tuple[str, ...]
     is_ot_related: bool
     cat_slug: str
+    saved_search: bool = True
 
 
 @dataclass(frozen=True)
@@ -229,6 +232,7 @@ def load_uc_record(path: Path) -> UcRecord:
         regulatory_tags=_extract_regulatory_tags(payload.get("compliance")),
         is_ot_related=_is_ot_related(payload, cat_slug),
         cat_slug=cat_slug,
+        saved_search=products.exports(payload, "savedSearches"),
     )
 
 
@@ -419,7 +423,11 @@ def generate_all(
     ):
         if limit is not None and count >= limit:
             break
-        rendered = render_templates(load_uc_record(path))
+        record = load_uc_record(path)
+        # Alert actions fire from a Splunk saved search.
+        if not record.saved_search:
+            continue
+        rendered = render_templates(record)
         if not dry_run:
             write_templates(rendered, out_dir)
         count += 1

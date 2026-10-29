@@ -114,6 +114,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from splunk_uc import products
 from splunk_uc.id_ledger import identity_guarantee_metadata
 
 # Path of this module: src/splunk_uc/generators/api_surface.py
@@ -1316,7 +1317,7 @@ def _recommender_uc_thin(
             compact["requiresSmeReview"] = True
         sb_compact.append(compact)
     sb_compact.sort(key=lambda e: (e.get("role", ""), e.get("id", 0)))
-    return {
+    record: dict[str, Any] = {
         "id": uc_id,
         "title": str(uc.get("n", "") or ""),
         "value": str(uc.get("v", "") or ""),
@@ -1333,6 +1334,15 @@ def _recommender_uc_thin(
         "equipmentModels": sorted([em for em in (uc.get("em", []) or []) if isinstance(em, str)]),
         "sb": sb_compact,
     }
+    # Only non-Splunk-platform UCs carry ``products`` so existing records
+    # stay byte-identical.
+    non_default = products.non_default_products(dict(uc))
+    if non_default:
+        record["products"] = non_default
+    artifacts = products.artifacts_of(dict(uc))
+    if artifacts:
+        record["productArtifacts"] = artifacts
+    return record
 
 
 def _recommender_payloads(
