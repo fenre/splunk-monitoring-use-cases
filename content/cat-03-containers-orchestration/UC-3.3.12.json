@@ -24,13 +24,10 @@
   "value": "UC-3.3.12 gives Operations teams earlier visibility into Network Health through `prometheus:ocp` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Land ocp_clusteroperator snapshots with network rows, ocp_network_config, ocp_ovnkube, ocp_egressip, ocp_egressfirewall, ocp_adminnetworkpolicy, ocp_events or k8s_events for CNI reasons, optional ocp_network_diagnostics, and prometheus ovn lines into governed indexes with cluster labels; normalize fields in props; save openshift_uc_33312_ovnk_cluster_network_health on ten to fifteen minute cadence over earliest=-6h@h; route page and warn to platform networking on-call; archive weekly CSV for stewardship reviews.",
   "visualization": "Severity-colored table by cluster with drilldowns to ocp_clusteroperator network JSON, Network.config snapshots, openshift-ovn-kubernetes Pod inventory, CNI event excerpts, egress status objects, AdminNetworkPolicy lists, diagnostics Pod logs, and ovn metric timecharts.",
-  "cimModels": [
-    "Application_State",
-    "Network_Traffic"
-  ],
+  "cimModels": [],
   "cimSpl": "| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest\n| rename Application_State.dest AS cim_dest\n| join type=left max=0 cim_dest\n    [| tstats summariesonly=t latest(Network_Traffic.action) AS nt_action latest(Network_Traffic.src) AS nt_src latest(Network_Traffic.dest) AS nt_dest FROM datamodel=Network_Traffic WHERE nodename=Network_Traffic earliest=-24h@h latest=now BY Network_Traffic.dest\n     | rename Network_Traffic.dest AS cim_dest ]\n| where like(lower(app_info), \"%openshift%\") OR like(lower(app_info), \"%ovn%\") OR match(lower(nt_action), \"blocked|allowed|unknown\")\n| table cim_dest app_state app_info nt_action nt_src nt_dest",
   "schema": "CIM",
-  "dataModelAcceleration": "Accelerate Splunk CIM Application_State summaries for OpenShift platform components mapped into Application_State.dest or info, and Network_Traffic summaries when Geneve overlay drops or synthetic probe failures normalize into Network_Traffic fields; retain fourteen days for overlay incident replay.",
+  "dataModelAcceleration": "OVN-Kubernetes health is not Application_State or Network_Traffic. Leave CIM acceleration off. Map only an audit lane to Change when those events are normalizede into Network_Traffic fields; retain fourteen days for overlay incident replay.",
   "references": [
     {
       "title": "OpenShift Documentation — About networking",

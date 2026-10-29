@@ -105,6 +105,14 @@ the release notes block in `index.html` by hand.
   TrueNAS 25.04 uses `pool.query`. License volume is `license_usage.log`.
   `crcSalt` is not an integrity check. A 24-hour window cannot see a 60-day
   idle account. Searches were left unchanged.
+- Corrected VMware add-on citations that still used Splunkbase 5380. The
+  add-on is Splunk Add-on for VMware (3215, `Splunk_TA_vmware`). Dropped CIM
+  models the review showed do not fit: PVC and DaemonSet gauges are not
+  Performance, Inventory, or Application_State; certificate expiry is
+  Certificates; NSX policy edits are Change; Cilium labels are not
+  Authentication; CoPP counters have no CIM model. RFC 8584 is designated
+  forwarder election, and VXLAN is RFC 7348. Splunkbase 3743 is Outcold's
+  Monitoring Kubernetes app. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`

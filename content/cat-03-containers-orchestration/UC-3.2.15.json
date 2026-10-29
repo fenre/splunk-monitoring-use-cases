@@ -23,13 +23,10 @@
   "value": "Tracking `kube_pod_owner_ds_pod_dc`, `kube_daemonset_status_desired_number_scheduled`, `kube_daemonset_status_number_ready` via UC-3.2.15 on `prometheus:scrape:metrics` feeds improves response to 'Kubernetes DaemonSet Rollout Drift, Per-Node Coverage Gaps, and Update-Strategy Stalls (DaemonSet Coverage Axis)' and reduces operational risk and delayed incident response.",
   "implementation": "Ingest kube-state-metrics DaemonSet gauges plus kube_pod_owner DaemonSet parents into k8s_metrics, ship kube_node_labels for fleet selector context, publish daemonset_inventory.csv with owner_team and workload_class, save uc_3_2_15_kube_daemonset_coverage_axis every five minutes with earliest=-2h@m, route critical and high severities for tier-1 CNI or logging namespaces, and validate by inducing a lab selector mismatch while comparing Splunk to kubectl describe daemonset.",
   "visualization": "Primary table mirroring the closing SPL projection; timechart of kube_daemonset_status_number_misscheduled by namespace; single value of rolling_update_stall count by cluster; heatmap of desired minus ready; drilldowns to kube_pod_owner and optional node panels.",
-  "cimModels": [
-    "Application_State",
-    "Inventory"
-  ],
+  "cimModels": [],
   "cimSpl": "| tstats summariesonly=t latest(Inventory.os) AS inv_os latest(Inventory.version) AS inv_ver count AS inv_ev FROM datamodel=Inventory WHERE nodename=Inventory earliest=-2h@h latest=@h BY Inventory.dest\n| rename Inventory.dest AS correl_host\n| join type=left max=0 correl_host [\n| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-2h@h latest=@h BY Application_State.dest\n| rename Application_State.dest AS correl_host ]\n| where like(lower(app_state), \"degraded\") OR like(lower(app_info), \"daemonset\") OR like(lower(inv_os), \"linux\")\n| table correl_host inv_os inv_ver app_state app_info inv_ev",
   "schema": "CIM",
-  "dataModelAcceleration": "Accelerate Splunk CIM Application_State and Inventory summaries where Kubernetes DaemonSet and node identities normalize onto those models; retain at least thirty days for quarterly agent coverage attestations.",
+  "dataModelAcceleration": "DaemonSet gauges are not Application_State or Inventory. Leave those summaries off and keep kube-state-metrics in the raw index; retain at least thirty days for quarterly agent coverage attestations.",
   "references": [
     {
       "title": "Kubernetes — DaemonSet",
