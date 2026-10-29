@@ -15,7 +15,7 @@
   "evidence": "Saved search openshift_uc_3_3_8_route_tls_expiry; versioned openshift_route_blastradius.csv in git; weekly CSV exports to restricted openshift evidence index; dashboard drilldowns on openshift:route, certmanager:metrics, and openshift:routerlogs; alert stanza with platform routing keys.",
   "controlTest": {
     "positiveScenario": "UC-3.3.8 positive (Route, TLS, Expiry, Detection): ingest synthetic events into `index=openshift` sourcetype='openshift:route' where `weekly_client_hits`, `last_secret_seen` grouped by `cluster`, `hostname`, `route_namespace`, `backing_secret` satisfies `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000 for 'Route TLS Expiry Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-3.3.8 negative (Expiry Detection): ingest benign `openshift` / `openshift:route` events where `cluster`, `hostname`, `route_namespace`, `backing_secret` stays below `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000, or exclude the test entity via `ops_exception_register.csv`. Variant 6 confirms zero alert rows for 'Route TLS Expiry Detection'."
+    "negativeScenario": "UC-3.3.8 negative (Expiry Detection): ingest benign `openshift` / `openshift:route` events where `cluster`, `hostname`, `route_namespace`, `backing_secret` stays below `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'Route TLS Expiry Detection'."
   },
   "dataSources": "index=openshift sourcetype=openshift:route for oc get route -A -o json snapshots with spec.host, spec.tls.termination, inline PEM metadata, Secret references, and cert-manager annotations; sourcetype=certmanager:metrics for cert-manager controller gauges including certmanager_certificate_expiration_timestamp_seconds when OpenShift Monitoring or user-workload monitoring scrapes the controller Service; sourcetype=openshift:routerlogs for HAProxy access logs with HTTP Host headers used to compute weekly_client_hits and blast_radius_score; optionally sourcetype=openshift:event for Route or Secret sync warnings; sourcetype=prometheus:metrics may carry the same cert-manager lines when not split into certmanager:metrics.",
   "app": "Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`), cert-manager, `oc get route -A -o json` scripted input, OpenShift Monitoring Prometheus (`certmanager_certificate_expiration_timestamp_seconds`)",
@@ -25,7 +25,6 @@
   "implementation": "Land openshift:route, certmanager:metrics or prometheus:metrics with cert-manager gauges, and openshift:routerlogs in index=openshift; publish openshift_route_blastradius.csv in git; save openshift_uc_3_3_8_route_tls_expiry hourly with multisearch arms earliest=-7d@d for Routes and metrics plus earliest=-30d@d for router logs; route page and warn to platform edge on-call; archive weekly CSV exports with lookup commit hashes for TLS governance reviews.",
   "visualization": "Severity-colored table by cluster, route_namespace, route_name, and hostname with drilldowns to openshift:route JSON, certmanager metric lines, and openshift:routerlogs; single-value tiles for count of page severities; timeline of days_until_expiry for top blast_radius_score hostnames.",
   "cimModels": [
-    "Application_State",
     "Web"
   ],
   "cimSpl": "| tstats summariesonly=t latest(Web.url) AS web_url latest(Web.status) AS web_status FROM datamodel=Web WHERE nodename=Web earliest=-24h@h latest=now BY Web.src\n| rename Web.src AS edge_src\n| join type=left max=0 edge_src [\n| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest\n| rename Application_State.dest AS edge_src ]\n| where like(lower(app_info), \"%openshift%\") OR like(lower(web_url), \"%apps%\")\n| table edge_src web_url web_status app_state app_info",
@@ -87,7 +86,7 @@
     "kubernetes_k8s",
     "kubernetes_openshift"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-26",
   "splunkVersions": [
     "9.2+",

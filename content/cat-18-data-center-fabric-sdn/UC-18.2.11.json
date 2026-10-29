@@ -14,7 +14,7 @@
   "evidence": "Saved search uc_18_2_11_nat_rule_util.json plus dashboard NSX NAT — Rule, Session, and Port-Pool Evidence exporting CSV/PNG bundles tagged by nat_rule_id and tier_scope token.",
   "controlTest": {
     "positiveScenario": "UC-18.2.11 positive (NAT, Rule, Utilization, VMware, NSX): ingest synthetic events into `index=vmware` sourcetype='vmware:nsxt:nat' where `avg_sess`, `peak_sess`, `peak_pool_pct` grouped by `_time`, `nat_rule_id`, `edge_node_id` satisfies `port_pool_used_percent` >= 85, `session_count_active` > 0, `nat_drop_packets` > 0, or `session_count_active` > 1000 for 'NAT Rule Utilization — VMware NSX Policy Tier-0 and Tier-1 NAT Sessions, SNAT Port Pools, and Edge Translation Pressure'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-18.2.11 negative (Translation Pressure): ingest benign `vmware` / `vmware:nsxt:nat` events where `_time`, `nat_rule_id`, `edge_node_id` stays below `port_pool_used_percent` >= 85, `session_count_active` > 0, `nat_drop_packets` > 0, or `session_count_active` > 1000, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'NAT Rule Utilization — VMware NSX Policy Tier-0 and Tier-1 NAT Sessions, SNAT Port Pools, and Edge Translation Pressure'."
+    "negativeScenario": "UC-18.2.11 negative (Translation Pressure): ingest benign `vmware` / `vmware:nsxt:nat` events where `_time`, `nat_rule_id`, `edge_node_id` stays below `port_pool_used_percent` >= 85, `session_count_active` > 0, `nat_drop_packets` > 0, or `session_count_active` > 1000, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'NAT Rule Utilization — VMware NSX Policy Tier-0 and Tier-1 NAT Sessions, SNAT Port Pools, and Edge Translation Pressure'."
   },
   "dataSources": "index=vmware / index=vmware_nsx / index=network_ops (rename per governance) combining Splunk_TA_vmware-nsxt ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)) vmware:nsxt:nat (Policy JSON mirrors or TA-parsed NAT lines), vmware:nsxt:edge_status (Edge services including port_pool_* fields), vmware:nsxt:syslog (local6 EDGE-NAT MNEMONICS), HTTPS collectors for GET /policy/api/v1/infra/tier-0s/{tier-0-id}/nat/USER, GET /policy/api/v1/infra/tier-1s/{tier-1-id}/nat/USER, GET /policy/api/v1/search?query=resource_type:PolicyNatRule, GET /policy/api/v1/infra/realized-state/realized-entities/{rule_id}/runtime, GET /api/v1/edge-clusters/{cluster-id}/edge-nodes/{node-id}/nat/translation-statistics-summary, GET /api/v1/aggregation-service/cluster-statistics, optional gRPC NSX Telemetry per-Edge NAT counters, optional Splunk_TA_vmware ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) for vCenter joins.",
   "app": "**Splunk_TA_vmware-nsxt** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), VMware NSX 4.x alignment) deployed where vmware:nsxt:nat, vmware:nsxt:edge_status, and vmware:nsxt:syslog parse; optional **Splunk_TA_vmware** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) for inventory correlation. REST collectors authenticate POST /api/session/create or mutual TLS identities with infra plus mp-infra scopes for translation statistics pulls.",
@@ -22,11 +22,8 @@
   "description": "Detects 'NAT Rule Utilization — VMware NSX Policy Tier-0 and Tier-1 NAT Sessions, SNAT Port Pools, and Edge Translation Pressure' patterns (UC-18.2.11) sourced from `index=vmware` sourcetype `vmware:nsxt:nat`. Threshold bundle: `port_pool_used_percent` >= 85, `session_count_active` > 0, `nat_drop_packets` > 0, or `session_count_active` > 1000; aggregation grain: `_time`, `nat_rule_id`, `edge_node_id`; metrics: `avg_sess`, `peak_sess`, `peak_pool_pct`. Watch terms: NAT, Rule, Utilization, VMware, NSX.",
   "value": "UC-18.2.11 gives Operations teams earlier visibility into Translation Pressure through `vmware:nsxt:nat` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Deploy Splunk_TA_vmware-nsxt ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)) capturing vmware:nsxt:nat, vmware:nsxt:edge_status, vmware:nsxt:syslog with REST collectors for Policy NAT lists and MP translation-statistics-summary JSON; normalize FIELDALIAS chains for nat_rule_id and tier_id; schedule macros/nsxt_nat_util wrapping the SPL with fifteen-minute bins and throttle pool_alert per nat_rule_id edge_node_id.",
-  "visualization": "(1) Timechart — avg_sess and peak_sess by nat_rule_id split nat_action_latest (DNAT vs SNAT vs REFLEXIVE). (2) Heatmap — peak_pool_pct versus edge_node_id with drill to tier_token. (3) Column chart — sum_nat_drops trend filtered when drop_ratio_watch=1. (4) Table — top_talker=1 rows ranked by avg_sess with tier_scope and logging_flag. (5) Single-value — count pool_alert=1 plus sparkline for cluster-wide pool_trend_avg aggregated per edge_node_id. (6) Histogram — edge_fanout distribution showing how many NAT rules touch the same Edge during SNAT exhaustion postmortems.",
-  "cimModels": [
-    "Network_Traffic",
-    "Performance"
-  ],
+  "visualization": "(1) Timechart — avg_sess and peak_sess by nat_rule_id split nat_action_latest (DNAT vs SNAT vs REFLEXIVE). (2) Heatmap — peak_pool_pct versus edge_node_id with drill to tier_token. (3) Column chart — sum_nat_drops trend filtered when drop_ratio_watch=1. (4) Table — top_talker=1 rows ranked by avg_sess with tier_scope and logging_flag. (5) Single-value — count pool_alert=1 plus sparkline for cluster-wide pool_trend_avg aggregated per edge_node_id. during SNAT exhaustion postmortems.",
+  "cimModels": [],
   "schema": "CIM: Network_Traffic + Performance overlays",
   "dataModelAcceleration": "Accelerate Network_Traffic once FIELDALIAS maps src/dst/action/bytes from vmware:nsxt:nat and vmware:nsxt:syslog NAT drop lines; accelerate Performance when session_count_active and port_pool_used_percent normalize into service health metrics.",
   "references": [
@@ -69,7 +66,7 @@
     "vmware_ta_vmware",
     "vmware_vcenter"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-28",
   "splunkVersions": [
     "9.2+",

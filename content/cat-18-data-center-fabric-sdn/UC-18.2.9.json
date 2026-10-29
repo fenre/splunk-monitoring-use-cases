@@ -13,7 +13,7 @@
   "evidence": "Saved search `operations_vmware_nsx_transport_node_overlay_path_health_en` (UC-18.2.9), SOC dashboard panel \"Operations — VMware NSX Transport Node Overlay Path Health (End-to-End GENEVE Path Quality, Per-TEP-Pair Packet Loss / Jitter / RTT, MTU Validation, Probe-based Active Measurement, Beyond Binary UP/DOWN UC-18.2.5)\", and weekly export to `index=audit_evidence` sourcetype=csv:ops_controls.",
   "controlTest": {
     "positiveScenario": "UC-18.2.9 positive (VMware, NSX, Transport, Node, Overlay): ingest synthetic events into `index=vmware` sourcetype='vmware:nsxt:tn_diag' where `worst_pkt_loss_pct`, `worst_rtt_ms`, `worst_jitter_ms` grouped by `_time`, `src_key`, `dst_key`, `quality_fault` satisfies `loss_pct` >= 0.1, `jitter_ms_num` >= 1, `mtu_path_num` > 0, or `mtu_used_num` > 0 for 'VMware NSX Transport Node Overlay Path Health (End-to-End GENEVE Path Quality, Per-TEP-Pair Packet Loss / Jitter / RTT, MTU Validation, Probe-based Active Measurement, Beyond Binary UP/DOWN UC-18.2.5)'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-18.2.9 negative (UC 18.2.5)): ingest benign `vmware` / `vmware:nsxt:tn_diag` events where `_time`, `src_key`, `dst_key`, `quality_fault` stays below `loss_pct` >= 0.1, `jitter_ms_num` >= 1, `mtu_path_num` > 0, or `mtu_used_num` > 0, or exclude the test entity via `ops_exception_register.csv`. Variant 3 confirms zero alert rows for 'VMware NSX Transport Node Overlay Path Health (End-to-End GENEVE Path Quality, Per-TEP-Pair Packet Loss / Jitter / RTT, MTU Validation, Probe-based Active Measurement, Beyond Binary UP/DOWN UC-18.2.5)'."
+    "negativeScenario": "UC-18.2.9 negative (UC 18.2.5)): ingest benign `vmware` / `vmware:nsxt:tn_diag` events where `_time`, `src_key`, `dst_key`, `quality_fault` stays below `loss_pct` >= 0.1, `jitter_ms_num` >= 1, `mtu_path_num` > 0, or `mtu_used_num` > 0, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'VMware NSX Transport Node Overlay Path Health (End-to-End GENEVE Path Quality, Per-TEP-Pair Packet Loss / Jitter / RTT, MTU Validation, Probe-based Active Measurement, Beyond Binary UP/DOWN UC-18.2.5)'."
   },
   "dataSources": "`index=vmware` / `index=vmware_nsx` / `index=network_ops` combining **`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)) **`vmware:nsxt:syslog`** tails capturing **`OVERLAY_PATH_DEGRADED`**, **`MTU_MISMATCH`**, **`TUNNEL_PERFORMANCE_LOW`** markers; scripted HTTPS modular inputs emitting **`vmware:nsxt:tn_diag`** JSON keyed by **`src_tn_id`**, **`dst_tn_id`**, **`src_tep_ip`**, **`dst_tep_ip`**, **`pkt_loss_pct`**, **`rtt_ms`**, **`jitter_ms`**, **`mtu_used`**, **`mtu_path`**, **`mtu_issue`**, **`probe_outcome`** synchronized with **`GET /api/v1/transport-nodes/{id}/tunnels`** plus **`GET /api/v1/transport-nodes/{id}/tunnels/{tunnel-id}/stats`**; **`vmware:nsxt:transport_node`** Policy snapshots for **`realization`** joins; optional **`vmware:nsxt:realization`** overlays; ESXi scripted **`nsxdp-cli`** exporters (**`netcpa stats get`**, **`geneve get`**, **`vlanstats overlay-pnic-rx-drop`**) landing **`esxi:nic:stats`** companion feeds.",
   "app": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)) deployed where **`vmware:nsxt:syslog`** parsing executes; augment with Heavy Forwarder modular Python inputs authenticated via **`POST /api/session/create`** cookies covering **`Policy`**/`**Manager`** **`transport-node`** tunnels endpoints enumerated inside VMware **`API`** references.",
@@ -22,10 +22,7 @@
   "value": "UC-18.2.9 helps teams contain VMware, NSX, Transport, Node, Overlay scenarios and reduce operational risk and delayed incident response before incidents compound.",
   "implementation": "Install **Splunk_TA_vmware-nsxt** (Splunkbase **4856**) for **`vmware:nsxt:syslog`** parsing; add scripted HTTPS collectors landing **`vmware:nsxt:tn_diag`** samples keyed by **`src_tn_id`**, **`dst_tn_id`**, **`src_tep_ip`**, **`dst_tep_ip`**, **`pkt_loss_pct`**, **`rtt_ms`**, **`jitter_ms`**, **`mtu_path`**, **`probe_outcome`**; optionally harvest **`vmware:nsxt:transport_node`** REST mirrors plus **`esxi:nic:stats`** where **`nsxdp-cli`** exporters exist; schedule **`macros/nsxt_overlay_path_quality`** alerts with CMDB-backed suppression.",
   "visualization": "(1) Matrix heat-map: **`src_tep_ip`** × **`dst_tep_ip`** coloring **`worst_pkt_loss_pct`** buckets. (2) Time-series: **`worst_rtt_ms`** and **`worst_jitter_ms`** overlays split by **`quality_fault`**. (3) Choropleth-style rack facets when **`rack_id`** lookups exist—otherwise facet **`site_code`**. (4) Table of worst **`src_key`** / **`dst_key`** pairs with **`mtu_path_latest`** versus **`mtu_used_latest`**. (5) Single-value tiles tracking **`OVERLAY_PATH_DEGRADED`** syslog bursts versus **`pkt_loss_pct_high`** diag samples.",
-  "cimModels": [
-    "Performance",
-    "Network_Traffic"
-  ],
+  "cimModels": [],
   "schema": "CIM: Performance + Network_Traffic overlays for GENEVE overlay path-quality telemetry",
   "dataModelAcceleration": "Accelerate **Performance** once **`FIELDALIAS`** maps **`rtt_ms`**, **`jitter_ms`**, **`pkt_loss_pct`** tuples into workload-performance semantics keyed by **`host`** and **`transport_node`**; accelerate **Network_Traffic** when **`src_tep_ip`** / **`dst_tep_ip`** aliases normalize **`Network_Traffic.dest_ip`** / **`Network_Traffic.src_ip`** overlays feeding rack dashboards.",
   "references": [
@@ -61,7 +58,7 @@
     "vmware_esxi",
     "vmware_ta_vmware"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-29",
   "splunkVersions": [
     "9.2+",

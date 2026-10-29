@@ -14,7 +14,7 @@
   "evidence": "Saved search uc_3_2_33_node_drain_audit_impact with ten-minute schedule; versioned k8s_approved_drain_windows.csv in git; weekly CSV export of the closing table to a restricted evidence index with lookup commit hashes and linked change tickets for auditors.",
   "controlTest": {
     "positiveScenario": "UC-3.2.33 positive (Kubernetes, Node, Drain, Audit, and): ingest synthetic events into `index=k8s_audit` sourcetype='kube:apiserver:audit' where `distinct_evicted_pods`, `max_eviction_http`, `lane_volume_hint` grouped by `cluster`, `node_key`, `actor`, `signal_lane` satisfies `ticket_len` > 0, `window_start_epoch` > 0, `window_end_epoch` > 0, or `max_eviction_http` >= 429 for 'Kubernetes Node Drain Audit and Voluntary-Disruption Impact Correlation'. Validate macro `involvedObject.kind`, lookup `k8s_approved_drain_windows.csv;`, filter `((index=k8s_metrics OR index=k8s) sourcetype=\"prometheus:scr`. Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-3.2.33 negative (Impact Correlation): ingest benign `k8s_audit` / `kube:apiserver:audit` events where `cluster`, `node_key`, `actor`, `signal_lane` stays below `ticket_len` > 0, `window_start_epoch` > 0, `window_end_epoch` > 0, or `max_eviction_http` >= 429, or exclude the test entity via `ops_exception_register.csv`. Variant 0 confirms zero alert rows for 'Kubernetes Node Drain Audit and Voluntary-Disruption Impact Correlation'."
+    "negativeScenario": "UC-3.2.33 negative (Impact Correlation): ingest benign `k8s_audit` / `kube:apiserver:audit` events where `cluster`, `node_key`, `actor`, `signal_lane` stays below `ticket_len` > 0, `window_start_epoch` > 0, `window_end_epoch` > 0, or `max_eviction_http` >= 429, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'Kubernetes Node Drain Audit and Voluntary-Disruption Impact Correlation'."
   },
   "dataSources": "index=k8s_audit sourcetype=kube:apiserver:audit with RequestResponse-level rules for core v1 nodes patch traffic that exposes spec.unschedulable and taint mutations in requestObject or responseObject, plus pods eviction subresource create events with responseStatus.code for admission outcomes; index=k8s sourcetype=kube:events for Node-involved reasons consistent with voluntary disruption such as NodeNotSchedulable and operator-emitted drain narratives; index=k8s_metrics or index=k8s with sourcetype=prometheus:scrape:metrics for kube_node_spec_unschedulable and kube_pod_status_phase including Pending and Running cardinality proxies for reschedule velocity; governance lookup k8s_approved_drain_windows.csv keyed on cluster and node_key with approved_change_ticket, maint_owner, window_start_epoch, and window_end_epoch for CAB alignment.",
   "app": "Splunk OpenTelemetry Collector or Splunk Connect for Kubernetes shipping apiserver audit.json with field parity to upstream Kubernetes audit types; kube-state-metrics scrapes forwarded through prometheus receiver to HEC; Splunk Enterprise 9.2+ or Splunk Cloud for scheduled correlation; optional Splunk CIM acceleration for Change and Application_State overlays in cimSpl.",
@@ -24,8 +24,7 @@
   "implementation": "Ingest kube:apiserver:audit at RequestResponse depth for node patches and pod eviction creates into k8s_audit, stream kube:events for Node voluntary disruption reasons into k8s, scrape kube_node_spec_unschedulable and kube_pod_status_phase into k8s_metrics, publish k8s_approved_drain_windows.csv with tickets and window epochs, save uc_3_2_33_node_drain_audit_impact every ten minutes on earliest=-4h@h latest=@h, route high_unplanned_drain_or_eviction to platform operations with actor and node_key, and validate using a lab kubectl drain under a recorded change.",
   "visualization": "Timeline of apiserver node patches and eviction creates by cluster; heatmap of pending_pod_units during drain windows; table mirroring the closing SPL projection with drilldowns to raw audit JSON and kube events; single value of distinct_evicted_pods for executive summaries.",
   "cimModels": [
-    "Change",
-    "Application_State"
+    "Change"
   ],
   "cimSpl": "| tstats summariesonly=t count AS change_events latest(Change.action) AS last_change_action FROM datamodel=Change WHERE nodename=Change earliest=-4h@h latest=@h BY Change.user Change.object\n| rename Change.object AS change_obj\n| join type=left max=0 change_obj [\n    | tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-4h@h latest=@h BY Application_State.dest\n    | rename Application_State.dest AS change_obj ]\n| table Change.user change_obj change_events last_change_action app_state app_info",
   "schema": "CIM",
@@ -107,7 +106,7 @@
     "kubernetes_k8s",
     "snmp_ups"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-26",
   "splunkVersions": [
     "9.2+",

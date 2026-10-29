@@ -36,6 +36,13 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- Corrected 585 use cases that already had a deep review. Removed the generated
+  "Variant N confirms…" and "Purpose-built for…" sentences, deleted cited
+  false statements (including Universal Forwarder cited as Splunkbase 617),
+  dropped CIM models and equipment tags the review showed were wrong, and
+  moved 334 `status: verified` claims to `draft` where the review found no
+  SME sign-off. Searches, `cimSpl`, compliance tags, and grandma explanations
+  were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`

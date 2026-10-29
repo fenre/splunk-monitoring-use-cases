@@ -15,7 +15,7 @@
   "evidence": "Saved search openshift_uc_3_3_20_cluster_certificate_expiry; versioned openshift_cert_policy.csv in git; weekly CSV exports to restricted openshift evidence index; dashboard drilldowns on openshift:certificates, openshift:secret, openshift:operator, and prometheus:metrics; alert stanza with platform routing keys.",
   "controlTest": {
     "positiveScenario": "UC-3.3.20 positive (Cluster, Certificate, Expiry): ingest synthetic events into `index=openshift` sourcetype='openshift:secret' where `last_rotation_evt_time`, `days_until_min_expiry`, `cat_fastest_expiry` grouped by `cluster`, `namespace`, `secret_name`, `ca_bundle_kind` satisfies `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000 for 'Cluster Certificate Expiry'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-3.3.20 negative (Certificate Expiry): ingest benign `openshift` / `openshift:secret` events where `cluster`, `namespace`, `secret_name`, `ca_bundle_kind` stays below `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000, or exclude the test entity via `ops_exception_register.csv`. Variant 5 confirms zero alert rows for 'Cluster Certificate Expiry'."
+    "negativeScenario": "UC-3.3.20 negative (Certificate Expiry): ingest benign `openshift` / `openshift:secret` events where `cluster`, `namespace`, `secret_name`, `ca_bundle_kind` stays below `page` <= 7, `warn` <= 30, `info` <= 90, or `epoch_raw` > 1000000000, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'Cluster Certificate Expiry'."
   },
   "dataSources": "index=openshift sourcetype=openshift:certificates for PEM leaf metadata parsed from operator namespaces including openshift-config-managed kube-apiserver-server-ca and kube-controller-manager-client-ca families, openshift-service-ca signing-cabundle consumers, openshift-ingress-operator router-ca and default certificate secrets, openshift-authentication OAuth serving material, openshift-monitoring and openshift-user-workload-monitoring client TLS for Prometheus and Thanos scrapes, openshift-image-registry route TLS, openshift-console console TLS, and openshift-etcd etcd peer and server secrets; index=openshift sourcetype=openshift:secret for oc get secret -A -o json snapshots with kube_secret_metadata fields such as generation and type without private keys; index=openshift sourcetype=prometheus:metrics for OpenShift Monitoring federation including apiserver_client_certificate_expiration_seconds gauges and apiserver_client_certificate_expiration_seconds_bucket histogram lines used as distribution sanity checks; index=openshift sourcetype=openshift:operator for oc get clusteroperator -o json status conditions with Degraded messages referencing cert, TLS, signer, or trust bundle faults.",
   "app": "Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`), `oc get secret -A -o json` scripted input, OpenShift Monitoring Prometheus federation",
@@ -24,10 +24,7 @@
   "value": "UC-3.3.20 gives Operations teams earlier visibility into Certificate Expiry through `openshift:secret` feeds, lowering operational risk and delayed incident response.",
   "implementation": "Land openshift:certificates, openshift:secret, prometheus:metrics, and openshift:operator into index=openshift with cluster labels aligned to management context; publish openshift_cert_policy.csv in git; save openshift_uc_3_3_20_cluster_certificate_expiry on a four-hour cadence over earliest=-7d@d latest=now; route page and warn severities to platform on-call with webhook or email; archive weekly CSV exports with lookup commit hashes for crypto governance reviews.",
   "visualization": "Severity-colored table by cluster, namespace, and secret_name with drilldowns to openshift:certificates JSON, openshift:secret metadata, openshift:operator messages, and prometheus metric lines; single-value tiles for cluster days_until_min_expiry; timeline of cat_fastest_expiry by ca_bundle_kind; histogram panel mirroring apiserver_client_certificate_expiration_seconds_bucket upstream queries.",
-  "cimModels": [
-    "Application_State",
-    "Inventory"
-  ],
+  "cimModels": [],
   "cimSpl": "| tstats summariesonly=t latest(Application_State.state) AS app_state latest(Application_State.info) AS app_info FROM datamodel=Application_State WHERE nodename=Application_State earliest=-24h@h latest=now BY Application_State.dest\n| rename Application_State.dest AS cim_dest\n| join type=left max=0 cim_dest\n    [| tstats summariesonly=t latest(Inventory.vendor_product) AS inv_prod latest(Inventory.version) AS inv_ver FROM datamodel=Inventory WHERE nodename=Inventory earliest=-24h@h latest=now BY Inventory.dest\n     | rename Inventory.dest AS cim_dest ]\n| where like(lower(app_info), \"%openshift%\") OR like(lower(inv_prod), \"%openshift%\")\n| table cim_dest app_state app_info inv_prod inv_ver",
   "schema": "CIM",
   "dataModelAcceleration": "Accelerate Splunk CIM Application_State for OpenShift ClusterOperator and monitoring entities mapped into Application_State.dest when normalized from openshift:operator and prometheus:metrics, and Inventory for cluster and control-plane node entities tagged with openshift_cluster; retain ninety days for quarterly PKI attestations paired with openshift_cert_policy.csv versions.",
@@ -86,7 +83,7 @@
     "kubernetes_k8s",
     "kubernetes_openshift"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-26",
   "splunkVersions": [
     "9.2+",

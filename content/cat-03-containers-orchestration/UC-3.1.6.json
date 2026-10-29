@@ -13,7 +13,7 @@
   "evidence": "Saved search container_uc_3_1_6_privileged_container_detection; lookups privileged_container_allowlist.csv and container_image_capability_baseline.csv versioned in git; weekly CSV exports to a restricted evidence index; dashboard drilldowns on docker:inspect HostConfig json, falco:alert payloads, and audit lines; mapping worksheets citing CIS Docker Benchmark control 5.4, MITRE ATT&CK T1611, NIST SP 800-190 section 4.5, and public container-escape CVE narratives such as CVE-2019-5736 runc overwrite and CVE-2022-0492 cgroup release_agent abuse for leadership context.",
   "controlTest": {
     "positiveScenario": "UC-3.1.6 positive (Privileged, Container, Detection): ingest synthetic events into `index=containers` sourcetype='docker:inspect' where `rolling_bad` grouped by `host_id`, `container_id` satisfies `rolling_bad` >= 9 for 'Privileged Container Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-3.1.6 negative (Container Detection): ingest benign `containers` / `docker:inspect` events where `host_id`, `container_id` stays below `rolling_bad` >= 9, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'Privileged Container Detection'."
+    "negativeScenario": "UC-3.1.6 negative (Container Detection): ingest benign `containers` / `docker:inspect` events where `host_id`, `container_id` stays below `rolling_bad` >= 9, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'Privileged Container Detection'."
   },
   "dataSources": "index=containers sourcetype=docker:inspect from a host-level scripted or modular input that runs docker inspect per live container id and preserves HostConfig.Privileged, HostConfig.CapAdd, HostConfig.CapDrop, HostConfig.PidMode, HostConfig.IpcMode, HostConfig.NetworkMode, HostConfig.UTSMode, HostConfig.SecurityOpt, and HostConfig.Mounts with both camelCase and snake_case aliases; index=containers sourcetype=docker:events filtered for container create and policy-bearing strings referencing privileged flags, host pid, host network, or capability additions; index=containers sourcetype=falco:alert JSON from Falco via HEC for privileged-container, dangerous capability, sensitive mount, and cgroup tamper class rules; index=os sourcetype=audit:json or sourcetype=linux_secure for auditd or secure log lines showing docker client execve with --privileged or JSON privileged true; Splunk Add-on for Unix and Linux for audit transport; optional Splunk Add-on for Sysmon for Linux for enriched process lineage on dockerd; KV or CSV privileged_container_allowlist.csv exposed through transforms for join-wrapped inputlookup governance; companion lookup container_image_capability_baseline.csv for per-image expected capability posture.",
   "app": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) for audit:json, linux_secure, and host syslog normalization; customer-maintained docker inspect scripted input landing sourcetype=docker:inspect; Splunk Connect for Docker ([Splunkbase 4496](https://splunkbase.splunk.com/app/4496)) or equivalent modular input for docker:events; Falco OSS with Splunk HTTP Event Collector forwarding for falco:alert; optional Splunk Add-on for Sysmon for Linux ([Splunkbase 6652](https://splunkbase.splunk.com/app/6652)) when linux_secure lacks argv fidelity.",
@@ -22,10 +22,7 @@
   "value": "For 'Privileged Container Detection', UC-3.1.6 converts `rolling_bad` on `docker:inspect` feeds into actionable rows and reduces operational risk and delayed incident response.",
   "implementation": "Install docker:inspect and docker:events into index=containers, Falco JSON into index=containers, and audit:json or linux_secure into index=os. Publish privileged_container_allowlist.csv, container_image_capability_baseline.csv, and container_owner.csv with lowercase host keys. Save container_uc_3_1_6_privileged_container_detection every five to fifteen minutes over earliest=-4h@h latest=@h, route critical tiers to platform and SOC jointly, archive weekly CSV snapshots with ticket ids, and keep the comment macro synchronized with approved index names.",
   "visualization": "Severity-tier ranked table by host_id with cell coloring on severity_tier, drilldown into raw docker:inspect HostConfig json and matching falco:alert output_fields; companion heatmap of dangerous capability tokens by image_ref; allowlist and baseline change timeline with annotations when privileged_container_allowlist.csv or container_image_capability_baseline.csv commits land; single-value tiles for counts of critical_privileged_unapproved and critical_host_pid_namespace in the trailing twenty-four hours; parallel line chart of rolling_bad per container_id for sustained drift reviews.",
-  "cimModels": [
-    "Change",
-    "Endpoint"
-  ],
+  "cimModels": [],
   "cimSpl": "| tstats summariesonly=t count FROM datamodel=Endpoint.Processes WHERE nodename=Endpoint.Processes (Processes.process=\"dockerd\" OR Processes.process=\"docker\" OR Processes.process_path=\"*/dockerd\") earliest=-24h latest=now BY Processes.dest Processes.process\n| rename Processes.dest AS host | head 200",
   "dataModelAcceleration": "Accelerate Splunk CIM Endpoint and Change data models on the search tier when dockerd argv, unit file, and image change events are normalized into CIM-compliant fields; retain at least ninety days of summaries for quarterly control replays.",
   "references": [
@@ -70,7 +67,7 @@
     "linux",
     "syslog"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-26",
   "splunkVersions": [
     "9.2+",

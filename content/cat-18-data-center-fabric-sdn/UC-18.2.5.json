@@ -15,7 +15,7 @@
   "exclusions": "Standalone vSphere environments without NSX (use cat-19 vSphere UCs); VMware NSX for Windows / NSX for AWS / NSX for Azure cloud-native deployments (different management plane); legacy NSX-V (vSphere-distributed-virtual-switch-only NSX, end-of-life Jan 2022); Antrea / Calico / Cilium Kubernetes CNIs (use cat-18.3); Microsoft Hyper-V Network Virtualization (HNV — discontinued).",
   "controlTest": {
     "positiveScenario": "UC-18.2.5 positive (VMware, NSX, Transport, Node, Connectivity,): ingest synthetic events into `index=vmware_nsx` sourcetype='vmware:nsxt:syslog' where `peer_dimension_count` grouped by `tn_uuid`, `risk_bucket` satisfies `tep_mtu_num` > 0, or `tep_mtu_num` < 1700 for 'VMware NSX Transport Node Connectivity, GENEVE TEP Tunnel Health, and BFD Failure Detection'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-18.2.5 negative (Failure Detection): ingest benign `vmware_nsx` / `vmware:nsxt:syslog` events where `tn_uuid`, `risk_bucket` stays below `tep_mtu_num` > 0, or `tep_mtu_num` < 1700, or exclude the test entity via `ops_exception_register.csv`. Variant 2 confirms zero alert rows for 'VMware NSX Transport Node Connectivity, GENEVE TEP Tunnel Health, and BFD Failure Detection'."
+    "negativeScenario": "UC-18.2.5 negative (Failure Detection): ingest benign `vmware_nsx` / `vmware:nsxt:syslog` events where `tn_uuid`, `risk_bucket` stays below `tep_mtu_num` > 0, or `tep_mtu_num` < 1700, or exclude the test entity via `ops_exception_register.csv`. Confirm zero alert rows for 'VMware NSX Transport Node Connectivity, GENEVE TEP Tunnel Health, and BFD Failure Detection'."
   },
   "dataSources": "`index=vmware_nsx` or `index=vmware` (name per site conventions) combining **`vmware:nsxt:syslog`** from **Splunk Add-on for VMware NSX-T** (`Splunk_TA_vmware-nsxt`, Splunkbase **4856**) for **NSX Manager** (`/var/log/syslog`, `/var/log/policy/policy.log`, `/var/log/manager/manager.log`, `/var/log/proton/proton.log`) and **NSX Edge** (`/var/log/syslog`, `/var/log/edgexb/*.log`); Universal Forwarder tails on ESXi `vmkernel.log`, `/var/log/syslog.log`, `/var/log/nsx-*.log` for host transport-node diagnostics. Scripted **`REST`** poll outputs landing as **`vmware:nsxt:transport_node`**, **`vmware:nsxt:tunnel_status`**, **`vmware:nsxt:edge_status`** mirror Policy paths (`GET .../host-transport-nodes`, `GET .../edge-clusters`, `GET .../edge-transport-nodes`) plus Manager endpoints (`GET /api/v1/transport-nodes/{tn-id}/state`, `/status`, `/tunnels`, `/remote-transport-node-status`). Syslog **`PRI`** pairs (**RFC 3164**/**5424**) anchor comparisons with **`facility_hint`** extractions; optional **`vmware:vmware:vsphere:vcenter`** (**Splunkbase 1810**) supplies maintenance correlation.",
   "app": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), current 1.x stream covering VMware NSX 4.x and NSX-T 3.2.x syslog) deployed per Splunk guidance on Heavy Forwarders or search heads as appropriate; **`Splunk_TA_vmware`** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) optional for vCenter joins. Authenticate scripted collectors using **`POST /api/session/create`** cookies or mutual TLS identities aligned with NSX RBAC (Auditor, Network Admin, Network Operator, Enterprise Admin roles per VMware documentation).",
@@ -25,7 +25,6 @@
   "implementation": "Deploy Splunk_TA_vmware-nsxt syslog feeds from NSX Manager, Edge appliances, and ESXi forwarders; layer timed REST or webhook-to-HEC collectors emitting vmware:nsxt:transport_node, vmware:nsxt:tunnel_status, and vmware:nsxt:edge_status JSON keyed by tn_uuid, tunnel identifiers, BFD timers (defaults near 1000 ms interval with three missed probes marking tunnels down), reported TEP MTU, and Transport Zone labels. Alert when risk_bucket stays in bfd_or_tunnel_down, mtu_below_geneve_floor, or failover_or_tunnel_syslog classes beyond suppression windows tied to CMDB maintenance.",
   "visualization": "(1) Heatmap: risk_bucket versus tunnel_state_latest coloured by tn_uuid density. (2) Timeline: last_seen per tn_uuid annotated when bfd_latest changes. (3) Table: tn_uuid, tunnel_state_latest, bfd_latest, runtime_latest, config_latest, tep_mtu_observed, tz_class, edge_cluster_refs. (4) Single-value: percentage of tn_uuid rows absent from risk_bucket over trailing four hours after exclusions. (5) Optional geomap only when CMDB supplies Metro tags—otherwise facet by site_code.",
   "cimModels": [
-    "Network_Traffic",
     "Inventory"
   ],
   "schema": "CIM: Network_Traffic + Inventory overlays",
@@ -68,7 +67,7 @@
     "vmware_vcenter",
     "vmware_vsphere"
   ],
-  "status": "verified",
+  "status": "draft",
   "lastReviewed": "2026-04-29",
   "splunkVersions": [
     "9.2+",
