@@ -1,0 +1,147 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9e663cd7f289aee3d5f3569f3f97c069025d1cab9b9db24b68ef2f82dacc883b",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.9.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/",
+      "explanation": "$method is not an nginx or ingress-nginx variable (the variable is $request_method), so nginx rejects this log_format and the controller reload fails. $ingress_name is the Ingress object name, not the IngressClass. Mapping $namespace into 'cluster' makes the SPL group by namespace while calling it cluster.",
+      "field": "detailedImplementation",
+      "quote": "\"method\":\"$method\",\n    \"status\":$status ... \"ingress_class\":\"$ingress_name\",\n    \"cluster\":\"$namespace\"",
+      "severity": "blocker",
+      "suggested_fix": "Use $request_method. Emit the namespace as 'namespace', the Ingress name as 'ingress_name', and $proxy_upstream_name or $service_name for the upstream. Add the cluster name at the collector (k8s.cluster.name resource attribute), not from $namespace. Set ingress_class from the controller's --ingress-class/IngressClass name through a static field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.2.27.json",
+      "explanation": "UC-3.2.27 is 'Kubernetes NetworkPolicy Default-Deny Coverage and Drift', not per-upstream ingress isolation. detailedImplementation repeats the error ('UC-3.2.27 isolates which upstream service or URL path carries concentrated 5xx'). The per-upstream and backend axis is UC-3.2.18.",
+      "field": "exclusions",
+      "quote": "Does not replace UC-3.2.27 per-upstream isolation",
+      "severity": "major",
+      "suggested_fix": "Remove the UC-3.2.27 references. Point per-upstream and backend 502/503/504 analysis to UC-3.2.18, or name the correct sibling after checking the catalogue."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL bins at 1h over earliest=-1h@h latest=@h, so there are no five-minute buckets. Running every five minutes, as implementation and Step 3 say, re-evaluates the same completed hour twelve times, and alerts lag by up to an hour.",
+      "field": "detailedImplementation",
+      "quote": "Dampen alerts by requiring two consecutive five-minute buckets above threshold",
+      "severity": "major",
+      "suggested_fix": "Either describe hourly evaluation (schedule hourly at a minute offset, with dampening by consecutive hours) or state that the search needs a 5-minute bin and a rolling window to support five-minute dampening."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The search computes only 5xx, upstream-failure and latency metrics; no 4xx count or rate exists anywhere. The runbook case, the visualization and the title's '4xx' promise cannot be served by this UC.",
+      "field": "detailedImplementation",
+      "quote": "Case 4 — Traefik 4xx surge after deploy: new routes or renamed paths generate 404 spikes",
+      "severity": "major",
+      "suggested_fix": "Either remove 4xx cases from the runbook and say the UC is 5xx-only, or note that a 4xx ratio must be added to the SPL by a maintainer."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "That add-on was deprecated in 2019, open-sourced, and only shipped knowledge objects for Splunk Connect for Kubernetes. It plays no part in ingress access-log or Prometheus ingestion through the OTel Collector.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes (https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)",
+      "severity": "major",
+      "suggested_fix": "Drop the add-on, and its references entry, from app and references. Name the Splunk OpenTelemetry Collector for Kubernetes chart plus the controller's metrics and JSON access-log configuration."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "ingress-nginx exports this as a Prometheus counter, nginx_ingress_controller_nginx_process_cpu_seconds_total. The bare name will not match scraped series. The same list appears in detailedImplementation Step 1.",
+      "field": "dataSources",
+      "quote": "nginx_ingress_controller_nginx_process_cpu_seconds",
+      "severity": "minor",
+      "suggested_fix": "Use nginx_ingress_controller_nginx_process_cpu_seconds_total, and confirm the name against the controller's /metrics output."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Web fits ingress access logs, but nothing in the SPL or cimSpl uses Performance, and controller Prometheus metrics are not mapped to it.",
+      "field": "cimModels",
+      "quote": "\"Web\",\n    \"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Web and drop Performance, or explain which Performance dataset is populated and how."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Recent ingress-nginx releases disable snippet annotations by default (allow-snippet-annotations=false), and the validating admission webhook rejects Ingresses that would fail nginx -t. This test may never produce a reload failure.",
+      "field": "detailedImplementation",
+      "quote": "apply an Ingress carrying an invalid regex in a server-snippet or equivalent unsafe annotation under change control; confirm nginx_ingress_controller_config_last_reload_successful drops to zero",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current ingress-nginx defaults for allow-snippet-annotations and the admission webhook, and describe a lab method that actually triggers a failed reload (for example, with the webhook disabled in a lab)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "ingress-nginx, HAProxy and Traefik metrics endpoints do not use SCRAM authentication. This sentence and the closing-checklist paragraph are generic template residue.",
+      "field": "detailedImplementation",
+      "quote": "SCRAM authentication on metrics scrapes belongs in vault alongside HEC tokens; rotate quarterly.",
+      "severity": "minor",
+      "suggested_fix": "Remove the SCRAM sentence and the closing checklist, or replace them with the actual authentication options for each metrics endpoint."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The shipped log-format example breaks nginx, and the HAProxy and Traefik latency math is off by orders of magnitude, so this content cannot have been verified end to end. The reviewer is the generic catalogue handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until an SME validates it against real controller logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.haproxy.org/dev/configuration.html#8.4",
+      "field": "spl",
+      "issue": "The HAProxy arm treats values below 500 as seconds and multiplies them by 1000. HAProxy log timers (TR, Ta and others) are already in milliseconds, so a 200 ms request becomes 200,000 ms and p99_latency_ms breaches P99_CRIT_MS constantly. TR is also the time to receive the client request, not response time; use Ta or Tr.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://doc.traefik.io/traefik/master/reference/install-configuration/observability/logs-and-accesslogs/",
+      "field": "spl",
+      "issue": "The Traefik JSON field Duration is in nanoseconds. The arm passes values >= 500 through as milliseconds, inflating latency by 10^6. Divide by 1e6 (or use OriginDuration for backend time).",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises a '4xx/5xx Error Rate', but the SPL computes no 4xx metric at all. Either add a 4xx ratio to the SPL or retitle the UC to 5xx and latency only.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/",
+      "field": "spl",
+      "issue": "NGINX upstream_status can be a comma-separated list such as '502, 200' when retries occur. tonumber() then returns null, so retried upstream failures are dropped. Parse the first or last element before converting.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "In the severity case(), config_reload_failed==1 is evaluated before the 'down' branch, so a cluster with a failed reload and a 5xx rate above 2% is reported as critical rather than down. Reorder so the worst tier wins.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0072-UC-3.2.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is a solid multi-controller 5xx, latency and SLO design with concrete runbook cases. However, the NGINX log-format example would break the controller config and mislabels the cluster field. The SPL misreads HAProxy and Traefik latency units, never computes the 4xx rate in its title, and the UC names the wrong sibling for per-upstream isolation.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.9",
+  "verdict": "incorrect"
+}

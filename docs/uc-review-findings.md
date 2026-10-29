@@ -7,13 +7,13 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 
 ## Coverage
 
-261 of 16652 UCs have at least one model review.
+600 of 16652 UCs have at least one model review.
 
 | Category | UCs | Triage | Deep | Adjudication | Stale |
 |---|---|---|---|---|---|
 | cat-01-server-compute | 281 | 0 | 5 | 0 | 0 |
 | cat-02-virtualization | 224 | 0 | 7 | 0 | 0 |
-| cat-03-containers-orchestration | 129 | 0 | 7 | 0 | 0 |
+| cat-03-containers-orchestration | 129 | 0 | 129 | 0 | 0 |
 | cat-04-cloud-infrastructure | 1235 | 0 | 8 | 0 | 0 |
 | cat-05-network-infrastructure | 720 | 0 | 13 | 0 | 0 |
 | cat-06-storage-backup | 152 | 0 | 5 | 0 | 0 |
@@ -28,12 +28,12 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 | cat-15-data-center-physical-infrastructure | 117 | 117 | 117 | 0 | 0 |
 | cat-16-service-management-itsm | 102 | 0 | 6 | 0 | 0 |
 | cat-17-network-security-zero-trust | 208 | 0 | 4 | 0 | 0 |
-| cat-18-data-center-fabric-sdn | 76 | 0 | 5 | 0 | 0 |
-| cat-19-compute-infrastructure-hci-converged | 93 | 0 | 5 | 0 | 0 |
+| cat-18-data-center-fabric-sdn | 76 | 0 | 76 | 0 | 0 |
+| cat-19-compute-infrastructure-hci-converged | 93 | 0 | 93 | 0 | 0 |
 | cat-20-cost-capacity-management | 77 | 0 | 6 | 0 | 0 |
 | cat-21-industry-verticals | 860 | 0 | 5 | 0 | 0 |
 | cat-22-regulatory-compliance | 1683 | 0 | 9 | 6 | 0 |
-| cat-23-business-analytics | 63 | 0 | 5 | 0 | 0 |
+| cat-23-business-analytics | 63 | 0 | 63 | 0 | 0 |
 | cat-24-business-intelligence-analytics-platforms | 508 | 0 | 5 | 0 | 0 |
 | cat-25-personal-hobbyist-monitoring | 6431 | 0 | 5 | 0 | 0 |
 
@@ -42,7 +42,7 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 | Tier | ok | polish | rewrite | incorrect |
 |---|---|---|---|---|
 | adjudication | 0 | 0 | 0 | 6 |
-| deep | 0 | 0 | 52 | 209 |
+| deep | 0 | 0 | 68 | 532 |
 | triage | 0 | 0 | 104 | 13 |
 
 ## Deterministic pre-pass
@@ -80,36 +80,54 @@ Blocker quotes repeated across UCs usually mean one wrong fact copied many times
 |---|---|---|
 | 33 | Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll | UC-14.2.27, UC-15.1.2, UC-15.2.19, UC-15.2.5, UC-15.2.6 |
 | 18 | Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL. | UC-14.3.45, UC-14.3.57, UC-14.5.9, UC-15.1.20, UC-15.1.21 |
+| 10 | "Application_State" | UC-3.3.1, UC-3.3.10, UC-3.3.11, UC-3.3.13, UC-3.3.16 |
+| 10 | "Application_State", "Performance" | UC-13.2.1, UC-3.2.29, UC-3.2.3, UC-3.2.30, UC-3.2.4 |
+| 10 | Splunk Connect for Kubernetes (Splunkbase 5167) | UC-3.2.43, UC-3.2.7, UC-3.5.2, UC-3.5.3, UC-3.5.7 |
+| 8 | **Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**) | UC-18.1.13, UC-18.1.14, UC-18.1.16, UC-18.1.3, UC-18.1.5 |
 | 6 | Splunk Add-on for Cisco Meraki (Splunkbase 5631) | UC-15.3.23, UC-15.3.24, UC-15.3.25, UC-15.3.26, UC-15.3.27 |
+| 5 | **Splunk Add-on for Cisco IOS/NX-OS** ([Splunkbase **2846**](https://splunkbase.splunk.com/app/2846)) | UC-18.3.14, UC-18.3.18, UC-18.3.21, UC-18.3.5, UC-18.4.4 |
+| 5 | — Splunk Connect for Kubernetes (Splunkbase 5167) | UC-3.2.36, UC-3.2.38, UC-3.2.39, UC-3.2.8, UC-3.4.9 |
+| 4 | "Application_State", "Change" | UC-3.2.36, UC-3.2.6, UC-3.5.11, UC-3.5.16 |
+| 4 | "Network_Traffic" | UC-18.2.4, UC-18.3.9, UC-18.4.1, UC-19.1.35 |
+| 4 | "Network_Traffic", "Performance" | UC-18.3.11, UC-18.3.15, UC-18.3.16, UC-18.4.6 |
 | 4 | "title": "Splunk Add-on for Cisco Security (Splunkbase 1352)" | UC-15.3.34, UC-15.3.38, UC-15.3.39, UC-15.3.40 |
 | 4 | APC PowerNet-MIB / AirIR-MIB field extractions — Universal Forwarder (Splunkbase 617) | UC-15.4.1, UC-15.4.10, UC-15.4.11, UC-15.4.12 |
+| 4 | Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll | UC-3.3.22, UC-3.5.3, UC-3.5.7, UC-3.5.8 |
+| 4 | Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL. | UC-3.1.5, UC-3.2.40, UC-3.6.5, UC-3.6.6 |
 | 4 | Schedule the SPL with earliest=-24h@h and throttle per entity to avoid duplicate pages. | UC-15.1.4, UC-20.1.2, UC-24.2.31, UC-24.6.42 |
 | 4 | Splunk Add-on for Cisco Security (Splunkbase 1352) | UC-15.3.32, UC-15.3.33, UC-5.4.10, UC-5.4.11 |
+| 3 | "Network_Traffic", | UC-18.2.3, UC-18.2.5, UC-18.3.18 |
+| 3 | "Network_Traffic", "Inventory" | UC-18.3.14, UC-18.3.4, UC-18.3.5 |
+| 3 | "Performance", "Application_State" | UC-3.2.38, UC-3.2.45, UC-3.2.8 |
+| 3 | "title": "Splunkbase — Splunk Add-on for Kubernetes", "url": "https://splunkbase.splunk.com/app/3743" | UC-3.3.17, UC-3.3.20, UC-3.3.8 |
+| 3 | **Splunk Add-on for Cisco ACI** ([Splunkbase 1897](https://splunkbase.splunk.com/app/1897)); **Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunk… | UC-18.3.15, UC-18.3.16, UC-18.3.17 |
+| 3 | **Splunk Add-on for VMware NSX** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)) | UC-18.3.11, UC-18.3.19, UC-18.3.22 |
+| 3 | **Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)) | UC-18.1.10, UC-18.1.18, UC-18.1.20 |
 
 ## Firewalled-field issues (human lane)
 
 | Field:severity | Count |
 |---|---|
-| `spl:major` | 160 |
-| `spl:needs_verification` | 97 |
-| `spl:minor` | 88 |
-| `spl:blocker` | 47 |
-| `title:minor` | 24 |
-| `cimSpl:major` | 23 |
-| `monitoringType:minor` | 18 |
-| `splunkPillar:minor` | 13 |
-| `mitreAttack:minor` | 12 |
-| `title:major` | 12 |
-| `compliance:major` | 8 |
-| `criticality:minor` | 8 |
-| `cimSpl:minor` | 6 |
+| `spl:major` | 585 |
+| `spl:blocker` | 431 |
+| `spl:minor` | 311 |
+| `spl:needs_verification` | 182 |
+| `cimSpl:blocker` | 66 |
+| `cimSpl:major` | 53 |
+| `title:minor` | 41 |
+| `monitoringType:minor` | 26 |
+| `mitreAttack:minor` | 24 |
+| `title:major` | 24 |
+| `mitreAttack:major` | 15 |
+| `splunkPillar:minor` | 14 |
+| `criticality:minor` | 11 |
+| `cimSpl:minor` | 10 |
+| `compliance:major` | 10 |
+| `cimSpl:needs_verification` | 6 |
 | `compliance:minor` | 6 |
-| `mitreAttack:major` | 5 |
-| `mitreAttack:needs_verification` | 4 |
-| `compliance:blocker` | 3 |
-| `compliance:needs_verification` | 3 |
-| `difficulty:minor` | 3 |
-| `cimSpl:blocker` | 1 |
+| `difficulty:minor` | 6 |
+| `mitreAttack:needs_verification` | 5 |
+| `compliance:needs_verification` | 4 |
 
 ## Fix queue — worst 100 UCs
 
@@ -117,103 +135,103 @@ Score = sum of severity weights (blocker 100, major 10, needs_verification 5, mi
 
 | # | UC | Criticality | Verdict | Score | Blocker | Major | Lanes | Top issue |
 |---|---|---|---|---|---|---|---|---|
-| 1 | [UC-3.2.46](../content/cat-03-containers-orchestration/UC-3.2.46.json) | critical | incorrect | 2484 | 5 | 11 | human 7, lift 12 | Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither it nor Performance (host CPU, memory, storage) model… |
-| 2 | [UC-3.2.18](../content/cat-03-containers-orchestration/UC-3.2.18.json) | critical | incorrect | 1992 | 4 | 9 | human 6, lift 11 | The CIM Performance datamodel covers CPU, Memory, Storage, Network, Facilities, OS, Uptime and Timesync and has no response_time field, so … |
-| 3 | [UC-13.2.1](../content/cat-13-observability-monitoring-stack/UC-13.2.1.json) | critical | incorrect | 1884 | 4 | 6 | human 4, lift 9 | ITSI writes itsi_summary, itsi_tracked_alerts and itsi_grouped_alerts itself on the search tier, so no Universal Forwarder input is involve… |
-| 4 | [UC-15.1.31](../content/cat-15-data-center-physical-infrastructure/UC-15.1.31.json) | critical | incorrect | 1856 | 4 | 5 | human 2, lift 13 | Splunk Connect for SNMP sends traps with sourcetype `sc4snmp:traps` to the `netops` event index by default. `index=power sourcetype=snmp:tr… |
-| 5 | [UC-15.3.33](../content/cat-15-data-center-physical-infrastructure/UC-15.3.33.json) | critical | incorrect | 1748 | 4 | 3 | human 2, lift 8 | Cisco Spaces IOT_TELEMETRY events nest readings under `iotTelemetry`. The real paths are `temperature.temperatureInCelsius`, `humidity.humi… |
-| 6 | [UC-23.3.5](../content/cat-23-business-analytics/UC-23.3.5.json) | high | incorrect | 1704 | 5 | 6 | human 3, lift 12 | Splunkbase 4146 is the Webtools Add-on (TA-webtools). The Splunk Add-on for Salesforce is 3549, which sibling UC-23.3.2 uses. The same wron… |
-| 7 | [UC-5.20.21](../content/cat-05-network-infrastructure/UC-5.20.21.json) | critical | incorrect | 1668 | 4 | 0 | human 1, lift 8 | Splunkbase 2812 is the 'EMC XtremIO App for Splunk Enterprise'. Cisco IOS syslog parsing comes from TA-cisco_ios (Splunkbase 1467, deprecat… |
-| 8 | [UC-3.1.27](../content/cat-03-containers-orchestration/UC-3.1.27.json) | high | incorrect | 1557 | 5 | 1 | human 2, lift 9 | No Splunk-supported 'Splunk Add-on for Docker' / `Splunk_TA_docker` exists. Splunkbase lists Splunk Connect for Docker (4496), a logging-dr… |
-| 9 | [UC-22.2.20](../content/cat-22-regulatory-compliance/UC-22.2.20.json) | high | incorrect | 1530 | 5 | 1 | lift 6 | ServiceNow documents the Policy table as `sn_compliance_policy`, not `sn_grc_policy`, and its native policy form uses fields such as Name, … |
-| 10 | [UC-19.2.14](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.14.json) | critical | incorrect | 1444 | 3 | 5 | human 2, lift 9 | Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname). The Nutanix Prism add-on is 'TA for Nutanix Prism' (Splunkbase 3103, folder T… |
-| 11 | [UC-11.2.23](../content/cat-11-email-collaboration/UC-11.2.23.json) | critical | incorrect | 1404 | 3 | 5 | human 3, lift 6 | The Splunk Add-on for Microsoft Office 365 has no `ms:o365:dlp` sourcetype. DLP events from the DLP.All content type are indexed as `o365:m… |
-| 12 | [UC-3.3.24](../content/cat-03-containers-orchestration/UC-3.3.24.json) | high | incorrect | 1404 | 4 | 6 | human 5, lift 9 | Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint), and it describes process/service/port state, not Machine API… |
-| 13 | [UC-13.4.10](../content/cat-13-observability-monitoring-stack/UC-13.4.10.json) | high | incorrect | 1401 | 4 | 6 | human 4, lift 9 | No Splunk-built 'Splunk Add-on for HashiCorp Vault' exists. The Splunkbase listing is the HashiCorp-built 'HashiCorp Vault App for Splunk' … |
-| 14 | [UC-18.4.6](../content/cat-18-data-center-fabric-sdn/UC-18.4.6.json) | high | incorrect | 1389 | 4 | 5 | human 3, lift 11 | Splunkbase 1917 is 'Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)', built by Cisco, and its listing tells users to migrate to th… |
-| 15 | [UC-18.1.1](../content/cat-18-data-center-fabric-sdn/UC-18.1.1.json) | critical | incorrect | 1388 | 3 | 3 | human 1, lift 10 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on, and no Splunk_TA_cisco-aci pack… |
-| 16 | [UC-4.4.73](../content/cat-04-cloud-infrastructure/UC-4.4.73.json) | high | incorrect | 1374 | 4 | 5 | human 4, lift 9 | `errorCode` is an AWS CloudTrail field. A GCP AuditLog records failures in `protoPayload.status` (`status.code`, a google.rpc.Code integer,… |
-| 17 | [UC-4.3.71](../content/cat-04-cloud-infrastructure/UC-4.3.71.json) | high | incorrect | 1341 | 4 | 4 | human 4, lift 7 | Artifact Registry audit logs record methodName as `google.devtools.artifactregistry.v1.ArtifactRegistry.CreateRepository` / `DeleteReposito… |
-| 18 | [UC-15.4.8](../content/cat-15-data-center-physical-infrastructure/UC-15.4.8.json) | critical | incorrect | 1328 | 3 | 3 | human 1, lift 7 | By default, SC4SNMP sends polled data to `netops` (`sc4snmp:event`) and `netmetrics` (`sc4snmp:metric`) and sends traps as `sc4snmp:traps`.… |
-| 19 | [UC-22.29.1](../content/cat-22-regulatory-compliance/UC-22.29.1.json) | critical | incorrect | 1240 | 3 | 1 | human 1, lift 3 | Article 58 applies to handlers that provide important Internet platform services, have a large number of users, and use complex business mo… |
-| 20 | [UC-22.2.45](../content/cat-22-regulatory-compliance/UC-22.2.45.json) | high | incorrect | 1230 | 4 | 1 | human 1, lift 4 | The control objective says the UC proves channels are “configured with valid credentials and certificates,” but the exclusions explicitly s… |
-| 21 | [UC-22.51.13](../content/cat-22-regulatory-compliance/UC-22.51.13.json) | high | incorrect | 1200 | 4 | 0 | human 1, lift 3 | `crcSalt` changes the file-monitor input CRC used to identify files; it is not a data-integrity control, and Splunk warns that `<SOURCE>` c… |
-| 22 | [UC-23.8.6](../content/cat-23-business-analytics/UC-23.8.6.json) | critical | incorrect | 1148 | 2 | 7 | human 7, lift 11 | SAP transaction MB03 is 'Display Material Document', which shows a single goods movement. It does not show stock valuation, so it cannot be… |
-| 23 | [UC-5.20.88](../content/cat-05-network-infrastructure/UC-5.20.88.json) | high | incorrect | 1122 | 3 | 6 | human 3, lift 12 | RFC 5765 is 'Security Issues and Solutions in Peer-to-Peer Systems for Realtime Communications' and has nothing to do with BGP. BGP unnumbe… |
-| 24 | [UC-17.2.3](../content/cat-17-network-security-zero-trust/UC-17.2.3.json) | critical | incorrect | 1076 | 2 | 6 | human 3, lift 10 | Splunkbase 1352 is the 'App for Cisco Network Data', not an ASA/VPN add-on, and ASA VPN logs arrive by syslog, not modular input or scripte… |
-| 25 | [UC-2.9.9](../content/cat-02-virtualization/UC-2.9.9.json) | critical | incorrect | 1048 | 2 | 6 | human 1, lift 9 | The `nova` CLI has been deprecated since python-novaclient 17.8.0 in favour of the unified `openstack` client, and `nova list --fields` pri… |
-| 26 | [UC-7.1.15](../content/cat-07-database-data-platforms/UC-7.1.15.json) | critical | incorrect | 1048 | 2 | 6 | human 3, lift 7 | The add-on's source type table lists 'CIM data models: None' for `mssql:audit`, so `Change.All_Changes` stays empty for this feed unless th… |
-| 27 | [UC-15.2.7](../content/cat-15-data-center-physical-infrastructure/UC-15.2.7.json) | high | incorrect | 1041 | 3 | 4 | human 2, lift 8 | There is no separate AirIR-MIB and no objects with these names; InRow RC unit temperatures live in APC PowerNet-MIB under airIRRCUnitStatus… |
-| 28 | [UC-18.4.3](../content/cat-18-data-center-fabric-sdn/UC-18.4.3.json) | high | incorrect | 1026 | 3 | 3 | human 1, lift 9 | Cisco DC Networking (7777) collects Nexus Dashboard data through the ND API itself and indexes advisories as `cisco:dc:nd:advisories` (and … |
-| 29 | [UC-15.1.27](../content/cat-15-data-center-physical-infrastructure/UC-15.1.27.json) | high | incorrect | 1014 | 3 | 3 | human 3, lift 7 | PowerNet-MIB has no object named upsLastTransferReason. The reason for the last transfer to battery is upsAdvInputLineFailCause (.1.3.6.1.4… |
-| 30 | [UC-15.4.1](../content/cat-15-data-center-physical-infrastructure/UC-15.4.1.json) | critical | incorrect | 1012 | 2 | 5 | human 2, lift 8 | The Universal Forwarder is downloaded from splunk.com and is not a Splunkbase app; splunkbase.splunk.com/app/617 returns 404 and ID 617 is … |
-| 31 | [UC-19.1.45](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.45.json) | critical | incorrect | 1008 | 2 | 4 | human 2, lift 8 | No Splunk-built 'Splunk Add-on for RabbitMQ' appears in the Splunkbase catalogue. The only RabbitMQ-adjacent listings are the BaboonBones A… |
-| 32 | [UC-6.1.13](../content/cat-06-storage-backup/UC-6.1.13.json) | critical | incorrect | 1004 | 2 | 5 | human 3, lift 5 | TrueNAS deprecated the REST API in 25.04, and the deprecations page states it is removed in TrueNAS 26, where REST endpoints no longer work… |
-| 33 | [UC-15.4.9](../content/cat-15-data-center-physical-infrastructure/UC-15.4.9.json) | high | incorrect | 999 | 3 | 3 | human 1, lift 8 | NetBotz rack monitors expose temperature sensors in NETBOTZV2-MIB (`tempSensorTable` under .1.3.6.1.4.1.5528.100.4.1.1), not PowerNet-MIB, … |
-| 34 | [UC-20.3.13](../content/cat-20-cost-capacity-management/UC-20.3.13.json) | critical | incorrect | 992 | 2 | 4 | human 3, lift 7 | `implementation` refreshes the entitlement weekly, but the SPL's join subsearch reads `sap:license_position` with `earliest=-1d`. On six da… |
-| 35 | [UC-5.1.58](../content/cat-05-network-infrastructure/UC-5.1.58.json) | critical | incorrect | 992 | 2 | 4 | human 1, lift 9 | Neither Splunk_TA_juniper (Splunkbase 2847) nor the SC4S JunOS source defines `juniper:junos:structured`. Their structured sourcetypes cove… |
-| 36 | [UC-2.6.5](../content/cat-02-virtualization/UC-2.6.5.json) | critical | incorrect | 984 | 2 | 4 | human 3, lift 5 | Since Splunk Add-on for Microsoft Windows 6.0.0, System-channel events are indexed as `sourcetype=WinEventLog` (or `XmlWinEventLog` when XM… |
-| 37 | [UC-15.1.29](../content/cat-15-data-center-physical-infrastructure/UC-15.1.29.json) | critical | incorrect | 968 | 2 | 3 | human 3, lift 6 | upsCommStatus (.1.3.6.1.4.1.318.1.1.1.8.1) is 'the status of agent's communication with UPS': ok(1) or noComm(2) between the NMC and the UP… |
-| 38 | [UC-15.2.18](../content/cat-15-data-center-physical-infrastructure/UC-15.2.18.json) | critical | incorrect | 968 | 2 | 3 | human 2, lift 7 | Edge Hub data is not collected by a Universal Forwarder; Edge Hub OS posts to HEC through a Datastreamer configured in the OT Intelligence … |
-| 39 | [UC-15.1.1](../content/cat-15-data-center-physical-infrastructure/UC-15.1.1.json) | critical | incorrect | 952 | 2 | 3 | human 1, lift 8 | RFC 1628 UPS-MIB has no battery-replace indicator and no battery-age object. The replace flag is APC PowerNet-MIB upsAdvBatteryReplaceIndic… |
-| 40 | [UC-15.3.7](../content/cat-15-data-center-physical-infrastructure/UC-15.3.7.json) | critical | incorrect | 936 | 2 | 3 | human 2, lift 7 | The Splunk Universal Forwarder is not a Splunkbase app; it is downloaded from splunk.com. splunkbase.splunk.com/app/617 returns 404 and ID … |
-| 41 | [UC-15.1.26](../content/cat-15-data-center-physical-infrastructure/UC-15.1.26.json) | critical | incorrect | 932 | 2 | 2 | human 2, lift 7 | SC4SNMP classifies TimeTicks/Gauge/Integer varbinds as metrics, so any profile that polls upsAdvBatteryRunTimeRemaining goes to the metrics… |
-| 42 | [UC-23.1.4](../content/cat-23-business-analytics/UC-23.1.4.json) | medium | incorrect | 920 | 4 | 5 | human 3, lift 12 | Splunkbase 1546 is the community 'REST API Modular Input' (rest_ta), not a Splunk-built 'Splunk Add-on for REST'. The wrong name sends read… |
-| 43 | [UC-15.1.10](../content/cat-15-data-center-physical-infrastructure/UC-15.1.10.json) | critical | incorrect | 896 | 2 | 2 | human 1, lift 7 | The description (and the controlTest positiveScenario with the same wording) lists three independent OR conditions. The SPL alerts on `runt… |
-| 44 | [UC-13.5.5](../content/cat-13-observability-monitoring-stack/UC-13.5.5.json) | high | incorrect | 855 | 2 | 8 | human 4, lift 7 | The SignalFx Smart Agent reached End of Support on 30 June 2023. It was a metrics-collection agent, not a zero-code tracing instrumentation… |
-| 45 | [UC-15.3.26](../content/cat-15-data-center-physical-infrastructure/UC-15.3.26.json) | medium | incorrect | 844 | 4 | 2 | human 2, lift 6 | Meraki's webhook sample-alert catalogue names the cloud-archive alert 'Potential Cloud Archive Issue' (alertTypeId cloud_archive_alert). It… |
-| 46 | [UC-17.4.6](../content/cat-17-network-security-zero-trust/UC-17.4.6.json) | high | incorrect | 828 | 2 | 7 | human 2, lift 9 | Cloudflare documents OriginResponseStatus as an int where 0 means no response was received from the origin and Cloudflare's edge served the… |
-| 47 | [UC-15.4.5](../content/cat-15-data-center-physical-infrastructure/UC-15.4.5.json) | high | incorrect | 816 | 2 | 7 | human 2, lift 9 | The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/6… |
-| 48 | [UC-10.6.180](../content/cat-10-security-infrastructure/UC-10.6.180.json) | high | incorrect | 786 | 2 | 6 | human 1, lift 9 | Splunkbase 617 is not in the catalogue and is not the Universal Forwarder. The detection needs web access logs CIM-mapped to the Web datamo… |
-| 49 | [UC-10.4.81](../content/cat-10-security-infrastructure/UC-10.4.81.json) | high | incorrect | 783 | 2 | 6 | human 1, lift 8 | The detection reads Office 365 Management Activity API data collected by the Splunk Add-on for Microsoft Office 365, not by a Universal For… |
-| 50 | [UC-15.5.9](../content/cat-15-data-center-physical-infrastructure/UC-15.5.9.json) | high | incorrect | 771 | 2 | 5 | human 3, lift 7 | The Universal Forwarder is downloaded from splunk.com, not Splunkbase, and splunkbase.splunk.com/app/617 returns 404. The forwarder has no … |
-| 51 | [UC-15.4.6](../content/cat-15-data-center-physical-infrastructure/UC-15.4.6.json) | high | incorrect | 759 | 2 | 5 | human 1, lift 9 | The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/6… |
-| 52 | [UC-15.4.4](../content/cat-15-data-center-physical-infrastructure/UC-15.4.4.json) | medium | incorrect | 746 | 3 | 7 | human 3, lift 10 | The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase, and it has no SNMP polling input; splunkbase.splunk.com/app/6… |
-| 53 | [UC-23.2.6](../content/cat-23-business-analytics/UC-23.2.6.json) | critical | incorrect | 744 | 1 | 7 | human 4, lift 12 | Salesforce has no standard `Quota` object. Collaborative Forecasts quotas live in `ForecastingQuota`, with `QuotaOwnerId` (not OwnerId), `Q… |
-| 54 | [UC-5.8.30](../content/cat-05-network-infrastructure/UC-5.8.30.json) | high | incorrect | 744 | 2 | 4 | human 2, lift 8 | The NIOS audit log records administrative activity only: logins and logouts, object writes, admin-initiated service restarts and reboots, s… |
-| 55 | [UC-7.4.9](../content/cat-07-database-data-platforms/UC-7.4.9.json) | high | incorrect | 744 | 2 | 4 | human 2, lift 8 | Splunkbase app 617 does not exist (404), and the Universal Forwarder is not a Splunkbase app; the field also mixes two collection paths. Pu… |
-| 56 | [UC-15.3.31](../content/cat-15-data-center-physical-infrastructure/UC-15.3.31.json) | high | incorrect | 741 | 2 | 4 | human 2, lift 7 | Firehose has separate `DEVICE_COUNT` (Wi-Fi, 1-minute) and `CAMERA_COUNT` (Meraki camera people count) event types, not a 'COUNT' type. `DE… |
-| 57 | [UC-15.2.10](../content/cat-15-data-center-physical-infrastructure/UC-15.2.10.json) | high | incorrect | 738 | 2 | 4 | human 2, lift 6 | The title presents this as an ASHRAE exceedance, but the ASHRAE TC 9.9 recommended envelope (A1–A4) is −9°C dew point to 15°C dew point and… |
-| 58 | [UC-21.3.43](../content/cat-21-industry-verticals/UC-21.3.43.json) | high | incorrect | 735 | 2 | 4 | human 2, lift 5 | An overrun means an actual case end later than its scheduled end. Nothing in dataSources, implementation or the SPL names scheduled or actu… |
-| 59 | [UC-15.3.17](../content/cat-15-data-center-physical-infrastructure/UC-15.3.17.json) | medium | incorrect | 734 | 3 | 6 | human 2, lift 10 | The Authentication data model describes login attempts (action, user, src, dest of an authentication event). A polled visitor-badge record … |
-| 60 | [UC-13.1.47](../content/cat-13-observability-monitoring-stack/UC-13.1.47.json) | high | incorrect | 732 | 2 | 4 | human 2, lift 8 | License consumption is recorded in `license_usage.log` (`index=_internal source=*license_usage.log type=Usage`, field `b`), which is exactl… |
-| 61 | [UC-18.2.9](../content/cat-18-data-center-fabric-sdn/UC-18.2.9.json) | critical | incorrect | 724 | 1 | 7 | human 2, lift 9 | Splunkbase 4856 is 'Metrics Add-on for Infrastructure' (TA-linux-metrics), a Linux OS metrics add-on, not an NSX add-on. VMware's NSX-T Spl… |
-| 62 | [UC-15.3.1](../content/cat-15-data-center-physical-infrastructure/UC-15.3.1.json) | high | incorrect | 723 | 2 | 3 | human 3, lift 9 | NERC CIP mapping cites CIP-005-7 R1 (Electronic Security Perimeter), but physical access logging is CIP-006 (Physical Security of BES Cyber… |
-| 63 | [UC-15.1.28](../content/cat-15-data-center-physical-infrastructure/UC-15.1.28.json) | high | incorrect | 720 | 2 | 3 | human 1, lift 10 | SC4SNMP classifies Gauge varbinds such as upsAdvOutputLoad as metrics. They go to the metrics index (default netmetrics) with sourcetype sc… |
-| 64 | [UC-7.1.48](../content/cat-07-database-data-platforms/UC-7.1.48.json) | high | incorrect | 720 | 2 | 3 | human 2, lift 5 | The UC measures write stalls on a single MySQL server caused by a full log buffer. It has nothing to do with replication, apply lag or regi… |
-| 65 | [UC-6.1.51](../content/cat-06-storage-backup/UC-6.1.51.json) | medium | incorrect | 714 | 3 | 5 | human 4, lift 7 | API collection for this add-on is managed by the Hydra scheduler working with data collection nodes, not by a Universal Forwarder. Pairing … |
-| 66 | [UC-12.2.14](../content/cat-12-devops-ci-cd/UC-12.2.14.json) | critical | incorrect | 708 | 1 | 7 | human 2, lift 9 | The Splunk App for Jenkins (Splunkbase 3332) and its Splunk plugin for Jenkins send agent status with sourcetype `json:jenkins`, index `jen… |
-| 67 | [UC-21.1.34](../content/cat-21-industry-verticals/UC-21.1.34.json) | critical | incorrect | 704 | 1 | 7 | human 4, lift 6 | CIP-008-6 R4 Table 4.2 requires initial notification to the E-ISAC and CISA (formerly NCCIC) within one hour after a Reportable Cyber Secur… |
-| 68 | [UC-4.1.25](../content/cat-04-cloud-infrastructure/UC-4.1.25.json) | critical | incorrect | 704 | 1 | 7 | human 2, lift 8 | The CIM Performance model covers host CPU, memory, storage and network. The add-on only derives Performance fields from specific CloudWatch… |
-| 69 | [UC-15.3.32](../content/cat-15-data-center-physical-infrastructure/UC-15.3.32.json) | medium | incorrect | 702 | 3 | 5 | human 2, lift 7 | The CIM Authentication model describes login and authentication activity (user, src, dest, action). Wi-Fi presence and dwell events from Ci… |
-| 70 | [UC-5.20.16](../content/cat-05-network-infrastructure/UC-5.20.16.json) | high | incorrect | 699 | 2 | 3 | human 1, lift 7 | ipv6NetToMediaTable (mib-2.55.1.12) is defined in the IPV6-MIB, RFC 2465, which RFC 4293 obsoletes. RFC 4293's replacement is the version-n… |
-| 71 | [UC-11.3.14](../content/cat-11-email-collaboration/UC-11.3.14.json) | high | incorrect | 696 | 2 | 3 | human 1, lift 6 | The Webex Meeting Qualities API returns per-media-session arrays of packetLoss, latency, jitter, frameRate, mediaBitRate and resolutionHeig… |
-| 72 | [UC-11.3.51](../content/cat-11-email-collaboration/UC-11.3.51.json) | high | incorrect | 696 | 2 | 3 | human 2, lift 5 | `/api/admin/history/v1/conference/` holds only conferences that are no longer in progress. Its `participant_count` is the total number of p… |
-| 73 | [UC-15.1.24](../content/cat-15-data-center-physical-infrastructure/UC-15.1.24.json) | high | incorrect | 693 | 2 | 3 | human 1, lift 5 | The Universal Forwarder is downloaded from splunk.com, not Splunkbase (splunkbase.splunk.com/app/617 returns 404), and it has no SNMP or PD… |
-| 74 | [UC-24.2.9](../content/cat-24-business-intelligence-analytics-platforms/UC-24.2.9.json) | medium | incorrect | 684 | 3 | 3 | human 4, lift 6 | The `o365:management:activity` sourcetype is collected from the Office 365 Management Activity API by the Splunk Add-on for Microsoft Offic… |
-| 75 | [UC-15.1.16](../content/cat-15-data-center-physical-infrastructure/UC-15.1.16.json) | high | incorrect | 675 | 2 | 2 | human 1, lift 8 | dataSources and detailedImplementation ('Deploy collectors on a Heavy Forwarder class host ... optionally Splunk Connect for SNMP') both tr… |
-| 76 | [UC-8.6.31](../content/cat-08-application-infrastructure/UC-8.6.31.json) | high | incorrect | 669 | 2 | 2 | human 3, lift 4 | `timechart ... by vhost, name` uses two split-by fields; timechart accepts only one split-by field, so the search fails. Use `eval queue=vh… |
-| 77 | [UC-10.13.3](../content/cat-10-security-infrastructure/UC-10.13.3.json) | critical | incorrect | 664 | 1 | 6 | human 2, lift 7 | The search embedded in detailedImplementation calls `current()` and `prev()`, which are not Splunk statistical functions; the supported eve… |
-| 78 | [UC-15.3.21](../content/cat-15-data-center-physical-infrastructure/UC-15.3.21.json) | critical | incorrect | 664 | 1 | 6 | human 2, lift 7 | Panel tamper switches, RS-485 line supervision faults and power-state changes are device health alarms, not authentication attempts; the Au… |
-| 79 | [UC-15.4.7](../content/cat-15-data-center-physical-infrastructure/UC-15.4.7.json) | medium | incorrect | 664 | 3 | 3 | human 1, lift 7 | By default, SC4SNMP writes polled numeric values to the metrics index `netmetrics` with sourcetype `sc4snmp:metric`, and non-metric values … |
-| 80 | [UC-6.1.6](../content/cat-06-storage-backup/UC-6.1.6.json) | critical | incorrect | 664 | 1 | 6 | human 2, lift 7 | ONTAP has no `ha.interconnect` EMS family. HA interconnect loss is reported as `ic.HAInterconnectDown` and `callhome.hainterconnect.down`. … |
-| 81 | [UC-1.2.91](../content/cat-01-server-compute/UC-1.2.91.json) | medium | incorrect | 644 | 3 | 2 | human 3, lift 4 | The positive fixture pairs a `USB\VID_` instance path with the DiskDrive class GUID, a combination Windows does not generate for USB mass s… |
-| 82 | [UC-15.2.19](../content/cat-15-data-center-physical-infrastructure/UC-15.2.19.json) | critical | incorrect | 644 | 1 | 6 | human 1, lift 7 | The Universal Forwarder is a standalone executable, not a Splunkbase app (ID 617 is not in the cached Splunkbase catalogue), and it ships w… |
-| 83 | [UC-15.3.28](../content/cat-15-data-center-physical-infrastructure/UC-15.3.28.json) | medium | incorrect | 644 | 3 | 2 | human 2, lift 5 | getOrganizationFirmwareUpgrades returns top-level upgradeId, upgradeBatchId, network{id,name}, status, time, completedAt, productTypes, toV… |
-| 84 | [UC-15.5.1](../content/cat-15-data-center-physical-infrastructure/UC-15.5.1.json) | critical | incorrect | 644 | 1 | 6 | human 2, lift 6 | The Universal Forwarder is not a Splunkbase app and Splunkbase /app/617 returns 404. The repository CCTV guide also describes other paths: … |
-| 85 | [UC-8.3.3](../content/cat-08-application-infrastructure/UC-8.3.3.json) | critical | incorrect | 644 | 1 | 5 | human 2, lift 7 | Splunkbase 617 does not exist. The repository guide names the Splunk Add-on for JMX (Splunkbase 2647) for Kafka broker MBeans, run on a hea… |
-| 86 | [UC-1.1.134](../content/cat-01-server-compute/UC-1.1.134.json) | high | incorrect | 642 | 2 | 1 | human 2, lift 5 | Apple's df appends the suffix "i" to every base-2 human-readable value, including the byte unit produced by humanize_number with HN_B. As a… |
-| 87 | [UC-7.1.73](../content/cat-07-database-data-platforms/UC-7.1.73.json) | critical | incorrect | 632 | 1 | 5 | human 3, lift 7 | Cassandra reports dropped messages in `system.log` as one summary line per message type every 5 seconds, for example `MUTATION messages wer… |
-| 88 | [UC-8.2.1](../content/cat-08-application-infrastructure/UC-8.2.1.json) | critical | incorrect | 624 | 1 | 4 | human 3, lift 6 | Splunkbase 617 does not exist; JMX polling is done by the Splunk Add-on for Java Management Extensions (Splunk_TA_jmx, Splunkbase 2647) on … |
-| 89 | [UC-20.1.2](../content/cat-20-cost-capacity-management/UC-20.1.2.json) | critical | incorrect | 616 | 1 | 5 | human 2, lift 8 | The SPL buckets spend per day and feeds the series to `predict`; with a 24-hour window there is at most one or two daily rows, so LLP5 has … |
-| 90 | [UC-15.2.17](../content/cat-15-data-center-physical-infrastructure/UC-15.2.17.json) | critical | incorrect | 612 | 1 | 5 | human 1, lift 8 | The Universal Forwarder is a standalone Splunk executable, not a Splunkbase app (ID 617 is absent from the cached Splunkbase catalogue and … |
-| 91 | [UC-11.7.5](../content/cat-11-email-collaboration/UC-11.7.5.json) | critical | incorrect | 608 | 1 | 5 | human 2, lift 6 | `user` coalesces user/username/account and `src` coalesces src_ip/remote_ip/SRC, but the security log emits `AccountID` and `RemoteAddress`… |
-| 92 | [UC-15.2.1](../content/cat-15-data-center-physical-infrastructure/UC-15.2.1.json) | critical | incorrect | 608 | 1 | 5 | human 1, lift 7 | The Universal Forwarder is a separately downloaded Splunk binary, not a Splunkbase app (splunkbase.splunk.com/app/617 returns 404), and it … |
-| 93 | [UC-15.2.8](../content/cat-15-data-center-physical-infrastructure/UC-15.2.8.json) | critical | incorrect | 608 | 1 | 4 | human 1, lift 8 | The Universal Forwarder is downloaded from splunk.com, not Splunkbase; app 617 returns 404 and is absent from the cached catalogue, and the… |
-| 94 | [UC-15.3.20](../content/cat-15-data-center-physical-infrastructure/UC-15.3.20.json) | critical | incorrect | 608 | 1 | 5 | human 1, lift 7 | The Splunk Universal Forwarder is downloaded from splunk.com, not Splunkbase; app 617 is not in the cached catalogue and its Splunkbase URL… |
-| 95 | [UC-15.5.2](../content/cat-15-data-center-physical-infrastructure/UC-15.5.2.json) | critical | incorrect | 608 | 1 | 5 | human 1, lift 7 | The Splunk Universal Forwarder is not a Splunkbase app; it is downloaded from splunk.com, and splunkbase.splunk.com/app/617 returns 404. Th… |
-| 96 | [UC-5.4.10](../content/cat-05-network-infrastructure/UC-5.4.10.json) | critical | incorrect | 608 | 1 | 4 | human 2, lift 7 | Splunkbase 1352 is the Cisco Networks app/add-on (cisco_ios / TA-cisco_ios, 'App for Cisco Network Data'), not a 'Cisco Security' add-on. T… |
-| 97 | [UC-15.2.3](../content/cat-15-data-center-physical-infrastructure/UC-15.2.3.json) | critical | incorrect | 604 | 1 | 5 | human 1, lift 6 | The Universal Forwarder is a standalone executable, not Splunkbase app 617 (absent from the cached catalogue), and it does not bundle Pytho… |
-| 98 | [UC-15.2.5](../content/cat-15-data-center-physical-infrastructure/UC-15.2.5.json) | critical | incorrect | 604 | 1 | 5 | human 1, lift 6 | The Splunk Universal Forwarder is distributed from splunk.com downloads, not Splunkbase; Splunkbase app 617 returns 404 and is absent from … |
-| 99 | [UC-15.1.13](../content/cat-15-data-center-physical-infrastructure/UC-15.1.13.json) | critical | incorrect | 592 | 1 | 4 | human 1, lift 8 | Splunk Connect for SNMP receives traps in its own containerized trap service (Docker Compose or microk8s) and sends them over HEC as source… |
-| 100 | [UC-15.2.12](../content/cat-15-data-center-physical-infrastructure/UC-15.2.12.json) | critical | incorrect | 592 | 1 | 4 | human 2, lift 7 | Splunkbase app 617 does not exist (the Splunkbase API returns 'App was not found'), and the Universal Forwarder is not a Splunkbase app. A … |
+| 1 | [UC-3.2.7](../content/cat-03-containers-orchestration/UC-3.2.7.json) | critical | incorrect | 3488 | 8 | 7 | human 7, lift 10 | Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', a third-party app unrelated to Kubernetes. Splunk Connect for Kubernetes wa… |
+| 2 | [UC-3.3.15](../content/cat-03-containers-orchestration/UC-3.3.15.json) | critical | incorrect | 3040 | 7 | 5 | human 6, lift 8 | Application_State has been deprecated since CIM 4.12.0. Neither model represents etcd operator conditions, backup recency or leader metrics… |
+| 3 | [UC-19.1.31](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.31.json) | critical | incorrect | 3036 | 7 | 5 | human 5, lift 12 | This is backwards. The add-on's app directory is Splunk_TA_cisco-ucs (hyphen). The statement will push administrators to look for, or creat… |
+| 4 | [UC-3.3.17](../content/cat-03-containers-orchestration/UC-3.3.17.json) | critical | incorrect | 3028 | 7 | 5 | human 6, lift 9 | No Splunk-published 'Splunk Add-on for Kubernetes' / Splunk_TA_kubernetes exists. The UC's reference points at Splunkbase 3743, which is Ou… |
+| 5 | [UC-3.2.43](../content/cat-03-containers-orchestration/UC-3.2.43.json) | high | incorrect | 2865 | 9 | 5 | human 5, lift 10 | CIM Application State has been deprecated since CIM 4.12.0 and describes host process, service and port inventory, not Kubernetes probe out… |
+| 6 | [UC-19.1.30](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.30.json) | critical | incorrect | 2644 | 6 | 5 | human 6, lift 12 | The add-on folder is Splunk_TA_cisco-ucs (hyphen), not an underscore. The app field also says the add-on runs 'inventory and statistics mod… |
+| 7 | [UC-19.2.5](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.5.json) | critical | incorrect | 2636 | 6 | 5 | human 5, lift 11 | Splunkbase 5380 is 'Mattermost Alerts', and no 'Splunk Add-on for VMware vSphere Forwarder' exists. The vCenter collector is 'Splunk Add-on… |
+| 8 | [UC-3.3.20](../content/cat-03-containers-orchestration/UC-3.3.20.json) | critical | incorrect | 2628 | 6 | 4 | human 5, lift 10 | Application_State was deprecated in CIM 4.12 in favour of the Endpoint datamodel. Neither Application_State nor Inventory models certificat… |
+| 9 | [UC-3.5.3](../content/cat-03-containers-orchestration/UC-3.5.3.json) | critical | incorrect | 2628 | 6 | 5 | human 3, lift 11 | Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', not a Kubernetes collector; Splunk Connect for Kubernetes is distributed as… |
+| 10 | [UC-3.1.24](../content/cat-03-containers-orchestration/UC-3.1.24.json) | high | incorrect | 2586 | 8 | 5 | human 3, lift 14 | `where like(lower(Processes.process), ...)` is unquoted. In eval/where, `.` is the concatenation operator, so `Processes.process` evaluates… |
+| 11 | [UC-3.2.46](../content/cat-03-containers-orchestration/UC-3.2.46.json) | critical | incorrect | 2484 | 5 | 11 | human 7, lift 12 | Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither it nor Performance (host CPU, memory, storage) model… |
+| 12 | [UC-3.2.8](../content/cat-03-containers-orchestration/UC-3.2.8.json) | critical | incorrect | 2428 | 5 | 10 | human 7, lift 11 | Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'. Splunk Connect for Kubernetes was a GitHub Helm chart that has reached end of s… |
+| 13 | [UC-3.2.41](../content/cat-03-containers-orchestration/UC-3.2.41.json) | critical | incorrect | 2348 | 5 | 8 | human 5, lift 11 | The Application_State data model is deprecated in the Splunk CIM, and Service endpoint readiness does not map to Application_State or Perfo… |
+| 14 | [UC-3.2.16](../content/cat-03-containers-orchestration/UC-3.2.16.json) | critical | incorrect | 2344 | 5 | 8 | human 5, lift 10 | `max(Performance.disk_usage) ... WHERE nodename=Performance.Storage BY Performance.host`: the Performance model has no disk_usage or host f… |
+| 15 | [UC-3.1.3](../content/cat-03-containers-orchestration/UC-3.1.3.json) | high | incorrect | 2331 | 7 | 6 | human 6, lift 12 | Splunk_TA_nix has no cgroup input and no linux:cgroup or procfs:loadavg sourcetype. Its documented sourcetypes are cpu, vmstat, top, ps, df… |
+| 16 | [UC-19.2.20](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.20.json) | high | incorrect | 2325 | 7 | 6 | human 5, lift 15 | Splunkbase app 3684 is the TP-Link Add-on for Splunk (HS110 smart plugs), not a VMware ESXi add-on. The ESXi Logs add-on is 5603 in data/sp… |
+| 17 | [UC-19.2.4](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.4.json) | high | incorrect | 2307 | 7 | 6 | human 5, lift 13 | Splunkbase app 5380 is 'Mattermost Alerts' (archived), not a VMware add-on. No Splunk app is named 'Splunk Add-on for VMware vSphere'; the … |
+| 18 | [UC-3.1.1](../content/cat-03-containers-orchestration/UC-3.1.1.json) | critical | incorrect | 2288 | 5 | 6 | human 6, lift 9 | Splunk Connect for Docker is a Docker logging plugin that forwards container stdout/stderr to HEC. It has no modular inputs that read docke… |
+| 19 | [UC-3.1.25](../content/cat-03-containers-orchestration/UC-3.1.25.json) | critical | incorrect | 2272 | 5 | 6 | human 4, lift 11 | In Splunk Add-on for Unix and Linux, `linux_secure` is /var/log/secure (auth and sudo), not auditd. auditd records are `linux_audit` (or `a… |
+| 20 | [UC-3.2.13](../content/cat-03-containers-orchestration/UC-3.2.13.json) | critical | incorrect | 2268 | 5 | 5 | human 3, lift 12 | Certificate expiry metadata (notAfter, subject, issuer, serial) maps to the CIM Certificates data model (All_Certificates / SSL dataset wit… |
+| 21 | [UC-3.3.9](../content/cat-03-containers-orchestration/UC-3.3.9.json) | high | incorrect | 2268 | 7 | 5 | human 7, lift 7 | The CIM Performance datamodel's root dataset is All_Performance, with child datasets such as CPU (field All_Performance.CPU.cpu_load_percen… |
+| 22 | [UC-3.2.29](../content/cat-03-containers-orchestration/UC-3.2.29.json) | high | incorrect | 2259 | 7 | 5 | human 6, lift 9 | Application_State has been deprecated since CIM 4.12.0 and describes host service/process inventory, not Kubernetes CronJob schedule state;… |
+| 23 | [UC-3.3.22](../content/cat-03-containers-orchestration/UC-3.3.22.json) | high | incorrect | 2244 | 7 | 4 | human 7, lift 8 | The Change datamodel's root dataset is All_Changes, so `Change.action/Change.object/Change.dest` and `nodename=Change` return nothing. Join… |
+| 24 | [UC-19.1.17](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.17.json) | high | incorrect | 2226 | 7 | 3 | human 5, lift 9 | This is backwards. The Splunkbase catalog lists the app name as `Splunk_TA_cisco-ucs`, and the add-on docs reference `$SPLUNK_HOME/etc/apps… |
+| 25 | [UC-18.3.6](../content/cat-18-data-center-fabric-sdn/UC-18.3.6.json) | high | incorrect | 2208 | 7 | 3 | human 3, lift 9 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)' (TA-metricator-hec-for-nmon), not a Cisco ACI add-on. Th… |
+| 26 | [UC-18.2.8](../content/cat-18-data-center-fabric-sdn/UC-18.2.8.json) | critical | incorrect | 2196 | 5 | 4 | human 2, lift 12 | Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware is 32… |
+| 27 | [UC-19.1.29](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.29.json) | high | incorrect | 2181 | 7 | 2 | human 3, lift 9 | The add-on's app directory is `Splunk_TA_cisco-ucs` (hyphen), so the `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco_ucs/default/inputs.conf` path i… |
+| 28 | [UC-3.5.16](../content/cat-03-containers-orchestration/UC-3.5.16.json) | high | incorrect | 2178 | 7 | 2 | human 4, lift 7 | Splunk Connect for Kubernetes reached End of Support on 1 January 2024; the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 … |
+| 29 | [UC-19.1.34](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.34.json) | critical | incorrect | 2172 | 5 | 4 | human 4, lift 8 | In the UCSM object model equipmentChassisStats carries only inputPower/outputPower (plus min/max/avg) and no ambient or inlet temperature, … |
+| 30 | [UC-18.2.16](../content/cat-18-data-center-fabric-sdn/UC-18.2.16.json) | critical | incorrect | 2164 | 5 | 2 | human 3, lift 13 | Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 424… |
+| 31 | [UC-19.1.15](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.15.json) | critical | incorrect | 2132 | 5 | 3 | human 3, lift 8 | The documented app directory and Splunkbase package name is `Splunk_TA_cisco-ucs` (hyphen). |
+| 32 | [UC-3.2.40](../content/cat-03-containers-orchestration/UC-3.2.40.json) | high | incorrect | 2121 | 6 | 10 | human 6, lift 13 | Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes (SCK). In the repository's Splunkbase catalog… |
+| 33 | [UC-19.3.7](../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.7.json) | critical | incorrect | 2116 | 5 | 2 | human 5, lift 7 | MSFT_StorageReliabilityCounter, the object Get-StorageReliabilityCounter returns, exposes Wear, Temperature, Read/WriteErrors*, PowerOnHour… |
+| 34 | [UC-3.2.26](../content/cat-03-containers-orchestration/UC-3.2.26.json) | critical | incorrect | 2112 | 4 | 11 | human 8, lift 13 | The detection reads raw etcd Prometheus series that are not mapped to any CIM model. Application_State has been deprecated since CIM 4.12.0… |
+| 35 | [UC-18.1.10](../content/cat-18-data-center-fabric-sdn/UC-18.1.10.json) | high | incorrect | 2106 | 6 | 9 | human 5, lift 14 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. The Cisco ACI add-on is TA_cisc… |
+| 36 | [UC-18.3.4](../content/cat-18-data-center-fabric-sdn/UC-18.3.4.json) | critical | incorrect | 2104 | 5 | 2 | human 2, lift 7 | Splunkbase 1917 is "Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)", built by Cisco, and its listing tells users to migrate to Ci… |
+| 37 | [UC-19.1.11](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.11.json) | critical | incorrect | 2100 | 5 | 1 | human 3, lift 10 | The add-on documentation installs to `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` and Splunkbase lists the package as `Splunk_TA_cisco-ucs`… |
+| 38 | [UC-19.1.1](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.1.json) | critical | incorrect | 2096 | 5 | 2 | human 2, lift 9 | This gets it backwards. The add-on's documented install path is `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` and the Splunkbase package nam… |
+| 39 | [UC-3.2.27](../content/cat-03-containers-orchestration/UC-3.2.27.json) | high | incorrect | 2091 | 6 | 9 | human 7, lift 11 | Network_Traffic describes network flow and session records. This UC inspects NetworkPolicy object inventory and audit deletes and uses no f… |
+| 40 | [UC-19.1.13](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.13.json) | critical | incorrect | 2072 | 5 | 1 | human 3, lift 7 | The canonical folder and package name is `Splunk_TA_cisco-ucs` (hyphen). 4.3.1 is only listed as compatible with Splunk 9.1 to 9.4. The cur… |
+| 41 | [UC-18.1.15](../content/cat-18-data-center-fabric-sdn/UC-18.1.15.json) | high | incorrect | 2031 | 6 | 6 | human 6, lift 11 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprec… |
+| 42 | [UC-3.2.6](../content/cat-03-containers-orchestration/UC-3.2.6.json) | critical | incorrect | 2028 | 4 | 10 | human 7, lift 10 | Application_State has been deprecated since CIM 4.12. Its root is All_Application_State and it has no `state` or `app` fields. Change is us… |
+| 43 | [UC-18.2.12](../content/cat-18-data-center-fabric-sdn/UC-18.2.12.json) | critical | incorrect | 2012 | 4 | 9 | human 4, lift 14 | Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 424… |
+| 44 | [UC-23.3.3](../content/cat-23-business-analytics/UC-23.3.3.json) | high | incorrect | 2004 | 6 | 6 | human 4, lift 12 | The Splunk Add-on for Salesforce only provides Salesforce Object (SOQL) and Event Log File inputs against core Salesforce orgs. It has no M… |
+| 45 | [UC-3.3.14](../content/cat-03-containers-orchestration/UC-3.3.14.json) | high | incorrect | 2001 | 6 | 6 | human 5, lift 10 | The Change data model's root dataset is All_Changes, not Change, so 'WHERE nodename=Change' and the Change.action, Change.object and Change… |
+| 46 | [UC-3.2.18](../content/cat-03-containers-orchestration/UC-3.2.18.json) | critical | incorrect | 1992 | 4 | 9 | human 6, lift 11 | The CIM Performance datamodel covers CPU, Memory, Storage, Network, Facilities, OS, Uptime and Timesync and has no response_time field, so … |
+| 47 | [UC-3.2.34](../content/cat-03-containers-orchestration/UC-3.2.34.json) | critical | incorrect | 1984 | 4 | 9 | human 5, lift 10 | The reload plugin exports coredns_reload_failed_total, not coredns_reload_failed_count_total. The forward plugin has deprecated coredns_for… |
+| 48 | [UC-19.2.22](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.22.json) | high | incorrect | 1977 | 6 | 5 | human 5, lift 11 | Splunkbase app 5380 is 'Mattermost Alerts', not a VMware add-on. The grounding guide lists Splunk Add-on for VMware as 3215, and VMware Met… |
+| 49 | [UC-3.2.37](../content/cat-03-containers-orchestration/UC-3.2.37.json) | high | incorrect | 1974 | 6 | 5 | human 4, lift 11 | Application_State has been deprecated since CIM 4.12 and models process, service and port inventory, not Kubernetes PDB gauges. Performance… |
+| 50 | [UC-3.2.28](../content/cat-03-containers-orchestration/UC-3.2.28.json) | critical | incorrect | 1972 | 4 | 8 | human 7, lift 10 | Application_State has been deprecated since CIM 4.12.0 and does not model kubelet node conditions. The detection itself uses raw kube-state… |
+| 51 | [UC-3.3.12](../content/cat-03-containers-orchestration/UC-3.3.12.json) | high | incorrect | 1971 | 6 | 5 | human 5, lift 9 | Application_State has been deprecated since CIM 4.12.0, and it covers process and service inventory. Network_Traffic is for flow and firewa… |
+| 52 | [UC-18.2.3](../content/cat-18-data-center-fabric-sdn/UC-18.2.3.json) | high | incorrect | 1962 | 6 | 4 | human 3, lift 13 | Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on. NSX integrations on Splunkbase … |
+| 53 | [UC-18.3.1](../content/cat-18-data-center-fabric-sdn/UC-18.3.1.json) | high | incorrect | 1962 | 6 | 4 | human 2, lift 14 | Splunk Connect for Kubernetes reached end of support on January 1, 2024, and its repository is archived. Splunk directs users to the Splunk… |
+| 54 | [UC-3.3.1](../content/cat-03-containers-orchestration/UC-3.3.1.json) | high | incorrect | 1962 | 6 | 5 | human 5, lift 10 | The Application State data model has been deprecated since CIM 4.12.0. It describes inventories of ports, processes and services, with no s… |
+| 55 | [UC-3.3.19](../content/cat-03-containers-orchestration/UC-3.3.19.json) | high | incorrect | 1911 | 6 | 3 | human 5, lift 7 | The Application_State data model has been deprecated since CIM 4.12.0 (replaced by Endpoint) and does not represent Kubernetes operator con… |
+| 56 | [UC-3.2.45](../content/cat-03-containers-orchestration/UC-3.2.45.json) | medium | incorrect | 1902 | 9 | 5 | human 6, lift 9 | Application State has been deprecated since CIM 4.12.0 and describes host process, service and port inventory. Neither it nor Performance m… |
+| 57 | [UC-13.2.1](../content/cat-13-observability-monitoring-stack/UC-13.2.1.json) | critical | incorrect | 1884 | 4 | 6 | human 4, lift 9 | ITSI writes itsi_summary, itsi_tracked_alerts and itsi_grouped_alerts itself on the search tier, so no Universal Forwarder input is involve… |
+| 58 | [UC-3.3.8](../content/cat-03-containers-orchestration/UC-3.3.8.json) | critical | incorrect | 1884 | 4 | 7 | human 4, lift 8 | Application_State is a deprecated CIM data model, and dataModelAcceleration tells operators to accelerate it. Neither Application_State nor… |
+| 59 | [UC-3.3.18](../content/cat-03-containers-orchestration/UC-3.3.18.json) | high | incorrect | 1881 | 6 | 2 | human 5, lift 6 | Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither model represents etcd raft or leader-election teleme… |
+| 60 | [UC-23.3.2](../content/cat-23-business-analytics/UC-23.3.2.json) | critical | incorrect | 1876 | 4 | 6 | human 3, lift 12 | HubSpot has no `contact.lifecycleStageChange` webhook subscription type. Lifecycle changes arrive through `contact.propertyChange` with pro… |
+| 61 | [UC-15.1.31](../content/cat-15-data-center-physical-infrastructure/UC-15.1.31.json) | critical | incorrect | 1856 | 4 | 5 | human 2, lift 13 | Splunk Connect for SNMP sends traps with sourcetype `sc4snmp:traps` to the `netops` event index by default. `index=power sourcetype=snmp:tr… |
+| 62 | [UC-19.2.16](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.16.json) | critical | incorrect | 1852 | 4 | 5 | human 4, lift 10 | Splunkbase 5380 is 'Mattermost Alerts'. The Splunk Add-on for VMware is Splunkbase 3215. The same wrong ID appears in dataSources, detailed… |
+| 63 | [UC-3.2.17](../content/cat-03-containers-orchestration/UC-3.2.17.json) | high | incorrect | 1839 | 5 | 10 | human 8, lift 12 | Application_State has been deprecated since CIM 4.12 (replaced by Endpoint) and models running services/processes, not Kubernetes autoscale… |
+| 64 | [UC-18.3.11](../content/cat-18-data-center-fabric-sdn/UC-18.3.11.json) | critical | incorrect | 1820 | 4 | 4 | human 3, lift 12 | Splunkbase 1897 is the deprecated 'Cisco ACI Add-on for Splunk Enterprise' (TA_cisco-ACI), which collects APIC data via the API for the dep… |
+| 65 | [UC-18.3.8](../content/cat-18-data-center-fabric-sdn/UC-18.3.8.json) | critical | incorrect | 1816 | 4 | 4 | human 4, lift 10 | 'join Change.user' against a subsearch that only outputs Authentication.user. join needs the join field in both result sets, so nothing mat… |
+| 66 | [UC-3.1.13](../content/cat-03-containers-orchestration/UC-3.1.13.json) | critical | incorrect | 1812 | 4 | 4 | human 4, lift 9 | The CIM Performance model's root dataset is All_Performance, with CPU at All_Performance.CPU and host in `dest`. `nodename=Performance.CPU`… |
+| 67 | [UC-3.2.3](../content/cat-03-containers-orchestration/UC-3.2.3.json) | critical | incorrect | 1812 | 4 | 4 | human 4, lift 9 | Application_State has been deprecated since CIM 4.12.0 and models host process, service and port inventory. It does not model Kubernetes no… |
+| 68 | [UC-3.2.4](../content/cat-03-containers-orchestration/UC-3.2.4.json) | critical | incorrect | 1808 | 4 | 5 | human 3, lift 8 | Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)'. The link labelled as OTel Collector documentation points to the Splunk Add-… |
+| 69 | [UC-3.4.9](../content/cat-03-containers-orchestration/UC-3.4.9.json) | critical | incorrect | 1804 | 4 | 4 | human 3, lift 8 | Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes. Splunk Connect for Kubernetes is a GitHu… |
+| 70 | [UC-3.5.14](../content/cat-03-containers-orchestration/UC-3.5.14.json) | critical | incorrect | 1788 | 4 | 4 | human 3, lift 8 | Splunk Connect for Kubernetes reached End of Support on 1 January 2024; the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 … |
+| 71 | [UC-3.4.1](../content/cat-03-containers-orchestration/UC-3.4.1.json) | high | incorrect | 1782 | 5 | 8 | human 3, lift 16 | Harbor posts its own JSON body. The HEC /services/collector/event endpoint rejects bodies that lack the HEC envelope with an `event` key, s… |
+| 72 | [UC-23.2.1](../content/cat-23-business-analytics/UC-23.2.1.json) | critical | incorrect | 1780 | 4 | 4 | human 3, lift 10 | The Splunk Add-on for Salesforce collects the output of SOQL object queries as well as EventLogFile data, and supports any standard or cust… |
+| 73 | [UC-3.5.9](../content/cat-03-containers-orchestration/UC-3.5.9.json) | critical | incorrect | 1772 | 4 | 4 | human 3, lift 8 | Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is a GitHub Helm chart that reached End of Suppor… |
+| 74 | [UC-19.2.28](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.28.json) | high | incorrect | 1761 | 5 | 7 | human 7, lift 14 | There is no 'Splunk Add-on for VMware vSphere Forwarder' and no vmware:vc:event sourcetype. The Splunk Add-on for VMware emits vCenter even… |
+| 75 | [UC-23.2.8](../content/cat-23-business-analytics/UC-23.2.8.json) | critical | incorrect | 1756 | 4 | 3 | human 3, lift 9 | Splunkbase 4146 is the Webtools Add-on (TA-webtools); the Splunk Add-on for Salesforce is Splunkbase 3549. |
+| 76 | [UC-18.1.20](../content/cat-18-data-center-fabric-sdn/UC-18.1.20.json) | critical | incorrect | 1752 | 4 | 3 | human 2, lift 9 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on was TA_cisco-ACI (1897), now archi… |
+| 77 | [UC-15.3.33](../content/cat-15-data-center-physical-infrastructure/UC-15.3.33.json) | critical | incorrect | 1748 | 4 | 3 | human 2, lift 8 | Cisco Spaces IOT_TELEMETRY events nest readings under `iotTelemetry`. The real paths are `temperature.temperatureInCelsius`, `humidity.humi… |
+| 78 | [UC-18.1.7](../content/cat-18-data-center-fabric-sdn/UC-18.1.7.json) | high | incorrect | 1728 | 5 | 7 | human 5, lift 9 | Splunkbase 4022 is the Metricator Nmon HEC add-on. The ACI add-on is TA_cisco-ACI (1897, deprecated), and its successor is Cisco DC Network… |
+| 79 | [UC-3.3.13](../content/cat-03-containers-orchestration/UC-3.3.13.json) | high | incorrect | 1728 | 5 | 6 | human 6, lift 13 | Application_State has been deprecated since CIM 4.12. It does not model ImageStream import conditions or registry operator conditions, so m… |
+| 80 | [UC-3.3.23](../content/cat-03-containers-orchestration/UC-3.3.23.json) | high | incorrect | 1719 | 5 | 6 | human 6, lift 10 | No 'Splunk OpenShift Monitoring Add-on' exists in the Splunkbase catalog; the only OpenShift entry is Outcold Solutions' 'Monitoring OpenSh… |
+| 81 | [UC-3.4.2](../content/cat-03-containers-orchestration/UC-3.4.2.json) | high | incorrect | 1716 | 5 | 6 | human 3, lift 12 | The HEC /services/collector/event endpoint requires the HEC envelope ({"event": ...}). A raw Trivy or Grype report posted as-is is rejected… |
+| 82 | [UC-18.2.5](../content/cat-18-data-center-fabric-sdn/UC-18.2.5.json) | critical | incorrect | 1712 | 4 | 2 | human 1, lift 9 | Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure'; no Splunk-built `Splunk_TA_vmware-nsxt` exists. NSX options on Splunk… |
+| 83 | [UC-23.3.5](../content/cat-23-business-analytics/UC-23.3.5.json) | high | incorrect | 1704 | 5 | 6 | human 3, lift 12 | Splunkbase 4146 is the Webtools Add-on (TA-webtools). The Splunk Add-on for Salesforce is 3549, which sibling UC-23.3.2 uses. The same wron… |
+| 84 | [UC-19.2.8](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.8.json) | high | incorrect | 1701 | 5 | 6 | human 4, lift 10 | There is no Splunkbase add-on for Cisco HyperFlex. The repository guide lists 'HyperFlex no Splunkbase TA' as a known limitation and recomm… |
+| 85 | [UC-18.3.21](../content/cat-18-data-center-fabric-sdn/UC-18.3.21.json) | high | incorrect | 1695 | 5 | 6 | human 3, lift 9 | Splunkbase 2846 is "Fortinet FortiGate Add-On for Splunk" (Splunk_TA_fortinet_fortigate), not a Cisco IOS/NX-OS add-on. The same wrong ID a… |
+| 86 | [UC-3.2.12](../content/cat-03-containers-orchestration/UC-3.2.12.json) | high | incorrect | 1689 | 5 | 5 | human 6, lift 9 | kube-state-metrics names these families kube_rolebinding_* and kube_clusterrolebinding_* (for example kube_rolebinding_info with roleref_ki… |
+| 87 | [UC-3.3.11](../content/cat-03-containers-orchestration/UC-3.3.11.json) | high | incorrect | 1686 | 5 | 6 | human 5, lift 8 | The Application State data model has been deprecated since CIM 4.12.0. It covers port, process and service inventory, with no state or info… |
+| 88 | [UC-18.3.19](../content/cat-18-data-center-fabric-sdn/UC-18.3.19.json) | high | incorrect | 1671 | 5 | 5 | human 3, lift 10 | Splunkbase 4241 is the "VMware NSX-T Splunk App", a VMware-built dashboard app. It is not a Splunk add-on, and it has nothing to do with EC… |
+| 89 | [UC-3.2.5](../content/cat-03-containers-orchestration/UC-3.2.5.json) | high | incorrect | 1668 | 5 | 5 | human 5, lift 7 | PVC phase and provisioning events are not host performance or inventory data. Performance appears only as a fleet memory average added with… |
+| 90 | [UC-5.20.21](../content/cat-05-network-infrastructure/UC-5.20.21.json) | critical | incorrect | 1668 | 4 | 0 | human 1, lift 8 | Splunkbase 2812 is the 'EMC XtremIO App for Splunk Enterprise'. Cisco IOS syslog parsing comes from TA-cisco_ios (Splunkbase 1467, deprecat… |
+| 91 | [UC-19.1.36](../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.36.json) | high | incorrect | 1656 | 5 | 5 | human 4, lift 8 | In the UCSM object model vnicEtherIf is the per-VLAN interface (rn `if-[name]`) and has no failoverEnabled property. Fabric failover is con… |
+| 92 | [UC-3.2.39](../content/cat-03-containers-orchestration/UC-3.2.39.json) | high | incorrect | 1656 | 5 | 5 | human 3, lift 9 | Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)'. SCK is an end-of-support Helm chart, not a 'modular input or scripted poll'… |
+| 93 | [UC-3.5.15](../content/cat-03-containers-orchestration/UC-3.5.15.json) | high | incorrect | 1653 | 5 | 4 | human 4, lift 8 | Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and plays no role in an OTLP-based Beyla pipeline; the relevant comp… |
+| 94 | [UC-18.1.12](../content/cat-18-data-center-fabric-sdn/UC-18.1.12.json) | high | incorrect | 1650 | 5 | 4 | human 4, lift 7 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, … |
+| 95 | [UC-19.2.13](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.13.json) | high | incorrect | 1650 | 5 | 4 | human 4, lift 11 | Dell documents `GET /rest/vxm/v1/system/cluster-hosts` as returning `id`, `host_name`, `appliance_id`, `health`, `operational_status`, `pow… |
+| 96 | [UC-3.5.2](../content/cat-03-containers-orchestration/UC-3.5.2.json) | high | incorrect | 1641 | 5 | 4 | human 3, lift 9 | Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and is superseded by the Splunk OpenTelemetry Collector for Kubernet… |
+| 97 | [UC-3.1.29](../content/cat-03-containers-orchestration/UC-3.1.29.json) | high | incorrect | 1638 | 5 | 4 | human 3, lift 8 | Performance.disk_usage, nodename=Performance.Storage, Performance.host and Inventory.Instances are not CIM names. The Performance Storage d… |
+| 98 | [UC-18.1.3](../content/cat-18-data-center-fabric-sdn/UC-18.1.3.json) | high | incorrect | 1629 | 5 | 4 | human 3, lift 9 | Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on in the catalogue is 'Cisco ACI Add-on fo… |
+| 99 | [UC-19.2.30](../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.30.json) | high | incorrect | 1629 | 5 | 3 | human 2, lift 11 | No Splunk add-on has this name, and Splunkbase app 5380 (cited in dataSources, implementation and references) is 'Mattermost Alerts', an al… |
+| 100 | [UC-3.5.8](../content/cat-03-containers-orchestration/UC-3.5.8.json) | high | incorrect | 1629 | 5 | 4 | human 3, lift 9 | Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)'; Splunk Connect for Kubernetes is not a Splunkbase app and reached End of Suppor… |

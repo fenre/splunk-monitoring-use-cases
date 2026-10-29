@@ -1,0 +1,122 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "be9003b7942942e8ca36eb6e463a699e9e5102e4492d00b7ecfb26c6910a7457",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 2846 is \"Fortinet FortiGate Add-On for Splunk\", which has nothing to do with Cisco IOS/NX-OS. detailedImplementation repeats the ID.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco IOS/NX-OS** ([Splunkbase **2846**](https://splunkbase.splunk.com/app/2846))",
+      "severity": "blocker",
+      "suggested_fix": "Remove 2846 and cite the actual Cisco NX-OS ingest path (e.g., Cisco DC Networking 7777 or SC4S)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1917",
+      "explanation": "Splunkbase 1917 is \"Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)\", built by Cisco and superseded by 7777. Splunkbase 1918 is \"Arista Networks Telemetry For Splunk\", not a Splunk add-on for EOS.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco Nexus** ([Splunkbase 1917](https://splunkbase.splunk.com/app/1917)); **Splunk Add-on for Arista EOS** ([Splunkbase 1918](https://splunkbase.splunk.com/app/1918))",
+      "severity": "blocker",
+      "suggested_fix": "Use the real listing names and note that 1917 is deprecated, or drop both in favour of the ingest paths actually used."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "BGP EVPN Type-2 route snapshots and MAC-move syslog are control-plane records, not network sessions or flows. Describing them as \"BGP/EVPN update proxies\" for Network_Traffic is unsupported.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Inventory\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic and keep Inventory only if MAC/VNI posture is actually mapped to it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation says the storm macro defaults to 12 events, but the SPL hard-codes `mac_evt>=25` and uses no macros. The description and controlTest also cite 25.",
+      "field": "cross_field",
+      "quote": "macros **`mac_storm_min_events`** (default **12**)",
+      "severity": "major",
+      "suggested_fix": "State the threshold the SPL actually uses (25), or note that the macro must be introduced in the saved search."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These vendor syslog mnemonics are not in the grounding and look constructed. Real duplicate-MAC messages differ by platform: NX-OS L2RIB duplicate-MAC messages, EOS duplicate-MAC blacklist messages, and Junos EVPN duplicate-MAC events.",
+      "field": "dataSources",
+      "quote": "**`EVPN-MACMOVE`**/**`BGP-5-ADJCHANGE`** ... **`L2RIB-3-L2RIB_THREAD_MAC_MOVE_DETECTED`** ... **`RPD_EVPN_MAC_MOVE`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each mnemonic against the NX-OS system message guide, the Arista EOS syslog reference and the Junos system log explorer, and replace any that do not exist."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://datatracker.ietf.org/doc/html/rfc7432#section-15",
+      "explanation": "In RFC 7432, MAC Mobility is Section 15. Section 15.1 covers the MAC Duplication Issue specifically.",
+      "field": "references",
+      "quote": "IETF RFC 7432 — BGP MPLS-Based Ethernet VPN (MAC Mobility §15.1)",
+      "severity": "minor",
+      "suggested_fix": "Cite \"Section 15 (MAC Mobility), 15.1 (MAC Duplication)\"."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The reference points to Cisco's homepage, not the cited configuration guide.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco Nexus 9000 NX-OS BGP EVPN Configuration Guide\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual NX-OS VXLAN BGP EVPN guide section on MAC mobility and duplicate detection."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The UC targets NX-OS, EOS, Junos, SONiC and Cumulus VTEPs, so Cisco IOS devices are not in scope.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_ios\"",
+      "severity": "minor",
+      "suggested_fix": "Remove cisco_ios."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an automated agent and its add-on IDs are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the UC."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats ... BY _time vni_key mac_norm` drops events where vni_key is null. vni_key comes from tonumber(coalesce(...,\"\")), so it is null whenever no VNI field is extracted, which is typical of arista:eos:syslog MAC-move lines. As a result, the \"reference syslog lane\" contributes nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`ownership_spray` fires whenever `vtep_dc>1` in a 5-minute bucket, and that alone sets seq_stress=1. A single legitimate move, or all-active ESI multihoming where several VTEPs advertise the same MAC (aliasing), produces vtep_dc=2, so routine behaviour pages as mac_churn_anomaly. Also, `aliasing` in the dup_mac_signal regex labels a normal EVPN multihoming feature as a duplicate.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0056-UC-18.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has solid MAC-mobility reasoning and plausible collector commands. However, its add-on list is wrong (2846 is the Fortinet add-on and 1917/1918 are mislabelled), Network_Traffic does not fit, the prose macro defaults contradict the SPL thresholds, and the SPL treats legitimate multihoming and single moves as anomalies.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.5",
+  "verdict": "incorrect"
+}

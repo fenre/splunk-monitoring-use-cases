@@ -1,0 +1,132 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a75f64c5093ce462d74784e1bc795da6d17ee23428e236c96db0f8054dcf0a89",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.26.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/moby/moby/blob/d74daf1a/daemon/internal/metrics/metrics.go",
+      "explanation": "dockerd exposes pull timing as `engine_daemon_image_actions_seconds{action=\"pull\"}` (one end-to-end histogram without a registry label). It has no `engine_daemon_image_pull_seconds` metric and no DNS-lookup or TLS-handshake timing, so `dns_p99_ms` and `tls_handshake_p99_ms` cannot come from this feed. Step 1 and Step 2 of `detailedImplementation` repeat the claim.",
+      "field": "dataSources",
+      "quote": "Prometheus exposition scraped from dockerd metrics-addr (engine_daemon_image_pull_seconds histogram summaries or OTel-computed pull DNS and TLS p99 gauges)",
+      "severity": "blocker",
+      "suggested_fix": "Describe the real metric (`engine_daemon_image_actions_seconds` with action=pull; newer Engine releases may add image_pulls counters). Source DNS and TLS latency from a synthetic probe, such as an OTel httpcheck receiver or a scripted `curl -w` against each registry FQDN, and name the sourcetype that probe writes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk Add-on for Unix and Linux has no journald input. Journald collection is a native Splunk Enterprise / Universal Forwarder input (`[journald://...]`), and the add-on's sourcetype list contains nothing for journald. `app`, `dataSources` and Step 2 all send the reader to the wrong component.",
+      "field": "cross_field",
+      "quote": "forwarded via Splunk Add-on for Unix and Linux (Splunkbase 833) journald inputs",
+      "severity": "blocker",
+      "suggested_fix": "Point to the native Splunk journald input (`journald://` stanza with a filter on `_SYSTEMD_UNIT=docker.service`) and set `sourcetype = docker:journald` there."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "evidence_url": "https://docs.docker.com/docker-hub/usage/pulls/",
+      "explanation": "dockerd talks to registry-1.docker.io over TLS, so a passive sidecar or tap cannot read its response headers without TLS interception. Docker documents checking the budget with a token plus a HEAD request to `ratelimitpreview/test`. The header values are also formatted `100;w=21600`, which the described integer parsing will not handle as-is.",
+      "field": "dataSources",
+      "quote": "parsed registry HTTP response headers such as RateLimit-Limit and RateLimit-Remaining from an approved sidecar or egress tap",
+      "severity": "major",
+      "suggested_fix": "Describe a scheduled scripted input that obtains a token from auth.docker.io and HEADs `/v2/ratelimitpreview/test/manifests/latest` from each egress IP. Have it strip the `;w=` window suffix before emitting `ratelimit_limit` / `ratelimit_remaining`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator-checklist residue, and it contradicts the sidecar: equipment lists aws, docker, opentelemetry and prometheus, and no equipmentModels exist.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: monitoringType lists Reliability and Availability; splunkPillar Observability; equipment docker only; equipmentModels docker_engine and oci_registry;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL computes `sustained_bad` but never uses it in the severity ladder or the output table, so path C cannot observe it. The 'sustained_pull_err_pct_floor' and 'sustain_window' tunables are likewise not enforced. 'pull_err_trend_slope' is a 3-bucket average, not a slope.",
+      "field": "detailedImplementation",
+      "quote": "expect dns_resolution_failure class with sustained_bad flagging once journald records repeated lookup failures",
+      "severity": "major",
+      "suggested_fix": "Describe what the search actually alerts on (single-bucket thresholds) and remove references to sustained_bad and slope until the SPL uses them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "When those fields are missing, the SPL fills `dns_p99_ms` from the pull-latency baseline and invents `tls_handshake_p99_ms` as expected_pull_p99_seconds × 500, then shows both in the output table as if measured. The DNS tier also compares DNS latency with twice the whole-pull p99 baseline. The visualization's 'DNS p99 heatmap' would plot those synthetic numbers.",
+      "field": "detailedImplementation",
+      "quote": "Map summary gauges into fields dns_p99_ms and tls_handshake_p99_ms",
+      "severity": "major",
+      "suggested_fix": "Warn readers that DNS and TLS columns are baseline placeholders unless a real probe feed exists, and keep a separate DNS baseline column in registry_baseline.csv."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The SPL's CloudTrail arm also counts UploadLayerPart and PutImage, which are push operations and inflate a pull-failure rate. CloudTrail `sourceIPAddress` will not match dockerd host names, so CloudTrail rows never align with journald rows for the same host.",
+      "field": "dataSources",
+      "quote": "Amazon ECR GetAuthorizationToken, BatchGetImage, and related API errors",
+      "severity": "minor",
+      "suggested_fix": "List the pull-path APIs (GetAuthorizationToken, BatchGetImage, GetDownloadUrlForLayer, BatchCheckLayerAvailability) and note that CloudTrail rows are attributed by account/IP, not host."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The CIM Application State data model may be deprecated in current CIM releases. Nothing in this UC maps to it.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current CIM manual. If Application_State is deprecated, drop it and keep only models the cimSpl actually uses."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic reviewer handle although the metrics and header arms depend on telemetry that dockerd and Docker Hub do not provide in the described form.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until an SME has run validation paths A–C."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multivaluestatsandchartfunctions",
+      "field": "spl",
+      "issue": "`error_class=mvindex(error_classes, 0)` takes the lexicographically first value of `values()`, not the most significant. Every non-error journald line that mentions 'image' or 'pull' gets the default class `pull_error_generic`, which sorts before `rate_limit_429`, `registry_server_5xx` and `tls_handshake_failure`. 429 storms are therefore labelled registry outages and the `critical_ratelimit_exhausted_429_storm` tier rarely fires.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Unanchored numeric regexes such as `401|403|404|429|50[0-4]` and the words `manifest` / `unknown` in `is_pull_error` match substrings of sha256 digests, layer IDs and normal 'Pulling manifest' lines. This inflates pull_error_rate_pct and misclassifies errors as auth. Anchor status codes, for example `\\b(401|403)\\b` or `status(?: code)?:? 4\\d\\d`.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/moby/moby/blob/d74daf1a/daemon/internal/metrics/metrics.go",
+      "field": "spl",
+      "issue": "The metrics arm filters `engine_daemon_image_pull|image_pull|pull_.*seconds`, which does not match the real dockerd metric `engine_daemon_image_actions_seconds`. `tonumber()` on header values like `100;w=21600` returns null.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The search counts all Network_Traffic to ports 443/4443 with no registry destination filter, success/failure field or error signal, so it measures generic HTTPS volume rather than pull failures or registry connectivity.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0019-UC-3.1.26",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The registry-egress framing and the 401/404/429/DNS/TLS triage classes are useful, and the anonymous Docker Hub budget figure is correct. The metrics arm depends on dockerd DNS/TLS latency metrics that do not exist. The rate-limit header capture is not feasible as described, journald collection is attributed to the wrong add-on, and the SPL's error classification is unreliable.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.26",
+  "verdict": "incorrect"
+}

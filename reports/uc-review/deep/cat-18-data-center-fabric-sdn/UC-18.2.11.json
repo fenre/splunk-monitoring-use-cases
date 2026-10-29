@@ -1,0 +1,236 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "238adda5e16ec18631148663f6f8deb36ffd0014564afb377cc6cd42d1876fb9",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.11.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase app 4856 is the community 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on. The VMware-published NSX-T app is Splunkbase 4241 ('VMware NSX-T Splunk App'), a syslog-based app with no REST NAT collectors. The same wrong ID repeats in dataSources, implementation, detailedImplementation and references, and the repository guide carries the same error.",
+      "field": "app",
+      "quote": "**Splunk_TA_vmware-nsxt** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), VMware NSX 4.x alignment)",
+      "severity": "blocker",
+      "suggested_fix": "Replace 4856 with Splunkbase 4241 (VMware NSX-T Splunk App) in every field, and correct the same entry in docs/guides/datacenter-fabric-sdn.md. Describe REST polling as a custom collector rather than an add-on feature."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1810",
+      "explanation": "Splunkbase 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware (Splunk_TA_vmware) is Splunkbase 3215. The wrong ID repeats in dataSources and detailedImplementation Step 5.",
+      "field": "app",
+      "quote": "optional **Splunk_TA_vmware** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) for inventory correlation",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunkbase 3215 (Splunk Add-on for VMware) wherever Splunk_TA_vmware is cited."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://vdc-download.vmware.com/vmwb-repository/dcr-public/8e2a4b1a-659f-4be6-a4f4-7ca42b04cb84/9a2c1372-7174-40f0-89d2-27615bfd5d08/api_includes/method_GetPolicyNatRule.html",
+      "explanation": "In the Policy API, NAT rules are listed under /nat/{nat-id}/nat-rules. A GET on /nat/USER returns only the PolicyNat section object. The documented NAT sections are INTERNAL, USER and DEFAULT, not AUTO. The same wrong path appears in dataSources and app.",
+      "field": "detailedImplementation",
+      "quote": "GET /policy/api/v1/infra/tier-0s/{tier-0-id}/nat/USER — Returns central Tier-0 NAT rulesets under the USER bucket (contrast AUTO defaults where present)",
+      "severity": "blocker",
+      "suggested_fix": "Use GET /policy/api/v1/infra/tier-0s/{tier-0-id}/nat/USER/nat-rules and the tier-1 equivalent. Name the sections INTERNAL, USER and DEFAULT."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article?articleNumber=370358",
+      "explanation": "Broadcom KB 370358 documents NAT counters at /policy/api/v1/infra/tier-0s/{id}/nat/USER/nat-rules/{rule}/statistics, /nat/statistics, and /api/v1/transport-nodes/{id}/statistics/nat-rules. Those return only active_sessions, total_packets and total_bytes. The translation-statistics-summary, realized-entities/{rule_id}/runtime and aggregation-service/cluster-statistics paths, and any port_pool_* fields, could not be found. If NSX does not expose port-pool usage, the UC's main 85% port-pool threshold has no data source.",
+      "field": "detailedImplementation",
+      "quote": "GET /api/v1/edge-clusters/{cluster-id}/edge-nodes/{node-id}/nat/translation-statistics-summary — Manager-plane view of port_pool_used, port_pool_total",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each path in the NSX 4.2 API reference. Swap in the documented statistics endpoints, and either name a real source for SNAT port-pool usage or reframe the detection around active_sessions and drops."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "Neither sourcetype is in the grounding guide's NSX sourcetype list (vmware:nsxt:syslog, firewall, edge, transport_node, ...). The real NSX-T app is log-only, so 'TA-parsed' cannot be true for REST JSON. Readers will look for sourcetypes that no add-on creates.",
+      "field": "dataSources",
+      "quote": "vmware:nsxt:nat (Policy JSON mirrors or TA-parsed NAT lines), vmware:nsxt:edge_status (Edge services including port_pool_* fields)",
+      "severity": "major",
+      "suggested_fix": "State that vmware:nsxt:nat and vmware:nsxt:edge_status are custom sourcetypes created by the site's own REST collector, or align them with vmware:nsxt:edge from the guide."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The EDGE-NAT-INFO, EDGE-NAT-DROP and EDGE-NAT-SESSION-LIMIT message IDs, and the local6 facility, appear in no NSX logging reference I could find. They look invented, and the SPL depends on them.",
+      "field": "dataSources",
+      "quote": "vmware:nsxt:syslog (local6 EDGE-NAT MNEMONICS)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 log message reference for the real Edge NAT log message IDs, then update the text (and request an SPL change)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "SNAT port capacity is normally per translated IP, not per Edge node, and no VMware guidance is cited. The runbook's exhaustion maths rests on this number.",
+      "field": "detailedImplementation",
+      "quote": "default 65536 SNAT ephemeral ports per Edge node on Tier-0 SR designs per VMware capacity guidance",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the VMware configuration-maximums entry for SNAT ports, or remove the figure."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/370016/nsxt-nat-rule-statistics-are-not-visible.html",
+      "explanation": "Broadcom KB 370016 shows the Edge CLI for NAT state as 'get firewall <interface-UUID> connection' and 'get firewall <interface-UUID> ruleset type snat stats'. A 'get nat translations' command could not be confirmed. The same command reappears in Step 6.",
+      "field": "detailedImplementation",
+      "quote": "Cross-check Splunk aggregates against get nat translations Edge CLI tables",
+      "severity": "needs_verification",
+      "suggested_fix": "Use the Edge CLI commands shown in KB 370016, or confirm 'get nat translations' in the NSX CLI reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/administration-guide/network-address-translation.html",
+      "explanation": "NSX documents SNAT and DNAT only on gateways in active-standby (or stateful active-active) HA mode, and HA mode is a service-router (Edge) property. Tier-1 NAT therefore runs on the Tier-1 SR, not on the distributed router.",
+      "field": "detailedImplementation",
+      "quote": "Policy NAT is enforced on Tier-0 SR instances and Tier-1 distributed routers",
+      "severity": "needs_verification",
+      "suggested_fix": "Say NAT is enforced on the Tier-0 or Tier-1 service router hosted on the Edge cluster."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Splunk Add-on for VMware indexes inventory under sourcetypes such as vmware:inv:vm and vmware:inv:hierarchy. 'vmware:vmware:vsphere:vcenter' does not look like a real sourcetype.",
+      "field": "detailedImplementation",
+      "quote": "vmware:vmware:vsphere:vcenter inventories",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk Add-on for VMware sourcetype list and name the real inventory sourcetype."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "NSX RBAC grants read access through roles such as Auditor (as the grounding guide says), not 'infra'/'mp-infra' scopes. The scopes look invented.",
+      "field": "app",
+      "quote": "mutual TLS identities with infra plus mp-infra scopes for translation statistics pulls",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the NSX role required (for example Auditor, read-only), after checking the NSX RBAC documentation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL ANDs these conditions (pool >= 85 AND sessions > 0; drops > 0 AND sessions > 1000) and has a third branch, sessions > 60000, that is not listed. Read as an OR list, 'session_count_active > 0' would fire on every active rule. The same misreading appears in controlTest.",
+      "field": "description",
+      "quote": "Threshold bundle: `port_pool_used_percent` >= 85, `session_count_active` > 0, `nat_drop_packets` > 0, or `session_count_active` > 1000",
+      "severity": "major",
+      "suggested_fix": "List the three stress conditions exactly as the case() in the SPL defines them, plus the 85% pool_alert flag."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "In the SPL, edge_fanout is dc(edge_node_id) grouped BY edge_node_id, so it is always 1. It also counts Edges, not NAT rules, so the panel cannot show what it promises.",
+      "field": "visualization",
+      "quote": "(6) Histogram — edge_fanout distribution showing how many NAT rules touch the same Edge",
+      "severity": "major",
+      "suggested_fix": "Drop the panel, or describe a separate stats dc(nat_rule_id) BY edge_node_id search."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL takes max(port_pool_used_percent) per 15-minute bin, so a single sample over 85% sets pool_alert. Nothing checks that the level held for the whole window, and the search never filters to pool_alert=1.",
+      "field": "detailedImplementation",
+      "quote": "Sev-2 page when port_pool_used_percent stays at or above eighty-five percent for fifteen minutes",
+      "severity": "minor",
+      "suggested_fix": "Say the alert fires when the 15-minute peak reaches 85%, or describe the extra min() or consecutive-bin logic needed for a sustained condition."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "NAT session counts and port-pool percentages are not per-flow records (Network_Traffic), and the Performance datamodel has no dataset for NAT tables. The SPL uses no datamodel, so these mappings mislead readers about tstats readiness.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty and say the UC runs on raw NSX data; keep Network_Traffic only if individual NAT drop log lines are actually mapped."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an agent ('agent-handcraft-2026-04-28'), the add-on IDs are wrong and several API paths cannot be confirmed. There is no sign of SME verification.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an NSX SME has validated the data sources and SPL."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Saved searches are stored in savedsearches.conf, not as JSON files, and the artefact names are generated placeholders rather than real deliverables.",
+      "field": "evidence",
+      "quote": "Saved search uc_18_2_11_nat_rule_util.json plus dashboard NSX NAT — Rule, Session, and Port-Pool Evidence",
+      "severity": "minor",
+      "suggested_fix": "Describe what is retained, for example alert results per nat_rule_id and edge_node_id with Policy rule snapshots, and where they are kept."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "vRealize Network Insight 6.10 was renamed Aria Operations for Networks, and the docs.vmware.com GUID URL is probably stale after the Broadcom migration. The load-balancer reference has nothing to do with NAT.",
+      "field": "references",
+      "quote": "Using VMware vRealize Network Insight — product guide (NAT rule cross-checks)",
+      "severity": "minor",
+      "suggested_fix": "Point to the current Broadcom techdocs page for Aria Operations for Networks NAT views, and replace the load-balancer link with the NSX NAT API reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "The text mixes two metaphors (return addresses and a locker) and leaves out the dropped-traffic signal the UC also alerts on.",
+      "field": "grandmaExplanation",
+      "quote": "like counting shared return addresses—so crowded rules cannot quietly fill the locker",
+      "severity": "minor",
+      "suggested_fix": "Use one image, for example: 'We watch how busy each address-translation rule on the network gateways gets and whether it starts dropping traffic, so we can add room before apps stall.'"
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The UC is about NSX Edge NAT, but the equipment models list only the vSphere add-on and vCenter, with no NSX Manager or Edge model.",
+      "field": "equipmentModels",
+      "quote": "\"vmware_ta_vmware\",\n    \"vmware_vcenter\"",
+      "severity": "minor",
+      "suggested_fix": "Add the NSX Edge / NSX Manager equipment model slug if one exists; keep vCenter only as optional enrichment."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The base search calls match(lower(_raw), ...) and match(_raw, ...) before the first pipe. The search command does not evaluate eval functions, so the syslog branch never matches as intended. Use quoted term or wildcard filters, or move the regex test into a where clause.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "dc(edge_node_id) AS edge_fanout is computed BY edge_node_id, so it is always 1. The fw_match default 'MATCH' is not a real NSX firewall_match value (MATCH_EXTERNAL_ADDRESS, MATCH_INTERNAL_ADDRESS, BYPASS). tier_token falls through to 'T1_NAT' when tier_scope is empty. Nothing filters the output to alertable rows (pool_alert=1 / drop_ratio_watch=1).",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The search depends on port_pool_* fields and EDGE-NAT-* syslog tokens that are not documented for NSX. The documented NAT statistics expose only active_sessions, total_packets and total_bytes, so verify that the data exists before trusting the 85% pool threshold.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1090.001 (Internal Proxy) does not fit a NAT capacity and utilization UC. Nothing in the SPL detects proxying or relay behaviour, so the tag overclaims security coverage.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-18.2.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Long, confident text built on a wrong add-on identity (Splunkbase 4856 and 1810 are unrelated apps), NAT API paths that do not match the NSX Policy API, and port-pool metrics that NSX's documented NAT statistics do not expose. The SPL base search also uses eval functions where the search command cannot evaluate them.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.11",
+  "verdict": "incorrect"
+}

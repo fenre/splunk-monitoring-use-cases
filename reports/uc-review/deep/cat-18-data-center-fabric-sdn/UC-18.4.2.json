@@ -1,0 +1,113 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "d3712221d5575e1ffe279fb4993f03962c939ce01b67c2869b8cbeacd309ea0c",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.2.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/nexus-dashboard-fabric-controller/12-1-2/api-changelog/",
+      "explanation": "In the NDFC 12 API, networks and VRFs live under /lan-fabric/rest/top-down/fabrics/{fabric-name}/networks|vrfs, not the /control/fabrics base the list implies. No compliance-status endpoint appears; per-switch config status is exposed via /control/fabrics/{fabricName}/config-preview. The same paths recur in implementation and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "**`/fabrics/{fabric-name}/switches/{serial}/compliance-status`**, **`/fabrics/{fabric-name}/networks`**, **`/fabrics/{fabric-name}/vrfs`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the NDFC 12.x API reference. Use the top-down base for networks and VRFs, and the documented config-preview or switch-inventory endpoint that returns per-switch config status."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The NDFC 12 release train runs 12.0, 12.1.x and 12.2.x before NDFC folded into unified Nexus Dashboard 4.x. '12.4.x', 'NDFC 12.3+ webhook hooks emit compliance deltas' and 'upgrades from 12.2 to 12.3' may cite releases and features that do not exist.",
+      "field": "detailedImplementation",
+      "quote": "matching **NDFC 12.4.x** guidance",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the NDFC release list on cisco.com, cite real versions (for example 12.1.3 / 12.2.x, or ND 4.1), and drop the webhook claim unless an NDFC document describes compliance webhooks."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "NDFC's switch Config Status column normally shows In-Sync, Out-of-Sync, Pending, NA and similar values. 'Pending Config' and 'Failed' as literal complianceStatus values need confirming, because the SPL matches these strings exactly.",
+      "field": "detailedImplementation",
+      "quote": "Cisco enums (**In-Sync**, **Pending Config**, **Out-of-Sync**, **Failed**, **NA**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture a real inventory or config-preview payload, list the exact status strings, and align the prose with them."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "SE-NODE-G2 is a known Nexus Dashboard appliance PID, but 'NDA-K9' and 'NDA1100' do not match any Cisco ND product ID I could find. The per-fabric scale numbers (200 LAN / 250 SAN) also need a source.",
+      "field": "hardware",
+      "quote": "physical SE-NODE-G2 / NDA-K9 / NDA1100 (UCS-based)",
+      "severity": "needs_verification",
+      "suggested_fix": "Take appliance PIDs and switch-per-fabric limits from the Nexus Dashboard / NDFC Verified Scalability Guide for the stated release."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Three of the five references point at site roots (cisco.com/c/en/us/, cisco.com/c/en/us/support/data-center-analytics/, developer.cisco.com/docs/) rather than the titled documents, so a reader cannot follow them.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco NDFC LAN Fabric Configuration Guide, Release 12.4\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual NDFC LAN Fabric Configuration Guide page and the NDFC REST API reference for the release you cite."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "No Splunk app documents this sourcetype, and nothing in the SPL or implementation uses it. It reads as an invented name.",
+      "field": "dataSources",
+      "quote": "**`cisco:dc_networking_app:dashboard`** extracts",
+      "severity": "minor",
+      "suggested_fix": "Remove it, or name the real sourcetype the Cisco DC Networking app (7777) writes for NDFC data."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation refers to a 'deploy_failed' lane and says 'dc() stays honest', but the SPL emits a 'failed_push' lane and uses no dc(). knownFalsePositives cites 'span=1h', which the SPL never uses.",
+      "field": "cross_field",
+      "quote": "before paging automation trusts **deploy_failed** lanes",
+      "severity": "minor",
+      "suggested_fix": "Use the SPL's lane names (drift_review, deploy_queue, failed_push, onboarding_gap, issu_watch, backup_restore_lane) and remove the references to dc() and span."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Much of the troubleshooting and validation text is dense and loosely worded ('Backup Failed disk-quota strings often reflect disk', 'retention macros Finance audits'), which buries the actionable checks.",
+      "field": "detailedImplementation",
+      "quote": "approved Pending Config states linger while operators lunch",
+      "severity": "minor",
+      "suggested_fix": "Rewrite each troubleshooting bullet as symptom, likely cause, and the check to run."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the UC contains unverified API paths, release numbers and placeholder references. There is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an NDFC SME confirms the endpoints and status enums."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sum_hit` is forced to 1 for every `cisco:ndfc:image_mgmt` event and `backup_hit` to 1 for every `cisco:ndfc:backup` event. Image events fall into the 'other' lane, which passes `health_lane!=\"aligned\"`, and backup events pass `backup_presence=1`. Every image-management and backup record, successful ones included, therefore becomes a result row. `comp_lc` also coalesces the generic `status` field, so a backup or image job with status 'Failed' lands in the 'failed_push' compliance lane. Restrict comp_lc to compliance events and filter backup/image rows to failure states.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0066-UC-18.4.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The drift-detection intent and the In-Sync/Out-of-Sync lane logic are useful, but several NDFC API paths, release numbers and appliance part numbers look invented or misplaced. The references are placeholder URLs, and the SPL surfaces every backup and image-management event, successes included, as a review row.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.2",
+  "verdict": "rewrite"
+}

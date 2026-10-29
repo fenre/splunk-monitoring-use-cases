@@ -1,0 +1,120 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "ef25318c01c2c0104e00a6c7e3b630fd8c497302e8d690355fe52bf60e2b6227",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.7.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on. The same ID is repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856))",
+      "severity": "blocker",
+      "suggested_fix": "Replace it with the add-on actually used for NSX. The cached catalogue lists 'VMware NSX add-on' (TA-nsx, Splunkbase 6805); otherwise state custom scripted/HEC collection. Remove the 4856 references."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/3215",
+      "explanation": "Splunkbase 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware (Splunk_TA_vmware) is Splunkbase 3215.",
+      "field": "app",
+      "quote": "optional **`Splunk_TA_vmware`** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Change 1810 to 3215 in app, dataSources, implementation, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/method_GetProtonCapacityUsage.html",
+      "explanation": "The NSX capacity API returns capacity_usage[] entries with usage_type, display_name, current_usage_count, max_supported_count, min/max_threshold_percentage, current_usage_percentage and severity. capacity_key, current_usage and maximum are not API fields, so a reader mapping the real payload gets null pct_use.",
+      "field": "dataSources",
+      "quote": "**`GET /api/v1/capacity/usage`** and **`GET /api/v1/capacity/threshold`** JSON mapped to **`capacity_key`**, **`current_usage`**, **`maximum`**, optional **`severity`**",
+      "severity": "blocker",
+      "suggested_fix": "Document the real fields (usage_type, current_usage_count, max_supported_count, current_usage_percentage, severity). Tell the reader to alias them, or note that NSX already computes current_usage_percentage and severity against its own thresholds."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "This implies a stock add-on ships inputs for these five sourcetypes, but the detailedImplementation describes them as scripted collectors. capacity, inventory, gateway_status and edge_ha are bespoke sourcetypes that the reader must build.",
+      "field": "implementation",
+      "quote": "Enable **`Splunk_TA_vmware-nsxt`** inputs for **`vmware:nsxt:capacity`**, **`vmware:nsxt:inventory`**, **`vmware:nsxt:gateway_status`**, **`vmware:nsxt:syslog`**, and **`vmware:nsxt:edge_ha`**",
+      "severity": "major",
+      "suggested_fix": "State clearly that capacity, inventory, gateway_status and edge_ha come from custom REST/HEC collectors, and that only syslog parsing comes from an add-on."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "These scale numbers are presented as NSX 4.2 planning figures but are not cited. The capacity API sample shows 4000 as max_supported_count for Tier-1 with NAT, which suggests at least one figure may be off.",
+      "field": "detailedImplementation",
+      "quote": "about **10k** logical segments per transport zone, **200** **Tier-0** gateways, **6k** **Tier-1** gateways, **~5k** **Tier-0** routes before expansion workflows, **~4k** ARP entries per segment",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each value against Broadcom configmax for NSX 4.2 (the reference already linked) and cite the specific rows, or remove the numbers."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "I could not confirm that Splunk_TA_vmware emits a 'vmware:vmware:vsphere:vcenter' sourcetype. Its inventory data normally lands in vmware:inv:* sourcetypes.",
+      "field": "dataSources",
+      "quote": "optional **`vmware:vmware:vsphere:vcenter`** from **Splunk_TA_vmware**",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the Splunk Add-on for VMware sourcetype list and name the actual inventory sourcetype (for example the VM or host inventory sourcetype)."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "An NSX-only capacity UC is tagged with the Cisco ACI equipment model, and the equipment list includes 'cisco'.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_aci\"",
+      "severity": "minor",
+      "suggested_fix": "Remove cisco_aci from equipmentModels and cisco from equipment."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an agent reviewer despite wrong Splunkbase IDs and invented API field names.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates against a live NSX Manager."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "This is a generic API portal root and not the NSX capacity API page.",
+      "field": "references",
+      "quote": "\"url\": \"https://developer.vmware.com/apis/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/method_GetProtonCapacityUsage.html."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/method_GetProtonCapacityUsage.html",
+      "field": "spl",
+      "issue": "The real capacity API fields (current_usage_count, max_supported_count, usage_type) are not in any of the coalesce lists. As a result cap_curr and cap_max stay null on genuine /api/v1/capacity/usage payloads, and the 80/92 pct breaches never fire unless the collector renames fields.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "tier_hint matches 'tier_?0|t0', but NSX Policy gateway paths are /infra/tier-0s/<id> with a hyphen, so they classify as NA unless the gateway ID happens to contain 't0'. That leaves warn_t0_route_scale effectively dead.",
+      "severity": "major"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'NSX-T', but the body targets NSX 4.x, where the product is branded VMware NSX. Minor naming drift.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0058-UC-18.3.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The capacity idea and the threshold scaffolding are reasonable, but both Splunkbase IDs point at unrelated apps. The NSX capacity API field names are invented, and the Tier-0 detection cannot match real Policy paths. The text also implies a stock TA that emits five bespoke sourcetypes.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.7",
+  "verdict": "incorrect"
+}

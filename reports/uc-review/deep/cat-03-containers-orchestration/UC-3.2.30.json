@@ -1,0 +1,122 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "761643ee8c73d17cc5629cc4db60abb9fafb0a1b36ee1213cf034e7017f2231f",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.30.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "Error and OOMKilled are reasons on a container's terminated state (kube_pod_init_container_status_terminated_reason / last_terminated_reason), not waiting reasons. A crashing init container shows waiting reason CrashLoopBackOff, and the 'Init:Error' / 'Init:OOMKilled' strings are kubectl STATUS-column renderings. The same confusion drives the OOM-priority severity text in Step 3 and Case 6.",
+      "field": "detailedImplementation",
+      "quote": "wait for kube_pod_init_container_status_waiting_reason to show Error or CrashLoopBackOff",
+      "severity": "major",
+      "suggested_fix": "Say that the waiting lane catches CrashLoopBackOff, ErrImagePull, ImagePullBackOff and CreateContainerConfigError, and that Error/OOMKilled come from kube_pod_init_container_status_terminated_reason or kube_pod_init_container_status_last_terminated_reason."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "PodInitializing is a container waiting reason, not a Kubernetes event reason. The validation search 'sourcetype=kube:events PodInitializing' in Step 2 is therefore likely to return nothing.",
+      "field": "dataSources",
+      "quote": "index=k8s sourcetype=kube:events for PodInitializing, Failed, BackOff, or FailedMount narratives",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against kubelet event reasons; list Failed, BackOff, FailedMount, Pulling/Failed for init images, and drop PodInitializing from the events list."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 and models host service, process and port inventory, not init-container lifecycle. Performance appears only in a join whose output is immediately dropped, so neither model represents the detection.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Leave cimModels empty for this kube-state-metrics detection, and remove the Step 1 CIM alignment paragraph and the 'correlation tick' rationale."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "kube-state-metrics init-container series carry container, pod, namespace, reason and uid labels but no node label, so the node column in the output will always be empty unless kube_pod_info is joined.",
+      "field": "detailedImplementation",
+      "quote": "relabel rules that preserve namespace, pod, container, node, image, reason, and phase labels on init and pod phase series",
+      "severity": "minor",
+      "suggested_fix": "State that node comes from kube_pod_info (node label) and must be joined on namespace and pod."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "No EKS user-guide page on init containers is known at this path, and the AKS '#init-containers' anchor may not exist either; they look like guessed links.",
+      "field": "references",
+      "quote": "\"title\": \"AWS — Init containers for Amazon EKS\",\n      \"url\": \"https://docs.aws.amazon.com/eks/latest/userguide/initcontainers.html\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Open both URLs; replace any that fail with the Kubernetes init-containers concept page, which is already cited."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The Kubernetes guide routes API server audit to sourcetype kube:apiserver:audit. The unparenthesised OR also makes the drill match any verb=patch event in the index.",
+      "field": "detailedImplementation",
+      "quote": "index=k8s_audit sourcetype=kube:audit verb=create OR verb=patch objectRef.resource=pods",
+      "severity": "minor",
+      "suggested_fix": "Use index=k8s_audit sourcetype=kube:apiserver:audit (verb=create OR verb=patch) objectRef.resource=pods."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under a generic reviewer handle, yet the SPL cannot parse (multisearch placement) and its enrichment joins can never match, so the Step 4 lab tests cannot have been passed.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been run in a lab cluster, and record the SME reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command and must be the first command in the search, but here it follows eval/join/fields. Its subsearches are also wrapped in an extra bracket pair, so the search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "like(_raw, \"kube_pod_init_container_status_restarts_total\") and the similar filters for init_container_info and status_phase use no % wildcards, so like() needs the whole _raw to equal the metric name and never matches. init_restarts_total, init_image and pod_phase therefore stay at their fillnull defaults.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "The three enrichment joins key on cluster, namespace, pod (and init_container), but their subsearches never produce a cluster field. join needs every join field present on both sides, so no enrichment row can match.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The waiting-lane filter accepts \"Error\" and \"OOMKilled\", which are terminated reasons, while severity matches ErrImagePull, which the filter excludes. As a result the OOMKilled waiting branch is dead and ErrImagePull can never be scored.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "It uses Application_State.state and Application_State.app with nodename=Application_State. The deprecated model's root is All_Application_State and defines no state or app fields, so the overlay returns nothing relevant to init containers.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0051-UC-3.2.30",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The init-container axis is well scoped against UC-3.2.10 and UC-3.2.14, and the troubleshooting cases are concrete. However, the prose and SPL treat OOMKilled and Error as waiting reasons although Kubernetes reports them as terminated reasons, and the SPL has several defects that leave restarts, image and phase permanently empty. The CIM mapping uses the deprecated Application_State model and a discarded Performance join.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.30",
+  "verdict": "incorrect"
+}

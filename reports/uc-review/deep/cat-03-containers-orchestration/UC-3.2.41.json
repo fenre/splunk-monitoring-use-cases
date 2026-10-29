@@ -1,0 +1,158 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "f63137b214cf021981f00b0048a0e5a69a9f2c229d10040afceff613d079751a",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.41.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpoint-metrics.md",
+      "explanation": "Current kube-state-metrics endpoint metrics are only kube_endpoint_info, kube_endpoint_labels, kube_endpoint_created, kube_endpoint_ports and kube_endpoint_address{endpoint,namespace,ip,port_*,ready}; kube_endpoint_address_available and kube_endpoint_address_not_ready have been removed, so the 'legacy' lane and the guide KPI built on them will return nothing on supported KSM versions (guide requires v2.10+).",
+      "field": "dataSources",
+      "quote": "kube-state-metrics kube_endpoint_address_available, kube_endpoint_address_not_ready, kube_endpoint_address with ready label",
+      "severity": "blocker",
+      "suggested_fix": "Drop kube_endpoint_address_available/not_ready from dataSources (or mark them as removed in older KSM releases) and base the Endpoints lane on kube_endpoint_address{ready=\"true\"} counted per endpoint/namespace at the latest scrape."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpointslice-metrics.md",
+      "explanation": "kube_endpointslice_endpoints carries endpointslice, namespace, address, ready, serving, terminating, hostname, targetref_*, nodename and endpoint_zone labels; it has no service-name label. The kubernetes.io/service-name label is only exposed via kube_endpointslice_labels when allowlisted with --metric-labels-allowlist, so the slice lane cannot be keyed by service as described (Step 1 repeats the same claim).",
+      "field": "dataSources",
+      "quote": "kube_endpointslice_endpoints with ready and kubernetes_io_service_name labels",
+      "severity": "blocker",
+      "suggested_fix": "State that the service name must be joined from kube_endpointslice_labels{label_kubernetes_io_service_name} (requires --metric-labels-allowlist=endpointslices=[kubernetes.io/service-name]) on namespace+endpointslice, and update the Step 1 paragraph accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation Step 4 contradicts the spl: the modern and slice lanes use stats sum(ready_unit) over earliest=-2h@m, so a Service that had ready addresses earlier in the window keeps a non-zero sum and will not alert until those samples age out (up to two hours), not within two scrape intervals.",
+      "field": "cross_field",
+      "quote": "then kubectl scale deployment --replicas=0. Within two scrape intervals you should see zero ready addresses and a row from the saved search.",
+      "severity": "major",
+      "suggested_fix": "Either describe the real latency (alert only after ready samples leave the 2h window) or, preferably, have the search evaluate the latest scrape per address and change the validation text to match the corrected behaviour."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated Helm chart, not a Splunkbase modular input; the guide makes the Splunk OpenTelemetry Collector for Kubernetes chart the primary collection plane and lists SCK only as legacy.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Replace with: 'Collected by the Splunk OpenTelemetry Collector for Kubernetes cluster receiver (prometheus receiver scraping kube-state-metrics) exporting to HEC; legacy SCK 1.5.x deployments are deprecated.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "Nothing in this UC involves SNMP or UPS devices; snmp_ups (and the 'snmp' equipment tag) will surface this Kubernetes Service detection in UPS/SNMP equipment views.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp_ups from equipmentModels and 'snmp' from equipment; keep kubernetes_k8s (and opentelemetry/prometheus equipment tags)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "The Application_State data model is deprecated in the Splunk CIM, and Service endpoint readiness does not map to Application_State or Performance fields; claiming CIM schema here is misleading.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State (and Performance unless a real host-saturation correlation is kept) and treat this as a raw kube-state-metrics detection with schema not set to CIM."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Beyond the recorded template checks, none of the listed entries describe real causes of false zero-ready rows; the genuine ones are spread through Step 5 instead.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `service`, `]`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List concrete benign cases: scale-to-zero workloads (KEDA, Knative, HPA min 0), Recreate-strategy rollouts with a brief empty window, selector-less Services with manually managed Endpoints, Services fronting only CronJob/Job pods, and kube-state-metrics/collector scrape gaps that make many Services appear empty at once."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The URL is the generic Tasks index, not the Debug Services page the title promises.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes — Debug Services\",\n      \"url\": \"https://kubernetes.io/docs/tasks/\",",
+      "severity": "minor",
+      "suggested_fix": "Use https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Authoring-contract residue that means nothing to an operator.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five step headers use em dash punctuation as contracted; Step 3 includes fenced SPL; Step 5 lists twelve case lines;",
+      "severity": "minor",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "FailedToUpdateEndpoint/FailedToUpdateEndpointSlices are real controller reasons, but the SPL also keys on 'NoEndpoints', 'noreadyendpoints' and 'notarget', which are not standard Kubernetes event reasons and appear to be invented.",
+      "field": "detailedImplementation",
+      "quote": "The endpoint controller emits reasons such as FailedToUpdateEndpoint and FailedToUpdateEndpointSlices; message text may mention missing ready endpoints",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm against the endpoint and endpointslice controller sources which reasons exist and drop the unverified 'NoEndpoints'/'notarget' patterns from the narrative (and note for the SPL owner)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The search relies on removed metrics and a non-existent label and uses multisearch with non-streaming arms, so it cannot have been validated as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the corrected search is run against a live kube-state-metrics v2.10+ scrape."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch requires every subsearch to be purely streaming; each arm ends in stats, so the search errors out before producing results.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpointslice-metrics.md",
+      "field": "spl",
+      "issue": "The EndpointSlice lane extracts service from kubernetes_io_service_name/label_kubernetes_io_service_name/service labels that kube_endpointslice_endpoints does not carry, so service is always empty and those rows are dropped by the len(service)>0 filter; the slice lane never contributes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpoint-metrics.md",
+      "field": "spl",
+      "issue": "The legacy lane depends on kube_endpoint_address_available/kube_endpoint_address_not_ready, which current kube-state-metrics no longer exposes; the legacy_zero branch is dead code on supported versions.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The modern lane computes sum(ready_unit) over the whole -2h window, so a Service only reaches zero after all earlier ready samples age out (up to 2h detection delay); it should take the latest value per endpoint/address and then count ready=true. kube_pod_status_ready_sum is likewise a 2h sum of samples, not a ready-pod count.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Uses the deprecated Application_State data model and the wrong Performance root/node names (root dataset is All_Performance), and the query is unrelated to Service endpoint readiness.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0063-UC-3.2.41",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The operational narrative (selector drift, readiness probes, manual Endpoints, headless churn) is useful, but the detection is built on kube-state-metrics series that no longer exist (kube_endpoint_address_available/not_ready) or lack the label the SPL keys on (kubernetes_io_service_name on kube_endpointslice_endpoints), the SPL uses multisearch with stats arms, and the 2h sum logic contradicts the 'within two scrape intervals' validation claim.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.41",
+  "verdict": "incorrect"
+}

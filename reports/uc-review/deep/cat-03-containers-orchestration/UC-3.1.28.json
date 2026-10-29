@@ -1,0 +1,114 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "05ec2e1024e2df11a268cefd1969936526e370d2413f2b7016f70129aff2d205",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.28.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunkbase 4496 is 'Splunk Connect for Docker', a Docker logging-driver plugin that ships container stdout/stderr. It is not named 'Splunk Connect for Containers', and it has no modular inputs that could emit docker:service, docker:task or docker:swarm:event. `detailedImplementation` Step 1 repeats the wrong name.",
+      "field": "app",
+      "quote": "optional legacy Splunk Connect for Containers ([Splunkbase 4496](https://splunkbase.splunk.com/app/4496)) only when its modular inputs can be scoped and renamed",
+      "severity": "blocker",
+      "suggested_fix": "Drop the 4496 reference from this UC, or name it correctly and state that it only carries container logs. The Swarm sourcetypes come solely from the manager-side scripted input."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/service/ps/",
+      "explanation": "The `docker service ps` format placeholders are ID, Name, Image, Node, DesiredState, CurrentState, Error and Ports. Err, NodeID and Slot are task-object fields from `docker inspect <task>` / the Tasks API. `ps` also emits no ServiceName, only Name (`svc.slot`), so the SPL's `coalesce(service_name, ServiceName, ...)` yields empty values unless the collector adds the service name.",
+      "field": "dataSources",
+      "quote": "docker service ps --format json lines that include CurrentState, DesiredState, Err, NodeID, and Slot identifiers",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the `docker service ps` formatting reference. Either describe the `ps` fields (Name, Node, Error) and tell the collector to add service_name, or say the input calls the Tasks API (`/tasks?filters=service=`) for Status.Err, NodeID and Slot."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/events/",
+      "explanation": "Service events report only create, update and remove. Rollbacks show up as update events whose attributes carry updatestate.new/old, not as a separate rollback action.",
+      "field": "dataSources",
+      "quote": "docker events --filter type=service streams that capture create, update, remove, and rollback signals",
+      "severity": "minor",
+      "suggested_fix": "Say that rollback progress is read from `updatestate.*` attributes on service update events."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator-checklist residue addressed to the authoring tool, and it miscounts: the final table has twenty columns. The 'Historical context for steering committees' and 'FinOps' paragraphs are also filler that does not help implementation.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five plain-text step headers present; docker:service, docker:task, and docker:swarm:event appear in collection narrative; ... table projects eighteen columns for clarity; narrative JSON fields avoid forbidden boilerplate phrases",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the steering-committee and FinOps paragraphs."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk Add-on for Unix and Linux provides no journald input (journald is a native Splunk input), and `unix_filemonitor` named in Step 1 is not an add-on sourcetype (the add-on's FIM sourcetype is `fs_notification`).",
+      "field": "app",
+      "quote": "syslog or journald forwarding of dockerd messages, and optional file integrity context around daemon.json",
+      "severity": "minor",
+      "suggested_fix": "Attribute journald collection to the native Splunk journald input and use `fs_notification` for daemon.json integrity."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The UC explicitly targets Swarm mode and excludes Kubernetes-only estates, yet it is tagged with Kubernetes equipment and models.",
+      "field": "equipmentModels",
+      "quote": "\"kubernetes_k8s\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `kubernetes` from equipment and `kubernetes_k8s` from equipmentModels, or replace them with a Docker Engine/Swarm model."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "With no upstream handling, the SPL forces a null Spec.Mode.Replicated.Replicas to 0, so global services silently never alert. If running_replicas fails to parse, `fillnull value=0` turns every replicated service into a full deficit. Readers should be warned about both behaviours.",
+      "field": "detailedImplementation",
+      "quote": "For global mode services, set desired_replicas from node counts only if your governance agrees; otherwise exclude globals",
+      "severity": "minor",
+      "suggested_fix": "State that global and job services are excluded by default and that parse failures on running_replicas cause false full-deficit alerts. Add a validation check that running_replicas is non-null."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic reviewer handle while add-on naming and task-field mapping are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Keep the status at draft until an SME has run validation paths A–C on a lab Swarm."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/service/update/",
+      "field": "spl",
+      "issue": "`update_max_failure_ratio` defaults to \"0.25\" when missing, but Docker's default `--update-max-failure-ratio` is 0. The `medium_pending_image_pull` tier tests `sample_reject_err`, which is populated only from Rejected tasks, so pending-only pull stalls never reach that tier.",
+      "severity": "major"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "This is a generic Application_State `BY State` count with no Swarm, service or replica context. Application_State may also be deprecated in current CIM releases. It does not approximate replica-deficit detection.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0020-UC-3.1.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The Swarm convergence model is technically sound: UpdateStatus states, MaxFailureRatio pause behaviour, Rejected/Orphaned task states and manager-only polling are all correct, and the grandma text is faithful. The UC misnames the Splunkbase 4496 add-on, describes `docker service ps` JSON fields it does not emit, and carries generator checklist residue plus unrelated Kubernetes tagging.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.28",
+  "verdict": "incorrect"
+}

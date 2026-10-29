@@ -1,0 +1,135 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "41b8b8a14c41f2daab7bd5153b4fe7cacf36cc0a7de7076132c2a4d03e63a47d",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.11.json",
+  "findings": [
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "As far as I know, the dockerd metrics endpoint exposes engine_daemon_* counters plus Go process_* gauges. It has no image-pull queue depth, max-concurrent-downloads gauge, or `engine_daemon_engine_cpu_percent`. The pull_hot and dockerd CPU tiers would then never have data.",
+      "field": "dataSources",
+      "quote": "`sourcetype=docker:metrics` Prometheus scrape of dockerd `/metrics` via Splunk OpenTelemetry Collector prometheus receiver",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the metric list on a live dockerd /metrics endpoint. If these series do not exist, say so explicitly and source max-concurrent-downloads from daemon.json (or `docker info`) and daemon CPU from /proc/$pid/stat. Consider process_open_fds/process_max_fds from the same scrape as the fd source."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "I could not identify any OpenTelemetry Collector component named 'textf processor'.",
+      "field": "detailedImplementation",
+      "quote": "otherwise extend the receiver mapping with a textf processor",
+      "severity": "needs_verification",
+      "suggested_fix": "Name a real component (for example the transform or metricstransform processor) or remove the sentence."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://man7.org/linux/man-pages/man2/getrlimit.2.html",
+      "explanation": "The kernel returns EMFILE when a process reaches its soft RLIMIT_NOFILE, not the hard limit. The guidance and the SPL compute fd_pct against hard_nofile_limit, which understates risk whenever soft is lower than hard.",
+      "field": "detailedImplementation",
+      "quote": "reads /proc/$pid/limits for Max open files soft and hard pairs",
+      "severity": "major",
+      "suggested_fix": "Compute fd_pct against the soft 'Max open files' value (and record hard separately for headroom planning)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "None of the three custom sourcetypes is mapped to either model, and the SPL never uses CIM. Application_State is also a legacy model superseded by Endpoint datasets.",
+      "field": "cimModels",
+      "quote": "\"Performance\", \"Application_State\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty, or describe an explicit Performance mapping for the custom sourcetypes if one is intended. Drop Application_State."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_nix ships a df input (sourcetype df) but no inode or dockerd /proc inputs. linux:df_inodes and linux:proc:dockerd_status are both customer-built scripts.",
+      "field": "app",
+      "quote": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) for host scripted inputs and df patterns",
+      "severity": "minor",
+      "suggested_fix": "Say that both sourcetypes come from customer scripted inputs (optionally packaged alongside Splunk_TA_nix), and that the TA's own df input does not report inode usage."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is an authoring-template checklist, not operator guidance. It also contradicts the sidecar, which has no equipmentModels. 'keeps governance reviewers satisfied' and 'emits only the six mandated severity strings' are the same kind of residue.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: monitoringType lists Performance and Capacity; splunkPillar Observability; equipment docker and linux; equipmentModels docker_engine and linux_proc;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the template-compliance sentences. Add equipmentModels only if real slugs exist."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Reference material is not control evidence, and nf_conntrack is unrelated to anything the SPL measures.",
+      "field": "evidence",
+      "quote": "External grounding includes Linux proc(5) limit semantics, Docker daemon.json concurrency and metrics documentation, Moby community threads on dockerd file-descriptor exhaustion, and kernel nf_conntrack discussions",
+      "severity": "minor",
+      "suggested_fix": "Keep the saved-search, lookup and export artefacts. Move documentation to references and drop nf_conntrack."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "A 2013 article on generic daemon fault tolerance does not support any dockerd limit or metric claim in this UC.",
+      "field": "references",
+      "quote": "Spotify Engineering — intelligent daemons and fault tolerance",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the dockerd metrics documentation or the systemd LimitNOFILE documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Several signals depend on metrics that may not exist, and the cimSpl is invalid, so the content cannot have been end-to-end verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until metric names are confirmed on a live dockerd."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "The CIM Performance model's root dataset is All_Performance, with CPU fields under All_Performance.CPU.* and host identity in `dest`. `Performance.cpu_load_percent`, `nodename=Performance.CPU` and `Performance.host` do not exist. Host CPU is also not the dockerd ceiling this UC detects.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "pull_queue_depth is joined as a single `latest()` value per host and copied onto every proc row. `streamstats time_window=30s max(pull_queue_depth)` therefore just returns that constant, and the 'sustained thirty-second queue' heuristic described in prose is not implemented.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search never collapses to one row per host. Every one-minute proc poll in the 4-hour window that meets a tier is emitted, so a single host can produce hundreds of rows, including stale states from hours ago. Add `stats latest(...)` by host_id (or filter to the latest poll) before severity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The inode subsearch keeps any mount with `inode_pct>=75` even when it is not the Docker graph root, then labels the host 'critical_inode_above_90_dockerd_layer_creation_blocked'. A full /home or /var/log inode table would page as a dockerd outage.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://man7.org/linux/man-pages/man2/getrlimit.2.html",
+      "field": "spl",
+      "issue": "fd_pct divides by hard_nofile_limit, but EMFILE is enforced at the soft RLIMIT_NOFILE.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0003-UC-3.1.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The intent (dockerd fd, thread and inode headroom) is sound and the lab validation paths are useful. The pull-queue and daemon-CPU signals depend on dockerd metrics that do not appear to exist, the fd math uses the wrong rlimit, and the CIM mapping and cimSpl do not describe this detection. The text also ends in authoring-template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.11",
+  "verdict": "incorrect"
+}

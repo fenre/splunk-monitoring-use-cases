@@ -1,0 +1,130 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "965c174ad16317a7a29793528b674cf9e8bda63ad84c164389cacfd9a0779574",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.2.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk_TA_nix has no linux:cgroup sourcetype or cgroup memory script; its documented sourcetypes are cpu, vmstat, df, ps, top, linux_secure, etc. dataSources and detailedImplementation repeat the claim, so readers will look for an input that does not exist.",
+      "field": "app",
+      "quote": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) supplies linux:cgroup scripted reads and syslog ingestion for memory controller files",
+      "severity": "blocker",
+      "suggested_fix": "Describe linux:cgroup as a custom scripted input (optionally packaged in a local app beside Splunk_TA_nix) that reads memory.events/memory.current/memory.max per docker-<id>.scope, and list its output fields."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.1.2.json",
+      "explanation": "description contradicts spl and dataSources: linux:cgroup lives in index=os, and the alert conditions are an oom_kill counter increase (critical), memory_current_pct > 95 (warning) or slope > 8 MiB/min with pressure > 80% (warning), not 'memory_max_bytes > 0'.",
+      "field": "cross_field",
+      "quote": "using `index=docker` sourcetype `linux:cgroup`, grouped by `host`, `container_name`, `merge_key`. Outputs `max_observed_rss_bytes`, `memory_current_pct`, `slope_bytes_per_min` each `the scheduled window`; alert when `memory_max_bytes` > 0",
+      "severity": "major",
+      "suggested_fix": "Rewrite: 'Per host and container, raises critical when the cgroup memory.events oom_kill counter increases in the last hour (corroborated by kernel oom-kill printk lines and docker action=oom events), and warning when memory use exceeds 95% of memory.max or grows faster than 8 MiB/min above 80%; suggests a limit 30% above the observed peak.'"
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/hostmetricsreceiver",
+      "explanation": "There is no product called 'Splunk OpenTelemetry Collector for Containers', and the hostmetrics receiver scrapes host-level cpu/memory/disk/filesystem/network/process metrics, not per-container cgroup memory or oom_kill counters.",
+      "field": "dataSources",
+      "quote": "Alternative collection: Splunk OpenTelemetry Collector for Containers hostmetricsreceiver cgroup memory scrape exported through HEC",
+      "severity": "major",
+      "suggested_fix": "Name the Splunk Distribution of the OpenTelemetry Collector with the docker_stats receiver (container memory usage/limit) and state that it does not expose oom_kill counters."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "memory.events.local appears to have been introduced earlier (around Linux 5.2); the kernel floor is repeated in detailedImplementation.",
+      "field": "hardware",
+      "quote": "memory.events.local for nested attribution requires Linux 5.7 or newer",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the kernel cgroup-v2 documentation / git history for when memory.events.local was added and state that version."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Template scenarios; none describe real OOM false positives.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host`, `container_name`, `merge_key` — Health checks in `docker` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: deliberate stress/chaos tests; batch jobs sized to hit the limit and retry; JVM/.NET heaps sized near the limit producing sustained >95% without kills; page cache counted in memory.current inflating pressure; counter resets when a container is recreated (new cgroup) and duplicate kills when v1 and v2 hierarchies are both scraped."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The closing checklist is generator residue addressed to the author, not implementation guidance.",
+      "field": "detailedImplementation",
+      "quote": "confirm no forbidden narrative phrases from the gold contract errata",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "explanation": "join max=0 means unlimited matches, so it allows rather than avoids fan-out when container_owner.csv has duplicate host/container rows.",
+      "field": "detailedImplementation",
+      "quote": "The closing join type=left max=0 with inputlookup container_owner.csv mirrors gold governance patterns and avoids multi-match explosions.",
+      "severity": "minor",
+      "suggested_fix": "Say max=0 keeps every matching row and require container_owner.csv to be unique per host+container_name."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL uses no data model and Performance.Memory describes host memory, not per-container cgroup kills; equipmentModels lists kubernetes_k8s although the text says Kubernetes is out of scope. The Splunk Connect for Docker reference URL points to the Splunkbase home page instead of app 4496.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Mark Performance as optional host-level context only, set equipmentModels to Docker Engine / Linux cgroup models, and link https://splunkbase.splunk.com/app/4496."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "All three multisearch arms contain stats (and the third streamstats/sort); multisearch accepts only purely streaming subsearches, so the search fails to run. Aggregate after the fan-in or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The syslog arm filters with '| search (match(_raw, ...) OR ...)'; the search command does not evaluate eval functions, so it looks for literal terms and the printk arm returns nothing. Use '| where match(_raw, ...)' or plain search terms.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "oom_kill_count_15m is computed over a one-hour window (earliest=-1h@h) and resets are not handled; a recreated container gets a new cgroup with a lower counter, which max(0, last-first) hides only partially. Rename the field and handle counter resets.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions",
+      "field": "spl",
+      "issue": "toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "Host-level Performance memory percentage > 90 does not detect container OOM kills and would not reproduce any critical row of the primary search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0012-UC-3.1.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The cgroup-first OOM narrative, docker events action=oom correlation and troubleshooting cases are strong, but the app/dataSources credit Splunk_TA_nix with a linux:cgroup input it does not ship, the description misstates index and thresholds, and the SPL cannot run (stats/streamstats inside multisearch, eval functions inside search).",
+  "tier": "deep",
+  "uc_id": "UC-3.1.2",
+  "verdict": "incorrect"
+}

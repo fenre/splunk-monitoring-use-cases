@@ -1,0 +1,145 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "8712592a2d2e0313ac9a79c4e57b98abf62fe7f3af94b072441af5c5b8c663be",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/FormateventsforHTTPEventCollector",
+      "explanation": "The HEC /services/collector/event endpoint requires the HEC envelope ({\"event\": ...}). A raw Trivy or Grype report posted as-is is rejected. The same applies to the Grype pipe `-d @-`.",
+      "field": "detailedImplementation",
+      "quote": "curl -k https://<hec>:8088/services/collector/event -H \"Authorization: Splunk <token>\" -d @results.json",
+      "severity": "blocker",
+      "suggested_fix": "Wrap each record in {\"event\": <record>, \"sourcetype\": \"trivy:scan\"} with jq before posting, or post to /services/collector/raw with a sourcetype that has line-breaking and JSON extraction configured."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://oss.anchore.com/docs/guides/vulnerability/json/",
+      "explanation": "Grype JSON is a top-level `matches[]` array. Each match has `vulnerability.id`, `vulnerability.severity`, `vulnerability.fix.versions[]`, `artifact.name` and `artifact.version`. There is no `package` object and no `artifact_name` field; the image reference is under `source.target.userInput`.",
+      "field": "detailedImplementation",
+      "quote": "Grype uses `id`, `severity`, `package.name`, `package.version`, `fix.versions{}`, `artifact_name`.",
+      "severity": "blocker",
+      "suggested_fix": "Document the real Grype paths (`matches{}.vulnerability.id`, `matches{}.vulnerability.severity`, `matches{}.vulnerability.fix.versions{}`, `matches{}.artifact.name`, `matches{}.artifact.version`, `source.target.userInput`) and explain how the report is split into one event per match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://trivy.dev/latest/docs/configuration/reporting/",
+      "explanation": "`trivy image --format json` emits one report. The image name is in `ArtifactName`, vulnerabilities are nested in `Results[].Vulnerabilities[]`, and the OS target reads like `alpine:latest (alpine 3.20.3)`, not the bare image reference. Sent as one HEC event, this validation matches nothing, and the flat fields the guide relies on never exist.",
+      "field": "detailedImplementation",
+      "quote": "`index=containers sourcetype=\"trivy:scan\" Target=\"nginx:1.14\" Severity IN (\"CRITICAL\",\"HIGH\") | stats dc(VulnerabilityID)` should match.",
+      "severity": "blocker",
+      "suggested_fix": "Add a step that splits the report into one event per vulnerability (for example jq over `.Results[].Vulnerabilities[]` carrying `ArtifactName` and `Target`), or use spath/mvexpand at search time. Validate on `ArtifactName`, not `Target`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "dataSources calls five sourcetypes required, but the SPL reads only trivy:scan and grype:scan. detailedImplementation Step 1(2) also indexes Harbor vulnerability API results as `harbor:audit`, which contradicts dataSources' description of harbor:audit as audit-log entries. Neither search consumes them, nor the kube correlation that Step 4's 'running production image' alert depends on.",
+      "field": "cross_field",
+      "quote": "**`sourcetype=harbor:webhook`** (Harbor SCANNING_COMPLETED webhook notifications linking scan results to push events and repository metadata), **`sourcetype=harbor:audit`** (Harbor audit API entries for scan policy enforcement and scan-on-push configuration changes), **`sourcetype=kube:container:status`**",
+      "severity": "major",
+      "suggested_fix": "Mark Harbor and Kubernetes sources as optional, give Harbor vulnerability API output its own sourcetype (for example harbor:vulnerabilities), and drop the running-image alert routing unless a search implements it."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "These are the `risk_tier` labelling rules, not alert conditions. The SPL has no `where` filter and returns the top 100 images regardless of tier. The description also lists `cve_id` and `pkg_name` as grouping keys of the image search, but they belong to the separate patch-priority search.",
+      "field": "description",
+      "quote": "alert when `critical` > 0, `high` > 5, or `high` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the image ranking (critical > 0 → CRITICAL, high > 5 → HIGH, any high → MEDIUM) and the patch list (fixable critical/high CVEs by cve_id, pkg_name), and state the actual alert condition (risk_tier=CRITICAL)."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "Neither search applies `cve_exceptions`, so a reader scheduling the shipped SPL alerts on accepted-risk CVEs. The `-15m` window only sees images scanned in the last 15 minutes, while the risk dashboard uses `-24h`.",
+      "field": "detailedImplementation",
+      "quote": "Alert **immediately** (every 15 minutes over `-15m`) when any image has **critical > 0** and the CVE is not in the exceptions lookup.",
+      "severity": "major",
+      "suggested_fix": "State that the `| lookup cve_exceptions cve_id OUTPUT exception_reason | where isnull(exception_reason)` and `| where critical > 0` clauses from Step 1(5) must be appended for the alert, and explain the window choice."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Trivy reports severities in uppercase (CRITICAL, HIGH, ...) in current and historical JSON output. Grype is the scanner that uses title-case values. The claim looks invented.",
+      "field": "detailedImplementation",
+      "quote": "Trivy versions before 0.30 use lowercase severity values",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Trivy changelog. If unsupported, replace it with a note that Grype emits title-case severities (Critical, High), which `upper()` normalizes."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Neither Splunk Connect for Kubernetes nor the Splunk OTel Collector is documented as producing a `kube:container:status` sourcetype or a `container_image_digest` field (Step 3e). SCK object data arrives as `kube:objects:*`.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=kube:container:status`** (container image digests from running pods",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the actual sourcetype and field carrying running image digests (for example SCK `kube:objects:pods` with `status.containerStatuses{}.imageID`) and use it here and in Step 3(e)."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates and cite a `span=1h` that is not in the SPL. Real causes are named only in the runbook: kernel CVEs in userspace images, `will_not_fix`/unfixed base-image CVEs, Trivy and Grype disagreeing because of different databases, and repeated scans of the same image.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `image_ref`, `scanner`, `cve_id`, `pkg_name`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those concrete causes and point suppression to the `cve_exceptions.csv` lookup the UC already defines."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Nothing in the UC produces inventory records (assets, OS, hardware). Vulnerabilities fits the signal; Inventory does not.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Vulnerabilities only and describe the mapping (cve, severity, dest=image_ref, signature)."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer, yet its ingestion commands and Grype field mapping do not work against real scanner output.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has ingested real Trivy and Grype reports and run both searches."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "The step says push but the command pulls. For the scan-on-push path, the image would also have to be pushed to Harbor.",
+      "field": "detailedImplementation",
+      "quote": "(a) Push a known-vulnerable image: `docker pull nginx:1.14`",
+      "severity": "minor",
+      "suggested_fix": "Say 'Pull a known-vulnerable image and scan it locally', or add the `docker tag` and `docker push` commands for the Harbor path."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "eval treats `.` as the concatenation operator and needs single quotes for field names with special characters. `package.name`, `artifact.name`, `package.version` and `artifact.version` are therefore evaluated as string concatenations of non-existent fields, and `fix.versions{}` unquoted is invalid in an eval expression. Use `'artifact.name'`, `'vulnerability.fix.versions{}'` and so on.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://oss.anchore.com/docs/guides/vulnerability/json/",
+      "field": "spl",
+      "issue": "The coalesce chains assume one flat event per vulnerability. Raw Trivy reports nest fields under `Results{}.Vulnerabilities{}` and Grype under `matches{}.vulnerability.*` and `matches{}.artifact.*`. Without a split at ingest or `spath`/`mvexpand`, cve_id, severity and image_ref resolve to \"unknown\" and every counter is 0. Grype has no `id`, `severity` or `artifact_name` at top level.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Two independent searches are concatenated in one field with a blank line between them; pasted as a single search, the second part is not a valid pipeline. Split them into separate saved searches.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0098-UC-3.4.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The two-search design (image risk tiers plus a fixable-CVE patch list) is sound, but the ingestion and normalization facts are wrong. The curl-to-HEC /event commands fail on raw scanner JSON. The Grype field names are invented, and a whole Trivy report becomes one event whose fields are nested under Results{}.Vulnerabilities{}, not flat VulnerabilityID/Severity. Three of the five 'required' sourcetypes are never read by the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.2",
+  "verdict": "incorrect"
+}

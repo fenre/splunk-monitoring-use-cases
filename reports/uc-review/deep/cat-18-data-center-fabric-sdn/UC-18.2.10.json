@@ -1,0 +1,110 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "356b60428e80fc2122cacd6d7961a9ca854ef313ca581e23a2c5da7bda9b7c79",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.10.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/376344/troubleshooting-nsx-native-load-balancer.html",
+      "explanation": "The NSX native load balancer on Edge nodes runs NGINX (config at /config/vmware/edge/lb/etc/<instance>/nginx.conf, logs under /var/log/lb/). It is not HAProxy, and /var/log/edge_lb.log is not a documented path. The same HAProxy claim runs through the title-driven text, dataSources, equipment and hardware.",
+      "field": "detailedImplementation",
+      "quote": "Provision syslog receivers tailing **`/var/log/edge_lb.log`** from each Edge VM or bare-metal transport node carrying HAProxy narratives",
+      "severity": "blocker",
+      "suggested_fix": "Describe the dataplane as NGINX-based. Source LB logs from Edge syslog (load-balancer access/error logs forwarded via the Edge syslog exporter) or /var/log/lb/, and remove 'HAProxy' from dataSources, equipment ('haproxy') and hardware. Note that the native LB is deprecated in favour of VMware Avi Load Balancer."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/method_GetLBPoolStatus.html",
+      "explanation": "In the Policy API, pool status is GET /policy/api/v1/infra/lb-services/{lb-service-id}/lb-pools/{lb-pool-id}/detailed-status, returning AggregateLBPoolStatus. Pool member status values are UP, DOWN, DISABLED, GRACEFUL_DISABLED, UNUSED and UNKNOWN; DRAINING does not exist. The virtual-server path is likewise lb-services/{id}/lb-virtual-servers/{id}/detailed-status.",
+      "field": "dataSources",
+      "quote": "**`GET /policy/api/v1/infra/lb-pools/{id}/status`** exposing **`member_status`** (**UP**, **DOWN**, **DRAINING**, **DISABLED**)",
+      "severity": "blocker",
+      "suggested_fix": "Use the lb-services/{id}/lb-pools/{id}/detailed-status and lb-virtual-servers/{id}/detailed-status paths. Replace DRAINING with GRACEFUL_DISABLED, and note that min_active_members is a pool configuration field (GET /infra/lb-pools/{id}), not a status field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4241",
+      "explanation": "Splunkbase 4241 is the 'VMware NSX-T Splunk App' built by VMware NSX Logging. It is a dashboard app for NSX syslog, not a 'Splunk Add-on' (Splunk_TA_vmware-nsxt), and it does not poll LB status REST endpoints or create vmware:nsxt:lb_pool_status. The grounding guide's ID 4856 is also wrong (it is the Metrics Add-on for Infrastructure), so the guide needs correcting too.",
+      "field": "app",
+      "quote": "**Splunk Add-on for VMware NSX-T** ([Splunkbase 4241](https://splunkbase.splunk.com/app/4241)) for **`vmware:nsxt:*`** parsing",
+      "severity": "blocker",
+      "suggested_fix": "Name 4241 correctly as the VMware NSX-T Splunk App (syslog dashboards). State that the lb_pool_status and lb_vs_status sourcetypes come from a custom REST collector (rest_ta or a scripted input) that the adopter must build."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "specificity",
+      "explanation": "This sentence is repeated sixteen times, after a section literally titled 'Padding narrative'. It is followed by a 'Bold glossary reinforcement' list of template phrases ('Annotate X watchers beside Y overlays referencing Z governance cues'), and the final Step 1 / Step 2 block repeats the app and dataSources text verbatim. About half the field is filler.",
+      "field": "detailedImplementation",
+      "quote": "Extend readiness dossiers referencing rehearsed failover swaps annotated inside tabletop CRQ identifiers distinct from cold migrations logged inside virtualization consoles.",
+      "severity": "major",
+      "suggested_fix": "Delete the padding, governance supplements, glossary and duplicated Step 1 / Step 2 boilerplate. Keep the prerequisites, ingestion, search design, validation and runbook sections, corrected for the facts above."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Pool and virtual-server status snapshots are availability state, not network flows (Network_Traffic) or host CPU, memory or storage metrics (Performance). The schema text maps the VIP to 'destination_ip', which is not a CIM field (CIM uses dest_ip).",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty, or state that no CIM model applies. Drop the schema and dataModelAcceleration text that maps monitor_interval_sec to 'duration'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The SPL never reads ACI or Palo Alto data. These sources, and the matching equipment and equipmentModels entries (cisco_aci, cisco_nexus, paloalto_pan_firewall), add noise and wrongly widen the UC's scope.",
+      "field": "dataSources",
+      "quote": "optional **`sourcetype=cisco:aci:syslog`** cross-tags when east-west VIPs front ACI **`fvAEPg`** workloads—correlation only; **`sourcetype=paloalto:firewall`** (optional)",
+      "severity": "minor",
+      "suggested_fix": "Remove the ACI and Palo Alto sourcetypes from dataSources and the related equipment and equipmentModels entries."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer ('agent-handcraft-2026-04-29'), yet the API paths, member enums and dataplane are wrong and the SPL does not parse.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an NSX SME validates the collector and search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`| eval story=pool_fault.\" | \".edge_id.\" | \".pool_id\"` ends with an unbalanced double quote, leaving an unterminated string literal. The search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://vmware.github.io/vsphere-automation-sdk-java/nsx/nsx-policy/com/vmware/nsx_policy/model/LBPoolMemberStatus.html",
+      "field": "spl",
+      "issue": "pool_fault tests member_txt IN (\"DOWN\",\"DRAINING\",\"DISABLED\"), but NSX reports GRACEFUL_DISABLED and UNUSED, never DRAINING. The lb_log_sev branches regex-match HAProxy-style tokens in a log the NSX NGINX dataplane does not produce.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Two logic problems. monitor_interval_jitter flags any configured interval other than 5, 10, 15, 30 or 60 seconds, which is a non-standard setting rather than jitter. dc(pool_fault) is computed while grouping BY pool_fault, so fault_cardinality is always 1.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0024-UC-18.2.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 1,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The UC is built on wrong product facts. The NSX native load balancer is NGINX-based, not HAProxy, and the Policy API status paths, member-state enums and Splunkbase add-on identity are all incorrect. detailedImplementation is padded with a sentence repeated sixteen times and a generated 'glossary', and the SPL has an unterminated string literal.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.10",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,148 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "5e7292f23947305e8c1d7a506057991058933ddc2a0a01d4a9c7fd5a8b872db4",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', not a Kubernetes collector; Splunk Connect for Kubernetes is distributed as a Helm chart on GitHub and is not a Splunkbase app.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase 5167 reference; cite the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 / signalfx/splunk-otel-collector-chart) as the collector."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and its repository is archived; it is also a Helm/Fluentd deployment, not a modular input. Same wrong Splunkbase ID as in app.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "State that istiod metrics, istiod logs, Kubernetes events and object metadata are collected by the Splunk OpenTelemetry Collector for Kubernetes (prometheus receiver, filelog, k8s_events and k8sobjects receivers)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/pilot-discovery/",
+      "explanation": "CITADEL_SELF_SIGNED_CA_CERT_TTL is the TTL of the self-signed root CA (default 87600h), not the workload certificate; workload TTL is governed by DEFAULT_WORKLOAD_CERT_TTL / MAX_WORKLOAD_CERT_TTL on istiod (and SECRET_TTL on the proxy). meshConfig.certificates[].dnsNames sets DNS SANs, not TTL.",
+      "field": "detailedImplementation",
+      "quote": "Istio's default workload certificate TTL is **24 hours** (configurable via `meshConfig.certificates[].dnsNames` or `CITADEL_SELF_SIGNED_CA_CERT_TTL`)",
+      "severity": "blocker",
+      "suggested_fix": "Say workload cert TTL defaults to 24h via DEFAULT_WORKLOAD_CERT_TTL (max MAX_WORKLOAD_CERT_TTL, 2160h) and the self-signed root CA TTL is CITADEL_SELF_SIGNED_CA_CERT_TTL (default 10 years)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/istioctl/",
+      "explanation": "create-remote-secret creates a secret with credentials for Istio to access remote Kubernetes API servers (multicluster); it has nothing to do with root CA rotation. A responder following this runbook step would not rotate the CA.",
+      "field": "detailedImplementation",
+      "quote": "for root CA: follow Istio root CA rotation procedure (`istioctl x create-remote-secret`)",
+      "severity": "blocker",
+      "suggested_fix": "Point to Istio's plug-in CA / root certificate rotation procedure (cacerts secret replacement, then rolling restart) in the Istio certificate-management docs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/pilot-discovery/",
+      "explanation": "The istiod metric reference lists citadel_server_root_cert_expiry_timestamp/_seconds and citadel_server_cert_chain_expiry_timestamp/_seconds but no istiod_cert_expiry_seconds; the Step 3(b) validation and the 'istiod cert not rotating' alert depend on it.",
+      "field": "detailedImplementation",
+      "quote": "**`istiod_cert_expiry_seconds`** (gauge: seconds remaining until istiod's own workload certificate expires — resets on each rotation)",
+      "severity": "blocker",
+      "suggested_fix": "Replace with documented metrics (citadel_server_cert_chain_expiry_seconds, citadel_server_root_cert_expiry_seconds); for workload cert health use pilot_sds_certificate_errors_total and citadel_server_csr_sign_err_count, or proxy-side istioctl proxy-config secret."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation describes this metric as seconds-remaining, but the SPL treats every matched metric value as a Unix epoch (expiry_epoch=tonumber(value)), so a seconds-remaining value would always classify as EXPIRED. Prose and SPL disagree about the metric's unit.",
+      "field": "cross_field",
+      "quote": "seconds remaining until istiod's own workload certificate expires",
+      "severity": "major",
+      "suggested_fix": "Describe only *_timestamp metrics as epoch values, or explain that *_seconds metrics already hold time remaining and must not be differenced against now()."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The gateway variant in the SPL depends on not_after/cert_expiry fields, but Kubernetes TLS Secrets carry no standard expiry annotation and the k8sobjects receiver returns whole objects (including data) unless filtered, contradicting 'metadata only, never secret values' in dataSources.",
+      "field": "cross_field",
+      "quote": "Collect Secret metadata including the `not_after` annotation if present",
+      "severity": "major",
+      "suggested_fix": "Source gateway cert expiry from cert-manager (certmanager_certificate_expiration_timestamp_seconds or Certificate status.notAfter) or a scripted openssl check that emits only not_after; document how secret data is dropped before indexing."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Certificate-expiry gauges and TLS handshake failures between workloads are not login/authentication events; the SPL uses no CIM dataset and nothing maps to Authentication. Certificates is the only plausible fit.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "major",
+      "suggested_fix": "Keep Certificates (if gateway cert metadata is mapped to Certificates.All_Certificates ssl_end_time) and remove Authentication."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an agent reviewer while the UC references a non-existent metric and a wrong Splunkbase ID, so no SME validation is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a human SME has validated the metric names and collection path."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage",
+      "explanation": "Envoy defines UC as upstream connection termination (with 503), not specifically a handshake failure; TLS detail is exposed via %UPSTREAM_TRANSPORT_FAILURE_REASON%.",
+      "field": "detailedImplementation",
+      "quote": "**UC** (upstream connection termination during handshake)",
+      "severity": "minor",
+      "suggested_fix": "Describe UC accurately and recommend logging upstream_transport_failure_reason to identify certificate errors."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The expiry year depends on install date plus the 10-year default TTL; a fixed year is misleading.",
+      "field": "detailedImplementation",
+      "quote": "**Root CA expiry shows year 2033**",
+      "severity": "minor",
+      "suggested_fix": "Say 'Root CA expiry shows roughly ten years after installation'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://istio.io/latest/docs/reference/commands/pilot-discovery/",
+      "field": "spl",
+      "issue": "SPL matches `istiod_cert_expiry_seconds`, which is not in the istiod metric reference, and treats all values as epoch timestamps; the 'istiod_workload' cert_type row can never be populated correctly. Use citadel_server_*_expiry_seconds/_timestamp.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Three independent searches are concatenated in one spl field; it cannot run as a single saved search. Also `where match(metric_name, ...)` runs before `eval metric=coalesce(metric_name, name)`, so the coalesce fallback is dead, and `sort alert_level` sorts alphabetically (APPROACHING, CRITICAL, EXPIRED...) rather than by severity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "OTel-collected Prometheus metrics are normally written to a Splunk metrics index and queried with mstats; verify that `index=containers sourcetype=otel:metrics` with `metric_name`/`value` as event fields reflects the actual collector configuration.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0113-UC-3.5.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation is substantive and mostly on-target, but the UC relies on a non-existent istiod metric, cites a Splunkbase ID that belongs to an unrelated Windows forwarder-upgrade app, names an end-of-support collector, and gives wrong Istio TTL and root-CA rotation instructions.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.3",
+  "verdict": "incorrect"
+}

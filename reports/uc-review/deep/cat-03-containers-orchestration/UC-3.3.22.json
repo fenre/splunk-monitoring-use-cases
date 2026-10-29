@@ -1,0 +1,142 @@
+{
+  "confidence": 0.88,
+  "content_sha256": "c26d57c23352b96951fef8146228d0691b3a45a31eb9d1c97ec894cb8cb4a1a9",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.22.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/labels-annotations-taints/audit-annotations/",
+      "explanation": "PSA writes audit-mode results as annotations on the audit Event (pod-security.kubernetes.io/audit-violations, enforce-policy, exempt), not on the Pod object. Warn-mode results are returned only as HTTP Warning headers to the client; there is no warn-violations or enforce-violations annotation. The Step 4 claim that `oc get pod -o yaml` shows warn or audit annotations is also false.",
+      "field": "detailedImplementation",
+      "quote": "responseObject metadata exposes pod-security.kubernetes.io audit and warn annotations on admitted pods",
+      "severity": "blocker",
+      "suggested_fix": "State that audit-mode violations appear in the audit event's annotations as pod-security.kubernetes.io/audit-violations and that enforce decisions appear as pod-security.kubernetes.io/enforce-policy. Warn-mode output is client-side only and is not in the audit log. Remove the oc get pod annotation check."
+    },
+    {
+      "confidence": 0.92,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.15/html/release_notes/ocp-4-15-release-notes",
+      "explanation": "ClusterVersion carries the OpenShift release (for example 4.15.x). OpenShift 4.15 ships Kubernetes 1.28, and PSA enforce-version labels take Kubernetes versions (v1.28) or 'latest'. Splitting the OpenShift version and calling it the Kubernetes minor makes every pinned namespace look skewed (Case 4 and the skew lane).",
+      "field": "detailedImplementation",
+      "quote": "ClusterVersion desired-version rows that anchor Kubernetes minor extraction for version-skew math",
+      "severity": "blocker",
+      "suggested_fix": "Derive the Kubernetes minor from `oc version -o json` (serverVersion.gitVersion) or from a maintained OCP-to-Kubernetes mapping lookup (for example 4.15 to v1.28). Treat enforce-version=latest as non-skewed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The grounding guide identifies Splunk Connect for Kubernetes as Splunkbase 3743, and 5167 is not in the cached Splunkbase catalogue. Splunk Connect for Kubernetes is a Helm/Fluentd deployment, not a modular input.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (filelog receiver for audit.log, k8sobjects for Namespace snapshots), or SCK as Splunkbase 3743 per the guide, and drop 'modular input'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.15/html/authentication_and_authorization/understanding-and-managing-pod-security-admission",
+      "explanation": "The text never mentions OpenShift's PSA label synchronization controller, which is the main OpenShift-specific source of PSA label changes. The controller lives in cluster-policy-controller and is governed by the security.openshift.io/scc.podSecurityLabelSync label. It rewrites warn and audit labels from the SCC access of each namespace's service accounts and does not sync openshift-* namespaces. Without this, analysts cannot tell controller-driven audit and warn changes from drift, and soft_launch_stuck compares audit labels that the syncer owns.",
+      "field": "detailedImplementation",
+      "quote": "Namespace label drift on openshift-* namespaces is high severity because cluster operators reconcile those objects and manual edits often fight automation.",
+      "severity": "major",
+      "suggested_fix": "Add a paragraph on label synchronization. Explain which labels it manages (audit, warn and their versions, not enforce), how to opt out per namespace (podSecurityLabelSync=false), and that baseline comparisons for audit and warn should apply only to namespaces with sync disabled."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "'Global pod security profile ordering' is not a recognisable OpenShift concept. OpenShift sets global PSA defaults (enforce privileged, audit and warn restricted in 4.11 through current releases) in the kube-apiserver admission configuration. Case 6 builds on this vague claim.",
+      "field": "detailedImplementation",
+      "quote": "The documented global pod security profile ordering in OpenShift means a cluster-wide tightening from privileged toward restricted can change outcomes",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OpenShift PSA documentation for the supported minor and name the actual global defaults and the mechanism that would change them, or remove Case 6."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is an authoring-template checklist addressed to the generator, not implementation guidance for the reader.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matches the spl field exactly;",
+      "severity": "minor",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "PSA admission outcomes and namespace label changes are not logon events. Change fits label mutations; Authentication does not fit this detection.",
+      "field": "cimModels",
+      "quote": "\"Authentication\",\n    \"Change\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Change (All_Changes) and drop Authentication."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with only a generic reviewer handle. The SPL cannot parse (stats and join inside multisearch arms) and it relies on non-existent audit annotations, so no SME has run it.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an SME has executed the search against OpenShift audit data and recorded the sign-off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The second and fourth multisearch arms contain `stats latest(...) BY cluster namespace`, and the fourth also contains `join ... [search ...]`. multisearch subsearches must be purely streaming, so the search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.15/html/release_notes/ocp-4-15-release-notes",
+      "field": "spl",
+      "issue": "cluster_k8s_minor is built as 'v'.maj.'.'.min from the OpenShift ClusterVersion desired version (v4.15), then compared with pod-security.kubernetes.io/enforce-version (v1.28 or latest). The two never match, so every namespace with a version pin yields psa_version_label_mismatch and enforce_version_mismatch rows (high severity for openshift-* and prod namespaces).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/labels-annotations-taints/audit-annotations/",
+      "field": "spl",
+      "issue": "The PSA lanes match 'warn-violations' and 'enforce-violations', which Kubernetes does not emit; only audit-violations, enforce-policy and exempt exist. psa_warn_audit_only and the warn_only psa_tier therefore never reflect warn mode.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The SCC and PSA interaction arm requires only `openshift.io/scc` anywhere in _raw plus `pod-security.kubernetes.io` anywhere in _raw. OpenShift stamps openshift.io/scc on admitted pods, and PSA adds pod-security.kubernetes.io/enforce-policy to every evaluated pod request, so almost every pod create or update with RequestResponse depth matches. The result is a flood of medium rows. Any 403 (including SCC-only denials) becomes 'critical'.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "psa_deny_burst comes from `streamstats window=16` over unsorted multisearch output. It counts denies in the last 16 rows, not within a time window, so the '>= 5 burst' threshold has no time meaning.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change datamodel's root dataset is All_Changes, so `Change.action/Change.object/Change.dest` and `nodename=Change` return nothing. Joining Authentication.src to Change.dest is semantically unrelated to PSA posture.",
+      "severity": "blocker"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1548.001 (Setuid and Setgid) is a host binary technique and not what PSA admission telemetry evidences. T1610 (Deploy Container) together with T1611 better reflects attempts to admit privileged pods.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0087-UC-3.3.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC frames the OpenShift SCC and PSA interaction well, but several core mechanics are wrong. It compares the OpenShift minor version (4.x) against PSA enforce-version labels, which use the Kubernetes minor (v1.x). It relies on 'warn-violations' and 'enforce-violations' audit annotations that do not exist. Its SPL places stats and join inside multisearch arms. The dataSources field cites a Splunkbase ID that contradicts the guide.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.22",
+  "verdict": "incorrect"
+}

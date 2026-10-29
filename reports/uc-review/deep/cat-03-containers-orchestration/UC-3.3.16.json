@@ -1,0 +1,167 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0cf2ff511304d9cec51c53daa9a24321bc978af14fea2ec9eb619dd00855fc5a",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.16.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The Application_State CIM data model is deprecated, so new content should not map to it or accelerate it. dataModelAcceleration also tells operators to accelerate Application_State summaries.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Keep Change for audit and GitOps mutations, and describe rollout state as raw-index searches rather than a CIM mapping. Update dataModelAcceleration to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/building_applications/deployments",
+      "explanation": "OpenShift documents only pre and post hooks for the Rolling strategy. The mid hook exists only for Recreate, where it runs after the old deployment scales to zero. Whether a hook failure blocks the rollout depends on the hook's failurePolicy (Abort, Retry or Ignore), not on the hook simply existing. Case 3 ('lifecycle.pre blocking mid') repeats the Recreate-only assumption.",
+      "field": "detailedImplementation",
+      "quote": "Lifecycle hooks run dedicated hook pods for lifecycle.pre lifecycle.mid and lifecycle.post phases on Rolling and Recreate strategies; hook failures block progression before mid and post phases advance.",
+      "severity": "major",
+      "suggested_fix": "State that Rolling supports pre and post hooks and Recreate supports pre, mid and post hooks, and that a hook failure aborts the rollout only when failurePolicy is Abort."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/release_notes/ocp-4-14-release-notes",
+      "explanation": "DeploymentConfig is formally deprecated as of OCP 4.14. It still receives security and critical fixes only, and from 4.14 it can be disabled as an optional cluster capability. Operators should know that the API may be absent on some clusters and that migrating to Deployments is the vendor guidance.",
+      "field": "detailedImplementation",
+      "quote": "the legacy-but-supported OpenShift workload primitive",
+      "severity": "minor",
+      "suggested_fix": "Say 'deprecated since OCP 4.14 (security and critical fixes only; optional DeploymentConfig capability may be disabled)'. Add a pre-check that the apps.openshift.io deploymentconfigs API is served before scheduling the search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The normalization step names the field status_rep, but the SPL reads spec_rep (coalesce(spec_rep, replicas, status_replicas, spec_replicas)), and the table and negative test compare avail_rep to spec_rep. The condition fields have the same problem: normalization emits available_ok, progressing_ok and repfail_ok, but the SPL coalesces conditions_available_status, available_status and cond_available and never reads the *_ok names. An exporter built from this guidance will produce fields the search ignores.",
+      "field": "detailedImplementation",
+      "quote": "status.replicas into status_rep",
+      "severity": "major",
+      "suggested_fix": "Align the normalization contract with the field names the SPL actually reads: spec_rep, conditions_available_status (or available_status), conditions_progressing_status and conditions_replicafailure_status."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats",
+      "explanation": "The SPL sorts each DC newest-first and then runs streamstats with current=t and last(). On each row, last() returns the current row's own value, so ver_delta and avail_delta are always 0 and stuck_version_creep can never be 1. As a result the 'page' and ImageStreamTag 'warn' branches that depend on it never fire. The prose promises a capability the search does not deliver.",
+      "field": "detailedImplementation",
+      "quote": "streamstats ordered by dc_name measures short-term latest_version velocity against avail_rep deltas for stuck progression hints.",
+      "severity": "major",
+      "suggested_fix": "Describe the intended comparison (previous snapshot versus current snapshot). Flag the SPL defect to the SPL owner: sort ascending by _time and use current=f with last(), or use earliest()/latest() per DC within the window."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources says 'index=ocp_events or index=ocp_metrics with sourcetype=ocp_deploymentconfig', and the SPL searches index=ocp_events OR index=ocp_audit for that sourcetype. Three different index contracts for one sourcetype make onboarding ambiguous.",
+      "field": "detailedImplementation",
+      "quote": "Designate index=ocp_events for sourcetype=ocp_deploymentconfig structured snapshots",
+      "severity": "minor",
+      "suggested_fix": "Pick one index for ocp_deploymentconfig (ocp_events) and use it consistently in dataSources, detailedImplementation and implementation. Ask the SPL owner to drop ocp_audit from the DC lane."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunkbase app by this name appears in the cached Splunkbase catalog. Collection described elsewhere in the UC (custom oc exporters, OpenTelemetry Collector k8s_events receiver, HEC) does not depend on such an app. detailedImplementation also cites 'Splunk OpenShift App patterns' and 'Splunk OpenShift App panels'.",
+      "field": "app",
+      "quote": "Splunk OpenShift App",
+      "severity": "needs_verification",
+      "suggested_fix": "Name a real collection path, such as the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) plus custom HEC exporters, or say 'custom exporters via HEC'. Remove the dashboard and pattern references to the unverified app."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "These Event reason strings are presented as authoritative, but no source for them is given. Some of them (for example DeploymentPaused, DeploymentResumed and FailedRollout) could not be confirmed as reasons that the openshift-controller-manager DeploymentConfig controller emits. DeploymentConfig rollout failure is usually surfaced through the Progressing condition and deployer-pod status rather than a dedicated Event reason.",
+      "field": "dataSources",
+      "quote": "reason DeploymentCreated DeploymentScaled DeploymentRolledBack DeploymentPaused DeploymentResumed ProgressDeadlineExceeded FailedRollout",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the reason strings against openshift-controller-manager source or a live cluster ('oc get events --field-selector involvedObject.kind=DeploymentConfig'), and keep only the confirmed ones."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by the generic repository handle, yet the SPL cannot execute (multisearch with stats and sort in its arms), its stuck-progress logic always evaluates to 0, and its CIM mapping uses a deprecated model. That does not meet a verified bar.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft (or the repository's equivalent) until the SPL has been run against real OpenShift telemetry and a named reviewer signs off."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The closing checklist is an unpunctuated run-on list of tokens that restates the SPL. It gives the reader no actionable checks. It also counts 'twenty-two analyst-visible columns', but the final table lists 25 fields.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: multisearch lists DC RC IST event hook arms plus join metrics arm coalesce normalizes cluster namespace dc_name streamstats flags stuck_version_creep",
+      "severity": "minor",
+      "suggested_fix": "Replace it with three to five concrete pre-production checks (for example 'each sourcetype returns rows in the last hour' and 'a lab ProgressDeadlineExceeded produces a page row'), or drop it."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "This is a garbled column list that does not match the 'oc get dc -o wide' output columns (REVISION, DESIRED, CURRENT, TRIGGERED BY, and so on).",
+      "field": "detailedImplementation",
+      "quote": "compare latestVersion AVAILABLE READY AVAILABLE... columns",
+      "severity": "minor",
+      "suggested_fix": "List the actual 'oc get dc -o wide' columns (REVISION, DESIRED, CURRENT) and map them to latest_version, spec_rep and avail_rep."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The 'OpenShift deployment strategies for administrators' reference points at the blog index rather than an article, so it cannot support any claim.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.redhat.com/en/blog/\"",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the Red Hat DeploymentConfig deprecation article (https://access.redhat.com/articles/7041372) or the specific blog post URL."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch only accepts streaming commands in its subsearches, but every arm here uses sort, streamstats and/or stats, so the search fails at parse time. Use append or union, or restructure as one base search with eval lanes followed by a single stats.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "The DC lane sorts newest-first (sort ... - _time) and then runs streamstats current=t last(latest_version) and last(avail_rep). last() returns the current row's own value, so prev_ver equals latest_version, ver_delta and avail_delta are always 0, and stuck_version_creep never fires. This disables one page branch and the ImageStreamTag warn branch. Sort ascending and use current=f, or compare earliest() and latest() per DC.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Lane keys do not converge on dc_name. In the events lane, ReplicationController events set dc_name to the RC name (for example app-3), and in the metrics join dc_name falls back to the RC name. Neither ever matches the DeploymentConfig name. The hook lane's rex expects 'deploymentconfig/<name>' in pod event messages, but hook pods are named '<dc>-<version>-hook-<phase>', so dc_name is usually an empty string and hook_hint lands on an orphan row.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The hook-lane filter match(msg_hp, \"lifecycle|hook|pre|mid|post\") matches substrings such as 'present', 'postgres', 'prefix' or 'pre-pull'. Combined with the OR on any failed, backoff or error pod reason, it admits most failing pod events in the namespace.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated, and the WHERE nodename values do not match the root datasets: the Change root is All_Changes and the Application_State root is All_Application_State. Field prefixes should follow the root dataset names (All_Changes.*). As written, the tstats returns no rows.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0080-UC-3.3.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The OpenShift DeploymentConfig domain coverage is detailed and mostly accurate, but the SPL cannot run as written because multisearch arms contain non-streaming commands. The cimModels list relies on the deprecated Application_State model, the lifecycle-hook semantics are wrong for the Rolling strategy, and several lane joins never line up on dc_name.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.16",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,118 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "35ccc493a172f052f8ee35f24eadce493766e3e4f6a6e3f04b979d7be3537ca4",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.18.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1546 is 'REST API Modular Input' (rest_ta), not Splunk Connect for Syslog. SC4S is distributed from GitHub and is not a Splunkbase app. The error repeats in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk Connect for Syslog** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546))",
+      "severity": "blocker",
+      "suggested_fix": "Cite SC4S at https://github.com/splunk/splunk-connect-for-syslog. If a REST poller is intended for the Intelligence and recommendation endpoints, name rest_ta (1546) for that role instead."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is 'Metrics Add-on for Infrastructure' (TA-linux-metrics by Luke Harris), not an NSX add-on. The grounding guide repeats this wrong ID. The NSX listing on Splunkbase is 4241 ('VMware NSX-T Splunk App', a syslog dashboard app), which does not create the vmware:nsx:intelligence or vmware:nsx:recommendation sourcetypes.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) for `vmware:nsx:*` parsing",
+      "severity": "blocker",
+      "suggested_fix": "Remove 4856 from app, dataSources, detailedImplementation and references. State that the Intelligence and recommendation sourcetypes come from a custom REST collector, and cite 4241 only for NSX syslog dashboards."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on.",
+      "field": "app",
+      "quote": "optional **`Splunk_TA_cisco-aci`** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022))",
+      "severity": "blocker",
+      "suggested_fix": "Drop the optional ACI add-on, which this NSX UC does not need, or cite Cisco DC Networking (7777) alone."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-security-load-balancing/vdefend/security-intelligence/4-0/vmware-nsx-intelligence-401-release-notes.html",
+      "explanation": "Since NSX Intelligence 3.2, Intelligence runs as services on the NSX Application Platform, a Kubernetes cluster. Its API is under /napp/api/v1, and resource issues are fixed by scaling out NAPP nodes, not by managing Intelligence VMs. The vCenter maintenance lane in dataSources and detailedImplementation assumes the retired appliance model.",
+      "field": "hardware",
+      "quote": "VMware NSX Intelligence appliances or clustered Intelligence services; NSX Manager/Policy cluster; ESXi hosts hosting Intelligence or Manager VMs",
+      "severity": "major",
+      "suggested_fix": "Describe NSX Intelligence as running on the NSX Application Platform (Kubernetes). Replace 'Intelligence appliance VM' wording with NAPP cluster and node health, keeping vCenter correlation only for NSX Manager VMs or NAPP worker VMs where those exist."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "NSX Intelligence recommendation jobs are exposed through the NSX Intelligence and NSX Application Platform API (base /napp/api/v1). The release notes describe job states such as Waiting, Discovery in Progress and ANALYSIS_IN_PROGRESS, not PENDING or APPROVED. Neither cited endpoint appears in the documentation found.",
+      "field": "dataSources",
+      "quote": "`GET /api/v1/intelligence/status` ... `GET /policy/api/v1/infra/security-recommendations` ... `status` (`PENDING`/`APPROVED`/`PUBLISHED`/`FAILED`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the recommendation-job list and status endpoints and the status enum in the NSX Intelligence and NSX Application Platform API Reference (developer.broadcom.com/xapis/nsx-intelligence-and-application-platform-apis). Then update the paths, the status list and the matching implementation text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The schema field admits the search has nothing to do with network flows, yet Network_Traffic is listed. Alerts and Inventory are also stretched: the output is a queue-health table, not CIM alert or asset records. Only Change (approve and publish audit actions) plausibly fits.",
+      "field": "cimModels",
+      "quote": "underlying east-west flow analytics that Intelligence processes align with `Network_Traffic` storytelling even when this search focuses on publish queues",
+      "severity": "major",
+      "suggested_fix": "Reduce cimModels to Change, or to none, and rewrite the schema text to say so."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer ('agent-handcraft-2026-04-29'), yet the cited add-on IDs, API paths and status enums are wrong or unverified and the SPL does not run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an NSX Intelligence SME confirms the API and validates the search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The final table drops last_security_rec_audit and vcenter_correlated_motion_ts, and the search returns one row per site_key with no _time series. This timechart cannot be built from the saved search output.",
+      "field": "visualization",
+      "quote": "(4) Timechart — `recommendation_backlog` vs `last_security_rec_audit` (from joined fields)",
+      "severity": "minor",
+      "suggested_fix": "Either describe a separate timechart search over vmware:nsx:recommendation, or drop the panel. Add the vCenter and audit fields to the table if dashboards need them."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`eval backlog_hot=recommendation_backlog>=15 OR rules_in_flight>=50` and `eval svc_degraded=match(...)` assign Boolean results to fields. Splunk eval rejects this ('Fields cannot be assigned a boolean result'), so the search fails. Wrap each in if(<cond>,1,0).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The base arm is the vmware:nsx:intelligence status stream, so if the status poll is missing or silent no rows are produced, even with a deep recommendation backlog. The recommendation subsearch should drive the search, with the status stream left-joined.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The rec_status filter keeps PENDING, APPROVED, QUEUED and similar values, which do not match the documented NSX Intelligence job states (e.g. WAITING, ANALYSIS_IN_PROGRESS). Backlog counts may therefore be wrong once the real API is used.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0032-UC-18.2.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC explains its search well, but every Splunkbase ID it cites is wrong: 1546 is not SC4S, 4856 is not the NSX add-on and 4022 is not ACI. It describes NSX Intelligence as VM appliances behind Policy API endpoints, while current releases run on the NSX Application Platform with their own /napp API and job states. The SPL assigns boolean expressions to fields, which Splunk eval rejects.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.18",
+  "verdict": "incorrect"
+}

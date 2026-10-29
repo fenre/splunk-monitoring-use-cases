@@ -1,0 +1,106 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "d48b70e8252b5e5f5f20af1648add628561cb542531aa409305ce1cc3271481f",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.23.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/audit/policy/checker.go",
+      "explanation": "Audit policy namespaces entries are exact string matches (no wildcard), and cluster-scoped objects such as clusterrolebindings, clusterroles and certificatesigningrequests carry an empty namespace. With namespaces: [\"*\"] and no catch-all rule, these RBAC and CSR mutations are not audited at all, so the detection is blind.",
+      "field": "detailedImplementation",
+      "quote": "        resources: [\"clusterrolebindings\", \"rolebindings\", \"clusterroles\"]\n    namespaces: [\"*\"]",
+      "severity": "blocker",
+      "suggested_fix": "Remove the namespaces field from the RBAC and CSR rules (an empty list matches every namespace, including the empty one for cluster-scoped resources) and end the policy with a catch-all '- level: Metadata' rule, as the guide's policy does."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templated and miss the predictable benign sources for this search. Detailed Case 10 and Case 11 already name some of them.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `count` on `kube:apiserver:audit`** — Scheduled automation elevates `cluster` without crossing `resp_code` >= 200",
+      "severity": "major",
+      "suggested_fix": "List real causes: kube-controller-manager's csrapproving controller (system:serviceaccount:kube-system:certificate-controller) auto-approving kubelet client and serving CSRs on every rotation; ArgoCD or Flux re-applying the same binding; kubeadm, eksctl or managed-service bootstrap creating initial cluster-admin bindings; operators installing ClusterRoles with pods/exec or wildcard rules (for example monitoring or backup agents). Say how to recognise each (actor, user agent, cluster age, git commit)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "RBAC binding and ClusterRole mutations are change events (the guide maps kube:apiserver:audit to Change), not authentication events. Authentication is only used for an unrelated per-user login count, and the cimSpl does not reproduce the detection.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Change\", \"Authentication\"]",
+      "severity": "minor",
+      "suggested_fix": "List Change as the primary model (All_Changes with object_category for the RBAC resource and action created/modified). Describe the Authentication join as optional context only, or drop it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The text says the fenced SPL 'must match the spl JSON field byte-for-byte', but the fenced copy builds subject_key with strcat() while the spl field uses '.' concatenation. The savedsearches.conf sketch also sets dispatch.latest_time = now, while the SPL hard-codes latest=@h.",
+      "field": "detailedImplementation",
+      "quote": "true(), strcat(\"actor:\", actor))",
+      "severity": "minor",
+      "suggested_fix": "Paste the exact spl field into the fence and align dispatch.latest_time with the SPL's @h snap (or drop the inline time bounds)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The URL is the access-control index page, not the auditing page. 'T1078.004 Cloud Accounts (Containers)' adds a qualifier that is not part of the ATT&CK technique name, and 'Splunk — Add-on for Kubernetes' labels a Helm chart as an add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes — Auditing\",\n      \"url\": \"https://kubernetes.io/docs/reference/access-authn-authz/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/, title the MITRE entry 'T1078.004 Valid Accounts: Cloud Accounts', and link the splunk-otel-collector-chart repository or Splunkbase 6790 instead of the add-on page."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Following the documented audit policy yields no RBAC audit events, which any end-to-end verification would have exposed; the reviewer is a generic repository handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the policy and search have been exercised in a lab and signed off by a named reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "field": "spl",
+      "issue": "masters_g matches 'system:masters' anywhere in the lower-cased _raw, including the actor's own user.groups. Any cluster-admin-tier binding change made by a super-admin certificate user (whose groups include system:masters) is labelled rbac_group_system_masters_binding and paged as critical even when no subject references system:masters. Test requestObject.subjects{}.name instead of _raw.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects",
+      "field": "spl",
+      "issue": "The rex for system:serviceaccount:<ns>:<name> over _raw captures the actor's username when the actor is a service account. RBAC subjects of kind ServiceAccount are serialized as {kind, name, namespace}, not as system:serviceaccount strings, so subject_key usually identifies who made the change rather than who received cluster-admin, and allowlist joins key on the wrong principal. Extract requestObject.subjects{}.kind, name and namespace instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "resp_code defaults to 201 when responseStatus.code is missing, so events without a response status (for example non-ResponseComplete stages or truncated records) are treated as successful mutations.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://attack.mitre.org/techniques/T1098/006/",
+      "field": "mitreAttack",
+      "issue": "Granting cluster-admin or escalating ClusterRole rules maps directly to T1098.006 Account Manipulation: Additional Container Cluster Roles. Only T1078.004 is listed.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0043-UC-3.2.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC has a strong, well-scoped design for auditing the cluster-admin tier (cluster-admin bindings, system:masters, escalating ClusterRole rules, CSR approvals) and a useful break-glass allowlist. But the audit policy it tells readers to deploy would never log the cluster-scoped RBAC objects it depends on. The raw-text matching also misattributes system:masters and service-account subjects, and the false-positive and CIM sections are generic.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.23",
+  "verdict": "incorrect"
+}

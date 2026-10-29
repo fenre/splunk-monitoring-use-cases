@@ -67,6 +67,62 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 ## cat-03-containers-orchestration
 
+### [UC-3.2.7](../../content/cat-03-containers-orchestration/UC-3.2.7.json) — Kubernetes Control Plane Health (apiserver, etcd, scheduler, controller-manager)
+
+- **cimSpl** (blocker): The cimSpl uses invalid dataset paths. Application_State is deprecated and its root dataset is All_Application_State, so 'nodename=Application_State' and the Application_State.state, .info and .app fields do not exist. … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): Every multisearch subsearch contains non-streaming commands (bucket/stats, and in the etcd arm sort and streamstats). Splunk rejects this with 'Multisearch subsearches may only contain purely streaming operations', so t… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): The scheduler arm counts scheduler_scheduling_attempts_failed_total, which kube-scheduler does not export. The real counter is scheduler_schedule_attempts_total with result=unschedulable|error|scheduled, so sched_fail_c… ([evidence](https://docs.aws.amazon.com/eks/latest/userguide/view-raw-metrics.html))
+- **spl** (blocker): The audit join filters on scope="cluster" derived from objectRef_scope. The audit ObjectReference has no scope field (only resource, namespace, name, uid, apiGroup, apiVersion, resourceVersion, subresource), so the join… ([evidence](https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/))
+- **spl** (blocker): Histogram metrics are matched by their base names (etcd_disk_wal_fsync_duration_seconds, etcd_network_peer_round_trip_time_seconds, apiserver_request_duration_seconds). Prometheus exports histograms only as _bucket/_sum… ([evidence](https://prometheus.io/docs/concepts/metric_types/#histogram))
+- **spl** (major): The etcd leader-change delta sorts -_time and then takes cur_chg - prev_chg with window=2. On descending rows that is older minus newer, which is negative for a growing counter and clamped to 0 by max(0, ...). leader_ch… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats))
+- **spl** (major): The arms are selected by metric prefix with OR, so they bleed into each other. kube-apiserver also exports etcd_* client metrics (for example etcd_request_duration_seconds) that enter the etcd arm, and every component e… ([evidence](https://kubernetes.io/docs/reference/instrumentation/metrics/))
+
+### [UC-3.3.15](../../content/cat-03-containers-orchestration/UC-3.3.15.json) — OpenShift etcd Member Replacement Workflow, Operator-Managed Backup Health, and Quorum Loss Recovery Readiness
+
+- **cimSpl** (blocker): The cimSpl uses invalid dataset paths. Application_State is deprecated and its root is All_Application_State, so nodename=Application_State and the Application_State.* fields do not resolve. The Inventory model's root d… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (blocker): Every multisearch arm contains non-streaming commands (stats, bucket, sort, streamstats), and the last arm starts with the generating command mstats. Splunk rejects this with 'Multisearch subsearches may only contain pu… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): commit_hist_inf is the +Inf bucket of etcd_disk_backend_commit_duration_seconds_bucket, a cumulative counter that is always greater than 0 once etcd has committed anything. The rule 'coalesce(commit_hist_inf,0)>0 => war… ([evidence](https://prometheus.io/docs/concepts/metric_types/#histogram))
+- **spl** (blocker): ceo_etcd_rst is sum(mv) of kube_pod_container_status_restarts_total samples over 6h. That counter is cumulative and sampled every scrape, so a single historical restart adds up across hundreds of samples and crosses the… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **spl** (major): The leader-change delta sorts '- _time' and then uses last(leader_chg_hi) with window=2 current=t. On descending rows, last() is the current row itself, so prev_lc equals leader_chg_hi and leader_chg_delta is always 0. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats))
+- **spl** (major): 'mstats prestats=t avg(_value) AS mv' is invalid: prestats output cannot be renamed and is meant to feed a following stats/chart/timechart of the same function, so 'stats latest(mv)' finds no mv field. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/mstats))
+
+### [UC-3.3.17](../../content/cat-03-containers-orchestration/UC-3.3.17.json) — MachineConfigPool Degradation
+
+- **cimSpl** (blocker): tstats uses Change.* field prefixes with nodename=Change, but the Change model's root dataset is All_Changes (All_Changes.action, All_Changes.object). Application_State, also deprecated since CIM 4.12.0, has a different… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change))
+- **spl** (blocker): Three multisearch arms contain non-streaming commands (sort and streamstats in arm 1, stats in arms 2–4). multisearch accepts only purely streaming subsearches, so the search fails before returning results. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The Prometheus arm matches mn against 'mco_.*machine', which catches mco_machine_count (total pool size). It stores latest(mv) as mco_machine_count_drift, so drift_hint=1 for every non-empty pool and the row escalates t… ([evidence](https://github.com/openshift/machine-config-operator/blob/master/pkg/controller/common/metrics.go))
+- **spl** (major): Arm 4 sets degraded_flag=1 whenever any MCP-related event exists, and its filter includes the loose 'mcp' message match plus a default involvedObject_kind of machineconfigpool. Routine MCP events therefore mark healthy …
+- **spl** (major): updating_minutes = now() - last_seen measures snapshot staleness, not how long the pool has been Updating. The 30/60-minute stuck-rollout tiers are unreachable when snapshots are fresh.
+- **spl** (minor): streamstats window=2 current=t last(degradedMachineCount) returns the current event's own value, so degraded_mc_delta is always 0. Use current=f to get the previous snapshot.
+
+### [UC-3.2.43](../../content/cat-03-containers-orchestration/UC-3.2.43.json) — Kubernetes Readiness/Liveness/Startup Probe Failures — Probe-State Axis
+
+- **cimSpl** (blocker): References `Application_State.state` and `Application_State.app` with `nodename=Application_State`. The deprecated model's root dataset is All_Application_State, and it has no `state` or `app` fields. The query is also … ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): `| multisearch` comes after `eval`, `join` and `fields`, but multisearch is a generating command that must be the first command. Its two subsearches are also wrapped in an extra outer `[ ... ]`. The search fails to pars… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): `coalesce(involvedObject.name, ...)` and `coalesce(metadata.namespace, ...)` use dotted field names without single quotes. In eval, `.` is the concatenation operator, so these do not reference the intended fields. ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (blocker): The metric arm matches `kubelet_probe_failed`, which does not exist. The readiness-flip subsearch requires `cond="true"` for `kube_pod_container_status_ready`, which has no condition label, so container-level flips are … ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **spl** (major): The leading Performance `tstats` join on a constant key is dropped immediately with `fields -`, so it is template residue that adds cost and no signal.
+
+### [UC-3.3.20](../../content/cat-03-containers-orchestration/UC-3.3.20.json) — Cluster Certificate Expiry
+
+- **cimSpl** (blocker): cimSpl queries the deprecated Application_State model and uses the wrong root dataset prefixes (Application_State.*, Inventory.* rather than All_Application_State / All_Inventory). Neither model carries certificate expi… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint))
+- **spl** (blocker): The fourth multisearch arm contains `stats count ... BY cluster namespace secret_name`. multisearch accepts only streaming commands in its subsearches, so the search fails to parse. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The Prometheus lane treats metric values between 1e9 and 4e9 as a notAfter epoch. apiserver_client_certificate_expiration_seconds is a histogram of remaining seconds, so bucket counts and _sum never represent an epoch. … ([evidence](https://kubernetes.io/docs/reference/instrumentation/metrics/))
+- **spl** (major): In the ClusterOperator lane, any message matching cert|tls|rotate|expir sets a synthetic expiry of now+1d, which yields page severity. This happens even when the operator is Available=True and not Degraded, because the …
+- **spl** (minor): The `streamstats window=20000 current=t min(...)` that produces cat_fastest_expiry depends on event order: early rows see only partial minima. Use eventstats min(days_until_expiry) BY cluster ca_bundle_kind instead.
+
+### [UC-3.5.3](../../content/cat-03-containers-orchestration/UC-3.5.3.json) — mTLS Certificate Expiry
+
+- **spl** (blocker): SPL matches `istiod_cert_expiry_seconds`, which is not in the istiod metric reference, and treats all values as epoch timestamps; the 'istiod_workload' cert_type row can never be populated correctly. Use citadel_server_… ([evidence](https://istio.io/latest/docs/reference/commands/pilot-discovery/))
+- **spl** (major): Three independent searches are concatenated in one spl field; it cannot run as a single saved search. Also `where match(metric_name, ...)` runs before `eval metric=coalesce(metric_name, name)`, so the coalesce fallback …
+- **spl** (needs_verification): OTel-collected Prometheus metrics are normally written to a Splunk metrics index and queried with mstats; verify that `index=containers sourcetype=otel:metrics` with `metric_name`/`value` as event fields reflects the ac…
+
+### [UC-3.1.24](../../content/cat-03-containers-orchestration/UC-3.1.24.json) — Docker Exec Session Audit
+
+- **cimSpl** (blocker): `where like(lower(Processes.process), ...)` is unquoted. In eval/where, `.` is the concatenation operator, so `Processes.process` evaluates as fields `Processes` and `process` joined, which gives null, and every row is … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): The auditd and Falco lanes force `container_id`/`exec_id` to constants or empty values, so they form separate stats rows and never enrich Docker exec sessions. The auditd lane also matches the SYSCALL record (comm/exe),…
+- **spl** (major): An unsanctioned interactive shell on a production container that lasts under 120 s matches no severity branch and is dropped, as is any interactive shell inside a change window. A short `docker exec -it prod bash` there…
+
 ### [UC-3.2.46](../../content/cat-03-containers-orchestration/UC-3.2.46.json) — Cluster Autoscaler and Karpenter Scale-Out Failure with Pending-Pod Backlog
 
 - **spl** (blocker): Every multisearch arm contains stats, which is not streaming. multisearch accepts only purely streaming subsearches (https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch), so the search fails … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
@@ -77,6 +133,147 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **spl** (needs_verification): coalesce(involvedObject_name, `involvedObject.name`, "") uses backticks, which is macro-invocation syntax, so Splunk expands an undefined macro named involvedObject.name and the search errors. Field names with dots need…
 - **spl** (needs_verification): Metrics are searched as events in index=k8s_metrics (__name__, value fields), while the repository guide queries the same index with mstats. If k8s_metrics is a metrics index, every metric arm returns nothing.
 
+### [UC-3.2.8](../../content/cat-03-containers-orchestration/UC-3.2.8.json) — etcd Performance and Raft Health
+
+- **cimSpl** (blocker): The cimSpl uses invalid dataset paths. Performance.cpu_load_percent, nodename=Performance.CPU and Performance.host should be All_Performance.* paths. Application_State is deprecated and its root is All_Application_State… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): etcd_debugging_mvcc_db_compaction_total_duration_milliseconds is a histogram exported only as _bucket/_sum/_count, so the bare-name match is always null and compaction_delta_ms is always 0. Compaction is also not defrag… ([evidence](https://etcd.io/docs/v3.1/metrics/etcd-metrics-v3.1.0.txt))
+- **spl** (major): quota_bytes falls back to 8589934592 (8 GiB) when etcd_server_quota_backend_bytes is missing. The etcd default is 2 GiB, so db_size_use_pct is understated fourfold on default clusters. Use 2147483648 as the fallback. ([evidence](https://etcd.io/docs/v3.5/dev-guide/limit/))
+- **spl** (major): Quota pressure is computed from etcd_mvcc_db_total_size_in_use_in_bytes. The NOSPACE quota applies to the physical db file size (etcd_mvcc_db_total_size_in_bytes), so a fragmented db can hit the alarm while in-use looks… ([evidence](https://etcd.io/blog/2023/how_to_debug_large_db_size_issue/))
+- **spl** (major): The p99 calculation uses max(cumulative bucket count) per window. That is the lifetime distribution since the process started, not the last 5 minutes, so a fresh fsync regression barely moves fsync_p99_ms on a long-runn… ([evidence](https://prometheus.io/docs/concepts/metric_types/#histogram))
+- **spl** (major): The tstats join uses 'nodename=Performance', but the Performance root dataset is All_Performance, so the cim_perf_events join is empty or invalid. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.6/data-models/performance))
+- **spl** (minor): snapshot_save_p99_s is the average (delta sum divided by delta count), not a p99, but severity and the output table label it p99.
+
+### [UC-3.2.41](../../content/cat-03-containers-orchestration/UC-3.2.41.json) — Kubernetes Service Zero Ready Endpoints (Endpoints and EndpointSlices)
+
+- **spl** (blocker): multisearch requires every subsearch to be purely streaming; each arm ends in stats, so the search errors out before producing results. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The EndpointSlice lane extracts service from kubernetes_io_service_name/label_kubernetes_io_service_name/service labels that kube_endpointslice_endpoints does not carry, so service is always empty and those rows are dro… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpointslice-metrics.md))
+- **cimSpl** (major): Uses the deprecated Application_State data model and the wrong Performance root/node names (root dataset is All_Performance), and the query is unrelated to Service endpoint readiness. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (major): The legacy lane depends on kube_endpoint_address_available/kube_endpoint_address_not_ready, which current kube-state-metrics no longer exposes; the legacy_zero branch is dead code on supported versions. ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/service/endpoint-metrics.md))
+- **spl** (major): The modern lane computes sum(ready_unit) over the whole -2h window, so a Service only reaches zero after all earlier ready samples age out (up to 2h detection delay); it should take the latest value per endpoint/address…
+
+### [UC-3.2.16](../../content/cat-03-containers-orchestration/UC-3.2.16.json) — Persistent Volume / PVC Filesystem Capacity Forecast and ReadOnly Pre-Failure
+
+- **cimSpl** (blocker): `max(Performance.disk_usage) ... WHERE nodename=Performance.Storage BY Performance.host`: the Performance model has no disk_usage or host field. The root dataset is All_Performance (dest), and Storage fields are storage… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): All four multisearch arms, and both arms of the nested multisearch in the event join, end in `bin ... | stats ...`. multisearch accepts only purely streaming subsearches, so the search errors. Move stats after the multi… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): `coalesce(..., involvedObject_name, `involvedObject.name`, "")` puts the field name in backticks, which SPL expands as a search macro (macro not found). Field names containing dots must be single-quoted in eval: 'involv… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): ro_hit counts FilesystemAlmostFull-style matches and any message containing 'readonly' as ro_remount_flag=1, which maps straight to 'catastrophic'. A warning precursor and a broad substring therefore produce the top sev…
+- **spl** (needs_verification): `toString(...)` is used throughout alongside lowercase `tostring`; the eval reference says expressions are case-sensitive and documents only `tostring`. Confirm the search parses. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+
+### [UC-3.1.3](../../content/cat-03-containers-orchestration/UC-3.1.3.json) — Container CPU Throttling
+
+- **cimSpl** (blocker): CIM Performance fields are rooted at All_Performance: the CPU dataset is All_Performance.CPU and the field is All_Performance.cpu_load_percent. `Performance.cpu_load_percent` with `nodename=Performance.CPU` returns noth… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): With `streamstats window=2 current=t`, last(nr_periods), last(nr_throttled), last(throttled_time_ns), last(cpu_usage_ns) and last(_time) all return the current event's own values, because the current event is the last o… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (blocker): The SPL only coalesces the v1 throttled_time (ns) and cpuacct_usage names. cgroup v2 throttled_usec and usage_usec are never read, so throttled_wall_pct and quota_pct_used are null on v2 hosts, and they would be 1000x l… ([evidence](https://docs.kernel.org/admin-guide/cgroup-v2.html))
+- **spl** (major): cpuset_span replaces '-' with ',' and counts the elements, so a range such as '0-63' counts as 2 CPUs. Broad cpusets are flagged cpuset_narrow=1, which raises high_cpuset_numa_misplacement falsely. Ranges must be expand… ([evidence](https://docs.docker.com/engine/containers/resource_constraints/#cpu))
+- **spl** (major): There is a severity ladder gap. A sample with throttle_pct>=90 whose 5-sample average (throttle_pct_sustained) is below 90 matches neither the critical branch nor 'high_throttled_70_to_90pct' (throttle_pct<90), so the w…
+- **spl** (minor): The cfs_cpus fallback treats CpuQuota=0 and NanoCpus=0 as no limit, which is correct. But the docker:inspect subsearch defaults a missing CpuQuota to -1 and a missing CpuPeriod to 100000, so a missing inspect record can…
+
+### [UC-3.1.1](../../content/cat-03-containers-orchestration/UC-3.1.1.json) — Container Crash Loops
+
+- **cimSpl** (blocker): The CIM Performance model's root dataset is All_Performance, with CPU fields at All_Performance.CPU.* and host identity in `dest`. `Performance.cpu_load_percent`, `nodename=Performance.CPU` and `Performance.host` do not… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): The third multisearch arm uses `stats latest(_trim) ... BY host, container_name`. multisearch allows only streaming commands in each subsearch, so the search errors with 'Multisearch subsearches may only contain purely … ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): The exit-code ladder labels 137/247 as oom_kill and marks 143 as critical. Docker docs show that a normal `docker stop` yields die exitCode=143, and that a stop timeout or kill yields 137. Every routine stop pages as cr… ([evidence](https://docs.docker.com/reference/cli/docker/system/events/))
+- **spl** (major): The oom_ctx arm filters with `| search (match(_raw, ...))`. match() is an eval function, valid in where/eval, not in the search command, so this arm likely matches nothing. Its rows are also discarded by `where event_br…
+- **spl** (major): velocity_per_15m and crashes_1h are computed before `where exit_code!=0`, so clean exits inflate the loop counters. `velocity_per_15m>0` also means any single non-zero exit becomes a 'warning' crash-loop row.
+- **spl** (needs_verification): Docker events JSON carries `Action` and `Actor.Attributes.exitCode`/`Actor.Attributes.name`, and Splunk field names are case-sensitive. Verify that `action="die"`, `exitCode` and `actor_name` exist after the chosen prop…
+
+### [UC-3.1.25](../../content/cat-03-containers-orchestration/UC-3.1.25.json) — Docker Socket Exposure Detection
+
+- **spl** (blocker): The audit arm searches `sourcetype="linux_secure" OR sourcetype="audit:json"`. Neither carries auditd execve records from Splunk Add-on for Unix and Linux (the auditd sourcetype is `linux_audit`), so the daemon_exposure… ([evidence](https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/))
+- **cimSpl** (major): `Processes.process` is the full command line, so `Processes.process="dockerd"` will not match `/usr/bin/dockerd -H fd://`. `earliest=-24h latest=now` sits after the BY clause instead of in WHERE. `nodename=Endpoint.Proc… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats))
+- **spl** (major): The third case branch assigns `high_2376_no_tls_verify` to any 2376 hit regardless of TLS flags, making the preceding branch redundant and the label wrong. The inspect arm keeps the leading slash on `Name`, which breaks…
+- **mitreAttack** (minor): No mitreAttack field is set, although `evidence` and `detailedImplementation` frame the UC around T1611 Escape to Host. Consider T1611, and T1610 Deploy Container for socket-driven container creation.
+
+### [UC-3.2.13](../../content/cat-03-containers-orchestration/UC-3.2.13.json) — Kubernetes Certificate Expiry Tracking
+
+- **cimSpl** (blocker): The query uses datamodel=Inventory with nodename=Inventory / Inventory.OperatingSystem and fields Inventory.os / Inventory.vendor_product. The model is Compute_Inventory, the datasets are All_Inventory and All_Inventory… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/certificates))
+- **spl** (blocker): `| tstats ... FROM datamodel=Inventory WHERE nodename=Inventory ... BY Inventory.dest` uses the wrong names: the CIM Inventory model's internal name is Compute_Inventory with root dataset All_Inventory (field All_Invent… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+- **spl** (needs_verification): Function is written `toString(...)` throughout; the Splunk eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Run the search to confirm it parses. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+
+### [UC-3.3.9](../../content/cat-03-containers-orchestration/UC-3.3.9.json) — OpenShift Router HAProxy Backend Saturation, Connection Pool Exhaustion, and 5xx Spike Detection
+
+- **cimSpl** (blocker): The CIM Performance datamodel's root dataset is All_Performance, with child datasets such as CPU (field All_Performance.CPU.cpu_load_percent). `nodename=Performance` and `Performance.cpu_load_percent` do not exist, so t… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): multisearch allows only streaming commands in each subsearch, but every arm starts with mstats and uses join, stats, sort and streamstats. Splunk rejects the search, so the whole detection never runs. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): fe_sat_ratio divides haproxy_frontend_current_sessions by haproxy_frontend_max_sessions, which is the observed peak, not the configured limit (haproxy_frontend_limit_sessions). bk_queue_limit reads haproxy_backend_max_q… ([evidence](https://raw.githubusercontent.com/openshift/router/master/pkg/router/metrics/haproxy/haproxy.go))
+- **spl** (blocker): Counters are treated as gauges. haproxy_backend_http_responses_total and haproxy_backend_response_errors_total are cumulative, so summing max(_value) across 120 one-minute spans inflates err_sum, and `err_sum>=500` page… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (blocker): container_cpu_usage_seconds_total is a cumulative counter of CPU-seconds. Comparing avg(_value) to 0.85 means every long-running router Pod lands at warn. Use rate or per_second, divided by the CPU limit or core count. ([evidence](https://github.com/google/cadvisor/blob/master/docs/storage/prometheus.md))
+- **spl** (major): Each lane builds a different backend_key: cluster#proxy for the frontend lane and cluster#backend#server for the backend lane. The final stats BY cluster backend_key therefore never puts fe_sat_ratio and bk_queue_max on…
+- **spl** (minor): recommended_action mentions 'single_threaded_haproxy_hot_paths'. The OpenShift router runs HAProxy with multiple threads (IngressController spec.tuningOptions.threadCount, default 4).
+
+### [UC-3.2.29](../../content/cat-03-containers-orchestration/UC-3.2.29.json) — Kubernetes CronJob Lateness, Missed-Schedule Detection, and Schedule-SLA Breach (CronJob Lateness Axis)
+
+- **spl** (blocker): multisearch is a generating command that must be the first command, and its subsearches may contain only streaming commands. Here it follows eval/join/fields, is wrapped in an extra bracket level, and each arm ends with… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The rex for schedule= and concurrency_policy= runs only on rows filtered to kube_cronjob_status_*/spec_*/metadata_* metrics, but those labels exist only on kube_cronjob_info, which the where clause excludes. spec_schedu… ([evidence](https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/cronjob-metrics.md))
+- **spl** (blocker): The kube:events arm filters rs IN ("MissedSchedule","FailedNeedsStart"); the controller emits MissSchedule and no FailedNeedsStart, so missed_schedule_evt_cnt and failed_needs_start_evt_cnt stay 0. ([evidence](https://raw.githubusercontent.com/kubernetes/kubernetes/master/pkg/controller/cronjob/cronjob_controllerv2.go))
+- **cimSpl** (major): cimSpl queries the deprecated Application_State model and host CPU/memory from Performance. Neither expresses CronJob lateness, so the CIM variant is not an equivalent detection. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (major): In eval, unquoted involvedObject.name and metadata.namespace are parsed with '.' as the concatenation operator, and `involvedObject.kind` in backticks is expanded as an undefined macro. Dotted field names need single qu…
+- **spl** (major): streamstats current=f last(...) BY cluster namespace cronjob runs after a stats that leaves one row per CronJob, so prev_resource_version is always null and resource_version_changed / schedule_age_jump_min are dead logi…
+
+### [UC-3.3.22](../../content/cat-03-containers-orchestration/UC-3.3.22.json) — OpenShift Pod Security Admission Enforcement Plane: Namespace Label Drift, SCC↔PSA Interaction Conflicts, and Multi-Mode Audit, Warn, and Enforce Failures
+
+- **cimSpl** (blocker): The Change datamodel's root dataset is All_Changes, so `Change.action/Change.object/Change.dest` and `nodename=Change` return nothing. Joining Authentication.src to Change.dest is semantically unrelated to PSA posture. ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change))
+- **spl** (blocker): The second and fourth multisearch arms contain `stats latest(...) BY cluster namespace`, and the fourth also contains `join ... [search ...]`. multisearch subsearches must be purely streaming, so the search fails to par… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): cluster_k8s_minor is built as 'v'.maj.'.'.min from the OpenShift ClusterVersion desired version (v4.15), then compared with pod-security.kubernetes.io/enforce-version (v1.28 or latest). The two never match, so every nam… ([evidence](https://docs.redhat.com/en/documentation/openshift_container_platform/4.15/html/release_notes/ocp-4-15-release-notes))
+- **spl** (blocker): The PSA lanes match 'warn-violations' and 'enforce-violations', which Kubernetes does not emit; only audit-violations, enforce-policy and exempt exist. psa_warn_audit_only and the warn_only psa_tier therefore never refl… ([evidence](https://kubernetes.io/docs/reference/labels-annotations-taints/audit-annotations/))
+- **spl** (major): The SCC and PSA interaction arm requires only `openshift.io/scc` anywhere in _raw plus `pod-security.kubernetes.io` anywhere in _raw. OpenShift stamps openshift.io/scc on admitted pods, and PSA adds pod-security.kuberne…
+- **spl** (major): psa_deny_burst comes from `streamstats window=16` over unsorted multisearch output. It counts denies in the last 16 rows, not within a time window, so the '>= 5 burst' threshold has no time meaning. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats))
+- **mitreAttack** (minor): T1548.001 (Setuid and Setgid) is a host binary technique and not what PSA admission telemetry evidences. T1610 (Deploy Container) together with T1611 better reflects attempts to admit privileged pods.
+
+### [UC-3.5.16](../../content/cat-03-containers-orchestration/UC-3.5.16.json) — Kubernetes Event Correlation with Application Traces
+
+- **spl** (blocker): The trace subsearch uses `earliest=-15m latest=+15m` relative to search time and joins only on `ns`, so every 5-minute event bucket in a namespace receives the same trace stats for the last 15 minutes; it does not compu… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (blocker): The OOMKill timeline uses `join type=left ns` against per-minute error rows; join keeps only the first matching subsearch row by default (max=1), so `_time` comes from a single arbitrary minute and time_diff_min/causali… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (blocker): Unquoted dotted names in eval (`involvedObject.namespace`, `involvedObject.name`, `involvedObject.kind`) are parsed with `.` as string concatenation; they need single quotes. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (minor): `sort -infra_severity` sorts severity labels alphabetically (MEDIUM, LOW, HIGH, CRITICAL), not by severity, and `sort` placed after `table` is fine but the order is wrong.
+
+### [UC-3.2.40](../../content/cat-03-containers-orchestration/UC-3.2.40.json) — Kubernetes Admission Webhook Latency, Timeouts, and Denials (Out-of-Tree Webhook Reliability Axis)
+
+- **cimSpl** (blocker): It uses invalid dataset paths: nodename=Application_State (the root is All_Application_State) and Performance.CPU and Performance.Memory (fields live under All_Performance.CPU and All_Performance.Memory, for example All… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): Each multisearch subsearch ends in `bucket | stats ... | eval`. multisearch requires every subsearch to contain only streaming commands, so stats inside the arms makes the search fail to parse. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): Raw samples of cumulative counters (apiserver_admission_webhook_request_total, rejection_count, duration_seconds_sum and _count) are summed within 5-minute buckets instead of using a rate or delta. As a result, req_tota… ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (major): The le regex keeps +Inf (equal to the total count), so tail_bucket_sig is non-zero whenever any request occurred. The admit_latency_ms fallback then forces a 1200 ms value, above the default 1000 ms budget, which trigge…
+- **spl** (major): The kube-state-metrics join extracts a `hook_name="..."` label that does not exist on kube_*webhookconfiguration_info, so wh_sidecar is always 'unknown'. like(mn, "mutating") has no wildcard and therefore never matches,… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/validatingwebhookconfiguration-metrics.md))
+- **spl** (major): The inline tstats join uses the deprecated Application_State model with nodename=Application_State (the root dataset is All_Application_State) and joins Application_State.dest, a host, to the cluster name. The '%down%' … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+
+### [UC-3.2.26](../../content/cat-03-containers-orchestration/UC-3.2.26.json) — Kubernetes etcd Quorum Health, Raft Member Risk, and Cluster-Membership Drift (Operational-Quorum Axis)
+
+- **spl** (blocker): Both multisearch subsearches contain non-streaming commands (stats, sort, eventstats). multisearch allows only streaming operations in each subsearch, so the search fails to parse. Use union or append instead, or move t… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The severity case() returns 'critical' when quorum_margin<=1. A healthy three-member cluster has 3 healthy voters and needs 2, so its margin is 1 and it is paged critical in every window. The condition should key on mar… ([evidence](https://etcd.io/docs/latest/faq/))
+- **cimSpl** (major): cimSpl queries the deprecated Application_State model with nodename=Application_State and app/state/info fields, plus a 95% CPU check. It does not measure etcd quorum or membership at all, so it is not a CIM equivalent … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (major): The first arm keeps every series matching ^etcd_ without filtering by job. kube-apiserver also exposes etcd_* client metrics (for example etcd_request_duration_seconds and etcd_requests_total). Because is_learner is nul… ([evidence](https://kubernetes.io/docs/reference/instrumentation/metrics/))
+- **spl** (major): voting_members counts only members that produced data in the window. A member that stops answering scrapes disappears from both the numerator and the denominator: two dead members of three show as voting=1, healthy=1, m…
+- **spl** (major): The Performance tstats uses nodename=Performance.CPU and Performance.cpu_load_percent, but the root dataset is All_Performance, so the field and node names should be All_Performance.CPU and All_Performance.CPU.cpu_load_… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (needs_verification): The SPL reads metrics with an event-index `search` and the raw __name__/value fields. The splunk_hec exporter shown in detailedImplementation sends metric-format HEC payloads, which require a metrics index and mstats. C…
+- **spl** (minor): In each member's first window, streamstats window=2 sets prev equal to cur, so prop_committed_5m is 0 and proposal_backlog_ratio becomes prop_pend/0.001. Any non-zero pending value then trips proposal_backlog_hot, which…
+
+### [UC-3.2.27](../../content/cat-03-containers-orchestration/UC-3.2.27.json) — Kubernetes NetworkPolicy Default-Deny Coverage and Drift (East-West Governance)
+
+- **spl** (blocker): Every multisearch subsearch contains stats, which is not a streaming command, so the search fails to parse. Use union or append, or move the aggregation outside the subsearches. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The first arm keys inventory on kube_networkpolicy_info, which kube-state-metrics does not emit. np_names stays empty, so default_deny_*_flag is always 0 and policy_inventory_mvcount is always null. Every lookup namespa… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/networkpolicy-metrics.md))
+- **spl** (blocker): The second arm filters kube_pod_info on phase="Running", but kube_pod_info has no phase label, so running_pod_dc is always 0 and ungoverned_workload_heuristic never fires. Use kube_pod_status_phase{phase="Running"} with… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **cimSpl** (major): cimSpl counts Network_Traffic events by dest with head 50, using nodename=Network_Traffic and Network_Traffic.dest even though the root dataset is All_Traffic. It has no relationship to NetworkPolicy coverage or deletes. ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/network-traffic))
+- **mitreAttack** (major): T1562.008 is 'Disable or Modify Cloud Logs'. Deleting or weakening NetworkPolicy segmentation fits T1562.007 'Disable or Modify Cloud Firewall' far better. ([evidence](https://attack.mitre.org/techniques/T1562/008/))
+- **spl** (minor): After the outer stats there is one row per cluster and namespace, so streamstats window=6 over delete_events just equals delete_events. 'high_np_delete_burst' therefore means more than two deletes in four hours, not a b…
+- **spl** (minor): The Change tstats uses nodename=Change.All_Changes, but the nodename should be the dataset path starting at the root (All_Changes). The join also renames All_Changes.dest to cluster, which will rarely equal a Kubernetes…
+
+### [UC-3.2.6](../../content/cat-03-containers-orchestration/UC-3.2.6.json) — Kubernetes Deployment Rollout Failures (Rollout Pipeline Reliability)
+
+- **cimSpl** (blocker): `nodename=Change ... BY Change.user Change.object` uses the wrong root dataset: it should be All_Changes and `All_Changes.user`/`All_Changes.object`. `datamodel=Application_State ... Application_State.state Application_… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): `| multisearch` appears after eval, join and fields rather than as the first command. It wraps its arms in an extra `[ ... ]`, and every arm ends in `stats`, which is non-streaming and not allowed inside multisearch sub… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The kube:events join uses `coalesce(involvedObject.kind, `involvedObject.kind`, "")`. The backticks are expanded as a macro call, so the search fails on an undefined macro. The unquoted `involvedObject.name` and `metada… ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (major): `where like(_raw, "owner_kind=\"Deployment\"")` has no `%` wildcards, so like() requires the whole _raw to equal that string and never matches. rs_thrash_dc is therefore always 0 and the ReplicaSet-churn arm is dead. Th… ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (major): The condition arms take `latest(cond_status)` over every kube_deployment_status_condition series. kube-state-metrics emits one series each for status=true, false and unknown, and only the series with value 1 is current.… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/deployment-metrics.md))
+- **spl** (major): When there is no deadline event, rollout_age_minutes defaults to rollout_stuck_min_gate (5). `stuck_signal=1 AND rollout_age_minutes>=5` is then true at once, so any partial_stuck row (a normal rolling update or HPA sca…
+- **spl** (major): The leading `join type=left join_key [| tstats count ... FROM datamodel=Change WHERE nodename=Change ...]` joins on a constant key, and its output is dropped by the next `fields -`, so it is a no-op residue. The Change … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+
+### [UC-3.3.14](../../content/cat-03-containers-orchestration/UC-3.3.14.json) — OpenShift OAuth Server Authentication Flow Failures, IdP Backend Errors, and Token-Lifecycle Anomalies
+
+- **cimSpl** (blocker): The Change data model's root dataset is All_Changes, not Change, so 'WHERE nodename=Change' and the Change.action, Change.object and Change.user fields return nothing, and the join adds only nulls.
+- **spl** (blocker): multisearch accepts only streaming commands in its subsearches. Every arm here uses stats, the token arm adds sort, streamstats and eventstats, and the last arm starts with a generating mstats prestats=t. Splunk rejects… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (major): In the oauth_httpserver_5xx lane, the where clause ' 5[0-9][0-9]' and rex '(?P<rex_http>5\d{2})' match the first 5xx-looking digits anywhere in _raw, including timestamps, durations, IDs and resourceVersions. oauth_http…
+- **spl** (major): The token_issuance lane sorts _time descending and runs streamstats window=12 current=t last(mv), which returns the current row's own value, so delta is 0 and token_delta_z is 0 every time. The metric lanes also sum cum…
+- **spl** (major): The final streamstats window=6 sum(lane_events) BY cluster idp_provider runs over unsorted per-stage aggregate rows. flow_burst is therefore a sum across flow stages, not a time-window burst. Combined with the broad 'oa…
+
 ### [UC-3.2.18](../../content/cat-03-containers-orchestration/UC-3.2.18.json) — Kubernetes Ingress Upstream 502/503/504 — Backend Pod and Endpoint Health Axis
 
 - **spl** (blocker): The Traefik arm feeds Duration into rt_raw. Traefik Duration is in nanoseconds (https://doc.traefik.io/traefik/observability/access-logs/), so the 'rt_raw>=300 means already milliseconds' branch treats nanoseconds as mi… ([evidence](https://doc.traefik.io/traefik/observability/access-logs/))
@@ -86,10 +283,316 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **spl** (minor): The severity case ends with true(), "medium", and the next where match(severity, "critical|high|medium") is always true, so the severity filter has no effect.
 - **spl** (minor): The NGINX namespace coalesce falls back to proxy_upstream_name, whose format is upstream-<namespace>-<service>-<port>. That value never matches a KSM namespace label, so those rows silently get the 999999/1 defaults.
 
+### [UC-3.2.34](../../content/cat-03-containers-orchestration/UC-3.2.34.json) — CoreDNS and Kube-DNS Cluster DNS Plane Health
+
+- **spl** (blocker): The SPL matches coredns_reload_failed_count_total, but CoreDNS exports coredns_reload_failed_total, so config_reload_failed is always 0. It also matches only coredns_forward_responses_total, which is deprecated in favou… ([evidence](https://github.com/coredns/coredns/blob/master/plugin/reload/README.md))
+- **spl** (blocker): The p99 subsearch treats Prometheus histogram buckets as disjoint counts (eventstats sum(bcnt) as the total, then a running sum), but buckets are cumulative by le. The total is therefore inflated and the computed p99 la… ([evidence](https://prometheus.io/docs/concepts/metric_types/#histogram))
+- **cimSpl** (major): cimSpl uses nodename=All_Resolution and All_Resolution.* fields, but the Network_Resolution dataset is DNS (DNS.reply_code, DNS.dest). It also compares reply_code to 'SERVFAIL', whereas CIM's prescribed value is 'Server… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/network-resolution-dns))
+- **spl** (major): requests_total, responses_total, cache_hits_total and the other series are monotonic counters. sum(v) per one-minute bin adds lifetime totals from every scrape in the minute, so requests_per_sec = req_sum/60 is not a ra…
+- **spl** (major): In the histogram subsearch, `sort cluster coredns_pod zone_l _time le_num` has no count argument, so it uses the default limit of 10,000 rows. Seventy minutes × pods × zones × buckets easily exceeds that, silently trunc… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/sort))
+
+### [UC-3.2.37](../../content/cat-03-containers-orchestration/UC-3.2.37.json) — Kubernetes PodDisruptionBudget (PDB) Compliance — Allowed-Disruption Headroom Axis
+
+- **cimSpl** (blocker): Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance, so 'nodename=Application_State' and 'nodename=Performance.CPU' and the Application_State.* and Perfo… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch is a generating command that must come first. Here it follows the comment macro, eval, join and fields; it wraps its subsearches in an extra pair of brackets; and each subsearch ends in stats, which multisea… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): The arms for kube_poddisruptionbudget_spec_min_available, kube_poddisruptionbudget_spec_max_unavailable and status_disruptions_allowed query series that kube-state-metrics does not export. spec_min_available is defaulte… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/poddisruptionbudget-metrics.md))
+- **spl** (major): streamstats window=3 BY cluster namespace pdb runs after stats has already collapsed each PDB to one row, so ch_first always equals ch_last and churny_deficit is always 0. Cluster is lower()-cased in the append governan…
+
+### [UC-3.2.28](../../content/cat-03-containers-orchestration/UC-3.2.28.json) — Kubernetes Node Pressure Conditions Memory Disk PID and NetworkUnavailable Proactive Eviction Risk
+
+- **spl** (blocker): All three multisearch subsearches end in stats, which is not a streaming command, so the search fails to parse. Use union or append instead. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The QoS arm reads qos_class and priority from kube_pod_info, which has neither label, so cnt_be, cnt_bu and cnt_gu are always 0 and min_pri is always null. QoS must come from kube_pod_status_qos_class. ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **cimSpl** (major): cimSpl queries the deprecated Application_State model and uses Performance.* with nodename=Performance, but the Performance root dataset is All_Performance, with memory and storage fields under All_Performance.Memory an… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (major): The opening `tstats ... BY cluster` returns rows only if `cluster` is an indexed field. In the eval arms, cluster is computed with coalesce(k8s_cluster_name, ...). If no indexed field is literally named cluster, tstats … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/tstats))
+- **spl** (major): Node_exporter series normally carry instance=<ip>:9100, not the Kubernetes node name. nodex therefore never matches the kube_node_status_condition `node` label, so mem/fs/pid percentages stay null. latest(node_filesyste…
+- **spl** (major): eventstats dc(node) AS pool_pressured_nodes runs before the any_pressure filter, over every node returned by the inner search, including unpressured nodes that appear through the node_exporter and pod arms. pool_pressur…
+- **spl** (minor): The node_priority regex '(?i)tier|gold|prod|0' matches any value containing 'tier' or the digit 0 (for example tier3 or tier10), so lower-priority pools are escalated to critical.
+
+### [UC-3.3.12](../../content/cat-03-containers-orchestration/UC-3.3.12.json) — OpenShift Network Operator and OVN-Kubernetes Cluster Network Health
+
+- **cimSpl** (blocker): The root datasets are All_Application_State and All_Traffic, so nodename=Application_State/Network_Traffic and Application_State.state/Network_Traffic.action return nothing. Application_State is deprecated and has no st… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch accepts only purely streaming subsearches, but every subsearch here ends in stats, and the first also uses sort and streamstats. Splunk rejects the search. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (major): The netcheck lane counts every ocp_events row whose involvedObject is a network-check-source or network-check-target pod, including normal Scheduled, Pulled and Started events. Healthy clusters therefore reach diag_fail…
+- **spl** (major): ovn_restart_sum sums cumulative restartCount over every snapshot in 6 hours, so it grows with poll frequency. ovn_mstat_spike adds all ovn_controller, ovsdb and network_check sample values together and takes a square ro…
+- **spl** (major): Metric prefix ^ovnkube_master_ no longer matches anything on 4.14+, where the series are ovnkube_controller_* and ovnkube_clustermanager_*. The streamstats window=6 and the eventstats 'fleet' counts run BY cluster after…
+
+### [UC-3.3.1](../../content/cat-03-containers-orchestration/UC-3.3.1.json) — OpenShift ClusterVersion Upgrade Progress and CVO Stuck Detection (Z- and Y-stream lifecycle)
+
+- **cimSpl** (blocker): The Change data model's root dataset is All_Changes, so tstats must use nodename=All_Changes and All_Changes.action/object/user/dest, not Change.action. Application_State is deprecated, its root is All_Application_State… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch only accepts purely streaming subsearches, but each subsearch here contains sort 0, streamstats or stats. Splunk rejects the search with 'Multisearch subsearches may only contain purely streaming operations'… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (blocker): The match(hist_state,"partial|failed") and recommended_action branches test for a 'failed' history state that ClusterVersion never emits (only Completed and Partial). sum() over cluster_version type=completed adds Unix … ([evidence](https://github.com/openshift/api/blob/master/config/v1/types_cluster_version.go))
+- **spl** (major): prog_dwell_h comes from streamstats window=2 current=t last(_time), which is the current event's own time (or at most one snapshot interval back), so dwell is about 0 to 0.08 h at a 3–5 minute poll. The >=2, >=4 and >=6…
+- **spl** (major): y_stream_hint treats a target of x.y.0 as a Y-stream upgrade. A Y-stream (minor) upgrade is defined by a change in minor version from the current version, and targets are rarely .0. The channel regex 'eus|stable|candida…
+
+### [UC-3.3.19](../../content/cat-03-containers-orchestration/UC-3.3.19.json) — OpenShift IngressController Operator Reconciliation Failures, Shard or Scope Drift, and TLS or Wildcard Policy Conflicts
+
+- **cimSpl** (blocker): Uses Change.* prefixes with nodename=Change, but the Change model's root dataset is All_Changes. Application_State is deprecated since CIM 4.12.0. ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change))
+- **spl** (blocker): All five multisearch arms end in stats, which is non-streaming. multisearch allows only streaming subsearches, so the search fails. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): dns_bad and lb_bad fire on DNSManaged=False and LoadBalancerManaged=False. Both are the normal state for HostNetwork, Private and NodePortService controllers and for platforms without DNS zones, so 'dns_bad==1 AND lb_ba… ([evidence](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/operator_apis/ingresscontroller-operator-openshift-io-v1))
+- **spl** (major): wildcard_collision_hint matches 'wildcard', which matches both legal values (WildcardsAllowed and WildcardsDisallowed). tls_drift_hint matches every tlsSecurityProfile type (Old, Intermediate, Modern, Custom). Neither h…
+- **spl** (minor): streamstats window=4 current=t last(prog_bad) returns the current row's value, and it runs after a stats that leaves one row per cluster/ic_name. prev_prog therefore always equals prog_bad, so prog_dwell never measures …
+
+### [UC-3.2.45](../../content/cat-03-containers-orchestration/UC-3.2.45.json) — Kubernetes Admission/Conversion Webhook Tail-Latency Profiling — Per-Webhook P95/P99/P999 Distribution and Slow-Operation Outlier Detection
+
+- **cimSpl** (blocker): References `Application_State.state`, `.info` and `.app` with `nodename=Application_State`. The deprecated model's root is All_Application_State and it has no such fields. The Performance CPU overlay keyed on host is un… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): Both multisearch subsearches contain `stats`, `eventstats` and `sort`, but multisearch allows only streaming commands in each subsearch, so the search fails. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): `stats max(mv) AS cum_at_bucket ... BY ... le_raw` takes the maximum of a cumulative counter per 5-minute bin (the lifetime count) instead of the window increase. Because `rejected` and instance are not in the BY clause… ([evidence](https://prometheus.io/docs/practices/histograms/))
+- **spl** (blocker): The conversion arm filters on `apiserver_admission_step_conversion_duration_seconds_bucket`, which the Kubernetes metrics reference does not list, so that arm returns nothing. ([evidence](https://kubernetes.io/docs/reference/instrumentation/metrics/))
+- **spl** (blocker): `coalesce(objectRef.namespace, "")` in eval uses a dotted field name without single quotes. `.` is the concatenation operator, so the audit namespace witnesses do not resolve. ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (major): The Application_State tstats join (deprecated model, nonexistent `info`/`app` fields) and the Performance count join keyed on win_time are template residue that adds cost and no signal.
+
+### [UC-3.3.8](../../content/cat-03-containers-orchestration/UC-3.3.8.json) — Route TLS Expiry Detection
+
+- **cimSpl** (blocker): The cimSpl uses the deprecated Application_State model, whose root dataset is All_Application_State, not Application_State. It also returns Web URL and status, which say nothing about certificate expiry. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch accepts only streaming commands in its subsearches, but the router-log and openshift:secret arms run stats, so the search fails to parse. Use append or union, or restructure the search. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): The Route arm keeps every openshift:route snapshot from the last 7 days and never deduplicates to the latest snapshot per cluster, namespace and route. With 15–30 minute exports this produces hundreds of rows per Route,…
+- **spl** (major): The cert-manager rex patterns 'namespace\?="' and 'name\?="' require a literal '?' before '=', so cm_ns and cm_name are never extracted. Even with the '?' removed, 'name="' would first match inside issuer_name="...". Th…
+
+### [UC-3.3.18](../../content/cat-03-containers-orchestration/UC-3.3.18.json) — OpenShift cluster-etcd Leader Election Storm and Control-Plane Disk Bottleneck Correlation
+
+- **cimSpl** (blocker): Uses Performance.* and nodename=Performance, but the Performance model's root dataset is All_Performance (e.g. All_Performance.CPU.cpu_load_percent). The Application_State model is deprecated since CIM 4.12.0. Neither t… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint))
+- **spl** (blocker): multisearch arms contain non-streaming commands (bucket+stats, sort, streamstats). multisearch only permits purely streaming subsearches, so the search errors. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): Leader lane: streamstats window=2 current=t last(mx) returns the current row's own value, so inc = mx - pm is always 0. leader_roll15 never exceeds 0, storm_hint and correlate never fire, and the page tier is unreachabl… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats))
+- **spl** (blocker): Disk and RTT lanes filter on a quantile label matching 0.99. etcd WAL fsync, backend commit and peer RTT metrics are histograms with only le bucket labels (no 0.99 bucket), so cluster_fsync_p99, cluster_be_p99 and peer_… ([evidence](https://etcd.io/docs/v3.5/metrics/))
+- **spl** (minor): The m_hist lane takes max() of cumulative bucket counters across le values, which yields the +Inf count (total samples), not a latency hint. coarse_commit_hist_hint has no latency meaning.
+
+### [UC-3.2.17](../../content/cat-03-containers-orchestration/UC-3.2.17.json) — Kubernetes HorizontalPodAutoscaler Saturation, Flap, and Metric-Fetch Failure (Workload Autoscaler Ceiling)
+
+- **cimSpl** (blocker): Application_State is deprecated and has no state or app fields. Performance has no host field (the entity field is dest), and CPU/memory fields live under the All_Performance.CPU and All_Performance.Memory datasets. nod… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): The search pipes into '| multisearch [ [ search ... ] ... ]' after eval/join/fields. multisearch is a generating command that must be first in the search, its subsearches may contain only streaming commands (each arm en… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): In the events arm, coalesce(involvedObject.kind, `involvedObject.kind`, "") wraps a field name in backticks, which invokes a search macro named involvedObject.kind. No such macro exists, so the search errors. Unquoted i… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): The condition arm builds cond_pair from the condition and status labels but ignores the sample value. kube-state-metrics emits kube_horizontalpodautoscaler_status_condition once per status (true, false, unknown) with va… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/internal/store/horizontalpodautoscaler.go))
+- **spl** (major): The event reason filter omits FailedGetPodsMetric and FailedGetContainerResourceMetric. The like(msg, "%FailedGet%Metric%") fallbacks never match, because the event message is the raw error text, not the reason. ([evidence](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/podautoscaler/horizontal.go))
+- **spl** (major): kube_horizontalpodautoscaler_status_target_metric has one series per metric_name/metric_target_type/container. latest() across all of them per HPA mixes CPU utilization percent with average/value series (e.g. memory byt… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md))
+- **spl** (major): flap_score counts distinct current_replicas values across six 5-minute buckets. A normal monotonic ramp (2→4→6) scores as a flap, so it does not measure min/max oscillation. The tstats Performance join (perf_model_ticks…
+- **spl** (needs_verification): toString is used throughout; the documented eval function is tostring, and eval function names are case-sensitive. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+
+### [UC-3.1.13](../../content/cat-03-containers-orchestration/UC-3.1.13.json) — Container Restart Loop Detection
+
+- **cimSpl** (blocker): The CIM Performance model's root dataset is All_Performance, with CPU at All_Performance.CPU and host in `dest`. `nodename=Performance.CPU` and `Performance.host` do not exist, and a bare CPU sample count says nothing a… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): The second multisearch arm is `[ | inputlookup container_inspect.csv ... ]`. multisearch requires at least two streaming searches and allows only streaming operations, and inputlookup is a generating command, so the sea… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): The search window is `earliest=-1h@h latest=@h`, but in_15m and in_1h are computed against now(). On a schedule every 5 or 15 minutes, the last event can be up to 59 minutes older than now(), so cycles_15m is 0 on most … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/SearchTimeModifiers))
+- **spl** (needs_verification): Docker emits `kill` before `die` and can emit `restart` between `die` and `start`, so `prev_action="die"` misses gaps whenever a restart event intervenes. Field-name case is also uncertain: Engine JSON uses `Action`/`Ac… ([evidence](https://docs.docker.com/reference/cli/docker/system/events/))
+
+### [UC-3.2.3](../../content/cat-03-containers-orchestration/UC-3.2.3.json) — Kubernetes Node NotReady Detection and Workload Eviction Risk
+
+- **cimSpl** (blocker): It references Application_State.state, Application_State.info and Application_State.app with nodename=Application_State. The deprecated model's root dataset is All_Application_State and defines no state, info or app fie… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (blocker): In eval, unquoted involvedObject.name and involvedObject.kind are parsed with '.' as the string-concatenation operator, so the kube:events arm never matches ik="node". Dotted field names must be single-quoted ('involved… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/eval))
+- **spl** (major): time_in_notready_s = now() - latest(NotReady _time). For a node that stays NotReady, the latest sample is always recent, so the >300 s critical/high branches almost never fire during the outage; they fire only after sam…
+- **spl** (needs_verification): The opening tstats ... BY cluster requires cluster to be an indexed field in k8s_metrics. That holds only if HEC sends it as an indexed field; otherwise tstats returns nothing and the inner join empties the whole result…
+
+### [UC-3.2.4](../../content/cat-03-containers-orchestration/UC-3.2.4.json) — Kubernetes Namespace ResourceQuota Exhaustion (Pod-Create Block)
+
+- **cimSpl** (blocker): Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance. 'nodename=Application_State', 'nodename=Performance.CPU' and the Application_State.* and Performance… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): Both the top-level multisearch and the nested multisearch inside the denial join have subsearches that end in stats. multisearch accepts only streaming subsearches, so the search fails. The same error is in the Step 4 v… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): Severity uses only the latest used_pct and ignores the sustained/time_in_exhaustion_min logic, so single-scrape spikes alert as 'exhausted'. The sustained gate treats the first bucket as sustained, because first() over …
+
+### [UC-3.4.9](../../content/cat-03-containers-orchestration/UC-3.4.9.json) — Container Image Vulnerability Age
+
+- **spl** (blocker): The spl field joins two independent searches in one string. After `| table image_ref ... cve_list`, the comment macro expands to nothing, so `index=containers sourcetype="kube:pod:status"` becomes arguments to the table… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Table))
+- **spl** (major): `coalesce(namespace, metadata.namespace)` and `coalesce(pod_name, metadata.name)` leave the dotted field names unquoted. In eval, `.` is the concatenation operator, so these read the fields metadata, namespace and name … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): The join subsearch counts dc(VulnerabilityID) instead of the normalised cve_id, so Grype rows contribute 0 aged_cves. Its image_ref also comes from Trivy Target (which carries the OS suffix) while the pod side uses the …
+
+### [UC-3.5.14](../../content/cat-03-containers-orchestration/UC-3.5.14.json) — eBPF Process-Level Security Observability (Tetragon)
+
+- **spl** (blocker): Tetragon process_exec JSON nests details under `process_exec.process` (e.g. `process_exec.process.binary`, `process_exec.process.arguments`), and kprobe file args are an array (`process_kprobe.args{}.file_arg.path`); `p… ([evidence](https://tetragon.io/docs/concepts/events/))
+- **spl** (blocker): Dotted JSON field names in eval (`process_exec.process.pod.namespace`, `metadata.name`, etc.) are unquoted, so `.` is parsed as the concatenation operator; they must be single-quoted (or renamed via spath) to be read as… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (minor): `sort -severity` sorts the strings alphabetically (MEDIUM, HIGH, CRITICAL), putting CRITICAL last; the TracingPolicy search measures CR snapshot freshness, not node coverage as its comment claims.
+
+### [UC-3.4.1](../../content/cat-03-containers-orchestration/UC-3.4.1.json) — Image Push/Pull Audit
+
+- **spl** (blocker): The SPL reads tag and digest from `event_data.repository.tag` and `event_data.repository.digest`. Harbor webhook payloads put them under `event_data.resources{}.tag` and `.digest`, so `tag` is always "untagged" and `ima… ([evidence](https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/))
+- **spl** (major): The field holds two independent searches separated by a blank line (audit trail plus unauthorized pull detection). Pasted as one search, the second `index=containers ...` becomes search terms of the first pipeline's fin…
+- **spl** (minor): harbor:access (nginx) events have no `event_type`, `operation` or `type` field, so they always fall into action "unknown" and action_class "other". Webhook events carry no client IP, so `unique_sources` and `src_ip` are…
+
+### [UC-3.5.9](../../content/cat-03-containers-orchestration/UC-3.5.9.json) — Service Mesh Control Plane Health
+
+- **spl** (blocker): `metric_name IN (... "pilot_conflict_outbound_listener" ... "pilot_xds_push_errors")` uses names absent from the istiod metric reference, so push_errors and listener_conflicts are always 0 and the CRITICAL/DEGRADED push… ([evidence](https://istio.io/latest/docs/reference/commands/pilot-discovery/))
+- **spl** (blocker): pilot_xds_pushes, galley_validation_* and sidecar_injection_requests_total are cumulative counters; summing raw values in 5-minute bins adds lifetime totals per scrape instead of in-window increments, and the gauge list… ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (minor): This UC reads `metric_value` while sibling UCs (3.5.3, 3.5.7, 3.5.8) read `value` from the same otel:metrics sourcetype; one of them is wrong for a given collector config. pilot_proxy_convergence_time_bucket is selected…
+
+### [UC-3.3.13](../../content/cat-03-containers-orchestration/UC-3.3.13.json) — OpenShift ImageStream Import Failures and Internal Registry Operator Health
+
+- **cimSpl** (blocker): The tstats calls address FROM datamodel=Inventory WHERE nodename=Inventory and datamodel=Application_State, but the root datasets are All_Inventory and All_Application_State. Application_State is also deprecated and has… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch accepts only streaming commands in its subsearches. Every arm here ends in stats (a transforming command), so Splunk rejects the search before it runs. Use append or union, or move stats after the multisearc… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (major): In the reg_metrics arm, the where clause tests match(met_name,"kube_pod_container_status_restarts_total"), but met_name is created only by the later stats (the local field is mn). The restart filter therefore never matc…
+- **spl** (major): The ist_stale arm groups BY ist_name but never carries is_key into stats, so its rows reach the final stats with a null is_key that is coalesced to unknown_resource. All ImageStreamTag staleness rows in a namespace coll…
+- **spl** (major): streamstats after a stats BY cluster namespace is_key, using the same BY keys and current=t, reads back the row's own value, so imp_streak always equals import_fail_any. Also, cond_t and cond_s match 'importfailed' and … ([evidence](https://github.com/openshift/api/blob/master/image/v1/types.go))
+- **spl** (minor): In the reg_op arm, reg_deg_flag uses match(lower(reg_msg),...) before reg_msg is evaluated, so the message-based degraded fallback only works when the raw event already has a reg_msg field.
+
+### [UC-3.3.23](../../content/cat-03-containers-orchestration/UC-3.3.23.json) — OpenShift Console and API Access Forensics: Impersonation Detection, Privileged Action Velocity, Console Plugin Audit, and Bearer-Token Reuse Anomalies
+
+- **cimSpl** (blocker): The Change root dataset is All_Changes, not Change, so 'WHERE nodename=Change' and the Change.* field prefixes return no rows from the Change half of the join. ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change))
+- **spl** (blocker): multisearch subsearches must contain only streaming commands, but the velocity and token-reuse arms use sort, streamstats and eventstats, so the search fails at parse time. Use append or union, or restructure the search. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): streamstats time_window requires events in ascending or descending _time order. Both arms first run 'sort 0 + cluster identity - _time', which interleaves time across identities, so the five-minute windows (priv_ct, ipd… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats))
+- **spl** (major): Rows are never restricted to the latest scheduling interval. The velocity arm returns events from the whole earliest=-7d@d range and the other arms from 24h, yet the alert runs every 15 minutes with only a 45-minute thr…
+- **spl** (major): The console_plugin flag fires on any verb (including get, list and watch) against consoleplugins. The console operator and console pods continuously read ConsolePlugin objects, so the console lane will emit constant 'hi…
+- **spl** (major): The token_ip_reuse arm marks 'critical' any identity seen from two or more sourceIPs in five minutes, with no exclusion for system:node:*, system:serviceaccount:openshift-* controllers or HA control-plane components tha…
+
+### [UC-3.4.2](../../content/cat-03-containers-orchestration/UC-3.4.2.json) — Vulnerability Scan Results
+
+- **spl** (blocker): eval treats `.` as the concatenation operator and needs single quotes for field names with special characters. `package.name`, `artifact.name`, `package.version` and `artifact.version` are therefore evaluated as string … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): The coalesce chains assume one flat event per vulnerability. Raw Trivy reports nest fields under `Results{}.Vulnerabilities{}` and Grype under `matches{}.vulnerability.*` and `matches{}.artifact.*`. Without a split at i… ([evidence](https://oss.anchore.com/docs/guides/vulnerability/json/))
+- **spl** (major): Two independent searches are concatenated in one field with a blank line between them; pasted as a single search, the second part is not a valid pipeline. Split them into separate saved searches.
+
+### [UC-3.2.12](../../content/cat-03-containers-orchestration/UC-3.2.12.json) — Kubernetes RBAC Anomalies and Excessive-Permission Detection
+
+- **spl** (blocker): The fifth multisearch arm contains stats dc(_raw) ... BY cluster _time; multisearch subsearches may contain only streaming commands, so the whole search fails with a multisearch error. Move the kube-state-metrics arm to… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): The metrics arm filters on match(_raw, "kube_clusterrole_binding") OR match(_raw, "kube_role_binding"), which never matches the real kube-state-metrics names kube_clusterrolebinding_* / kube_rolebinding_*. ([evidence](https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/auth/rolebinding-metrics.md))
+- **cimSpl** (major): The cimSpl counts Authentication events per user and action without any RBAC filter, so it does not express this detection; RBAC binding mutations map to the Change data model (All_Changes with object_category / object …
+- **spl** (needs_verification): The prod exec arm keeps only resp_code 200-299, but streaming exec/attach/portforward requests are upgraded connections whose audit responseStatus.code is commonly 101 Switching Protocols, so successful production exec …
+- **mitreAttack** (minor): T1098 could be narrowed to T1098.006 (Additional Container Cluster Roles), and the production exec lane maps to T1609 (Container Administration Command).
+- **spl** (minor): Missing responseStatus.code defaults to "201" (treated as success) in three arms, and the trusted_admin_users join with max=0 duplicates rows when a user has several cluster rows; the Authentication tstats join rarely m…
+
+### [UC-3.3.11](../../content/cat-03-containers-orchestration/UC-3.3.11.json) — OpenShift Operator Lifecycle Manager (OLM) Subscription Health and InstallPlan / CSV Reconcile Failure Detection
+
+- **cimSpl** (blocker): The Inventory and Application_State root datasets are All_Inventory and All_Application_State, so nodename=Inventory/Application_State and Inventory.dest/Application_State.state return no results. Application_State is d… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (blocker): Every multisearch subsearch contains stats, and the first also contains sort and streamstats. multisearch allows only purely streaming subsearches, so Splunk rejects the search. Use append or union, or move the aggregat… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (blocker): The events lane matches 'installfailed', which is not an OLM CSV reason. The real failure reasons are InstallComponentFailed, InstallCheckFailed and similar, so real CSV install failures in events are missed. ([evidence](https://github.com/operator-framework/api/blob/master/pkg/operators/v1alpha1/clusterserviceversion_types.go))
+- **spl** (major): olm_restarts = sum(mv) over every raw sample of kube_pod_container_status_restarts_total in 6 hours adds a cumulative counter to itself once per scrape. A pod with a single historic restart scraped 72 times reads as 72 …
+- **spl** (major): cond_bad treats InstallPlanPending=True as a failure, which preempts the ip_approval_age_h 24/72-hour tiers for every Manual-approval Subscription. The streamstats dwell (window=3, last(_time) with current=t) is about 0…
+
+### [UC-3.2.5](../../content/cat-03-containers-orchestration/UC-3.2.5.json) — Kubernetes PersistentVolumeClaim Pending and Provisioning Failure Detection
+
+- **cimSpl** (blocker): `FROM datamodel=Inventory WHERE nodename=Inventory ... BY Inventory.dest` uses the wrong names: the model is Compute_Inventory with root dataset All_Inventory (`All_Inventory.dest`, `All_Inventory.vendor_product`). The … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+- **spl** (blocker): Both multisearch subsearches contain `stats`, `sort` and `streamstats`, but multisearch allows only streaming commands in subsearches, so the search errors. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): `coalesce(..., `involvedObject.name`, ...)` and `` `involvedObject.kind` `` use backticks, which SPL expands as macro calls, so the search fails with undefined macros. Dotted field names in eval need single quotes. ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (major): `pending_soak_min=(now()-first(_time))` uses the first Pending sample in the window, so a claim that was Pending 40 minutes ago and has since Bound still reports a 40-minute soak. Soak is also capped by the 45-minute wi… ([evidence](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/volume/persistentvolume/pv_controller.go))
+- **spl** (minor): `sort - severity` sorts the strings alphabetically, putting medium ahead of high and critical. The appendcols Performance.Memory fleet average is template residue unrelated to PVC provisioning.
+
+### [UC-3.2.39](../../content/cat-03-containers-orchestration/UC-3.2.39.json) — Kubernetes Warning Event Storm — Statistical Anomaly Axis
+
+- **cimSpl** (blocker): Application_State is deprecated, and its root dataset is All_Application_State. The Alerts root is also named Alerts, but 'nodename=Application_State' and the Application_State.app/state/info field paths do not exist, s… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch requires every subsearch to be streaming, but each arm ends in 'bucket ... | stats count ...', which is not streaming. The search fails before the baseline join runs. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): top_reason_watch includes NodeNotReady, which Kubernetes records as type Normal, so it never survives the Warning filter. The baseline stats count only produces 5-minute buckets that contain events, so the mean is infla… ([evidence](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/util/node/controller_utils.go))
+
+### [UC-3.5.15](../../content/cat-03-containers-orchestration/UC-3.5.15.json) — eBPF Auto-Instrumented Service Metrics (Beyla)
+
+- **spl** (blocker): Thresholds `p99_latency > 5000`, `p95_latency > 2000`, `> 500` treat `http.server.request.duration` as milliseconds, but the OTel semantic-convention unit is seconds, so latency_status is always OK. ([evidence](https://opentelemetry.io/docs/specs/semconv/http/http-metrics/))
+- **spl** (blocker): `coalesce(service_name, "service.name")` uses double quotes, which makes "service.name" a string literal; the fallback returns the text 'service.name' instead of the field (needs single quotes), and unquoted `http.respo… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): The anomaly and coverage variants use event searches (`index=containers sourcetype=beyla:metrics metric_name=...`, `metric_value`) against data the first variant reads with mstats from a metrics index; event search cann… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats))
+- **spl** (needs_verification): OTLP histograms are typically written by the Splunk HEC exporter as `_bucket`/`_sum`/`_count` series; `avg()`/`perc95()`/`count()` over `http.server.request.duration` would not yield request counts or latency percentile…
+
+### [UC-3.5.2](../../content/cat-03-containers-orchestration/UC-3.5.2.json) — Sidecar Proxy Health
+
+- **spl** (blocker): The search reads OTel/Prometheus metrics as events (sourcetype=otel:metrics | where match(metric_name, ...)). Data in a metrics index can only be queried with mstats or mcatalog, so the health search returns nothing aga… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats))
+- **spl** (blocker): coalesce(namespace, object_namespace, involvedObject.namespace) and the similar involvedObject.name and involvedObject.fieldPath references use unquoted dotted field names in eval. Eval treats '.' as the concatenation o… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (minor): is_healthy requires uptime_sec > 60, so a freshly restarted LIVE sidecar is classified as UNHEALTHY before the RECENTLY_RESTARTED (uptime_hours < 0.5) branch is reached. The restart reason list also includes 'Created', …
+
+### [UC-3.1.29](../../content/cat-03-containers-orchestration/UC-3.1.29.json) — Container Filesystem Write Rate and Writable Layer Saturation
+
+- **cimSpl** (blocker): Performance.disk_usage, nodename=Performance.Storage, Performance.host and Inventory.Instances are not CIM names. The Performance Storage dataset is addressed as All_Performance.Storage with fields such as storage_used_… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): `stats sum(write_mb_per_sample) ... BY host_id, container_id, tmin` keeps only the BY fields and the named aggregates, so started_epoch, restart_count, has_volume_mount and image_insp (added earlier by eventstats) are d… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `cumulative_writable_mb` is lifetime block bytes written, not writable-layer size, so `quota_breach` compares the wrong quantity. Both lanes are summed per minute (double counting). `has_volume_mount` checks only HostCo…
+
+### [UC-3.5.8](../../content/cat-03-containers-orchestration/UC-3.5.8.json) — Circuit Breaker Trips
+
+- **spl** (blocker): envoy_cluster_upstream_rq_pending_overflow and upstream_cx_overflow are cumulative counters; `sum(...)` across every scrape and sidecar in the window adds lifetime totals repeatedly, so the >50 / >100 thresholds fire on… ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (major): `latest(active_ejections)` by cluster_name keeps one sidecar's value although each sidecar holds its own outlier view; and `cb_activity = active_ejections + pending_overflow + connection_overflow` evaluates to null when… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (minor): `response_flags="UO"` is an exact match; Envoy can emit combined flags (comma-separated), which would be missed. Consider response_flags=*UO*.
+
+### [UC-3.3.6](../../content/cat-03-containers-orchestration/UC-3.3.6.json) — OpenShift ClusterOperator Health and Component Reconciliation Failure Detection
+
+- **cimSpl** (blocker): It uses `nodename=Change` with Change.* fields, but the Change root dataset is All_Changes. It also uses Application_State.state and Application_State.info, but that deprecated model's root is All_Application_State and … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (blocker): The snapshot arm runs `sort 0` and `streamstats`, and the prometheus, events and audit arms end in `stats`, all inside multisearch. multisearch allows only streaming commands, so the search fails with 'Multisearch subse… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): `streamstats window=2 current=t last(_time) AS prev_ts last(prog_f) AS prev_prog` returns the current event's own values, because last() with current=t is the current row. prev_ts therefore equals _time, and prog_dwell_…
+- **spl** (major): The prometheus arm takes `max(mv)` and `latest(ctype)` per operator across both cluster_operator_up and every cluster_operator_conditions condition. Available=1 makes prom_peak 1 almost always, so degraded_metric_hint f…
+
+### [UC-3.5.7](../../content/cat-03-containers-orchestration/UC-3.5.7.json) — Envoy Proxy Error Rates
+
+- **spl** (blocker): Envoy upstream_rq* series are cumulative Prometheus counters; `stats sum(rq_count)` over every scrape in the window adds lifetime totals repeatedly instead of computing the in-window delta, so error percentages reflect … ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (blocker): `match(metric_name, "envoy_cluster_upstream_rq")` is an unanchored regex, so it also matches upstream_rq_total, upstream_rq_timeout, upstream_rq_retry, upstream_rq_pending_overflow, upstream_rq_completed etc.; these lan… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (minor): Two independent searches are concatenated in one spl field, and the `severity` column is computed but the search does not filter on the 1% alert threshold that implementation describes; the alert condition lives only in…
+
 ### [UC-3.1.27](../../content/cat-03-containers-orchestration/UC-3.1.27.json) — Docker Prune Automation Audit and Reclaim Verification
 
 - **cimSpl** (blocker): `FROM datamodel=Inventory WHERE nodename=Inventory.OperatingSystem` is wrong: the data model's internal name is `Compute_Inventory` and the OS dataset is `All_Inventory.OS`. Change fields in tstats are `All_Changes.dest… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/ComputeInventory))
 - **spl** (needs_verification): The search has several logic errors. (1) `match(action_lc, "image:delete|...")` never matches, because `Action` is 'delete'/'destroy'/'prune' with `Type` separate, so the docker_evt lane is always empty; the `prune` eve…
+
+### [UC-3.2.36](../../content/cat-03-containers-orchestration/UC-3.2.36.json) — Kubernetes LimitRange Compliance Drift, Default-Injection Coverage, and Per-Container Cap Enforcement (Per-Container LimitRange Axis)
+
+- **cimSpl** (blocker): Application_State is deprecated (CIM 4.12+), and its root dataset is All_Application_State. 'nodename=Application_State' and the fields Application_State.app and Application_State.info do not exist, so the tstats return… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch is a generating command and must be the first command in a search. Here it follows the comment macro, eval, join and fields, and it wraps its subsearches in an extra pair of brackets ('multisearch [ [ search… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): Both LimitRange arms filter with like(_raw, "type=\"Container\"") and like(_raw, "PersistentVolumeClaim") without % wildcards. like() then requires an exact match of the whole _raw value, so every kube_limitrange event … ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/evaluation-functions/comparison-and-conditional-functions))
+- **spl** (major): Dead or misleading logic. The tstats Change join result (change_lane_rows) is computed and then dropped by 'fields -'. audit_bypass_mv tags dryRun, fieldManager and server-side apply as 'nonstandard_validation_path' alt…
+
+### [UC-3.6.5](../../content/cat-03-containers-orchestration/UC-3.6.5.json) — Kubernetes Event Error Rate Trending
+
+- **spl** (blocker): In eval, unquoted dotted names such as `involvedObject.namespace`, `involvedObject.name`, `involvedObject.kind` and `source.component` are parsed as `.` string concatenation of two (usually null) fields, not as the dott… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.5.2605/search-commands/eval))
+- **spl** (major): The severity `case()` lists `FailedPulling` and `ImagePullBackOff`, which are not kubelet event reasons. Image-pull failures are `Failed` and `BackOff`. `OOMKilling` is emitted only by node-problem-detector, not by core… ([evidence](https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go))
+- **spl** (major): `stats count` counts indexed rows, so each MODIFIED update of a recurring Event adds another row. Totals are inflated unless the search dedups on event UID or uses the Event `count` field.
+- **spl** (needs_verification): The `type="Warning"` filter and the `reason`/`namespace` coalesce lists do not cover the k8s_events receiver output that the Splunk OTel chart indexes as `kube:events`. That output carries `k8s.event.reason` and `k8s.na… ([evidence](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/k8seventsreceiver/README.md))
+- **spl** (needs_verification): The SPL classifies `NodeNotReady` as HIGH but filters on `type="Warning"`. Check whether the node lifecycle controller and kubelet record NodeNotReady as a Normal-type event. If they do, it can never appear in these res…
+- **spl** (minor): `trendline sma7` includes the current day in the average. As a result, the SPIKE rule (> 2× sma_7d) actually needs roughly 2.4× the prior six-day baseline, and DROP needs roughly < 0.27×. Consider comparing against the …
+
+### [UC-3.4.8](../../content/cat-03-containers-orchestration/UC-3.4.8.json) — Registry TLS and Certificate Expiration
+
+- **spl** (major): When `not_after` is missing or unparsable (failed probe, unreachable endpoint, extraction error), `days_left` is null, every `days_left <= n` comparison is false, and urgency falls through to "OK". Broken or unreachable… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): `registry_host` is taken from `split(message, "/")[0]`. For kubelet messages such as `Failed to pull image "harbor.example.com/lib/app:1": ...`, that yields `Failed to pull image "harbor.example.com`, so grouping by reg…
+- **spl** (major): `involvedObject.namespace` and `involvedObject.name` are unquoted in eval, so `.` is string concatenation rather than a field path. Use single quotes: `'involvedObject.name'`. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): Three independent searches are concatenated in one field and cannot be pasted and run as a single search.
+- **spl** (minor): `reason IN ("Failed", "FailedPulling", "ErrImagePull")`: only `Failed` is a kubelet event reason for pull failures. The other two never match; harmless but misleading.
+
+### [UC-3.2.20](../../content/cat-03-containers-orchestration/UC-3.2.20.json) — Kubernetes Job and CronJob Failures (Batch Workload Reliability)
+
+- **cimSpl** (blocker): It uses 'Performance.cpu_load_percent', 'Performance.mem_used_percent', 'Performance.host' and 'nodename=Performance.CPU OR nodename=Performance.Memory'. The CIM Performance root dataset is All_Performance (for example … ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): multisearch is a generating command and must be the first command in the search. Here it follows '| eval join_key' and a join, and the arms are double-bracketed ('multisearch [ [ search ... ] ]') instead of '| multisear… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): The multisearch arms contain stats and other non-streaming commands. multisearch accepts only streaming subsearches, so the search errors. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): `involvedObject.kind` is wrapped in backticks, which Splunk expands as a search macro (one that does not exist). Unquoted dotted names such as involvedObject.kind and metadata.namespace inside eval are parsed as concate… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (major): The leading Performance tstats join is padding: its fields are dropped immediately by 'fields - join_key perf_correlation_tick'. 'nodename=Performance.CPU' is also invalid; the CIM Performance root is All_Performance (A… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (major): CronJobs missing from critical_cronjobs.csv default to a 1440-minute expected cadence with should_be_running=1, so weekly or monthly CronJobs are flagged stale. The search should use the schedule from kube_cronjob_info,…
+- **spl** (major): kube_job_status_failed is split by a 'reason' label and stays above 0 for failed Jobs kept by failedJobsHistoryLimit. 'kube_job_status_failed > 0' therefore keeps alerting on old failures until the Job is garbage-collec…
+- **mitreAttack** (minor): The array holds a free-text 'N/A'-style string instead of being empty. A batch reliability UC has no ATT&CK mapping, so it should be an empty array.
+
+### [UC-3.2.38](../../content/cat-03-containers-orchestration/UC-3.2.38.json) — Kubernetes VerticalPodAutoscaler Recommendation Drift, Right-Sizing Coverage, and Auto-Mode Eviction Storms (VPA Right-Sizing Axis)
+
+- **cimSpl** (blocker): Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance. 'nodename=Application_State', 'nodename=Performance.CPU' and the Application_State.app/info and Perf… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch must be the first command in a search and accepts only streaming subsearches. Here it follows the comment macro, eval, join and fields, its subsearches end in stats, and the arms are double-bracketed. The se… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (blocker): Every CPU arm filters with like(mn, "%cpu%") on the metric name. In kube-state-metrics v2, resource is a label (resource="cpu") on kube_pod_container_resource_requests and limits, not part of the metric name, so these a… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **spl** (major): auto_storm and hpa_conflict key on update_mode="auto", but Auto is deprecated and equivalent to the default Recreate mode, so Recreate and InPlaceOrRecreate eviction storms are not treated as auto storms. The rex looks … ([evidence](https://github.com/kubernetes/autoscaler/blob/master/vertical-pod-autoscaler/docs/quickstart.md))
+
+### [UC-3.2.9](../../content/cat-03-containers-orchestration/UC-3.2.9.json) — Ingress Controller Health and 4xx/5xx Error Rate
+
+- **spl** (blocker): The HAProxy arm treats values below 500 as seconds and multiplies them by 1000. HAProxy log timers (TR, Ta and others) are already in milliseconds, so a 200 ms request becomes 200,000 ms and p99_latency_ms breaches P99_… ([evidence](https://docs.haproxy.org/dev/configuration.html#8.4))
+- **spl** (blocker): The Traefik JSON field Duration is in nanoseconds. The arm passes values >= 500 through as milliseconds, inflating latency by 10^6. Divide by 1e6 (or use OriginDuration for backend time). ([evidence](https://doc.traefik.io/traefik/master/reference/install-configuration/observability/logs-and-accesslogs/))
+- **title** (major): The title promises a '4xx/5xx Error Rate', but the SPL computes no 4xx metric at all. Either add a 4xx ratio to the SPL or retitle the UC to 5xx and latency only.
+- **spl** (minor): NGINX upstream_status can be a comma-separated list such as '502, 200' when retries occur. tonumber() then returns null, so retried upstream failures are dropped. Parse the first or last element before converting. ([evidence](https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/log-format/))
+- **spl** (minor): In the severity case(), config_reload_failed==1 is evaluated before the 'down' branch, so a cluster with a failed reload and a 5xx rate above 2% is reported as critical rather than down. Reorder so the worst tier wins.
+
+### [UC-3.1.2](../../content/cat-03-containers-orchestration/UC-3.1.2.json) — Container OOM Kills
+
+- **spl** (blocker): All three multisearch arms contain stats (and the third streamstats/sort); multisearch accepts only purely streaming subsearches, so the search fails to run. Aggregate after the fan-in or use append. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): The syslog arm filters with '| search (match(_raw, ...) OR ...)'; the search command does not evaluate eval functions, so it looks for literal terms and the printk arm returns nothing. Use '| where match(_raw, ...)' or … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **cimSpl** (major): Host-level Performance memory percentage > 90 does not detect container OOM kills and would not reproduce any critical row of the primary search.
+- **spl** (needs_verification): toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **spl** (minor): oom_kill_count_15m is computed over a one-hour window (earliest=-1h@h) and resets are not handled; a recreated container gets a new cgroup with a lower counter, which max(0, last-first) hides only partially. Rename the …
+
+### [UC-3.2.19](../../content/cat-03-containers-orchestration/UC-3.2.19.json) — Kubernetes API Server Request Latency by Verb, Resource, and Client (Apiserver Request Pipeline)
+
+- **cimSpl** (blocker): nodename=Performance.CPU, Performance.cpu_load_percent and Performance.host are not valid CIM Performance paths (All_Performance.CPU.cpu_load_percent, All_Performance.dest), and CPU of hosts mapped to 'cluster' via Appl… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): Both multisearch arms contain stats, eventstats and sort; multisearch accepts only streaming commands in its subsearches, so the search errors out before producing results. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (major): Quantiles are built from max() of cumulative histogram bucket counters per 5m window, i.e. the distribution since apiserver start, not the last five minutes; p50/p95/p99 therefore barely move during an incident. Bucket …
+- **spl** (major): Arms default client_sig to "unknown_client" vs "ALL" and verb/resource to ""/"core" vs "ALL", and gauges such as apiserver_current_inflight_requests have request_kind rather than verb labels, so latency and saturation r…
+- **title** (major): 'by ... Client' promises a dimension kube-apiserver request metrics do not expose; either scope the title to verb and resource or add an audit-log arm for client attribution. ([evidence](https://kubernetes.io/docs/reference/instrumentation/metrics/))
+- **spl** (minor): The Performance tstats join uses nodename=Performance; the CIM Performance root dataset is All_Performance, so the join returns nothing. ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+
+### [UC-3.2.25](../../content/cat-03-containers-orchestration/UC-3.2.25.json) — Kubernetes Persistent Volume Time-to-Fill SLA, StorageClass Burn-Rate, and IOPS-vs-Capacity Curve
+
+- **spl** (blocker): multisearch requires every subsearch to be purely streaming, but each of the four top-level arms ends with `bin` + `stats`, and the joined subsearches also embed multisearch with `stats` arms. The search fails at parse … ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): sc_allow_expand is computed from an allow_volume_expansion field that kube_storageclass_info never carries (labels are storageclass, provisioner, reclaim_policy, volume_binding_mode). After fillnull it is always 0, so e… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/storage/storageclass-metrics.md))
+- **spl** (blocker): The node-disk tstats uses `Performance.disk_usage`, `Performance.host` and `nodename=Performance.Storage`. The CIM Performance root dataset is All_Performance, the Storage percentage field is storage_used_percent and th… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance))
+- **title** (major): The title promises an 'IOPS-vs-Capacity Curve', but no IOPS metric is ingested. iops_capacity_curve is a heuristic bucket of used_pct, gb_per_day and a (currently broken) node disk percentage proxy, as the implementatio…
+- **cimSpl** (needs_verification): Same CIM field errors (Performance.disk_usage, Performance.host). The Inventory tstats uses `Inventory.dest` with `nodename=Inventory`, but the Inventory model's root dataset is All_Inventory, so those paths likely also… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance))
+- **spl** (minor): `sort - severity +used_pct` sorts severity as a string in descending lexical order ('warning' > 'info' > 'high_*' > 'elevated_*' > 'critical_*'), so the most urgent rows land at the bottom, and within a band the fullest…
+- **spl** (minor): The closing where clause keeps every PVC in a cluster whenever pending_pvc_cluster>=8, even PVCs with low used_pct and no burn. This produces cluster-wide noise unrelated to fill risk.
+
+### [UC-3.3.10](../../content/cat-03-containers-orchestration/UC-3.3.10.json) — OpenShift Storage Operator and ClusterCSIDriver Health (CSI lifecycle, snapshot controller, storage class governance)
+
+- **cimSpl** (blocker): The Inventory and Application_State data models have the root datasets All_Inventory and All_Application_State, so nodename=Inventory/Application_State and Inventory.dest/Application_State.state return nothing. Applicat… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch accepts only purely streaming subsearches, but its subsearches contain sort, streamstats and stats, and the last subsearch is a '| mstats' generating search. Splunk rejects the whole search. The eval express… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch))
+- **spl** (major): In the csi_metrics and mstats arms, met_peak is the max of any csi_sidecar_*, csi_operations_* or storage_operator_* series, including histogram _bucket and _count samples. Those reach 20 almost immediately, so any clus…
+- **spl** (major): The StorageClass governance arm matches 'gp3|ebs.csi.aws.com' against the StorageClass name instead of the provisioner. It flags gp3_iops_gap whenever 'iops' is absent, but gp3 provides a 3000 IOPS baseline without that…
+- **spl** (major): The storage ClusterOperator dwell uses streamstats window=2 current=t last(_time), which returns the current event's time or at most one poll interval. prog_dwell_min therefore cannot reach the 45- and 120-minute thresh…
 
 ### [UC-3.3.24](../../content/cat-03-containers-orchestration/UC-3.3.24.json) — OpenShift MachineHealthCheck Remediation Lifecycle: Unhealthy-Condition Detection, Remediation Storms, MachineSet Replica Drift, and Cluster API Capacity Watermark Risks
 
@@ -99,12 +602,440 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **spl** (needs_verification): phase_tick counts every snapshot of a Machine whose phase matches %runn%, %provision% or %delet%. With 3-5 minute snapshots over 6h, any cluster with a single Running Machine has mac_phase_evt well above 10 and mac_phas…
 - **spl** (minor): After stats BY cluster there is one row per cluster, so streamstats last(mhc_gap) BY cluster returns the same row and mhc_gap_delta is always 0. max(mhc_gap) over 6h also keeps any transient gap in the window alive for …
 
+### [UC-3.4.4](../../content/cat-03-containers-orchestration/UC-3.4.4.json) — Registry Image Vulnerability Scan Results
+
+- **spl** (blocker): Severity counts are read from `event_data.scan_overview.summary.Critical/High/Medium`, scan status from `event_data.scan_overview.scan_status`, and digest and tag from `event_data.repository.*`. Harbor puts all of these… ([evidence](https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/))
+- **spl** (blocker): The admission search filters on `decision`/`response_allowed` and groups by `namespace`/`request_namespace`. Gatekeeper `--log-denies` output uses `constraint_action` (deny/dryrun/warn), `resource_namespace` and `constr… ([evidence](https://github.com/open-policy-agent/gatekeeper/pull/2813))
+- **spl** (major): Two independent searches are concatenated in one field with a blank line between them and cannot be pasted and run as one search.
+
+### [UC-3.5.1](../../content/cat-03-containers-orchestration/UC-3.5.1.json) — Istio Mesh Traffic Monitoring
+
+- **spl** (blocker): The search reads OTel-collected Prometheus metrics with an event search (`index=containers ... | where like(metric_name, ...)`); metrics sent by the Splunk OTel chart land in a metrics index, which must be queried with … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats))
+- **spl** (major): Latency variant divides each cumulative `le` bucket by the sum of all buckets (`eventstats sum(bucket_count)`), which is not the request total (that is the `+Inf` bucket), and `max(eval(if(bucket_pct >= 95, le_val, null…
+- **spl** (minor): Three independent searches are concatenated in one `spl` field separated by `comment` macros; this does not run as a single saved search.
+
+### [UC-3.1.4](../../content/cat-03-containers-orchestration/UC-3.1.4.json) — Container Memory Utilization
+
+- **cimSpl** (blocker): nodename=Performance.Memory, Performance.mem_used_percent and Performance.host are not valid CIM Performance paths; the root dataset is All_Performance (Memory child is All_Performance.Memory, host field is All_Performa… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): streamstats current=t global=f last(mem_pct) AS prev_mp BY host_id, container_id returns the current row's own mem_pct (last value in a window that includes the current event), so mem_jump is always 0 and the sudden_spi… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): The search emits every qualifying minute bucket over the hour (not just the latest), and low_baseline_drift_or_under_utilized fires for every minute any container sits below 30 percent, flooding alert output; latest=@h …
+- **spl** (minor): The 9223372036854770000 guard targets the cgroup v1 unlimited sentinel; on cgroup v2 memory.max is the string "max", so the guard is dead code there (harmless, but misleading next to the cgroup-v2-only comment).
+
+### [UC-3.1.18](../../content/cat-03-containers-orchestration/UC-3.1.18.json) — Docker Build Cache Efficiency and CI Pipeline Throughput
+
+- **spl** (blocker): The docker_plain arm of multisearch contains stats (and eval after it); multisearch only accepts purely streaming subsearches, so the search fails with 'Multisearch subsearches may only contain purely streaming operatio… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **cimSpl** (major): tstats over Performance renaming Performance.dest to repo and Performance.process to pipeline_hint has no relationship to CI build cache data and returns nothing comparable to the primary search.
+- **spl** (major): streamstats time_window=604800 runs after stats BY repo branch pipeline_id, which drops _time; time_window needs _time-ordered events, so avg7d_cache_pct (and REGRESSION) will not compute as described. Rename last_build… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (needs_verification): toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm toString is accepted. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **spl** (minor): OK rows are never filtered out, so a 'results > 0' alert condition fires every run; and the pipeline_id guard does not drop the 'unknown_pipeline' default because the regex tests for '^unknown$'. Add where severity!="OK…
+
+### [UC-3.3.21](../../content/cat-03-containers-orchestration/UC-3.3.21.json) — OpenShift ClusterRole and ClusterRoleBinding Drift, Bundled Role Modification Detection, OAuth-Mapped Subject Governance, and Aggregated RBAC Escalation Signals
+
+- **cimSpl** (blocker): The Change datamodel's root dataset is All_Changes, so `Change.action`/`Change.dest` and `WHERE nodename=Change` are invalid. The query returns nothing. Joining Change.dest to Authentication.src is also semantically unr… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change))
+- **spl** (blocker): The third multisearch arm (oauth_bind_hygiene) contains `join type=left max=0 cluster bind_user [| inputlookup ...]`. multisearch subsearches must be purely streaming, but join is at best centralized streaming (see the … ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The subject rex requires `"kind":"User","name":"..."` adjacency. In rbac/v1, Subject serializes in the order kind, apiGroup, name, and apiGroup defaults to rbac.authorization.k8s.io for User subjects, which oc adm polic… ([evidence](https://github.com/kubernetes/api/blob/master/rbac/v1/types.go))
+- **spl** (blocker): binding_velocity_win comes from `sort 0 cluster cr_or_crb_name - _time | streamstats window=20 ... sum(is_bind_evt) BY cluster`. window counts the last 20 rows, not a time span, and rows are ordered by object name. The … ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats))
+- **spl** (major): agg_label_drift fires on any ClusterRole carrying aggregate labels whose name does not start with system: or openshift:. The upstream default roles edit and view carry rbac.authorization.k8s.io/aggregate-to-admin and ag…
+- **mitreAttack** (minor): T1098.006 (Account Manipulation: Additional Container Cluster Roles) is the specific technique for ClusterRoleBinding grants and fits better than T1078.004 (Cloud Accounts). Check the ATT&CK version the catalogue pins a…
+- **spl** (minor): Arm 1 defaults a missing responseStatus.code to 201, so failed or denied requests count as successful when the field is not extracted. Arms 3 and 4 have no response-code filter at all, so 403-denied ClusterRoleBinding a…
+
+### [UC-3.2.30](../../content/cat-03-containers-orchestration/UC-3.2.30.json) — Kubernetes Init Container Failures — Pre-Main-Container Lifecycle Axis
+
+- **spl** (blocker): multisearch is a generating command and must be the first command in the search, but here it follows eval/join/fields. Its subsearches are also wrapped in an extra bracket pair, so the search fails to parse. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): like(_raw, "kube_pod_init_container_status_restarts_total") and the similar filters for init_container_info and status_phase use no % wildcards, so like() needs the whole _raw to equal the metric name and never matches.… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (blocker): The three enrichment joins key on cluster, namespace, pod (and init_container), but their subsearches never produce a cluster field. join needs every join field present on both sides, so no enrichment row can match. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **cimSpl** (major): It uses Application_State.state and Application_State.app with nodename=Application_State. The deprecated model's root is All_Application_State and defines no state or app fields, so the overlay returns nothing relevant… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (major): The waiting-lane filter accepts "Error" and "OOMKilled", which are terminated reasons, while severity matches ErrImagePull, which the filter excludes. As a result the OOMKilled waiting branch is dead and ErrImagePull ca…
+
+### [UC-3.3.2](../../content/cat-03-containers-orchestration/UC-3.3.2.json) — OpenShift Cluster Monitoring Operator and In-Cluster Observability Plane: Prometheus, Alertmanager, Thanos, Telemeter, Insights, and User Workload Monitoring Health with Self-Monitoring Drift
+
+- **cimSpl** (blocker): Uses Performance.* with nodename=Performance and the non-CIM fields Performance.metric_name and Performance.value. The Performance root dataset is All_Performance with CPU, Memory and Storage children. Application_State… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint))
+- **spl** (blocker): multisearch arms contain sort, streamstats, bucket and stats. multisearch accepts only purely streaming subsearches, so the search errors. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): kube_pod_status_ready emits one series per condition label (true/false/unknown). For every healthy pod the condition="false" and condition="unknown" series equal 0, so bad_ready (mv<1) is set on healthy pods. The OR bra… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md))
+- **spl** (major): prometheus_rule_evaluation_failures_total and the remote-storage failure metrics are cumulative counters. The SPL sums raw counter samples instead of computing increases, so any historical failure keeps rule_eval_fail >…
+- **title** (needs_verification): The title lists Insights as part of the Cluster Monitoring Operator plane, but the Insights Operator is a separate ClusterOperator that CMO does not manage.
+- **spl** (minor): streamstats window=2 current=t last(co_prog) returns the current row's value, so prog_tick counts every Progressing snapshot rather than consecutive ones.
+
+### [UC-3.2.44](../../content/cat-03-containers-orchestration/UC-3.2.44.json) — Managed Kubernetes Node Auto-Repair Frequency, Premature Replacement Signal, and Repair-Storm Risk
+
+- **cimSpl** (blocker): Uses `Change.*` field prefixes with `nodename=Change`, but the root dataset is All_Changes (`All_Changes.action`, `All_Changes.user`). It also references `Application_State.state`, `.info` and `.app`, which do not exist… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): `sort 0 cluster, node_pool, + _time` followed by `streamstats time_window=3600s` means events are not in global time order. time_window requires events sorted ascending or descending by _time, so the rolling-hour storm … ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/streamstats))
+- **spl** (blocker): The AWS arm keys on `ev="recyclenode"`, and the Azure arm matches `repairnode`/`aks_maintenanceunscheduled` in `azure:auditlogs`. Neither is a documented signal (no RecycleNode EKS action; AKS repair is emitted as aks-a… ([evidence](https://learn.microsoft.com/en-us/azure/aks/node-auto-repair))
+- **spl** (major): The Change `tstats` join on the constant `dm_key` attaches a global event count to every row, which is template residue and not a change-window correlation. `nodename=Change` is also not a dataset; the root is All_Chang… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+
+### [UC-3.2.21](../../content/cat-03-containers-orchestration/UC-3.2.21.json) — Kubernetes Slow Admission and Validation Webhooks Exhausting API Server Request Budget (Latency Backpressure Axis)
+
+- **cimSpl** (blocker): The cimSpl and the SPL tstats join query Application_State.app/.info/.state with nodename=Application_State. The deprecated Application State model's root dataset is All_Application_State and has no app, info or state f… ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch only accepts purely streaming subsearches, but every arm contains stats (and the histogram arm also sort 0 and eventstats). Splunk fails with 'Multisearch subsearches may only contain purely streaming operat… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): _total, _sum, _count and _bucket series are cumulative Prometheus counters, yet the SPL takes sum(mv) or max(mv) of raw samples per 5-minute bucket. calls_5m and shed_rpm become sums of counter readings (not per-window … ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (blocker): The internal_rej arm keeps only error_type apiserver_internal_error. Webhook timeouts and call failures are labelled calling_webhook_error, so the 'apiserver gave up waiting' critical tier (internal_rej>=3) will not fir… ([evidence](https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/admission/metrics/metrics.go))
+- **spl** (needs_verification): The SPL uses an event search (search index=k8s_metrics ... __name__) while the Kubernetes guide queries k8s_metrics with mstats. If the splunk_hec exporter writes these Prometheus series to a metrics index, the event se…
+
+### [UC-3.5.13](../../content/cat-03-containers-orchestration/UC-3.5.13.json) — eBPF Network Observability (Cilium Hubble)
+
+- **spl** (blocker): DNS variant filters `l7_type="DNS"`, but in Hubble's flow schema `l7.type` is an L7FlowType (REQUEST/RESPONSE/SAMPLE) and the protocol is indicated by the presence of `l7.dns`; the filter never matches, so the DNS searc… ([evidence](https://github.com/cilium/cilium/blob/main/api/v1/flow/README.md))
+- **spl** (blocker): Dotted JSON paths in eval (`source.namespace`, `destination.pod_name`, `l7.dns.query`, `l7.dns.rcode`) are unquoted, so `.` is evaluated as string concatenation; they need single quotes (e.g. 'flow.source.namespace' — H… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (minor): `case()` evaluates `dropped_flows > 0` before `unique_destinations > 50`, so any source with a single drop is labelled POLICY_HIT and WIDE_FAN_OUT is masked; also unique_destinations is computed per destination namespac…
+
+### [UC-3.1.15](../../content/cat-03-containers-orchestration/UC-3.1.15.json) — Image Layer Bloat and Pull-Time Analysis
+
+- **cimSpl** (blocker): Neither query is valid. In Performance, CPU fields are `All_Performance.CPU.*` and host identity is `dest`, so `Performance.cpu_load_percent`, `nodename=Performance.CPU` and `Performance.host` do not exist. In Inventory… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): Every multisearch arm ends in `stats`. multisearch subsearches may contain only streaming commands, so the search fails. Use `append` or `union`, or move aggregation after a streaming-only fan-in. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): The arms do not merge onto one key. The inspect arm keys on the image Id (sha256), while history keys on the image_id the exporter supplies. The registry-HEAD arm has no image_key, and pull rows often lack one, so they …
+- **spl** (major): After `stats ... BY image_key repository tag` there is one row per image, so `streamstats window=14 ... BY repository tag` averages over about one row. repo_pull_roll_avg equals pull_seconds_avg, and Step 4 path E canno…
+- **spl** (major): `pull_seconds_avg=coalesce(pull_seconds_avg, predict_pull_seconds)` runs before severity, so the BLOAT-MODERATE pull tier fires on predicted values with no measured pull. Combined with the 'production' default env in th…
+- **spl** (minor): `sort 0 + repository + tag + last_seen` is non-standard syntax; use `sort 0 repository tag last_seen`. `inspect_b` defaults to "0", so coalesce never falls back from a zero inspect size. `owner` coalesces image_owner, s…
+
+### [UC-3.4.3](../../content/cat-03-containers-orchestration/UC-3.4.3.json) — Storage Quota Monitoring
+
+- **spl** (blocker): `repo_count` matches the metric name `repo_count`, but Harbor exposes `harbor_project_repo_total`, so repo_count is always null. ([evidence](https://goharbor.io/docs/2.10.0/administration/metrics/))
+- **spl** (major): Unlimited projects report a quota of -1 (the Harbor default). usage_pct becomes negative and alert_tier is HEALTHY, so these projects are never flagged even when the backing store fills. Add `| where limit_bytes > 0`, o… ([evidence](https://goharbor.io/docs/2.10.0/administration/configure-project-quotas/))
+- **spl** (major): Two independent searches (quota status, growth projection) are concatenated in one field and cannot be run as a single pasted search.
+- **spl** (needs_verification): The search reads OTel/Prometheus data as events with `metric_name`/`value` fields in an event index. If the OTel Collector sends to a Splunk metrics index, as splunk_hec metric exports normally do, these searches return…
+
+### [UC-3.1.26](../../content/cat-03-containers-orchestration/UC-3.1.26.json) — Image Pull Failures and Registry Connectivity
+
+- **spl** (blocker): `error_class=mvindex(error_classes, 0)` takes the lexicographically first value of `values()`, not the most significant. Every non-error journald line that mentions 'image' or 'pull' gets the default class `pull_error_g… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multivaluestatsandchartfunctions))
+- **cimSpl** (major): The search counts all Network_Traffic to ports 443/4443 with no registry destination filter, success/failure field or error signal, so it measures generic HTTPS volume rather than pull failures or registry connectivity.
+- **spl** (major): Unanchored numeric regexes such as `401|403|404|429|50[0-4]` and the words `manifest` / `unknown` in `is_pull_error` match substrings of sha256 digests, layer IDs and normal 'Pulling manifest' lines. This inflates pull_…
+- **spl** (major): The metrics arm filters `engine_daemon_image_pull|image_pull|pull_.*seconds`, which does not match the real dockerd metric `engine_daemon_image_actions_seconds`. `tonumber()` on header values like `100;w=21600` returns … ([evidence](https://github.com/moby/moby/blob/d74daf1a/daemon/internal/metrics/metrics.go))
+
+### [UC-3.2.10](../../content/cat-03-containers-orchestration/UC-3.2.10.json) — Kubernetes CrashLoopBackOff Detection
+
+- **spl** (blocker): The like() calls `like(_raw, "kube_pod_container_status_restarts_total")`, `like(_raw, "kube_pod_container_status_last_terminated_reason")` and `like(_raw, "last_terminated_exit")` have no % wildcards. They are exact wh… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (blocker): The search references `kube_pod_container_status_last_terminated_exit_code`, but the kube-state-metrics series is `kube_pod_container_status_last_terminated_exitcode` (as dataSources itself says). Only the dead `last_te…
+- **cimSpl** (major): The cimSpl tstats over the deprecated Application_State model plus Performance CPU does not detect CrashLoopBackOff at all. It flags any non-running app state or CPU above 90%, so it is not an accelerated equivalent of … ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState))
+- **spl** (major): The kube:events join uses `coalesce(involvedObject.name, ...)` and `coalesce(metadata.namespace, ...)` unquoted. In eval, field names containing periods must be single-quoted ('involvedObject.name'), otherwise `.` is pa… ([evidence](https://help.splunk.com/en?resourceId=Splunk_SearchReference_Eval&version=splunk-9_4))
+- **spl** (needs_verification): The waiting_reason filter keys only on the reason label and never checks that the gauge sample value equals 1. kube-state-metrics emits the series with value 0 when the condition is not active, so pods that have recover…
+- **spl** (minor): time_in_clbo_min is measured from the first CrashLoopBackOff sample inside the 4h window, so it caps at about 240 minutes and resets at the window edge. The final `stats latest(...)` after `sort 0 + ... _time` also depe…
+
+### [UC-3.2.15](../../content/cat-03-containers-orchestration/UC-3.2.15.json) — Kubernetes DaemonSet Rollout Drift, Per-Node Coverage Gaps, and Update-Strategy Stalls (DaemonSet Coverage Axis)
+
+- **cimSpl** (blocker): Uses datamodel=Inventory with nodename=Inventory and fields Inventory.os/Inventory.version/Inventory.dest, joined to datamodel=Application_State with Application_State.state/info. The CIM model names are Compute_Invento… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+- **spl** (blocker): `| multisearch` appears after `| eval ... | join ... | fields`. It is a generating command and must be first. Its two arms are wrapped in an extra `[ ... ]`, and the first arm ends in `stats`, which is not allowed becau… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (major): In the minute_gap subsearch, `fillnull value=0 desired ready current` sets any metric missing from a minute bucket to 0. Because the three gauges arrive as separate lines, a minute with only `desired` scraped counts as …
+- **spl** (needs_verification): `toString(...)` is used throughout; the eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Confirm the search parses. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+
+### [UC-3.2.2](../../content/cat-03-containers-orchestration/UC-3.2.2.json) — Kubernetes Pod Pending from kube-scheduler FailedScheduling (Placement and Fit)
+
+- **cimSpl** (blocker): nodename=Performance.CPU, Performance.cpu_load_percent and Performance.host are not valid CIM Performance paths (root is All_Performance; host is All_Performance.dest), and host CPU joined to Application_State does not … ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): Every multisearch arm contains stats (and the first also sort and streamstats); multisearch subsearches must be purely streaming, so the search errors out. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): `involvedObject.name` and `involvedObject.kind` are wrapped in backticks, which SPL treats as macro invocations, so the search fails with an unknown-macro error; dotted field names in eval need single quotes ('involvedO… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (major): pending_soak_min is now() minus the first Pending bucket in the 45-minute window, with no check that the Pod is still Pending, so a Pod that scheduled 30 minutes ago keeps scoring as a long soak. Use the last Pending bu…
+- **spl** (major): sort - severity orders tier strings lexicographically (medium, low, high, critical), putting medium rows first; latest() on scheduler_pending_pods picks an arbitrary queue label (active/backoff/unschedulable/gated) inst…
+- **mitreAttack** (minor): The array contains the free-text value 'N/A (operational reliability monitoring)' instead of being empty.
+- **spl** (minor): The appendcols tstats uses nodename=Performance.Memory and Performance.mem_used_percent, which are not valid CIM paths (All_Performance.Memory), and appendcols attaches the value to the first result row only. ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+
+### [UC-3.2.14](../../content/cat-03-containers-orchestration/UC-3.2.14.json) — Kubernetes ImagePullBackOff Detection
+
+- **cimSpl** (blocker): Uses `datamodel=Application_State WHERE nodename=Application_State BY Application_State.dest Application_State.app` with `latest(Application_State.state)`. The model is deprecated, its root dataset is All_Application_St… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated))
+- **spl** (major): time_in_ipb_min is computed as now() minus the first entry time, and nothing requires the waiting sample to be recent. A pod that recovered or was deleted hours ago keeps its old ImagePullBackOff rows in the -4h window,…
+- **spl** (major): The registry join extracts the first quoted token containing a dot. For short Docker Hub names (`nginx:1.25`) that gives `nginx:1.25` instead of docker.io, while the main path maps the same images to docker.io, so Docke…
+- **spl** (needs_verification): Function is written `toString(...)` throughout; the eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Confirm the search parses. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+
+### [UC-3.3.16](../../content/cat-03-containers-orchestration/UC-3.3.16.json) — OpenShift DeploymentConfig Rollout Failures and Trigger-Driven ReplicationController Lifecycle
+
+- **cimSpl** (blocker): Application_State is deprecated, and the WHERE nodename values do not match the root datasets: the Change root is All_Changes and the Application_State root is All_Application_State. Field prefixes should follow the roo… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch only accepts streaming commands in its subsearches, but every arm here uses sort, streamstats and/or stats, so the search fails at parse time. Use append or union, or restructure as one base search with eval… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): The DC lane sorts newest-first (sort ... - _time) and then runs streamstats current=t last(latest_version) and last(avail_rep). last() returns the current row's own value, so prev_ver equals latest_version, ver_delta an… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats))
+- **spl** (major): Lane keys do not converge on dc_name. In the events lane, ReplicationController events set dc_name to the RC name (for example app-3), and in the metrics join dc_name falls back to the RC name. Neither ever matches the …
+- **spl** (minor): The hook-lane filter match(msg_hp, "lifecycle|hook|pre|mid|post") matches substrings such as 'present', 'postgres', 'prefix' or 'pre-pull'. Combined with the OR on any failed, backoff or error pod reason, it admits most…
+
+### [UC-3.1.7](../../content/cat-03-containers-orchestration/UC-3.1.7.json) — Container Sprawl and Stale Resource Cleanup
+
+- **spl** (blocker): Every multisearch arm ends in stats, but multisearch subsearches may contain only streaming commands, so the search fails with 'Multisearch subsearches might only contain purely streaming operations'. Use append, or mov… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch))
+- **spl** (blocker): cleanup_command emits 'docker container prune --filter until=7d' and 'docker builder prune --filter until=7d'. The until filter takes Unix or date timestamps or Go durations (h, m, s), so '7d' is invalid and operators p… ([evidence](https://docs.docker.com/reference/cli/docker/container/prune/))
+- **cimSpl** (major): 'FROM datamodel=Inventory WHERE nodename=Inventory' uses a non-existent datamodel name: the CIM Inventory model's object name is Compute_Inventory (root dataset All_Inventory). The search also only counts inventory even… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Inventory))
+- **spl** (major): After stats BY host_id, the fields environment, cluster and owner_contact no longer exist (the lookup subsearch also keeps only retention_stopped_days and exempt_ns). environment is always 'unset', cluster always 'unlab…
+- **spl** (minor): When host_disk_total_gb is missing, sprawl_score falls back to raw reclaimable GB but is still compared with the percentage bands 25/15/5, so a host with 26 GB reclaimable on a 4 TB disk is RED. is_stopped also counts '…
+
+### [UC-3.1.19](../../content/cat-03-containers-orchestration/UC-3.1.19.json) — Container Log Driver Health
+
+- **spl** (blocker): Both multisearch arms contain stats (the journal arm has two); multisearch accepts only purely streaming subsearches, so the search fails. Move aggregation after the fan-in or use append. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **cimSpl** (major): Uses Application_State.app and Application_State.info, which are not fields of the (deprecated) Application State model, so the tstats returns nothing. ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (major): The critical branch tests match(blocking_mode, "(?i)blocking|unknown"), which also matches 'non_blocking', so non-blocking containers raise critical_remote_driver_disconnected_blocking_mode, the opposite of the document…
+- **spl** (major): streamstats time_window=3600s runs after stats BY host_id, container_id, which removes _time, so driver_state_churn cannot be computed as a one-hour window. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (needs_verification): toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+
+### [UC-3.1.22](../../content/cat-03-containers-orchestration/UC-3.1.22.json) — Container Health Check Failures
+
+- **spl** (blocker): dockerd logs a health_status event only when the status changes (oldStatus != current), not on every probe. pass_rate_24h = healthy_hits/(healthy_hits+unhealthy_hits) therefore counts alternating transitions and sits ne… ([evidence](https://github.com/moby/moby/blob/master/daemon/health.go))
+- **spl** (blocker): Because events are transition-only, an unhealthy row's prev_healthy_ts is when the container became healthy. unhealthy_streak_min (_time - prev_healthy_ts) therefore measures how long it was healthy before failing, not … ([evidence](https://github.com/moby/moby/blob/master/daemon/health.go))
+- **cimSpl** (major): The query relies on the deprecated Application_State data model and filters state!="running". That is unrelated to Docker HEALTHCHECK status, so it is not an equivalent of the primary detection. ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (major): The base search keeps only containers that emitted health_status events, which requires a configured HEALTHCHECK. A container with no HEALTHCHECK never enters the result set, and has_healthcheck is null (not 0) when the…
+- **spl** (needs_verification): toString() (camelCase) is used throughout. The Search Reference documents lowercase tostring() and states that eval function names are case-sensitive. Confirm it parses. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **spl** (minor): There is no final roll-up: severity is evaluated per health_status event. One container produces a row for every qualifying transition in 24 hours, re-evaluated every 5 minutes. Add stats latest(...) BY host_id, contain…
+- **spl** (minor): The root_cause_family regexes are loose. '5\d{2}' matches any number starting with 5 (ports, durations, IDs), and 'oom' matches words such as 'room' or 'zoom', so log evidence will often be misclassified.
+
+### [UC-3.2.24](../../content/cat-03-containers-orchestration/UC-3.2.24.json) — Kubernetes HorizontalPodAutoscaler (HPA) Decision Introspection — Target-vs-Actual Metric Math, Replica-Decision Causality, Scale-Out Surprise RCA
+
+- **cimSpl** (blocker): cimSpl queries Application_State.app/.state/.info with nodename=Application_State. The deprecated model's root dataset is All_Application_State and has no such fields, so the overlay returns nothing. ([evidence](https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated))
+- **spl** (blocker): multisearch is a generating command but appears after '| eval uc_join=... | join ... | fields', wraps its subsearches in an extra outer [ ], and each arm contains stats. Splunk requires multisearch at the start of the s… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The arms filter on kube_horizontalpodautoscaler_status_current_metrics_average_utilization/_average_value (not exported by kube-state-metrics v2) and on kube_pod_container_resource_requests names containing 'cpu' (CPU i… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md))
+- **spl** (minor): spec_target_numeric takes latest() across all target metrics of an HPA, so CPU and memory (or external) targets are mixed. The HPA controller computes a recommendation per metric and uses the maximum.
+
+### [UC-3.2.22](../../content/cat-03-containers-orchestration/UC-3.2.22.json) — Pod Security Admission Denials and Namespace PSS Drift
+
+- **spl** (blocker): The second multisearch arm contains stats latest(...) BY cluster, namespace. multisearch only allows purely streaming subsearches, so the search errors with 'Multisearch subsearches may only contain purely streaming ope… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (needs_verification): The metrics arm rex-parses Prometheus exposition text from _raw (namespace="..."). If the OTel splunk_hec exporter writes kube-state-metrics to a metrics index (the guide checks k8s_metrics with mstats), there is no suc…
+- **cimSpl** (minor): cimSpl counts every All_Changes event by dest, object and action with head 200. It does not filter to pod admission denials (action=failure or blocked, object_category pod), so it is not a CIM equivalent of the detectio…
+
+### [UC-3.3.4](../../content/cat-03-containers-orchestration/UC-3.3.4.json) — OpenShift Security Context Constraint Violations and Privilege Escalation Detection
+
+- **cimSpl** (blocker): The Change subsearch uses `nodename=Change` and Change.action, Change.object and Change.dest, but the Change root dataset is All_Changes (All_Changes.action, All_Changes.object, All_Changes.dest), so it returns nothing.… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **mitreAttack** (needs_verification): T1548.001 (Setuid and Setgid) is a host-binary technique. SCC privilege escalation is better represented by T1611 (Escape to Host, already present) and possibly T1078.004 or T1098 for binding grants. Confirm the mapping.
+- **spl** (minor): privileged_admit treats any admitted SCC name containing 'pipelines', 'elastic', 'traces' or 'node-exporter' as privileged. These are substring matches on vendor SCC names, and they flag the pipelines-scc used by OpenSh…
+
+### [UC-3.5.10](../../content/cat-03-containers-orchestration/UC-3.5.10.json) — Ingress Gateway Latency
+
+- **spl** (blocker): The daily trend search runs `trendline sma7(daily_p95)` after `stats ... by _time, route`; trendline has no by-clause, so the 7-row moving average mixes different routes and REGRESSION flags are meaningless unless resul… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline))
+- **spl** (needs_verification): Gateway filter `like(upstream_cluster, "inbound%")` matches requests logged by destination sidecars (inbound|port|... clusters) across the whole mesh, while ingress gateway requests use outbound|... upstream clusters; `… ([evidence](https://istio.io/latest/docs/ops/diagnostic-tools/proxy-cmd/))
+- **spl** (minor): `coalesce(..., 0)` assigns 0 ms to requests with no parsable duration, dragging percentiles down; `response_flags` can carry several comma-separated flags so the case() mapping misses combinations.
+
+### [UC-3.2.42](../../content/cat-03-containers-orchestration/UC-3.2.42.json) — Kubelet Client/Server Certificate Auto-Rotation Pipeline (Kubelet CSR Renewal Axis)
+
+- **spl** (blocker): KSM lane extracts a status label that kube_certificatesigningrequest_condition does not have and ignores the metric value, so ksm_csr_pending is always 0; it also sets node to the CSR name (csr-xxxxx), which never match… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/auth/certificatesigningrequest-metrics.md))
+- **cimSpl** (major): Uses nodename=Inventory/Inventory.dest and nodename=Change/Change.object_category instead of the All_Inventory and All_Changes root datasets, and joins on cluster_inventory_key against a subsearch that never returns tha… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+- **spl** (major): Kubelet log lane matches 'rotating kubelet client/server certificate' and 'failed to rotate certificate', which client-go does not emit (actual: 'Rotating certificates', 'Failed while requesting a signed certificate fro… ([evidence](https://github.com/kubernetes/client-go/blob/master/util/certificate/certificate_manager.go))
+- **spl** (major): Certificate lane searches for node_exporter ssl_cert* series that node_exporter does not produce, and derives node from the instance label (exporter IP:port), which will not equal the kubelet node name used by the log l… ([evidence](https://github.com/prometheus/node_exporter/blob/master/README.md))
+- **spl** (major): Audit lane takes node from requestObject.spec.username, which is absent at the Metadata audit level the UC recommends; it should use user.username (system:node:<name>). Without a common node key, renewal_gap_risk's 'no … ([evidence](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/))
+- **spl** (minor): streamstats window=3 max(renewal_gap_risk) followed by stats max() makes renewal_gap_run_max identical to renewal_gap_risk_max, so the claimed 'runs that persist across quarters of a day' dwell logic is not implemented;…
+- **spl** (minor): Inventory enrichment uses nodename=Inventory and Inventory.dest (root dataset is All_Inventory) and joins host names onto the cluster field, so inventory_fresh_ts is always empty. ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+
+### [UC-3.2.31](../../content/cat-03-containers-orchestration/UC-3.2.31.json) — Kubernetes Service Mesh Sidecar Injection Compliance and Coverage Drift (Istio, Linkerd, Consul Connect, Cilium Ambient)
+
+- **spl** (blocker): Arms 2–4 of multisearch contain join and stats, but multisearch allows only streaming commands in its subsearches, so the search is rejected. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **spl** (blocker): The Running filters on kube_pod_info use rex phase=... and phase="Running", but kube_pod_info has no phase label. The inner join and the running_pod_cnt arm return nothing, so missing_proxy_pod_cnt and running_pod_cnt a… ([evidence](https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md))
+- **cimSpl** (major): It queries Application_State.info, Application_State.status and Application_State.app under nodename=Application_State. The deprecated model's root is All_Application_State and defines no info or app fields. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **mitreAttack** (major): T1562.008 is 'Impair Defenses: Disable or Modify Cloud Logs'. Missing mesh sidecars are not log tampering; review whether any ATT&CK mapping applies (e.g. T1562.001 or none). ([evidence](https://attack.mitre.org/techniques/T1562/008/))
+- **spl** (major): pilot_proxy_convergence_time is a histogram, and taking max() of raw values across _bucket/_sum/_count lines yields a meaningless number. Separately, streamstats window=3 BY cluster,namespace runs after stats has left o…
+- **title** (major): 'Cilium Ambient' names a mode that does not exist as described; ambient sidecarless mode is Istio's (istio.io/dataplane-mode=ambient). ([evidence](https://istio.io/latest/docs/ambient/usage/add-workloads/))
+
+### [UC-3.1.14](../../content/cat-03-containers-orchestration/UC-3.1.14.json) — Docker Network Overlay Issues
+
+- **spl** (blocker): The fourth multisearch arm uses `sort 0 + host_id, iface, _time` and `streamstats`. multisearch subsearches may contain only streaming operations, so the search fails. Move the rate calculation after fan-in, or use appe… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): gossip_lag_sec = max(_time − min(_time)) per network across all action_lc values, including 5-minute 'poll' rows. It is roughly 3,300 s for any polled network, so a single 'peer disconnect' journal line pushes critical_…
+- **spl** (major): Journal rows get network_name only from `network=` in _raw. Most libnetwork lines lack it, so they collapse into network_key='unscoped', mixing hosts and networks. hosts_seeing_network also counts hosts from journal and…
+- **cimSpl** (minor): The query is syntactically valid against Network_Traffic.All_Traffic but has no connection to the detection. No described data source populates Network_Traffic for ports 4789/7946.
+- **spl** (minor): The low_routine_network_create_or_disconnect tier emits a row for every routine network create/connect/disconnect. Combined with a 5-minute schedule over a 1-hour window, the same routine rows are re-alerted about 12 ti…
+
+### [UC-3.2.33](../../content/cat-03-containers-orchestration/UC-3.2.33.json) — Kubernetes Node Drain Audit and Voluntary-Disruption Impact Correlation
+
+- **spl** (blocker): The kube:events arm evaluates `coalesce(involvedObject.kind, `involvedObject.kind`, kind, "")` and `coalesce(involvedObject.name, involvedObject_name, "")`. In eval, an unquoted dotted name is parsed as concatenation of… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/eval))
+- **cimSpl** (major): The Change part uses Change.user, Change.object and Change.action with nodename=Change, but the Change data model's root dataset is All_Changes, so these field paths do not resolve. The Application_State part queries a … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (major): The correlation keys cannot link evictions to drained nodes. Eviction rows get node_key=cluster_aggregate and node-patch rows get impact_ns=_clusterwide, then stats groups BY cluster node_key impact_ns. As a result, dis…
+- **spl** (major): The node-patch filter `OR match(uri, "/api/v1/nodes/")` accepts every node patch, including kubelet .status heartbeat patches (subresource status, user system:node:*). These have no ticket, carry an apiserver lane, and … ([evidence](https://kubernetes.io/docs/concepts/architecture/nodes/))
+- **spl** (major): pending_pod_units is sum(mv) over every kube_pod_status_phase{phase="Pending"} sample in a 4h window. That metric is a per-pod 0/1 gauge, so the sum scales with scrape count (about 480 samples per pod at a 30s interval)… ([evidence](https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/pod-metrics.md))
+- **spl** (major): in_window compares now() rather than drain_started or drain_ended against the approval window. A drain inside its window becomes unticketed once the window closes, while the 4h lookback still holds the events. Any row w…
+- **spl** (minor): Several severity details are off. Case order makes high_pending_after_unticketed_disruption and high_uncordon_outside_window reachable only by kube-event-only rows. The label high_uncordon_outside_window fires when kube…
+
+### [UC-3.3.3](../../content/cat-03-containers-orchestration/UC-3.3.3.json) — OpenShift Pipelines (Tekton) PipelineRun and TaskRun Reliability: EventListener Delivery, Chains Signing, and Resolver Drift
+
+- **cimSpl** (blocker): It uses `nodename=Change` with Change.action, Change.object and Change.dest, but the Change root dataset is All_Changes (All_Changes.action, ...). It also queries Application_State.state and Application_State.info, but … ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (blocker): Each of the four multisearch subsearches ends in `| stats ... BY ...`. multisearch allows only streaming commands in its subsearches, and stats is transforming, so the search fails with 'Multisearch subsearches may only… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): The TaskRun lane sets pipeline_key from labels tekton.dev/pipelineRun (a run name), while the PipelineRun lane uses the pipeline name. TaskRun failures therefore never merge with their pipeline's row or match expected_p…
+- **spl** (major): After stats there is exactly one row per cluster/namespace/pipeline_key, so `streamstats current=t last(pr_fail_cnt) AS prev_pr_fail` just copies the current value. pr_fail_streak is then 1 or 0 and can never be >=2, so…
+- **spl** (major): chains_miss counts any chains-controller line containing 'signed', 'attestation' or 'upload', which includes successful signing messages. It overstates signing gaps and can page on healthy signing activity.
+- **spl** (needs_verification): EventListener detection relies on URI paths containing 'eventlistener', 'tekton/triggers', '/live' or '/ready'. Webhook deliveries normally POST to '/' on the el-<name> route host, so real deliveries are missed while li…
+
+### [UC-3.6.3](../../content/cat-03-containers-orchestration/UC-3.6.3.json) — Deployment Velocity Trending
+
+- **spl** (blocker): `coalesce(..., involvedObject.namespace, ...)` and `coalesce(involvedObject.name, ...)` use unquoted dotted field names; in eval '.' is the concatenation operator, so these evaluate as involvedObject . name (null) and s… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): `mvindex(split(deployment, "-"), 0, mvcount(...)-2)` strips the last segment of the deployment name (involvedObject is the Deployment for ScalingReplicaSet), merging distinct deployments and returning a multivalue rathe… ([evidence](https://github.com/kubernetes/kubernetes/blob/master/pkg/controller/deployment/sync.go))
+- **spl** (major): Attribution search counts every create/update/patch on deployments, including controller-manager status-subresource updates and HPA scale-subresource patches; filter objectRef.subresource and exclude system:serviceaccou…
+
+### [UC-3.1.6](../../content/cat-03-containers-orchestration/UC-3.1.6.json) — Privileged Container Detection
+
+- **spl** (blocker): ns_summary is built with the eval '.' operator over if(..., "...|", null()) terms. If any term is null the whole concatenation is null, so ns_summary is null unless every namespace mode is host. As a result other_ns_hos… ([evidence](https://community.splunk.com/t5/Splunk-Search/Eval-can-not-concatenate-fields-where-there-is-a-null-value/m-p/61550))
+- **cimSpl** (major): Filters Processes.process="dockerd". In CIM Endpoint.Processes, process is the full command line, so this misses most dockerd launches; process_name is the correct field. The search also only counts dockerd processes an… ([evidence](https://docs.splunk.com/Documentation:CIM:User:Endpoint))
+- **spl** (minor): Allowlisted containers whose image does not match image_allow_regex are labelled 'high_dangerous_capability_added' even when no capability was added. The tier name misleads analysts; a distinct 'approved_image_drift' ti…
+- **spl** (minor): The docker:events arm sets privileged_flag=1 when the raw text contains 'hostpid', which conflates host PID namespace sharing with privileged mode and sends those rows to critical_privileged_unapproved instead of critic…
+
+### [UC-3.4.5](../../content/cat-03-containers-orchestration/UC-3.4.5.json) — Registry Authentication and Authorization Failures
+
+- **spl** (blocker): In the ImagePullBackOff search, `involvedObject.namespace` and `involvedObject.name` are unquoted in eval, so `.` acts as string concatenation instead of a field reference. `image=coalesce(involvedObject.fieldPath, ...)… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): Docker and OCI clients first call `/v2/` without credentials and receive a 401 with a WWW-Authenticate challenge before fetching a token, so every normal pull or push produces a 401. Nothing excludes these: with nginx `… ([evidence](https://distribution.github.io/distribution/spec/auth/token/))
+- **spl** (major): Two independent searches are concatenated in one field and cannot be pasted and run as a single search.
+- **spl** (needs_verification): `/api/v2.0/users/login` is used to classify login attempts. Harbor's portal login posts to a different endpoint (commonly `/c/login`). Check the actual login URI so that `login` failures are classified.
+- **spl** (minor): The base search mixes implied AND with OR without parentheses. Splunk evaluates OR before AND, so the filter becomes reason="Failed" AND (message matches OR reason="ErrImagePull" OR reason="ImagePullBackOff"), and the E…
+
+### [UC-3.1.21](../../content/cat-03-containers-orchestration/UC-3.1.21.json) — Container Runtime Security Events
+
+- **cimSpl** (major): The query only counts all Alerts by signature/dest and appends all Network_Traffic by dest_ip/src_ip. It has no container scope, IOC, Falco or severity logic, so it is not a CIM equivalent of the detection.
+- **spl** (major): There is no final where/filter. Every Falco, exec and connect event in the hour is returned, and the case() default labels unmatched rows low_baseline_drift. A scheduled alert on 'any result' therefore fires every run. …
+- **spl** (major): Package-manager execution (apt-get/yum/dnf/apk/dpkg) in the eBPF exec lane maps to critical_t1611_container_escape_or_t1525_image_modification. Runtime package installs are neither escape (T1611) nor image implant (T152…
+- **spl** (needs_verification): streamstats time_window=300s runs after 'sort 0 + host_id, container_id, _time', so the event stream is not globally time-ordered. The streamstats documentation requires time-ordered events for time_window. Confirm that… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (needs_verification): toString() (camelCase) is used throughout. The Search Reference documents lowercase tostring() and states that eval function names are case-sensitive. Confirm it parses. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **mitreAttack** (minor): T1110 (Brute Force) and T1543 (Create or Modify System Process) are tagged, but no branch of the SPL detects brute-force or service persistence. The narrative only says they apply 'when brute-force macros fire'.
+- **spl** (minor): exec_parent_hint compares a shell to any docker exec seen on the container in the whole hour, not to a window around the shell's _time. A single morning exec therefore suppresses orphan-shell detection for the rest of t…
+
+### [UC-3.1.17](../../content/cat-03-containers-orchestration/UC-3.1.17.json) — Container Resource Limit Enforcement
+
+- **cimSpl** (major): tstats count FROM Change BY All_Changes.object All_Changes.action has no relation to container resource limits, cgroup drift or policy bands and would not reproduce any row of the primary search.
+- **spl** (major): Missing HostConfig fields are coalesced to the string "0" (memory, NanoCpus, CpuQuota), so an inspect event from an exporter that uses different field names is classified as unlimited and raises critical_unlimited_memor…
+- **spl** (needs_verification): Every coalesce line wraps values in camelCase toString(); the Search Reference documents only lowercase tostring() and states eval expressions are case-sensitive. Confirm on a Splunk instance that toString() is accepted… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **spl** (minor): A non-production container with a memory limit but no hard CPU cap gets severity low_baseline_drift but policy_compliance falls through to compliant_or_review, so the final where drops it; the severity branch is dead fo…
+
+### [UC-3.3.5](../../content/cat-03-containers-orchestration/UC-3.3.5.json) — OpenShift Helm Release & GitOps (Argo CD / OpenShift GitOps) Deployed-State Drift Detection
+
+- **cimSpl** (blocker): It uses `datamodel=Change WHERE nodename=Change` with Change.* fields, but the root dataset is All_Changes (All_Changes.action, ...). It also uses `datamodel=Inventory` with Inventory.* fields, but the internal model na… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (blocker): Every multisearch subsearch ends in `| stats ... BY ...`, and the Argo CD arm also runs `sort 0` and `streamstats`. multisearch allows only streaming commands in its subsearches, so the search fails with 'Multisearch su… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): The audit arm flags every create, update or patch on deployments, configmaps, secrets, services, statefulsets or daemonsets by any user not matching 'argocd|openshift-gitops' as manual_mutation, which pages. On OpenShif…
+- **spl** (major): The Helm arm takes latest(helm_status) per release across all exported release Secrets. Each Helm revision is a separate Secret (sh.helm.release.v1.<name>.v<N>), so the latest ingested event may be a superseded revision…
+- **spl** (minor): The final stats uses max() on string fields such as sync_status and health_status. Lexical max prefers 'synced' over 'outofsync' over 'manual_mutation', so merging lanes for the same key hides bad states. Use per-lane f…
+
+### [UC-3.2.35](../../content/cat-03-containers-orchestration/UC-3.2.35.json) — Kubernetes Pod Anti-Affinity, TopologySpreadConstraints, and Failure-Domain Distribution Compliance
+
+- **spl** (blocker): Both multisearch subsearches contain stats, sort and streamstats, which are non-streaming, so the search fails to parse. Use union or append instead. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch))
+- **cimSpl** (major): cimSpl queries the deprecated Application_State model and Performance.CPU under the wrong root name (All_Performance). It has no relationship to pod topology or scheduling. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated))
+- **spl** (major): The base row set is only Pending pods and FailedScheduling events, and kube_pod_info is left-joined onto them. Running replicas are never counted, and Pending pods have no node, so zone_pop, skew_gap and zone_distinct d…
+- **spl** (major): The FailedScheduling filter includes '0/\d+ nodes are available', 'insufficient cpu', 'insufficient memory' and 'taint', and the final where keeps any row with len(fs_message)>50. Almost every FailedScheduling event pas…
+- **spl** (minor): The workload regex strips only hex suffixes ([a-f0-9]{8,10}). ReplicaSet pod-template-hash values use a wider alphanumeric alphabet (for example 7c4d9f5b8b, or 5d8bq7xk9z), so most Deployments are not grouped into one w…
+- **spl** (minor): The appendcols tstats uses nodename=Performance.Memory and Performance.mem_used_percent, but the root dataset is All_Performance, so the field should be All_Performance.Memory.mem_used_percent. appendcols also attaches … ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+
+### [UC-3.6.6](../../content/cat-03-containers-orchestration/UC-3.6.6.json) — Ingress Traffic Volume Trending
+
+- **spl** (blocker): `coalesce(host, server_name, authority, "unknown")` always returns `host`, because `host` is a default field on every Splunk event. For Istio events (and NGINX events where the JSON `host` key does not override the meta… ([evidence](https://help.splunk.com/en/splunk-enterprise/manage-knowledge-objects/knowledge-management-manual/10.4/fields-and-field-extractions/use-default-fields))
+- **spl** (major): The SPL reads `status`, `request_time`, `bytes_sent` and `client_ip`. Istio access logs carry `response_code`, `duration` (milliseconds) and `bytes_sent`. The documented ingress-nginx format emits `body_bytes_sent` and … ([evidence](https://istio.io/latest/docs/tasks/observability/logs/access-log/))
+- **spl** (needs_verification): `sourcetype IN ("nginx:ingress:access", "istio:accesslog")` are non-default sourcetypes. Container logs arrive as `kube:container:<name>` unless they are overridden. The Istio name also differs from `istio:envoy:access`…
+- **spl** (minor): `trendline sma7` includes the current day in the average, so SURGE (> 2× SMA) really needs about 2.4× the prior six-day baseline and DROP about < 0.27×. Consider comparing with the previous seven days via `streamstats w…
+
+### [UC-3.1.23](../../content/cat-03-containers-orchestration/UC-3.1.23.json) — Container Network I/O Anomalies
+
+- **cimSpl** (blocker): nodename=Performance.HostPerformance and the field Performance.cpu_load_percent do not exist in the CIM Performance data model (root dataset All_Performance; CPU is All_Performance.CPU.cpu_load_percent with nodename=All… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Performance))
+- **spl** (blocker): The 'sustained two consecutive buckets' gate does not work: streamstats window=2 current=t last(host_egress_share_pct) AS prev_share returns the current row's value (the last event in a window that includes the current … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): tx_bytes_per_min is the sum of per-sample per-minute rates inside each 5m bucket, so at a 60s poll it is about five times the real per-minute rate (and doubles again when both lanes report the same container); the >500 …
+- **spl** (major): latest=@h with a five-minute schedule re-scans the same hour, and the search emits every qualifying bucket across six hours, so alerts repeat for old buckets; low_baseline_drift_no_history fires for every bucket of ever…
+- **mitreAttack** (minor): T1048 (Exfiltration Over Alternative Protocol) and T1071 (Application Layer Protocol) assert protocol-level behaviour that byte counters cannot distinguish; volume-based detection aligns more closely with T1030 (Data Tr…
+
+### [UC-3.4.6](../../content/cat-03-containers-orchestration/UC-3.4.6.json) — Registry Replication Lag and Consistency
+
+- **spl** (blocker): `trendline` has no by-clause, so `sma7(avg_lag)` runs over the interleaved rows of every policy in the stats output. The SMA and the SPIKE flag therefore mix policies. Use `streamstats window=7 avg(avg_lag) by policy_na… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Trendline))
+- **spl** (major): Polling `/replication/executions?page_size=50` every 5 minutes re-indexes the same execution records on every poll. Without `dedup id` (keeping the latest snapshot), `executions`, `failed_executions`, `sum(failed)` and …
+- **spl** (major): Three independent searches are concatenated in one field and cannot be pasted and run as one search.
+- **spl** (minor): `strptime(coalesce(start_time, _time), ...)` falls back to an epoch `_time`, which strptime cannot parse, so it yields null. The format also drops the `Z` zone designator, so values are parsed in local time.
+
+### [UC-3.2.11](../../content/cat-03-containers-orchestration/UC-3.2.11.json) — Kubernetes HorizontalPodAutoscaler Scaling Event Frequency, Flapping, and Cooldown Throttling
+
+- **spl** (blocker): multisearch is a generating command that must start the search, but here it follows `| eval` and a join. Its subsearches also contain non-streaming commands (bin+stats, sort, streamstats, stats), which multisearch rejec… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch))
+- **spl** (blocker): In the kube:events arm, `coalesce(involvedObject.kind, `involvedObject.kind`, "")` wraps a field name in backticks, which Splunk expands as a search macro named involvedObject.kind. Unless such a macro exists, the searc… ([evidence](https://help.splunk.com/en?resourceId=Splunk_SearchReference_Eval&version=splunk-9_4))
+- **spl** (major): kube_horizontalpodautoscaler_status_condition is emitted once per condition for each status label value (true, false and unknown), with the sample value marking which one is active. The SPL collects every condition=stat… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md))
+- **cimSpl** (needs_verification): The cimSpl reports Application_State state plus host CPU/memory and has no HPA, replica or scaling-event logic, so it is not an accelerated equivalent of the detection. It also puts like() inside the tstats WHERE clause…
+- **spl** (minor): kube_horizontalpodautoscaler_spec_target_metric carries a Prometheus label named metric_name. Because `mn` coalesces metric_name before __name__, an auto-extracted metric_name label (for example 'cpu') can replace the s… ([evidence](https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md))
+
+### [UC-3.3.25](../../content/cat-03-containers-orchestration/UC-3.3.25.json) — OpenShift ClusterResourceQuota and AppliedClusterResourceQuota Multi-Project Enforcement Drift, Hierarchical Burn-Rate, and Quota-Selector Coverage Gaps
+
+- **cimSpl** (blocker): The Change data model's root dataset is All_Changes, and its fields are All_Changes.action, All_Changes.object, All_Changes.user and All_Changes.dest. `WHERE nodename=Change` and the `Change.action`/`Change.dest` fields… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (blocker): The fourth multisearch branch (audit lane) contains `| join type=left max=0 cluster crq_name [| inputlookup approved_quota_changes.csv ...]`. multisearch allows only streaming commands in each subsearch, and join is not… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): `sort 0 cluster crq_name _time` followed by `streamstats time_window=...` breaks the documented requirement that events be sorted in ascending or descending _time order for time_window. The rows are time-ordered only wi… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats))
+- **spl** (minor): The coalesce ladders include unquoted dotted names such as `objectRef.apigroup`, `objectRef.resource` and `objectRef.name`. In eval, `.` is the concatenation operator, so these concatenate the fields objectRef and apigr…
+- **spl** (minor): The events lane regex `exceeded quota: <name>` also matches namespace-scoped ResourceQuota denials, so crq_admission_denial rows will include plain ResourceQuota hits (UC-3.2.4 territory) unless names are filtered again…
+
+### [UC-3.6.2](../../content/cat-03-containers-orchestration/UC-3.6.2.json) — Container Image Vulnerability Trending
+
+- **spl** (blocker): `eval fixed_ver=coalesce(FixedVersion, fix.versions{}, "none")` uses an unquoted field name containing '.' and '{}'; in eval '.' is the concatenation operator, so this fails to parse or concatenates nonexistent fields. … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): image_ref uses Trivy `Target` (e.g. 'alpine:latest (alpine 3.20.3)' or a lockfile path for language packages) instead of `ArtifactName`, and `split(image_ref, ":")` also truncates registry hosts with ports (registry:500… ([evidence](https://trivy.dev/latest/docs/configuration/reporting/))
+- **spl** (minor): Daily counts are dc(cve_id) across whatever scans ran that day, so CI scan volume (more builds) directly moves the trend; normalising by images_scanned or using the latest scan per image per day would make RISING/FALLIN…
+
+### [UC-3.6.1](../../content/cat-03-containers-orchestration/UC-3.6.1.json) — Pod Restart Rate Trending
+
+- **spl** (blocker): Primary search: `mstats latest(kube_pod_container_status_restarts_total) ... span=1d | eval daily_restart_delta=restarts` uses the cumulative counter value as the daily delta; also `eval baseline_30d=avg(cluster_total)`… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats))
+- **spl** (major): Pod-level search: `join type=left pod_name ns` with a subsearch that also returns `reason` overwrites the outer termination reason with the event reason (join overwrite defaults to true) and keeps only the first subsear… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (minor): Three independent searches are concatenated in one spl field; the primary mstats search assumes a metrics index while the other two read the same index as events, which cannot both be true for one index.
+
+### [UC-3.2.23](../../content/cat-03-containers-orchestration/UC-3.2.23.json) — Kubernetes Cluster-Admin Path Audit — ClusterRoleBinding Escalation Detection
+
+- **spl** (blocker): masters_g matches 'system:masters' anywhere in the lower-cased _raw, including the actor's own user.groups. Any cluster-admin-tier binding change made by a super-admin certificate user (whose groups include system:maste…
+- **spl** (major): The rex for system:serviceaccount:<ns>:<name> over _raw captures the actor's username when the actor is a service account. RBAC subjects of kind ServiceAccount are serialized as {kind, name, namespace}, not as system:se… ([evidence](https://kubernetes.io/docs/reference/access-authn-authz/rbac/#referring-to-subjects))
+- **mitreAttack** (minor): Granting cluster-admin or escalating ClusterRole rules maps directly to T1098.006 Account Manipulation: Additional Container Cluster Roles. Only T1078.004 is listed. ([evidence](https://attack.mitre.org/techniques/T1098/006/))
+- **spl** (minor): resp_code defaults to 201 when responseStatus.code is missing, so events without a response status (for example non-ResponseComplete stages or truncated records) are treated as successful mutations.
+
+### [UC-3.5.11](../../content/cat-03-containers-orchestration/UC-3.5.11.json) — Sidecar Injection Validation
+
+- **spl** (blocker): Unquoted dotted field names in eval (`metadata.namespace`, `metadata.name`, `spec.containers`, `ownerReferences.kind`) are parsed with `.` as the string-concatenation operator, not as field names; they must be wrapped i… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): `has_init` matches istio-init/istio-validation against the `containers` list, but these are init containers (spec.initContainers), so the INIT_PRESENT_SIDECAR_MISSING branch never fires unless init containers are merged…
+- **spl** (needs_verification): The injection-rate variant sums cumulative counter values per hour with an event search over otel:metrics; Splunk OTel metrics land in a metrics index queried with mstats, and counters need deltas (e.g. rate_sum / last-… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats))
+
+### [UC-3.6.4](../../content/cat-03-containers-orchestration/UC-3.6.4.json) — Resource Request vs Limit Utilization Trending
+
+- **spl** (blocker): `latest(...) as cpu_usage_cores` on container_cpu_usage_seconds_total takes the cumulative CPU-seconds counter, so request_util_pct grows with container uptime and every long-running container is classified AT_RISK/RIGH… ([evidence](https://prometheus.io/docs/concepts/metric_types/#counter))
+- **spl** (needs_verification): Namespace/pod coalesce prefers `namespace` over `exported_namespace`; when kube-state-metrics is scraped without honor_labels, `namespace` is KSM's own namespace, so request/limit rows will not line up with cAdvisor usa…
+- **title** (minor): Title says 'Trending' but both searches are point-in-time snapshots with no time-series output.
+
+### [UC-3.2.1](../../content/cat-03-containers-orchestration/UC-3.2.1.json) — Kubernetes Pod Container Restart Churn and Rolling Restart-Rate Anomalies
+
+- **spl** (blocker): tstats groups 'BY ... cluster namespace pod container', and tstats/stats drop events whose BY field is null. kube-state-metrics emits no 'cluster' label, and the OTel chart adds k8s.cluster.name, so without custom relab… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats))
+- **cimSpl** (major): Queries the deprecated Application_State model (state, app) and Performance.CPU joined on dest/host. Neither carries kube-state-metrics restart data, so the CIM variant does not detect restart churn. ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState))
+- **spl** (major): In the kube:events join, coalesce(involvedObject.name, ...) and coalesce(metadata.namespace, ...) are unquoted, so eval reads them as the '.' concatenation of fields involvedObject and name (null), not as the dotted fie… ([evidence](https://help.splunk.com/en?resourceId=Splunk_SearchReference_Eval&version=splunk-9_4))
+- **spl** (major): eventstats median(restarts_per_hour) BY cluster runs over all container/time rows, so it is about 0 in healthy fleets. deviation_factor then becomes 99 for any restart, making 'deviation_factor>=16 AND restarts_per_hour…
+
+### [UC-3.1.5](../../content/cat-03-containers-orchestration/UC-3.1.5.json) — Image Vulnerability Scanning Coverage and Patch SLA
+
+- **compliance** (major): Entries are duplicated under two regulation spellings (asd-e8 and 'ASD E8'; eu-cra and 'EU CRA') with identical content.
+- **compliance** (major): EU CRA Art.14 concerns manufacturers notifying CSIRTs/ENISA of actively exploited vulnerabilities and severe incidents; an internal scan-coverage search does not evidence that reporting obligation, and Art.13 applies to… ([evidence](https://eur-lex.europa.eu/eli/reg/2024/2847/oj))
+- **spl** (major): Scan and admission rows cannot merge: stats groups BY row_key registry repo tag, but the admission arm sets registry/repo/tag from fields kube:audit does not carry (usually empty) while scan manifests populate them, so …
+- **spl** (major): latest_deploy_digest uses max() on a string, which returns the lexicographically largest digest, not the most recent; open_* counts and oldest-open epochs also use max() across 30 days of manifests, so a Critical fixed …
+- **spl** (major): sort - sla_breach_severity orders the tier strings descending lexicographically, putting WITHIN-SLA first and BREACH-* last, the opposite of the intended triage order; the streamstats scan_trend_seq counter is meaningle…
+- **compliance** (needs_verification): Container base-image scanning maps at least as much to the Essential Eight 'Patch applications' strategy as to 'Patch operating systems'; confirm the intended E8 strategy and maturity-level requirement behind clause id …
+
+### [UC-3.1.8](../../content/cat-03-containers-orchestration/UC-3.1.8.json) — Docker Daemon Errors
+
+- **spl** (blocker): The docker:metrics multisearch arm contains 'sort 0' and 'streamstats'. multisearch allows only streaming commands in each subsearch, so the search fails with 'Multisearch subsearches might only contain purely streaming… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch))
+- **spl** (major): cpu_pct_sample accepts process_cpu_seconds_total, a cumulative seconds counter, and compares it with an 85 'percent' threshold, so any dockerd with more than 85 CPU-seconds of uptime is flagged engine_daemon_cpu_saturat…
+- **spl** (major): In the dockerd error_class case ladder, the first branch matches 'panic', which also catches 'http: panic serving' (a recovered per-request handler panic). Those lines become critical_dockerd_panic_or_fatal instead of e…
+- **cimSpl** (needs_verification): Uses the deprecated Application_State data model with fields (state, info) that no current Splunk TA populates for dockerd, so the CIM search returns nothing in practice. ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState))
+- **spl** (minor): engine_daemon_cpu_saturation and engine_healthcheck_failure are both labelled 'high_api_5xx_rate_above_5pct', which misleads responders. Classes libcontainer_runc_error, socket_or_permission_error, image_pull_or_registr…
+
+### [UC-3.1.16](../../content/cat-03-containers-orchestration/UC-3.1.16.json) — Docker Volume Usage Trending
+
+- **cimSpl** (blocker): The query is invalid for CIM Performance. The root is All_Performance, storage fields are `All_Performance.Storage.storage_used_percent` (and related fields), and host identity is `dest`. `Performance.disk_usage`, `node… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (major): The linux:df subsearch reads sourcetype="linux:df" and coalesces fs_pct_used/pct_used/USE_PCT/..., mount_point/mount/MOUNT/.... Splunk_TA_nix produces sourcetype=df with UsePct, Avail (KB) and MountedOn, so the join ret…
+- **spl** (major): `stats latest(fs_pct_used) ... BY host_id` collapses /, /var/lib/docker and every /var/lib/docker/overlay2/*/merged mount into whichever row arrived last. On hosts with a split docker-root, the value flips between the r…
+- **spl** (major): ref_count defaults to "0" through coalesce, and dangling_flag also treats isnull(ref_count) as dangling. Without /system/df usage data, every named volume is flagged, and any volume holding 10% or more of the host total…
+- **spl** (major): The first case branch, `fs_pct_used>=90`, applies to every volume and overlay row on the host, so one full filesystem emits N critical rows (one per volume or container). Separately, when win_n<6, `coalesce(slope_bps,0)…
+- **spl** (minor): The OLS terms use raw epoch seconds (Σt² ≈ 24×2.9e18). The denominator subtracts two values near 1e21 in double precision, which loses about 5 significant digits. Centre _time on the window start before squaring. growth…
+
+### [UC-3.3.7](../../content/cat-03-containers-orchestration/UC-3.3.7.json) — OpenShift BuildConfig and S2I or Docker Build Failure Detection
+
+- **cimSpl** (blocker): It uses `nodename=Change` and Change.* fields, but the Change root dataset is All_Changes. It also uses Application_State.state and Application_State.info, which do not exist in that deprecated model (root All_Applicati… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change))
+- **spl** (blocker): The build_event and audit_lane arms end in `stats ... BY cluster namespace bc_name lane` inside multisearch. multisearch accepts only purely streaming subsearches, so the search fails with 'Multisearch subsearches may o… ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch))
+- **spl** (major): build_obs and fail_obs count snapshot events, not distinct builds. Builds are re-emitted on every 2–5-minute poll and remain listed until history-limit pruning, so a single retained Failed build adds hundreds of fail_ob…
+- **spl** (major): critical_reason and recommended_action match 'failedretrievebuilder', which is not an OpenShift build reason. Builder-image pull failures (PullBuilderImageFailed) never get the critical tier or the builder-image action. ([evidence](https://github.com/openshift/api/blob/master/build/v1/consts.go))
+- **spl** (major): admission_hint fires on any audit_code>=400 for any build resource. Routine 404s (oc logs or get after pruning) and 409 update conflicts from the build controller would push most active BuildConfigs to warn. Restrict th…
+- **spl** (minor): `sort cluster namespace bc_name` without a 0 limit truncates the output to 10,000 rows on large fleets. ([evidence](https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/sort))
+
+### [UC-3.1.11](../../content/cat-03-containers-orchestration/UC-3.1.11.json) — Docker Daemon Resource Limits Monitoring
+
+- **cimSpl** (blocker): The CIM Performance model's root dataset is All_Performance, with CPU fields under All_Performance.CPU.* and host identity in `dest`. `Performance.cpu_load_percent`, `nodename=Performance.CPU` and `Performance.host` do … ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (major): pull_queue_depth is joined as a single `latest()` value per host and copied onto every proc row. `streamstats time_window=30s max(pull_queue_depth)` therefore just returns that constant, and the 'sustained thirty-second…
+- **spl** (major): The search never collapses to one row per host. Every one-minute proc poll in the 4-hour window that meets a tier is emitted, so a single host can produce hundreds of rows, including stale states from hours ago. Add `st…
+- **spl** (major): fd_pct divides by hard_nofile_limit, but EMFILE is enforced at the soft RLIMIT_NOFILE. ([evidence](https://man7.org/linux/man-pages/man2/getrlimit.2.html))
+- **spl** (minor): The inode subsearch keeps any mount with `inode_pct>=75` even when it is not the Docker graph root, then labels the host 'critical_inode_above_90_dockerd_layer_creation_blocked'. A full /home or /var/log inode table wou…
+
+### [UC-3.2.32](../../content/cat-03-containers-orchestration/UC-3.2.32.json) — Kubernetes Namespace ResourceQuota Trending and Forecast (Capacity-Trending Axis)
+
+- **spl** (blocker): Both multisearch arms end with stats ... BY ... _time, but multisearch allows only streaming commands in its subsearches, so the search is rejected. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch))
+- **cimSpl** (major): It uses Application_State.state, Application_State.info and Application_State.app with nodename=Application_State. The deprecated model's root is All_Application_State and defines no such fields, and none of it relates … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated))
+- **spl** (major): The resource allow-list ^(cpu|memory|pods|services|configmaps|persistentvolumeclaims)$ plus nodeports/loadbalancers drops requests.cpu, limits.cpu, requests.memory, limits.memory and requests.storage, which are the most… ([evidence](https://kubernetes.io/docs/concepts/policy/resource-quotas/))
+- **spl** (major): The severity filter runs before 'sort 0 - _time | dedup', so dedup can keep an older alerting bin when the latest bin is healthy, producing stale alerts. Separately, util_ratio<=1.02 discards over-quota rows that the sa…
+
 ### [UC-3.5.12](../../content/cat-03-containers-orchestration/UC-3.5.12.json) — Rate Limiting and Traffic Policy Compliance
 
 - **spl** (major): The RLS health search filters on metric_name ratelimit_service_rate_limit_total, which envoyproxy/ratelimit does not emit, and sums cumulative counter values instead of deltas, so enforcement_pct is meaningless. The bar…
 - **spl** (major): Three independent searches are concatenated in one spl field with no combining command, so it cannot run as a single saved search.
 - **spl** (minor): match(response_flags, "RL") also matches RLSE (rate-limit service error, which Envoy answers with 500 by default), so service failures are counted as throttling. Match the flag token exactly (for example ^RL$ or (^|,)RL…
 - **spl** (minor): The drift search keeps every NO_POLICY route each hour regardless of volume, so every unlisted route alerts hourly.
+
+### [UC-3.1.28](../../content/cat-03-containers-orchestration/UC-3.1.28.json) — Docker Swarm Service Replica Health
+
+- **spl** (major): `update_max_failure_ratio` defaults to "0.25" when missing, but Docker's default `--update-max-failure-ratio` is 0. The `medium_pending_image_pull` tier tests `sample_reject_err`, which is populated only from Rejected t… ([evidence](https://docs.docker.com/reference/cli/docker/service/update/))
+- **cimSpl** (needs_verification): This is a generic Application_State `BY State` count with no Swarm, service or replica context. Application_State may also be deprecated in current CIM releases. It does not approximate replica-deficit detection.
+
+### [UC-3.1.10](../../content/cat-03-containers-orchestration/UC-3.1.10.json) — Container Image Vulnerability Scan Results
+
+- **mitreAttack** (minor): T1204 (User Execution) does not follow from a build-time image CVE inventory. T1195 alone (or T1195.002) is the defensible mapping.
+- **spl** (minor): After `sort 0 + ... _time`, streamstats yields a running max per key. `dedup` then keeps the first (oldest) event per key, whose sla_aging_trend_days equals only its own days_unpatched, so sla_aging_trend_peak duplicate…
+- **spl** (minor): KEV-driven critical tiers require is_crit=1, so a KEV-listed High CVE (common in the CISA catalog) falls through to the EPSS or SLA tiers. Consider treating any KEV listing as top tier.
 
 ### [UC-3.5.17](../../content/cat-03-containers-orchestration/UC-3.5.17.json) — Kubernetes Resource Quota and LimitRange Compliance
 
@@ -113,12 +1044,33 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **title** (major): The title promises 'LimitRange Compliance', but no search evaluates LimitRange objects or LimitRange admission failures.
 - **spl** (needs_verification): eval uses double-quoted strings in coalesce("metadata.namespace", namespace), coalesce("status.hard.requests.cpu", ...) and similar. In eval, double quotes are string literals, so ns is the literal text 'metadata.namesp…
 
+### [UC-3.1.20](../../content/cat-03-containers-orchestration/UC-3.1.20.json) — Docker Registry Mirror Health
+
+- **spl** (major): cache_miss matches the bare words 'upstream' and 'parent' and cache_hit matches '\bhit\b' anywhere in _raw; nginx/Harbor lines that log upstream addresses or URIs containing these words will be misclassified, so cache_h…
+- **spl** (major): response_time_ms treats any value <= 500 as seconds and multiplies by 1000; Artifactory/Nexus durations logged in milliseconds (e.g. 300 ms) become 300,000 ms, producing false high_mirror_p99_above_5s.
+- **spl** (needs_verification): toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm it parses. ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions))
+- **spl** (minor): streamstats last(running_miss_ratio) with current=t returns the current row's value, so cache_miss_rate_delta (and miss_delta_peak) is always 0.
+- **spl** (minor): capacity_threshold_pct and expected_cache_hit_pct are loaded from the inventory lookup but the severity ladder uses hard-coded 90/60/80, contradicting dataSources and implementation that present them as per-mirror thres…
+
+### [UC-3.1.12](../../content/cat-03-containers-orchestration/UC-3.1.12.json) — Compose Service Health
+
+- **cimSpl** (blocker): Application State is deprecated (CIM 4.12+). Its root dataset is All_Application_State, and it has no `state` or `app` fields, so `nodename=Application_State`, `Application_State.state`, `Application_State.dest` and `Ap… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated))
+- **spl** (major): streamstats window=6 BY host_id compose_project runs after the project-level stats, which leaves exactly one row per host and project. ph_first always equals ph_last, so health_flap is always 0 and 'medium_intermittent_…
+- **spl** (minor): Over a 4-hour window, `latest(state_status)` per service keeps containers that were removed hours ago at their last state. A recreated service can appear twice (old and new compose_service names when Name is the fallbac…
+- **spl** (minor): health_status 'starting' makes healthy_flag=0, so every normal `compose up` with healthchecks briefly reports project_health_pct<50 as critical. Consider treating 'starting' within start_period as neutral.
+
 ### [UC-3.4.7](../../content/cat-03-containers-orchestration/UC-3.4.7.json) — Registry Image Tag Retention and Orphan Cleanup
 
 - **spl** (major): The spl field concatenates three independent searches (tag inventory, GC trend, age histogram) with no separator command, so it cannot run as one saved search. Split it into separate saved searches.
 - **spl** (major): With no time bound and daily polling, every artifact is counted once per day in the search window, inflating tag_count and orphan_tags. Dedup by digest (latest snapshot only) before stats.
 - **spl** (needs_verification): The GC search reads freed_space, deleted_size, deleted_blobs_count and duration. None exist in Harbor GCHistory, so the values are always 0, and the fallback coalesce(..., deleted, 0) sums a boolean 'deleted' flag as a …
 - **spl** (needs_verification): Harbor returns a zero date-time (0001-01-01T00:00:00Z) rather than null for never-pulled artifacts, as observed in practice; verify how strptime handles it. strptime format %Y-%m-%dT%H:%M:%S also ignores the fractional …
+
+### [UC-3.1.9](../../content/cat-03-containers-orchestration/UC-3.1.9.json) — Docker Daemon Health and Version Drift
+
+- **cimSpl** (major): 'FROM datamodel=Inventory WHERE nodename=Inventory' with field Inventory.os: the CIM Inventory model's object name is Compute_Inventory (root dataset All_Inventory, OS fields under the OS child dataset), so this tstats … ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Inventory))
+- **spl** (minor): Every host in any segment that has 2–3 distinct versions is labelled medium_minor_version_drift, including hosts already on the approved target. The final fallback labels any docker info warning (for example 'No swap li…
+- **title** (minor): The title says 'Health', but the SPL has no liveness or staleness check, so a stopped dockerd stays silent. Consider retitling to 'Docker Engine Version Drift and Configuration Warnings' or adding an absence check.
 
 ## cat-04-cloud-infrastructure
 
@@ -1138,6 +2090,188 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 ## cat-18-data-center-fabric-sdn
 
+### [UC-18.3.6](../../content/cat-18-data-center-fabric-sdn/UC-18.3.6.json) — ACI Multi-Site Contract Deny and Drop Statistics on VXLAN-EVPN Intersite Paths — Shadow EPG Enforcement, NDO Stretched Contract Gaps, IPN/ISN Overlay Policy Forensics
+
+- **spl** (blocker): tenant_tag/contract_tag/subject_tag are extracted from tn-/brc-/subj- DN segments. actrlRuleHit5min DNs (sys/actrl/scope-.../rule-...) and acllog DNs (no brc-/subj-) do not contain them. contract_path then evaluates to … ([evidence](https://github.com/agccie/aci-contract-parser/blob/master/contract_parser.py))
+- **spl** (blocker): Hard-coded fault codes F1394 (fabric port down) and F2301 (analytics relation resolve failure) are unrelated to contract enforcement. Any F1394 fabric-link fault would set risk_fault_pair=1 and alert, provided its row s… ([evidence](https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220573-address-aci-fault-f1394-interface-physi.html))
+- **spl** (major): Because stats is grouped BY intersite_hint, values(intersite_hint) is always a single value equal to the group key. risk_shadow_gap therefore only evaluates multisite-only rows and never correlates NDO deploys with deni… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+
+### [UC-18.2.8](../../content/cat-18-data-center-fabric-sdn/UC-18.2.8.json) — NSX Edge Gateway Health
+
+- **spl** (major): Suppression `audit_ts>relative_time(last_seen,"-12m")` suppresses on any matching audit from 12 minutes before the fault until now (the audit subsearch covers 6h). An operator's remediation change made after the fault t…
+- **difficulty** (minor): Rated 'beginner', but the UC requires custom HTTPS collectors for several NSX APIs, three left joins, two lookups and MoID mapping. That is at least intermediate.
+
+### [UC-18.2.16](../../content/cat-18-data-center-fabric-sdn/UC-18.2.16.json) — Edge Cluster BFD and Uplink Session Health
+
+- **spl** (blocker): The vCenter subsearch uses 'max(if(match(...),1,0)) as vc_mm_hint' inside stats. stats accepts eval expressions only when wrapped as max(eval(...)), so this subsearch errors and the join contributes nothing. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (needs_verification): The BFD REST path the sourcetype depends on (/routing/bfd/neighbors) could not be found in the NSX API. Check that vmware:nsx:bfd_session really contains bfd_state and peer_ip before trusting the bfd_neighbor_not_up cla…
+- **spl** (minor): 'bin _time span=5m' has no effect because the stats BY clause omits _time, so each edge_key/fault_class collapses over the whole 4 h window. The vCenter join key (host_id/host_mo_id) can never equal the NSX transport-no…
+
+### [UC-18.1.10](../../content/cat-18-data-center-fabric-sdn/UC-18.1.10.json) — ACI Endpoint Group (EPG) Health
+
+- **spl** (blocker): `eval slo_degraded=isnull(slo_pct) OR slo_pct<99 OR ...` assigns a boolean expression to a field. Splunk rejects this ('The result of an eval expression cannot be a Boolean'), so the search errors out before `where slo_… ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval))
+- **spl** (blocker): `slo_pct=round(100*hs_good/days_seen,3)` divides a count of healthy 5-minute slices (up to 288 per day) by the number of days, so values reach about 28,800 instead of a percentage, and slo_pct<99 fires only when almost … ([evidence](https://help.splunk.com/?resourceId=Splunk_SearchReference_Stats))
+- **spl** (blocker): `rex field=fv_dn "/uni/tn-(?<tenant_name>...)"` requires a leading slash, but ACI dn attributes start with 'uni/tn-...' (see the guide's cisco:aci:health sample `"dn": "uni/tn-tenant-retail/health"`), so tenant/app/EPG …
+- **mitreAttack** (major): T1078 (Valid Accounts) has no relationship to an EPG availability/health score detection.
+- **spl** (major): endpoint_count and the fault counts coalesce to "0" on events that lack them (every health and contract event), so min(ep_cnt) is usually 0, ep_chg_pct is null, and the endpoint-anomaly branch never fires.
+
+### [UC-18.3.4](../../content/cat-18-data-center-fabric-sdn/UC-18.3.4.json) — VXLAN Tunnel and Overlay Health: VTEP Reachability, BGP-EVPN Convergence, and Underlay Path-MTU Hygiene
+
+- **spl** (blocker): `stats ... by overlay_fault, leaf_hostname, fabric_site, host` drops every event where leaf_hostname or fabric_site is null. That covers raw cisco:nxos:syslog, arista:eos:syslog and juniper:junos:syslog lines unless the… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `evpn_control_plane_flap` matches `l2vpn.?evpn` anywhere in _raw, so any vxlan:evpn:routes snapshot or log line that merely mentions "l2vpn evpn" is classed as a control-plane flap. The regexes for `mobility`, `bum` and…
+
+### [UC-18.1.15](../../content/cat-18-data-center-fabric-sdn/UC-18.1.15.json) — Cisco ACI Policy TCAM Footprint: eqptcapacityPolUsage5min Pressure, actrlRule Proliferation Correlation, and F0952 Program-Failure Triangulation
+
+- **spl** (blocker): `fault_code IN ("F0952","F1585")` and `\bF0952\b` mark unresolved-VRF-relation faults as TCAM failures, and tcam_fault_flag forces risk=100. ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html))
+- **spl** (blocker): `rex field=dn "(?i)/topology/pod-(?<pod_id>[^/]+)"` requires a leading slash, but APIC dn values start with 'topology/pod-<id>/node-<id>/...'. Even when it matches, it captures only the pod number, and node_key=coalesce… ([evidence](https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-policy-infrastructure-controller-apic/217765-addressing-aci-fault-code-f0321-f0323.html))
+- **title** (blocker): The title names 'F0952 Program-Failure Triangulation', but Cisco defines F0952 as fltFvRsCtxResolveFail (unresolved VRF relation), not a TCAM programming failure. ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html))
+- **spl** (major): est_hours_to_90 = (90 - pol_pct_now) / burn_rate, where burn_rate is percentage points per 15-minute bucket, so the result is in 15-minute intervals, not hours. The '<= 48 hours' gate actually fires at about 12 hours, a…
+- **spl** (major): actrlRule DNs look like topology/pod-N/node-N/sys/actrl/scope-<vnid>/rule-..., which contain neither the literal 'actrlrule' nor 'tn-'. actrl_marker and tenant_tag would then always be 0/null, and approx_rule_dns 0. Che…
+- **spl** (needs_verification): pol_cap coalesces polUsageCap, but the eqptcapacityPolUsage5min capacity property may be polUsageCapCum (or polUsageCapLast). Verify the attribute names in the MIM, or pol_pct is always null.
+
+### [UC-18.2.12](../../content/cat-18-data-center-fabric-sdn/UC-18.2.12.json) — VMware NSX Tier-0 and Tier-1 Gateway HA Failover Events, Role Transition Timing, and North-South Impact Correlation
+
+- **spl** (blocker): The base search uses match(lower(_raw), ...) inside the search clause before the first pipe. The search command does not evaluate eval functions, so the syslog and firewall branches do not filter as intended. Use term o… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (blocker): tier_mark=case(cond,"T0",cond,"T1","UNKNOWN") passes an odd number of arguments; case() needs condition/value pairs, so the eval errors. Use 1=1,"UNKNOWN" as the final pair. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): where prev_s!="" AND new_s!="" removes every syslog-only transition that the regex branch of is_transition was meant to catch. The stats also groups by _time/impact_class/tier_mark only, so different gateways merge into…
+- **spl** (major): Edge HA transitions are not available as previous/new state pairs from the logical-router status API (it returns a current high_availability_status per node). The SPL needs a transition-derivation step, such as streamst… ([evidence](https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_LogicalRouterStatusPerNode.html))
+
+### [UC-18.2.3](../../content/cat-18-data-center-fabric-sdn/UC-18.2.3.json) — VMware NSX Segment (Logical Switch) Health: Operational State, VNI Binding, Replication Mode, and MAC-Table Integrity
+
+- **spl** (blocker): The base search contains `(sourcetype="vmware:nsxt:syslog" AND match(lower(_raw),"..."))`. `match()` and `lower()` are eval functions and are not valid in the implicit `search` command; the clause will not filter as int… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (blocker): `replication_mode="HEAD"` can never match: NSX emits MTEP or SOURCE, so `bum_mode_probe` is dead code. ([evidence](https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_Segment.html))
+- **spl** (major): `transport_zone_id` is coalesced to "" so `isnotnull(transport_zone_id)` is always true; every syslog row without a TZ gets `tz_inventory_miss`, and all syslog rows with empty `segment_id` collapse into one bucket. Also…
+
+### [UC-18.3.1](../../content/cat-18-data-center-fabric-sdn/UC-18.3.1.json) — Cilium / Calico Kubernetes CNI Network Policy Enforcement, Pod-to-Pod Visibility, and eBPF Dataplane Health
+
+- **spl** (blocker): `verdict_u IN ("ALLOWED",...)` never matches Cilium's FORWARDED verdict. `pm_type IN ("L7","L3_L4")` never matches the numeric policy_match_type, so the policy_matched_allow class is unreachable. `coalesce(verdict,"",""… ([evidence](https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto))
+- **title** (major): The title promises 'eBPF Dataplane Health', but the SPL reads only the cilium:hubble:flow and calico:felix:flow verdict lanes. It never searches cilium:agent:log, calico:felix:log or any BPF map, agent or Felix health s…
+
+### [UC-18.3.11](../../content/cat-18-data-center-fabric-sdn/UC-18.3.11.json) — EVPN/VXLAN Tunnel Health
+
+- **spl** (blocker): `stats ... BY _time leaf peer_ip vni_key` drops every event where a BY field is null. vni_key is `tonumber(coalesce(...,""))`, which is null whenever no VNI field exists, so network:bgp_neighbor rows (bgp_bad), cisco:nx… ([evidence](https://community.splunk.com/t5/Splunk-Search/question-on-stats-and-blank-values/m-p/482366))
+- **spl** (needs_verification): counter_bad fires whenever encap_errors/decap_errors is >0, and stats sums the raw values per 5m bin. If the NX-OS/EOS counters are cumulative (as `show` output normally is), any leaf with a historical non-zero counter …
+- **spl** (minor): After `bin _time span=5m`, `earliest(_time)`/`latest(_time)` return the bin start, so first_seen and last_seen are always equal; compute them before bin or from a copied raw timestamp.
+
+### [UC-18.3.8](../../content/cat-18-data-center-fabric-sdn/UC-18.3.8.json) — SDN Configuration Change and Rollback Audit
+
+- **cimSpl** (blocker): 'join Change.user' against a subsearch that only outputs Authentication.user. join needs the join field in both result sets, so nothing matches, auth_t is always null, and every row is labelled possible_shadow_actor. ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/join))
+- **spl** (blocker): transaction is called with maxpause=300ms, but maxpause only accepts s|m|h|d units, and transaction needs events in descending time order, which the preceding eventstats does not guarantee. Even with seconds, a 300 ms p… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/transaction))
+- **spl** (major): The final 'stats … by actor' discards every rollback and pair field and has no alert filter, so the search lists top changers instead of auditing rollbacks. hour_bucket from strftime is a string, which makes the >=22/<=…
+- **mitreAttack** (minor): T1078.001 (Default Accounts) is not supported by anything in the detection. T1098 (Account Manipulation) is also a weak fit for network-controller config edits.
+
+### [UC-18.1.20](../../content/cat-18-data-center-fabric-sdn/UC-18.1.20.json) — Contract Violation and Implicit Deny Bursts
+
+- **spl** (blocker): The search counts polled cisco:aci:actrl rows (actrlRule/actrlEntry) per 5-minute bucket. These are static zoning-rule entries, re-emitted on every poll, so implicit_slices and viol_slices track poll frequency and rule-… ([evidence](https://www.cisco.com/c/en/us/products/collateral/networking/cloud-networking/application-centric-infrastructure/contract-guide.html))
+- **monitoringType** (minor): 'Fault' is listed, but the SPL detects no faults. The fault lane only feeds a count joined by a constant key.
+
+### [UC-18.1.7](../../content/cat-18-data-center-fabric-sdn/UC-18.1.7.json) — Cisco APIC Cluster Health — infraCluster Consensus, Replica Backlog, and Controller Leadership Telemetry
+
+- **spl** (blocker): '| eval risk_core=replicas_pending_max>=6 OR leader_events>=2 OR ...' assigns a boolean to a field, which Splunk eval rejects, so the search fails. Use if(<cond>,1,0). ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): The syslog filter matches F0214 (OpFlex device issues), F0951 (BD endpoint-retention resolve failure) and F1394 (fabric port down). None of these indicates APIC cluster health, so fault_distinct>=2 fires on unrelated fa… ([evidence](https://www.cisco.com/c/dam/en/us/td/docs/switches/datacenter/aci/apic/sw/1-x/syslog/ACI_Syslog_Reference.pdf))
+- **mitreAttack** (major): T1495 (Firmware Corruption) does not fit an APIC cluster-health detection. Version skew during ISSU is not evidence of firmware corruption.
+- **spl** (major): '| sort dn_lc wi_id _time' has no count, so it truncates to 10,000 results. A 6h window that includes syslog can exceed this and silently lose rows before streamstats. Use 'sort 0 ...'. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (major): Syslog rows have an empty dn_lc, but they still feed dc(dn_lc) as controllers_seen, so the empty string counts as a controller and masks quorum_warn. The search also relies on replicas_pending and leader attributes that…
+
+### [UC-18.2.5](../../content/cat-18-data-center-fabric-sdn/UC-18.2.5.json) — VMware NSX Transport Node Connectivity, GENEVE TEP Tunnel Health, and BFD Failure Detection
+
+- **spl** (minor): `tn_uuid` coalesces to "" so every syslog line without a transport-node ID collapses into one empty-key row; `tz_overlay_flag` matches any 'VLAN'/'OVERLAY' substring in _raw; `operational_state IN (...) AND operational_…
+
+### [UC-18.3.21](../../content/cat-18-data-center-fabric-sdn/UC-18.3.21.json) — EVPN Ethernet Segment (ESI) DF Election and BUM Stability
+
+- **spl** (major): `ead_echo` matches `(?i)(ead|type.?\s*1)` against _raw, so any text containing "head", "read", "dead" or "lead", or "type 10" and similar, counts as an EAD route hit. This inflates ead_hits and churn_score for almost ev…
+- **spl** (major): `dc(df_label)` counts the empty string produced by coalesce(...,"") as a distinct state, so df_state_entropy>2 is reached mostly through missing-field noise. Real DF roles are usually binary (DF / non-DF).
+- **spl** (major): `vlan_df_latest>85` treats vlans_count_as_df, an absolute VLAN count, as if it were a percentage skew. The threshold is meaningless without dividing by the total VLANs on the ES.
+
+### [UC-18.3.19](../../content/cat-18-data-center-fabric-sdn/UC-18.3.19.json) — Spine-Leaf ECMP Member Utilization Balance
+
+- **spl** (blocker): Unbalanced parentheses in `| eval member_if=trim(coalesce(member_if,interface_name,if_name,port_channel_member,"")))`: there are three closing parens for two opening parens, so the search fails to parse. The same line i… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): The ECMP width and share are computed BY spine_peer, which measures member balance within one leaf-to-spine bundle rather than ECMP spread across spines. In single-link-per-spine Clos designs, ecmp_width=1 and skew_pts=…
+- **title** (minor): "ECMP Member Utilization Balance" mixes ECMP (L3 next hops) with port-channel members. The SPL actually measures port-channel member balance toward one spine.
+
+### [UC-18.1.12](../../content/cat-18-data-center-fabric-sdn/UC-18.1.12.json) — Cisco ACI Fabric Node Decommission, Membership Removal, and Capacity Impact
+
+- **cimSpl** (blocker): tstats over datamodel=Change.All_Changes must reference fields with the dataset prefix (All_Changes.object, All_Changes.command, All_Changes.user, All_Changes.src), and nodename should be All_Changes. `values(Change.obj… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats))
+- **spl** (blocker): `node_key=coalesce(trim(toString(coalesce(id,nodeId,fabricNodeId,""))),node_dn)`: the inner coalesce defaults to the empty string, which is not null, so the node_dn fallback never applies. aaaModLR and fault records als… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (blocker): `fault_code="F0321"` treats the APIC cluster data-layer fault as a node-removal follower. ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html))
+- **spl** (major): The health_knock regex flags any health event whose raw text contains 'node' and 'score', which is nearly every fabric health event, so it adds noise instead of corroboration.
+
+### [UC-18.1.3](../../content/cat-18-data-center-fabric-sdn/UC-18.1.3.json) — Endpoint Mobility Tracking — fvCEp Moves, Leaf Switches, and Host-Mobility Storm Detection
+
+- **spl** (blocker): The filter (`sourcetype="cisco:aci:endpoint"` OR `sourcetype="cisco:aci:syslog"`) wraps each term in backticks, which Splunk treats as macro invocations. No macro of that name exists, so the search fails at parse time. … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (blocker): sys_move matches F0856 in _raw, but F0856 is fltCallhomeRsDestGroupResolveFail (a Callhome relation fault), not an endpoint move. The syslog mobility arm flags the wrong events. ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html))
+- **spl** (minor): distinct_leaf_hour is just the per-minute leaf_fanout, not an hourly count, so leaf_entropy_risk (>=6) is effectively unreachable. api_move matches the word 'move' anywhere in the raw fvCEp JSON, which produces noise un…
+
+### [UC-18.3.18](../../content/cat-18-data-center-fabric-sdn/UC-18.3.18.json) — BGP EVPN Route Withdrawal Rate and Flap Storms
+
+- **spl** (blocker): Bursts with no history never alert. streamstats includes the current row by default (current=t), and rows exist only for minutes that had withdrawals. A peer/route_bucket with no earlier withdrawal rows in the 4h window… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): ecmp_paths_before, ecmp_paths_after and event_time are referenced after `stats`, but stats keeps only aggregates and BY fields. ecmp_shrink_pct is therefore always null and the event_time column is always empty. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): withdraw_hit matches the bare words 'withdraw|withdrawn' in _raw. Polled JSON snapshots that merely contain a `withdrawn` key with value 0 still pass, and with wdr_count=0 each one adds vol=1, so every poll inflates the…
+- **spl** (needs_verification): The production SPL has a trailing comma before BY (`values(prefix) AS sample_prefix,` then `BY`) and a blank line, and it omits route_family_mix, so it differs from the detailedImplementation copy. Confirm the stats cla…
+- **title** (minor): 'Flap Storms' suggests BGP session flapping, but the search ignores session state (BGP-5-ADJCHANGE / RPD_BGP_NEIGHBOR_STATE_CHANGED events carry no 'withdraw' text and are filtered out). It measures only withdrawal volu…
+
+### [UC-18.1.2](../../content/cat-18-data-center-fabric-sdn/UC-18.1.2.json) — Cisco ACI Fault Trending by Severity, Type, Lifecycle State, and Acknowledgement Workflow
+
+- **spl** (blocker): `retained_like` tests `lc_state IN ("cleared","retained")`, but the APIC lifecycle value is `retaining` (cleared is a severity), so retained faultInst rows are never counted and `avg_mttr_hint_sec` stays empty. `active_… ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/faults/guide/b_APIC_Faults_Errors/b_IFC_Faults_Errors_chapter_01.html))
+- **spl** (blocker): The mnemonic tags mislabel fault codes. F1394 is a fabric (leaf-to-spine) port down, cause interface-physical-down, rule ethpm-if-port-down-fabric, not 'tep_ip_change'. F0532 is a port down used by an EPG (ethpm-if-port… ([evidence](https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220573-address-aci-fault-f1394-interface-physi.html))
+- **spl** (minor): `strptime(created,"%Y-%m-%dT%H:%M:%S.%3N")` drops the `+00:00` offset that APIC includes in created, ackTime and lastTransition, so timestamps are read in the search head's timezone and MTTA/MTTR can be skewed. Add `%:z…
+
+### [UC-18.2.10](../../content/cat-18-data-center-fabric-sdn/UC-18.2.10.json) — VMware NSX Load Balancer Pool Health (Member State, Monitor Cadence, HAProxy Signals, VIP Status)
+
+- **spl** (blocker): `| eval story=pool_fault." | ".edge_id." | ".pool_id"` ends with an unbalanced double quote, leaving an unterminated string literal. The search fails to parse. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): pool_fault tests member_txt IN ("DOWN","DRAINING","DISABLED"), but NSX reports GRACEFUL_DISABLED and UNUSED, never DRAINING. The lb_log_sev branches regex-match HAProxy-style tokens in a log the NSX NGINX dataplane does… ([evidence](https://vmware.github.io/vsphere-automation-sdk-java/nsx/nsx-policy/com/vmware/nsx_policy/model/LBPoolMemberStatus.html))
+- **spl** (minor): Two logic problems. monitor_interval_jitter flags any configured interval other than 5, 10, 15, 30 or 60 seconds, which is a non-standard setting rather than jitter. dc(pool_fault) is computed while grouping BY pool_fau…
+
+### [UC-18.1.9](../../content/cat-18-data-center-fabric-sdn/UC-18.1.9.json) — Cisco ACI Contract Permit-vs-Deny Ratio Trending: actrlRuleHit5min Per-Rule Counter Analysis, Implicit-Deny Burst Detection, EPG-Pair Policy Coverage Gaps, Filter Entry Effectiveness Scoring, acllog Flow Forensics
+
+- **spl** (blocker): tenant_tag, contract_tag and subject_tag come from rex on DN segments (tn-, brc-, subj-) that actrlRule / actrlRuleHit5min DNs do not contain. They are null for all stats rows, and stats ... by win15 tenant_tag contract… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): The case() for rule_class tests 'match(act_raw,"^permit")' before the lane=="flow" branches, so flow_permit and flow_deny can never be assigned. pkts_deny falls back to ingrPkts, and the fault regex treats F1394 (fabric…
+- **title** (minor): The title is a 40-word list of feature phrases ('Filter Entry Effectiveness Scoring, acllog Flow Forensics') that is not a readable title. The SPL implements neither filter effectiveness scoring nor EPG-pair coverage ga…
+
+### [UC-18.2.11](../../content/cat-18-data-center-fabric-sdn/UC-18.2.11.json) — NAT Rule Utilization — VMware NSX Policy Tier-0 and Tier-1 NAT Sessions, SNAT Port Pools, and Edge Translation Pressure
+
+- **spl** (blocker): The base search calls match(lower(_raw), ...) and match(_raw, ...) before the first pipe. The search command does not evaluate eval functions, so the syslog branch never matches as intended. Use quoted term or wildcard … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **mitreAttack** (major): T1090.001 (Internal Proxy) does not fit a NAT capacity and utilization UC. Nothing in the SPL detects proxying or relay behaviour, so the tag overclaims security coverage.
+- **spl** (needs_verification): The search depends on port_pool_* fields and EDGE-NAT-* syslog tokens that are not documented for NSX. The documented NAT statistics expose only active_sessions, total_packets and total_bytes, so verify that the data ex…
+- **spl** (minor): dc(edge_node_id) AS edge_fanout is computed BY edge_node_id, so it is always 1. The fw_match default 'MATCH' is not a real NSX firewall_match value (MATCH_EXTERNAL_ADDRESS, MATCH_INTERNAL_ADDRESS, BYPASS). tier_token fa…
+
+### [UC-18.2.13](../../content/cat-18-data-center-fabric-sdn/UC-18.2.13.json) — NSX Manager Cluster Health
+
+- **spl** (blocker): The base search uses match(lower(_raw), ...) before the first pipe. The search command does not evaluate eval functions, so the syslog branch does not filter as written. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (blocker): quorum_hint=case(..., null()) and svc_split=case(..., null()) end with a lone null() and so have an odd number of arguments. case() needs condition/value pairs, so the eval fails. Drop the trailing null(), since case() … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (blocker): streamstats window=3 latest(vip_owner) runs with the default current=t, so vip_prev includes the current event and equals vip_owner, and vip_flap is effectively always 0. The preceding sort by cluster_id node_id _time a… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **mitreAttack** (major): T1499.004 (Endpoint DoS: Application or System Exploitation) does not fit a management-plane health UC. The SPL detects no adversary behaviour, so the tag overclaims security coverage.
+- **spl** (major): Status matching uses UP/DOWN/LOST_QUORUM/NO_QUORUM, but NSX cluster groups report STABLE/DEGRADED/UNAVAILABLE. UNAVAILABLE, the real quorum-loss value, is never matched. ars_hot is referenced after stats but is not carr… ([evidence](https://fdlsistemi.com/2025/04/exploring-nsx-building-blocks-part-3/))
+
+### [UC-18.1.4](../../content/cat-18-data-center-fabric-sdn/UC-18.1.4.json) — Cisco ACI Contract / Filter Hit Analysis, Permit/Deny Counter Trending, and Policy-Enforcement Visibility
+
+- **spl** (blocker): total_pkt=permit_sum+drop_sum is null whenever either sum is null, which happens for every DN that has only permit or only drop rows. deny_ratio is therefore null exactly where it matters. Wrap both sums in coalesce(x,0… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): The search reads stats from the invented classes actrlPermitStats5min and actrlDropStats5min. The real counter class is actrlRuleHit5min, with ingrPktsCum/egrPktsCum/pktsCum attributes. ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f9x-messages.html))
+- **spl** (major): The search sums cumulative counters (permitPktCum, pktCum, ...) across every poll in 24h, which inflates totals by roughly the number of polls. It should use the *Last per-interval attributes or the delta between consec…
+- **spl** (needs_verification): The where clause matches class names (vzbrcp, actrlrule, fvrscons, ...) against the DN, but ACI DNs use rn prefixes (brc-, subj-, flt-, rscons-, rsprov-, rule-), so the regex rarely matches and permit_sum>0 does all the…
+- **spl** (minor): contract_hint labels vzBrCP as 'bridge_domain_contract'. vzBrCP is the contract object (binary contract profile), not a bridge-domain construct.
+
+### [UC-18.1.5](../../content/cat-18-data-center-fabric-sdn/UC-18.1.5.json) — Cisco ACI Tenant Configuration Audit — Intent vs Realized State, Snapshot Lifecycle, and Per-Tenant Blast Radius
+
+- **cimSpl** (blocker): join Change.user joins on a field that the Authentication subsearch never outputs; it outputs Authentication.user. The join therefore never matches, auth_t is always null, and every Change row is reported as 'missing_au… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (blocker): stats ... by tenant_name user_name hr tx_id drops every event whose tx_id is null. tx_id has no default in its coalesce, so syslog and configJob rows (and audit rows without txId) disappear, and the syslog/config lanes … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **mitreAttack** (major): T1098 (Account Manipulation) does not fit tenant policy edits. Nothing in the SPL looks at account or credential changes. T1078 is only weakly supported by after-hours edits.
+- **spl** (major): tx_id falls back to 'ind', which in aaaModLR is the change indication (creation/modification/deletion), not a transaction ID. This merges unrelated changes into the same 'transaction'.
+- **spl** (needs_verification): hour_bucket comes from strftime(_time,"%H") and is a string such as "09". The comparisons hour_bucket>=22 / <=5 then compare a string with a number, which may not behave numerically. Wrap it in tonumber().
+
+### [UC-18.1.14](../../content/cat-18-data-center-fabric-sdn/UC-18.1.14.json) — Cisco ACI L3Out Prefix Monitoring (BGP/OSPF Border Routes, Withdrawal/Flap Detection at Fabric Boundary, l3extInstP External-EPG Health, bgpPeerEntry Session Tracking, Route-Map Filtering Audit)
+
+- **spl** (blocker): `bgp_state_lc=coalesce(state,bgp_state,session_state)` and `peer_ip=coalesce(peerAddr,peer_ip,nbr_ip)` omit the real bgpPeerEntry attributes operSt and addr. On a native bgpPeerEntry feed, bgp_state_lc and peer_ip are n… ([evidence](https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-centric-infrastructure-simulator/222919-troubleshoot-and-verify-the-fabric-with.html))
+- **spl** (major): The syslog filter keys on IOS-style mnemonics (BGP-5-ADJCHANGE, OSPF-5-ADJCHG) and F0608/F1126 rather than the documented BGP peer fault F0299.
+- **spl** (needs_verification): The OSPF down regex uses '2way' and 'init'. APIC ospfAdjEp states are spelled out (for example two-way, initializing), so '2way' never matches. Verify the enumeration.
+
+### [UC-18.3.14](../../content/cat-18-data-center-fabric-sdn/UC-18.3.14.json) — Multi-Vendor Spine-Leaf Topology Anomaly Detection — Unexpected BGP Neighbor Loss, Missing Spine Uplinks, Asymmetric ECMP Path Detection, LLDP/CDP Neighbor Table Drift, Clos Topology Integrity
+
+- **spl** (blocker): `streamstats window=12 latest(bgp_non_est) AS bgp_roll BY local_host peer_ip sourcetype` runs after `stats ... BY local_host peer_ip sourcetype`, so each group has exactly one row and bgp_roll equals bgp_non_est (0 or 1… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): lldp:topology rows have no peer_ip (it coalesces to ""), so all LLDP ports of a switch collapse into one stats row per local_host and latest(lldp_mismatch)/latest(forbidden_leaf_leaf) reflect a single arbitrary port; pe…
+- **title** (major): Title claims 'Unexpected BGP Neighbor Loss, Missing Spine Uplinks, Asymmetric ECMP Path Detection' that the SPL does not implement (no expected-vs-observed absence check, no ECMP comparison).
+- **spl** (minor): bgp_fault_non_established fires when state is empty (events lacking any state field), so partial polls are reported as sessions not Established.
+
 ### [UC-18.4.6](../../content/cat-18-data-center-fabric-sdn/UC-18.4.6.json) — NX-OS Control Plane Policing (CoPP) Drops and Class Saturation
 
 - **spl** (major): The SPL sums NX-API policer counters, which are typically cumulative, per 5-minute bin without computing deltas, so dropped_pkts_5min grows with poll count. sigma_proxy is a ratio to the mean, not a standard-deviation s…
@@ -1148,14 +2282,244 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 - **spl** (major): The SPL searches sourcetypes cisco:aci:health / cisco:aci:fault, which no shipped add-on emits. Cisco DC Networking (7777) uses cisco:dc:aci:health / cisco:dc:aci:class, and the legacy 1897 add-on used cisco:apic:health…
 
+### [UC-18.2.1](../../content/cat-18-data-center-fabric-sdn/UC-18.2.1.json) — VMware NSX Distributed Firewall Rule-Hit Trending, Microsegmentation Effectiveness, and East-West Allow/Drop Visibility
+
+- **spl** (blocker): dfw_action_norm maps only ALLOW/ACCEPT to ALLOW, and the rex 'INET\s+match\s+(ALLOW|DROP|REJECT)' cannot match NSX's 'PASS'. Accepted traffic therefore stays 'PASS', allow_hits is always 0, and east_src_allow_cardinalit… ([evidence](https://techdocs.broadcom.com/us/en/vmware-cis/nsx/nsxt-dc/3-2/administration-guide/security/troubleshooting-firewall/firewall-packet-logs.html))
+- **spl** (major): stats ... by _time rule_tag_raw dfw_action_norm ip_family puts each action in its own row, so effectiveness_ratio is null for ALLOW rows (no drops in the row) and 0 for DROP/REJECT rows. It can never express a per-rule …
+- **spl** (minor): The search has no threshold or where clause, so it is a report rather than an alert, despite the description's alert framing. The 'match(_raw,"\bDROP\b")' fallbacks can also misclassify TERM lines and other log types.
+
+### [UC-18.3.13](../../content/cat-18-data-center-fabric-sdn/UC-18.3.13.json) — Multi-Vendor Fabric Upgrade Compliance — Switch OS / Firmware Waves, Stragglers, EoL Countdown, and Per-Role Posture
+
+- **mitreAttack** (blocker): T1542.005 is 'Pre-OS Boot: TFTP Boot' (adversary boots a malicious network image). This UC compares running OS versions to an approved wave target and EoL dates; it does not detect TFTP/netboot of unauthorized images, s… ([evidence](https://attack.mitre.org/techniques/T1542/005/))
+- **spl** (blocker): target_version is built with trim(coalesce(...,"")), so it is never null and `isnotnull(target_version)` is always true. Devices with no target get on_target=1 only when os_version is also empty, and otherwise straggler… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+
+### [UC-18.2.2](../../content/cat-18-data-center-fabric-sdn/UC-18.2.2.json) — VMware NSX Distributed Firewall Micro-Segmentation Enforcement Posture — NSGroup Membership, Applied-To Scope, and Policy Coverage Gaps
+
+- **spl** (blocker): NSX DFW packet logs report the permit action as PASS (actions PASS, DROP, REJECT) and identify the rule as `<ruleset>/<rule-id>`. `verdict_norm` only maps ALLOW/ACCEPT, and both `_raw` fallbacks look for ALLOW (`\bALLOW… ([evidence](https://techdocs.broadcom.com/us/en/vmware-security-load-balancing/vdefend/vdefend-firewall/4-2/security-administration-guide/security/distributed-firewall/firewall-packet-logs.html))
+- **title** (major): Title promises 'Applied-To Scope, and Policy Coverage Gaps' but the SPL never reads policy/applied_to data; it only classifies flows by IP→NSGroup lookup.
+- **spl** (minor): Branch `unmapped_source_on_permit` fires on `verdict_norm IN ("ALLOW","REJECT")`; REJECT is not a permit, so the label and logic disagree. Also the `_raw` fallback `\bALLOW\b`/`\bDROP\b` can match rule names or other te…
+
+### [UC-18.3.5](../../content/cat-18-data-center-fabric-sdn/UC-18.3.5.json) — EVPN Type-2 MAC Mobility: Sequence Escalation, Move Storms, Duplicate MAC, and Silent Drift Across VTEPs
+
+- **spl** (blocker): `stats ... BY _time vni_key mac_norm` drops events where vni_key is null. vni_key comes from tonumber(coalesce(...,"")), so it is null whenever no VNI field is extracted, which is typical of arista:eos:syslog MAC-move l… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `ownership_spray` fires whenever `vtep_dc>1` in a 5-minute bucket, and that alone sets seq_stress=1. A single legitimate move, or all-active ESI multihoming where several VTEPs advertise the same MAC (aliasing), produce…
+
+### [UC-18.3.7](../../content/cat-18-data-center-fabric-sdn/UC-18.3.7.json) — NSX-T Segment and Gateway Capacity
+
+- **spl** (blocker): The real capacity API fields (current_usage_count, max_supported_count, usage_type) are not in any of the coalesce lists. As a result cap_curr and cap_max stay null on genuine /api/v1/capacity/usage payloads, and the 80… ([evidence](https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/method_GetProtonCapacityUsage.html))
+- **spl** (major): tier_hint matches 'tier_?0|t0', but NSX Policy gateway paths are /infra/tier-0s/<id> with a hyphen, so they classify as NA unless the gateway ID happens to contain 't0'. That leaves warn_t0_route_scale effectively dead.
+- **title** (minor): The title says 'NSX-T', but the body targets NSX 4.x, where the product is branded VMware NSX. Minor naming drift.
+
+### [UC-18.3.2](../../content/cat-18-data-center-fabric-sdn/UC-18.3.2.json) — OpenStack Neutron ML2 VXLAN Tenant Lifecycle: API and RPC Notifications for Network, Subnet, Port, Router, and Security Group CRUD with Port Binding Failure and Overlay Impact Correlation
+
+- **spl** (blocker): `is_crud` matches `match(raw_lc,"(?i)\.(create|update|delete)_end")`, which requires `_end`. Neutron notification event_type values are dotted (`port.create.end`), and notifications have no `action` field, so evt_act is… ([evidence](https://docs.openstack.org/newton/admin-guide/telemetry-data-collection.html))
+- **spl** (major): `rsrc` defaults to "network" when no resource field exists, so any agent or syslog line matching the CRUD/binding regex is counted as network CRUD. `bind_problem` also treats port status `down`, `build` and `unknown` as…
+
+### [UC-18.3.20](../../content/cat-18-data-center-fabric-sdn/UC-18.3.20.json) — Fabric Host Route and ARP Scale Headroom
+
+- **spl** (blocker): `streamstats window=6 global=f latest(headroom_percent) AS headroom_prev BY device_name hardware_table_class` includes the current row (current=t is the default), so latest() returns the current value. headroom_slope is… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **mitreAttack** (minor): T1499.001 (Endpoint DoS: OS Exhaustion Flood) concerns exhausting host OS resources such as TCP state. This UC is capacity monitoring of switch forwarding tables, so the mapping overstates its security relevance.
+
+### [UC-18.2.4](../../content/cat-18-data-center-fabric-sdn/UC-18.2.4.json) — VMware NSX Edge Transport Node Performance: North-South Gateway Throughput, BGP/IPSec/VPN Session Health, and Load-Balancer Pool Capacity
+
+- **spl** (blocker): Base search contains `(sourcetype="vmware:nsxt:syslog" AND match(lower(_raw),"..."))`; `match()`/`lower()` are eval functions and are not valid inside the implicit `search` command. Use `| where match(...)` or `| regex`… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (minor): Numeric fields are coalesced to "0", so `isnotnull(dataplane_drops)` is always true and `ipsec_tunnel_count==0` fires for any edge_vpn event missing the count field; the `edge_ha_cluster_event` regex also matches any li…
+- **title** (minor): Title promises 'Load-Balancer Pool Capacity' and gateway throughput, but the SPL only checks pool member status and throughput peaks inside rows already flagged for another reason; no capacity metric (connections, pool …
+
+### [UC-18.1.18](../../content/cat-18-data-center-fabric-sdn/UC-18.1.18.json) — APIC Cluster Replication Latency
+
+- **spl** (blocker): The base search contains `match(_raw,"(?i)(dbgr|...)")` inside the search command. match() is an eval function, valid only in eval/where, so the search command does not evaluate it as a regex filter, and the fault, sysl… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (minor): `repl_delay_ms` falls back to the string "0" in coalesce, so the `isnull(repl_delay_ms)` branch of `band` is dead code, and missing delay fields look like healthy zero-latency samples rather than gaps in the data.
+
+### [UC-18.1.6](../../content/cat-18-data-center-fabric-sdn/UC-18.1.6.json) — Cisco ACI Leaf/Spine Physical Interface Utilization — Bytes, Drops, Optics, and Port-Channel Balance
+
+- **spl** (blocker): '| eval risk_iface=util_pct>=75 OR drop_rate>=0.5 OR ...' assigns a boolean expression to a field. Splunk eval rejects this ('Fields cannot be assigned a boolean result'), so the search errors before producing results. … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **mitreAttack** (major): T1499.001 is OS Exhaustion Flood (host resource exhaustion). Interface-level traffic floods correspond to T1498 / T1498.001. ([evidence](https://attack.mitre.org/techniques/T1499/001/))
+- **spl** (major): The hard-coded optical_rx_power_dbm<-7 threshold and the primary/secondary member_role skew logic depend on assumptions that are probably wrong (see findings). The syslog lane is filtered in and then immediately dropped…
+
+### [UC-18.2.15](../../content/cat-18-data-center-fabric-sdn/UC-18.2.15.json) — Distributed Firewall Rule Hit Counts by Application Tier
+
+- **spl** (blocker): 'streamstats window=1 current=f global=f BY tier_tag rule_ref last(hit_eod) AS prev_hit' puts the BY clause before the aggregation. streamstats syntax is options, then functions, then BY clause, so this does not parse. … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): Tier assignment depends on a VM field (protected_vm/src_vm/...) that per-rule DFW statistics do not carry, so tier_tag will be 'unmapped' for all rows. Stats are also split by tier_tag, so one rule with many VMs cannot …
+- **spl** (minor): No alert filter is applied (no where on stale_allow_candidate or thresholds), so scheduling as an alert would always fire. Mandatory-rule and power-state conditions described in the prose are missing.
+
+### [UC-18.3.12](../../content/cat-18-data-center-fabric-sdn/UC-18.3.12.json) — SDN Controller High Availability
+
+- **spl** (major): In `ha_risk_score=case(...)` the branch `syslog_ha_signal==1 AND degraded_ctrl==1,45` is unreachable because `degraded_ctrl==1,70` is evaluated first and case() returns the first true condition; the advertised 45-point … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (minor): After `bin _time span=15m`, earliest(_time)/latest(_time) return the bin start, so first_hit = last_hit and last_hit_human shows the bin boundary, not the last event time.
+
+### [UC-18.4.5](../../content/cat-18-data-center-fabric-sdn/UC-18.4.5.json) — NX-OS VXLAN EVPN Fabric Underlay BGP Health
+
+- **spl** (blocker): `stats ... by minute_bucket, host, bgp_peer_ip` discards events whose bgp_peer_ip is null. NVE peer events and cisco:ndi:health site scores carry no BGP neighbour, so nve_storm_cnt and ndi_bad never reach the where clau… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `match(lower(_raw),"NVE-3-PEER_DOWN")` compares lower-cased text with an upper-case literal and no (?i), so it can never match and the NVE syslog path is dead. `evpn_route_baseline` is never created, so route_drop_anoma… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+
+### [UC-18.1.22](../../content/cat-18-data-center-fabric-sdn/UC-18.1.22.json) — Fabric Port-Channel and Member Link Imbalance
+
+- **spl** (blocker): The detection can never fire. stats groups by member_dn and computes dc(member_dn) as mbr_tags, which is always 1 per row. The later eventstats dc(mbr_tags) as active_members therefore counts the distinct values of a co… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats))
+- **spl** (minor): The search sums tx_bytes and rx_bytes per 15-minute bucket. APIC l1PhysIf and ethpm counters are cumulative, so summing raw values overweights members that are polled more often. Use 5-minute stats classes or delta per … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Aggregatefunctions))
+- **spl** (minor): In the fault subsearch, coalesce(severity,fault_severity,code,"") falls back to the fault code (e.g. F1394), which inflates sev_spread. All three join subsearches use a constant join_key, so their counts are fabric-wide… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+
+### [UC-18.3.16](../../content/cat-18-data-center-fabric-sdn/UC-18.3.16.json) — VTEP Reachability and Loss
+
+- **spl** (blocker): `stats ... BY _time leaf fabric_site vni` drops every event whose vni is null, and vni is `tonumber(coalesce(vni,l2vni,bd_vni,""))`, i.e. null whenever no VNI field exists. network:ping_results, interface-level nxos:nve… ([evidence](https://community.splunk.com/t5/Splunk-Search/question-on-stats-and-blank-values/m-p/482366))
+- **spl** (major): nve_peer_down matches 'down|failed|init|unknown' anywhere in the lowercased raw event, so any nxos:nve_peers JSON containing those substrings in any key or value (e.g. a reset-reason or 'unknown' learn-type field) is sc…
+
 ### [UC-18.4.3](../../content/cat-18-data-center-fabric-sdn/UC-18.4.3.json) — Cisco Nexus Dashboard Insights Advisory, Field Notice, PSIRT, and Bug-Match Tracking with Compliance Window Reporting
 
 - **spl** (major): The SPL reads cisco:ndi:* and custom cisco:psirt/fieldnotice/eol sourcetypes but not 7777's cisco:dc:nd:advisories. urgency_lane references fn_marker and eox_marker after stats, where those fields no longer exist, so th…
+
+### [UC-18.2.6](../../content/cat-18-data-center-fabric-sdn/UC-18.2.6.json) — VMware NSX Distributed Firewall Rule Hit-Rate Baselining, Counter Spike/Drop Detection, Stale-Rule Scoring, and Effectiveness Hints
+
+- **spl** (blocker): `streamstats window=1 current=f global=f BY feed rule_ref tn_key last(hit_eod) AS prev_hit` puts the BY clause before the aggregation; streamstats syntax requires `<stats-agg-term>... [BY <field-list>]`, so the search f… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): `stale_flag` requires `_time < relative_time(now(),"-30d@d")` but the next command keeps only `_time >= -14d@d`, so stale_flag is always 0 in output and the 'Stale-Rule Scoring' promised by the title never surfaces.
+- **spl** (minor): `rex mode=sed "s/^[^|]*|[^|]*|//"` uses unescaped `|`, which is regex alternation, so it does not strip the first two pipe-delimited segments as intended.
+
+### [UC-18.4.1](../../content/cat-18-data-center-fabric-sdn/UC-18.4.1.json) — Cisco Nexus Dashboard Insights (NDI) Anomaly Monitoring and AIOps-Driven Fabric Diagnostics
+
+- **spl** (minor): 'dc(site_label) as sites_impacted' is computed while grouping BY site_label, so it is always 1. In hotspot, the description-based branches (pfc, crc, contract) can only run when the category is not one of the five match…
+
+### [UC-18.3.3](../../content/cat-18-data-center-fabric-sdn/UC-18.3.3.json) — Software-Defined-Networking (SDN) Controller High-Availability and Cluster Health
+
+- **spl** (blocker): Lines such as `| eval jolokia_unreachable=match(...)`, `openflow_signal=match(...)`, `gc_pressure=match(...)` and others assign a Boolean to a field. Splunk rejects this ("Fields cannot be assigned a boolean result"), s… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (major): `dc(controller_cluster) as clusters_seen ... by controller_cluster risk_bucket` is always 1 because it counts the group-by key. Events lacking controller_cluster (most karaf/syslog lines unless aliased) are silently dro…
+
+### [UC-18.2.18](../../content/cat-18-data-center-fabric-sdn/UC-18.2.18.json) — NSX Intelligence Recommended Firewall Rule Publish Queue
+
+- **spl** (blocker): `eval backlog_hot=recommendation_backlog>=15 OR rules_in_flight>=50` and `eval svc_degraded=match(...)` assign Boolean results to fields. Splunk eval rejects this ('Fields cannot be assigned a boolean result'), so the s… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): The base arm is the vmware:nsx:intelligence status stream, so if the status poll is missing or silent no rows are produced, even with a deep recommendation backlog. The recommendation subsearch should drive the search, …
+- **spl** (needs_verification): The rec_status filter keeps PENDING, APPROVED, QUEUED and similar values, which do not match the documented NSX Intelligence job states (e.g. WAITING, ANALYSIS_IN_PROGRESS). Backlog counts may therefore be wrong once th…
+
+### [UC-18.3.22](../../content/cat-18-data-center-fabric-sdn/UC-18.3.22.json) — VXLAN Underlay Path MTU and DF Bit Fragmentation Risk
+
+- **spl** (major): `sum(df_drops)` per hour adds raw counter values. If the NVE/DF counters are cumulative (typical for interface counters), the sum grows with poll count rather than with new drops. A delta (streamstats/delta per device a…
+
+### [UC-18.1.13](../../content/cat-18-data-center-fabric-sdn/UC-18.1.13.json) — Cisco ACI Bridge Domain Subnet Utilization (fvBD + fvSubnet, BD-Scoped IP-Pool Exhaustion, Gateway-Pool Depletion Forecasting, VM-Mobility Pressure)
+
+- **spl** (major): used_pct = ip_in_use / total_ips with stats grouped by bd_dn and subnet_ip. ip_in_use is a BD-level endpoint count, so multi-subnet BDs report every subnet at the BD total. total_ips also ignores the pervasive gateway a…
+- **spl** (minor): The where clause keeps urgency 'elevated_ge75' rows, so the scheduled alert pages at 75% while every prose field says 85%/95%.
+
+### [UC-18.2.14](../../content/cat-18-data-center-fabric-sdn/UC-18.2.14.json) — NSX Intelligence Top Flows and Anomalous East-West Volume
+
+- **mitreAttack** (major): T1568 (Dynamic Resolution) cannot be detected from east-west flow volume, and T1071 (Application Layer Protocol) is not tied to any SPL logic. The tags overclaim security coverage for a volume-ranking UC.
+- **spl** (major): No where clause filters on baseline_spike, ew_volume_anomaly or idfw_burst, so a scheduled alert fires on every run whenever any flow exists. p95_pair is computed over the same 24 h window that contains the spike being …
+- **spl** (needs_verification): The search depends on the vmware:nsxt:intelligence:flow sourcetype and the anomaly_score field, neither of which is documented for any NSX add-on or Intelligence export.
+- **spl** (minor): sum(bytes_per_second) adds instantaneous rates across events, which gives neither a volume nor an average rate. Use sum(bytes) or avg(bytes_per_second) for a meaningful throughput figure.
+
+### [UC-18.2.17](../../content/cat-18-data-center-fabric-sdn/UC-18.2.17.json) — VMware NSX Transport Node Data Plane Interface Errors and Drops (Per-Physical-NIC vmnic Counters, FCS/CRC, GENEVE MTU Pressure, esxcli NIC Stats, nsxdp-cli Queue Telemetry)
+
+- **spl** (major): esxcli NIC statistics are cumulative since driver load, but the SPL sums and thresholds them as if they were per-poll deltas (composite_fault>0, sum_rx_errors). Any NIC that ever logged one error alerts on every run, an…
+- **spl** (needs_verification): The nsxt_* overlay counter fields and the pause/tail-drop/noBuffer fields are not confirmed in any documented esxcli or nsxdp-cli output. Check the source names before relying on the geneve_overlay_dp_counters and ring_…
+- **spl** (minor): The streamstats window=4 avg(sum_rx_errors) includes the current row (default current=t), so rx_jump compares the value against an average that already contains it, which damps real jumps. Use current=f. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+
+### [UC-18.4.4](../../content/cat-18-data-center-fabric-sdn/UC-18.4.4.json) — Nexus 9000 NX-OS Model-Driven Telemetry Streaming Health (gRPC Dial-Out, Sensor Groups, TLS, Heartbeats)
+
+- **spl** (blocker): `| eval syslog_hit=match(_raw,...)` and `| eval otel_err=match(...)` assign Boolean results to fields, which eval rejects ('The result of an eval expression cannot be a Boolean'), so the search fails before returning re… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.2/search-commands/eval))
+- **spl** (major): Several mdt_fault lanes fire on static configuration rather than faults or changes. Any cisco-nx-os-device sensor with cadence <= 5 becomes 'mdt_cadence_change', any heartbeat other than 60 becomes 'mdt_heartbeat_change…
+
+### [UC-18.1.16](../../content/cat-18-data-center-fabric-sdn/UC-18.1.16.json) — ACI Tenant Configuration Compliance Audit
+
+- **cimSpl** (blocker): tstats over datamodel=Change.All_Changes must reference fields with the dataset prefix (All_Changes.user, All_Changes.object, All_Changes.action). The query mixes `values(Change.object)` and `by Change.user Change.actio… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats))
+- **spl** (major): vz_ok counts 'consumed'/'provided' vzAny stances as compliant, which also passes permit-any vzAny designs. snmp_ok/syslog_ok fall back to raw-text matches on 'snmpgroup'/'sysloggroup', which may never appear in tenant J…
+
+### [UC-18.3.15](../../content/cat-18-data-center-fabric-sdn/UC-18.3.15.json) — BGP EVPN Route Table Convergence
+
+- **spl** (major): route_delta = max(route_count) - min(route_count) inside a 1-minute bin per leaf. With the documented 120–300 s poll cadence there is at most one nxos:bgp_evpn sample per leaf per minute, so the spread is 0 and abs_delt…
+- **spl** (minor): syslog_hit matches any NX-OS syslog containing 'EVPN' or 'NVE-', and syslog_churn_hit>0 alone qualifies a row, so routine informational EVPN/NVE messages produce 'watch' rows every minute.
+
+### [UC-18.4.12](../../content/cat-18-data-center-fabric-sdn/UC-18.4.12.json) — Nexus Dashboard Insights Alert Noise and Category Mix
+
+- **spl** (blocker): Unbalanced parentheses: '| eval alert_id=trim(coalesce(alert_id,...,primary_key)))' opens two parentheses and closes three, so the search fails to parse and returns no results. The same broken line is copied into detail… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): The alert condition fires on nearly every hour. 'mix_pct>=32' is always true for at least one row whenever an hour has three or fewer categories (some category must hold at least one third). 'evt>=12' is met by any busy… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Where))
+- **spl** (major): The baseline is skewed. After 'where is_ndi=1' there is one row per hour per category, so 'eventstats median(ndi_hr_total)' and 'stdev(ndi_hr_total)' weight each hour by its number of categories, and the baseline includ… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats))
+- **spl** (minor): fabric_pressure counts cisco:ndfc:fabric_status inventory polls in ndfc_hr_total. That volume depends on poll cadence, not operator churn, so the ratio mostly reflects input configuration.
+- **title** (minor): 'Alert Noise' suggests deduplication or repeat-alert analysis, but the search only measures hourly volume and category share.
+
+### [UC-18.1.19](../../content/cat-18-data-center-fabric-sdn/UC-18.1.19.json) — ACI Fault Domain Severity Rollup
+
+- **spl** (blocker): `stats ... max(len(code_u)) as code_width` is invalid. stats aggregations accept a field name or an `eval(...)` expression, so this needs `max(eval(len(code_u)))`, or a prior `eval code_len=len(code_u)`. As written the … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (minor): `sort fault_domain -affected_mos -sev` sorts severity alphabetically (warning > minor > major > critical), not by severity rank. Add a numeric severity rank if the ordering is meant to be meaningful.
 
 ### [UC-18.2.9](../../content/cat-18-data-center-fabric-sdn/UC-18.2.9.json) — VMware NSX Transport Node Overlay Path Health (End-to-End GENEVE Path Quality, Per-TEP-Pair Packet Loss / Jitter / RTT, MTU Validation, Probe-based Active Measurement, Beyond Binary UP/DOWN UC-18.2.5)
 
 - **spl** (major): The SPL depends on the custom sourcetype vmware:nsxt:tn_diag and on syslog tokens (OVERLAY_PATH_DEGRADED, MTU_MISMATCH, TUNNEL_PERFORMANCE_LOW) that NSX has not been shown to emit. The 'transport_node_overlay_context' b…
 - **title** (minor): The title is an overlong keyword list and includes a sibling-UC reference ('Beyond Binary UP/DOWN UC-18.2.5').
+
+### [UC-18.1.23](../../content/cat-18-data-center-fabric-sdn/UC-18.1.23.json) — APIC Controller Resource Exhaustion Watch
+
+- **spl** (major): The fault join misses APIC's native storage-exhaustion faults. F1527, F1528 and F1529 carry cause 'equipment-full' and descr 'Storage unit /<mount> on node N ... is NN% full'. The regex looks for procEntity|eqptStorage|… ([evidence](https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220840-address-aci-faults-f1527-f1528-f1529.html))
+- **spl** (major): Field normalisation mixes incompatible semantics. diskUsed coalesces availDisk (free space) and storageUsed alongside used-percent fields. inodePct coalesces inodeUsed (a count). cpuPct coalesces load averages (loadAvg5… ([evidence](https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/4-x/rest-api-config/Cisco-APIC-REST-API-Configuration-Guide-411/Cisco-APIC-REST-API-Configuration-Guide-411_chapter_0110.html))
+- **spl** (minor): eventstats by apic_id keeps every 5-minute bucket row, so a breaching APIC returns up to 24 duplicate rows in the 2h window. The three joins use a constant join_key and are therefore fabric-wide, not per apic_id. The sy… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats))
+
+### [UC-18.2.7](../../content/cat-18-data-center-fabric-sdn/UC-18.2.7.json) — VMware NSX Micro-Segmentation Policy Drift Detection — Intent-vs-Realized DFW Revision Tracking, Approved Baseline Comparison, Out-of-Band Edits, Section Order Reconciliation
+
+- **spl** (minor): `strftime(change_ts_raw,...)` returns null when `change_timestamp` is a string rather than epoch; `drift_family`, `snap_token` and `correlation_digest` are computed but dropped by the final `table`; RULE_ADDED/RULE_DELE…
+- **title** (minor): Title promises 'Intent-vs-Realized', 'Out-of-Band Edits' and 'Section Order Reconciliation'; the SPL never joins audit or change-ticket data (so cannot tell out-of-band from approved edits) and section-order detection r…
+
+### [UC-18.1.17](../../content/cat-18-data-center-fabric-sdn/UC-18.1.17.json) — Cisco ACI Multi-Site Health — NDO Schema Sync, ISN BGP-EVPN ASBR, Intersite L3Out, and Cloud APIC Stretch Visibility
+
+- **spl** (major): The search covers only index=cisco_aci, while the UC directs NDO audit and health lanes to index=cisco_ndo. It also keys risk_fault on the unverified 'multiSite::NotPresent' string and the SLO on time_to_sync_seconds, w…
+- **title** (needs_verification): 'ISN BGP-EVPN ASBR' is non-standard terminology for ACI Multi-Site spine EVPN peering. Verify it against Cisco Multi-Site architecture documentation.
+
+### [UC-18.1.11](../../content/cat-18-data-center-fabric-sdn/UC-18.1.11.json) — Cisco ACI Fault Lifecycle, MTTR, Stuck-Clear, and Storm Detection
+
+- **spl** (major): `bin span=5m _time | eventstats count as raises_in_5m by apic_id _time` counts every polled faultInst snapshot row in a 5-minute bucket, not newly raised faults. A REST poll every 120-300s returns all active faults, so …
+- **spl** (needs_verification): The lc_state IN list includes 'retaining-acknowl', which does not appear to be a documented APIC lifecycle value, and the list omits 'soaking-clearing'. Verify against the faultInst lc enumeration.
+- **spl** (needs_verification): The strptime formats have no timezone directive, while APIC created/lastTransition values carry an offset (for example +00:00). Check that hours_since_last and mttr_sec are not skewed by the search head's timezone.
+
+### [UC-18.4.8](../../content/cat-18-data-center-fabric-sdn/UC-18.4.8.json) — NDFC Switch Inventory and Lifecycle Status
+
+- **spl** (blocker): reg_risk is evaluated after `stats ... latest(managed_key) AS managed_status latest(oper_key) AS oper_status ... BY dev_name`, but it tests `managed_key` and `oper_key`. Those fields no longer exist after stats, so 'reg… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `dev_name=coalesce(hostname, host, ...)` falls back to Splunk's default `host` metadata, which is always present. On fabric_status and audit events, and on any inventory record missing `hostname`, dev_name becomes the c…
+
+### [UC-18.1.21](../../content/cat-18-data-center-fabric-sdn/UC-18.1.21.json) — EPG Endpoint Learning and Deletion Churn
+
+- **spl** (minor): `dc(mac_norm) as mac_moves` counts distinct MACs with any learn or delete verb in the bucket, not MAC moves. ratio_m and the 'mac_moves>=50' gate therefore measure endpoint breadth, not mobility, and the field name and …
+- **spl** (minor): In the fault subsearch, `sev_f` coalesces `code` into severity, and the filter `OR match(sev_f,"major|critical|warning")` counts every open fault fabric-wide. So open_ep_faults is not endpoint-specific, and lc 'cleared'…
+- **spl** (minor): `eventstats median(...) by tenant` sets one baseline across all EPG/BD rows in a tenant, so large EPGs always beat the ratio gates and small EPGs never do. Compute the baseline by tenant, epg and bd.
+
+### [UC-18.4.13](../../content/cat-18-data-center-fabric-sdn/UC-18.4.13.json) — NDFC POAP / ZTP Bootstrap and Day-0 Onboarding Failures
+
+- **spl** (major): The serial backfill `rex field=_raw max_match=0 "(?i)(?<![A-Z0-9])(?P<rex_sn>[A-Z0-9]{11}[A-Z0-9]{0,10})"` is case-insensitive with no trailing boundary. Ordinary words of 11+ letters in syslog and audit text ('unreacha… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Rex))
+
+### [UC-18.4.7](../../content/cat-18-data-center-fabric-sdn/UC-18.4.7.json) — Nexus Dashboard Orchestrator Cross-Fabric Consistency
+
+- **cimSpl** (major): The cimSpl is a generic Change plus Inventory tstats count across all data, with no NDO/sourcetype/vendor constraint. It reproduces none of the deploy_gap/site_island logic, and `All_Inventory.ip` / `All_Inventory.host`… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Inventory))
+- **spl** (minor): `like(lr,"%policy%push%")` and `like(lr,"%inter-site%")` flag any NDO syslog line that mentions a policy push or inter-site connectivity, successful operations included, so the P3 lane will be noisy. deploy_state also c…
+
+### [UC-18.3.9](../../content/cat-18-data-center-fabric-sdn/UC-18.3.9.json) — VXLAN VTEP Reachability
+
+- **spl** (major): ctr_fault fires on any nonzero value of coalesce(rx_drop,tx_drop,…). NVE counters are cumulative, so one historical drop marks the peer Degraded on every poll. coalesce also returns the first non-null field, so a zero r…
+- **spl** (minor): peer_ip coalesces bgp_neighbor/neighbor into the same key as the remote VTEP. EVPN BGP sessions usually peer with spine or route-reflector loopbacks, which are not VTEP addresses, so BGP faults produce separate rows tha…
+
+### [UC-18.3.17](../../content/cat-18-data-center-fabric-sdn/UC-18.3.17.json) — Leaf Switch Resource Utilization
+
+- **spl** (minor): cpu_pct falls back to kernel_percent, which in NX-OS `show system resources` is only the kernel share; leaves with high user-space CPU can be under-reported and miss the 85% threshold.
+
+### [UC-18.4.10](../../content/cat-18-data-center-fabric-sdn/UC-18.4.10.json) — Golden Firmware Image Compliance Across NDFC Fabrics
+
+- **mitreAttack** (major): T1542.005 is 'Pre-OS Boot: TFTP Boot'. Unapproved image pushes or drift through NDFC fit T1601 / T1601.001 (Modify System Image: Patch System Image) better. ([evidence](https://attack.mitre.org/techniques/T1542/005/))
+- **spl** (major): fabric_in_sync = eventstats sum(insync) counts every In-Sync poll event over 24h (for example 288 five-minute polls per device), while devices_in_fabric is dc(device_name). fabric_compliance_pct therefore routinely exce…
+- **spl** (major): vpc_drift compares running_version with eventstats latest(running_version) BY fabric_name vpc_peer. That groups a device's own events, which carry the peer's name, rather than the peer's own events, so peer_running is u…
+- **spl** (minor): 'sort fabric_name straggler_flag - image_push_fail_events' sorts straggler_flag ascending, so compliant devices come first, and 'head 400' can truncate the Out-of-Sync and Failed rows the UC exists to surface. There is …
+
+### [UC-18.4.11](../../content/cat-18-data-center-fabric-sdn/UC-18.4.11.json) — NDFC Flow Telemetry Drop and Export Health
+
+- **spl** (major): 'lossy' fires on sum(drop_count)>0. If collectors report cumulative drop counters, which is typical for exporter and queue stats, every bucket after the first drop is flagged. Deltas per collector_key are needed. Rows w…
+- **spl** (minor): 'sort -sum_drop_count stalled -_time' sorts stalled ascending. The 6h median baseline is pulled down by any stall that lasts longer than about 3h, which hides long outages.
+
+### [UC-18.1.8](../../content/cat-18-data-center-fabric-sdn/UC-18.1.8.json) — Cisco ACI Spine-Leaf Fabric Latency (In-Fabric Forwarding Delay, NIR Flow Timestamps, Microburst/HBM Drops, Clock Skew)
+
+- **spl** (major): case() returns null for every row without latency_us, so the burst_proxy, wrap_hint, nir_gap and skew branches only fire on rows that already have latency, and the first matching branch (latency_us>=500) hides the rest.…
+- **spl** (minor): 'grpc_iv_sec<=1 AND maint_txt=""' labels high-frequency telemetry as a fault ('grpc_hi_freq_window'), which is a configuration choice and not a fabric problem. The skew_warn regex on _raw ('clock|ntp|ptp|skew') will mat…
+- **title** (minor): The title promises 'Microburst/HBM Drops' and 'Clock Skew', which the SPL cannot detect because it does not search the eqpt or syslog sourcetypes.
+
+### [UC-18.4.9](../../content/cat-18-data-center-fabric-sdn/UC-18.4.9.json) — Nexus Dashboard Insights Site and Fabric Composite Assurance Health Score Trending
+
+- **spl** (major): `stats ... BY site_key fabric_key` drops any event whose fabric_key is null. NDI site-health payloads are per site, and on Nexus Dashboard a site usually is the fabric, so they may carry no separate fabric_name. If so, … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+
+### [UC-18.4.2](../../content/cat-18-data-center-fabric-sdn/UC-18.4.2.json) — Cisco Nexus Dashboard Fabric Controller (NDFC) Intent-Based Configuration Compliance and Per-Switch Drift Detection
+
+- **spl** (major): `sum_hit` is forced to 1 for every `cisco:ndfc:image_mgmt` event and `backup_hit` to 1 for every `cisco:ndfc:backup` event. Image events fall into the 'other' lane, which passes `health_lane!="aligned"`, and backup even…
 
 ### [UC-18.3.10](../../content/cat-18-data-center-fabric-sdn/UC-18.3.10.json) — EVPN Route Type Distribution and Control-Plane Growth Signatures
 
@@ -1163,15 +2527,549 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 ## cat-19-compute-infrastructure-hci-converged
 
+### [UC-19.1.31](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.31.json) — Fabric Interconnect HA Cluster State
+
+- **spl** (blocker): The base search uses sourcetype cisco:ucs:inventory, and the subsearch uses cisco:ucs:syslog / cisco:ucs:faults. The add-on emits sourcetype cisco:ucs with source cisco:ucs:<classId>, so the main leg returns no events. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): Leadership is read from mgmtIf `role`, which does not exist on mgmt:If (the class only has ifRole, a port role). fi_a_role and fi_b_role are therefore always 'absent', and a healthy dual-FI domain falls through to 'lead… ([evidence](https://raw.githubusercontent.com/cisco/cisco-mibs/main/ucs-mibs/CISCO-UNIFIED-COMPUTING-MGMT-MIB.my))
+- **spl** (blocker): The appendcols subsearch puts eval functions (like(code, ...), match(_raw, ...), match(lower(coalesce(...)))) inside the `search` command. `search` does not evaluate eval functions, so these are not applied as intended … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+- **spl** (major): stats has no by-clause (for example by host), so multiple UCSM domains are merged into one row and latest() roles can come from different clusters. appendcols then glues on estate-wide syslog counts.
+- **spl** (minor): The fault regex includes the bare tokens 'ha' and 'mgmt', which match a very large share of UCS fault text (for example 'chassis', 'mgmt-if'). recent_cluster_fault_hint>0 will therefore be almost always true and force a…
+
+### [UC-19.1.30](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.30.json) — Rack Server PSU N+1 Redundancy (Cisco UCS C-Series)
+
+- **spl** (blocker): The search uses sourcetype cisco:ucs:inventory / cisco:ucs:stats, which the add-on does not emit (it uses sourcetype cisco:ucs with source cisco:ucs:<classId>), so it returns no events. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): The `/* UC-19.1.30 — ... */` inline block is not a valid SPL comment. Splunk comments use the ``` delimiter, so this text becomes literal search terms and filters out events. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Addcommentstosearches))
+- **spl** (major): case() precedence: the unknown_rack_model branch is evaluated before psu_operational_count=0, so a rack with zero operable PSUs and a missing model string is reported as a warning instead of critical imminent_power_loss.
+- **difficulty** (minor): Rated beginner, although the search uses a double rex, multi-stage dedup, a governed lookup and a 7-branch state machine that must be tuned per model.
+- **spl** (minor): is_oper treats operState 'equipped' as operable. equipped is a presence value, not an operability value, so a present-but-failed PSU can be counted as healthy.
+- **spl** (minor): `sort 0 severity_bucket` sorts alphabetically (critical, info, ok, warning), so warning rows appear after ok rows. Use a numeric severity rank for ordering.
+
+### [UC-19.2.5](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.5.json) — Disk Failure Tracking on HCI Clusters
+
+- **spl** (blocker): It searches sourcetype="vmware:vc:event", which the Splunk Add-on for VMware does not emit (vCenter events are vmware:events).
+- **spl** (major): The history arm sums is_fail per event. Inventory sourcetypes (vmware:vsan:diskgroup, nutanix:cluster:disks, cisco:hyperflex:disk) are re-polled every few minutes, so one unhealthy disk adds 1 per poll to failures_1h/24…
+- **spl** (major): The history arm includes vmware:vsan:diskgroup without the object_kind/api_path filter the inventory arm applies, so disk-group records are also scored. is_fail also treats kMarkedForRemoval / marked_for_removal=1 (plan…
+- **spl** (minor): It searches sourcetype="nix:smart", which Splunk_TA_nix does not provide. ([evidence](https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/))
+- **spl** (minor): is_pred flags hxi=3 (HyperFlex 'critical' as the UC describes it) as predictive, while is_fail uses hxi>2, so the same disk lands in both buckets. The lookup join ignores vendor, so mixed-vendor clusters with the same n…
+
+### [UC-19.2.20](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.20.json) — HPE SimpliVity Backup Job Reliability and Deduplication Efficiency
+
+- **spl** (blocker): The success regex (complete|success|commit|finish|done|sent) never matches the documented success state PROTECTED (states are NEW, SAVING, FAILED, PROTECTED, CANCELED, QUEUED, REBUILDING, DEGRADED, ...). As a result las… ([evidence](https://developer.hpe.com/platform/hpe-simplivity/get-backups/))
+- **spl** (blocker): Join keys come from coalesce(cluster_id, clusterId) and coalesce(policy_id, policyId) on backup events, but BackupMO carries omnistack_cluster_id and has no policy field. GET /api/omnistack_clusters returns id. Every po… ([evidence](https://developer.hpe.com/platform/hpe-simplivity/get-backups/))
+- **spl** (major): tonumber(created_at, 10) returns null for the ISO-8601 created_at the API emits, so created_t silently falls back to _time. Combined with the poller's time=now stamping, backup age and RPO math use poll time. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConversionFunctions))
+- **cimSpl** (minor): No cimSpl is provided and cimModels is empty. That is acceptable for custom sourcetypes, but it should be stated explicitly.
+- **spl** (minor): target_rpo_minutes defaults to 1440 only inside the lookup subsearch. Policies missing from simplivity_policy_owner.csv get a null target and never raise rpo_breach. In addition, a freeze demotes high straight to info r…
+
+### [UC-19.2.4](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.4.json) — HCI Workload Placement Recommendation Acceptance and Stale Recommendation Tracking
+
+- **spl** (blocker): Each multisearch arm ends with `stats ... BY cluster_id rec_id vendor`. multisearch allows only streaming commands in its subsearches, so the search fails with 'Multisearch subsearches might only contain purely streamin… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.4.2604/search-commands/multisearch))
+- **spl** (blocker): The VMware arm searches sourcetype="vmware:vc:event", which the Splunk Add-on for VMware does not produce; its vCenter events use sourcetype vmware:events.
+- **spl** (major): The Azure Stack HCI automation_level_snapshot matches text such as 'full|auto' or 'manual|idle', but AutoBalancerMode is numeric (0/1/2). The level therefore resolves to Unknown, automation_level_drift_indicator is alwa… ([evidence](https://learn.microsoft.com/en-us/azure/azure-local/manage/vm-load-balancing))
+- **spl** (major): VMware violation_flag is `if(sourcetype=rule_violation AND match(st,...),1,if(sourcetype=rule_violation,1,0))`, so every rule_violation row counts as a violation whatever its status, including resolved ones.
+- **spl** (minor): The critical branch hard-codes 25%, 8 h and >0 instead of the per-cluster lookup targets. The streamstats runs on one row per cluster, so prior_acceptance_rate_pct has no prior value, and it is not projected anyway. eve…
+
+### [UC-19.1.17](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.17.json) — BIOS Policy Compliance (Cisco UCS)
+
+- **cimSpl** (blocker): `from datamodel=Inventory where nodename=Inventory` uses the wrong names. The model's internal name is `Compute_Inventory` and its root dataset is `All_Inventory`. The `appendcols [... | head 0]` adds nothing. The query… ([evidence](https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory))
+- **spl** (blocker): The search filters on `sourcetype="cisco:ucs:inventory"`, which the add-on does not emit; all add-on data is `sourcetype=cisco:ucs`, with the class in `source`. As shipped, the search returns zero rows. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): `current_value` is read only from `vpEnable`/`vpValue`. UCSM biosVf classes expose token-specific properties (`vpIntelVirtualizationTechnology`, `vpPatrolScrub`, ...), so almost every token row is dropped by `where curr… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/bios/BiosVfIntelVirtualizationTechnology.html))
+- **spl** (major): The baseline lookup keys on the exact `sp_tier` with no fallback to `default`. Servers classified as hft, trading or db_prod lose every default-tier rule (VT, TPM, AES), and db_prod has no CSV rows at all, so those serv…
+- **spl** (needs_verification): Confirm that the add-on's events carry a `classId` field. UCSM XML puts the class in the element name, and the add-on stores it in `source` (`cisco:ucs:<classId>`). If there is no `classId` attribute, the classId filter…
+
+### [UC-19.1.29](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.29.json) — Blade Server ECC Memory Error Rate (Cisco UCS)
+
+- **spl** (blocker): The SPL filters memoryunitenvstats/memoryarrayenvstats and coalesces non-existent `correctable`/`uncorrectable` fields, defaulting to 0. It therefore measures nothing: ECC counters are eccSinglebitErrors/eccMultibitErro… ([evidence](https://raw.githubusercontent.com/cisco/cisco-mibs/main/ucs-mibs/CISCO-UNIFIED-COMPUTING-MEMORY-MIB.my))
+- **spl** (blocker): The fault subsearch matches F0186 (DIMM thermal) and F0461 (SEL log capacity) as memory errors and misses F0184 (correctable-ECC degraded). Invented causes such as dimm-correctable never match. ([evidence](https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-3/b_cisco_ucs_faults_and_error_messages_reference-4-3/m_sem-faults_4-3.html))
+- **spl** (blocker): The `dimm_dn` rex on stats rows is anchored with `$` at `/mem-\d+`, but stats objects are children of the DIMM (…/mem-M/error-stats or /env-stats), so no stats row survives `where isnotnull(dimm_dn)`. The sourcetypes ci… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+
+### [UC-19.1.34](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.34.json) — Chassis Thermal Runaway Risk (Blade Enclosures)
+
+- **spl** (blocker): temp_inlet is taken only from equipmentchassisstats rows (ambientTemp/frontTemp/rearTemp/...), but equipmentChassisStats has no temperature attributes (only inputPower/outputPower). bin_temp is therefore always null, so… ([evidence](https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/equipment/EquipmentChassisStats.py))
+- **spl** (blocker): fan_oper reads operState from equipmentFanStats/equipmentFanModuleStats, but those stats classes carry speed (fan) or ambientTemp (module) only; operState lives on the equipmentFan inventory class. fan_failed is always … ([evidence](https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/equipment/EquipmentFanStats.py))
+- **spl** (blocker): Base search uses sourcetype="cisco:ucs:stats", while the add-on assigns sourcetype cisco:ucs (class in source=cisco:ucs:<classID>); on a default install the search returns nothing. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (minor): bin_fan_rpm averages every fan in the chassis, so a single failed fan in an 8-fan chassis only moves the average about 12%, below the 15%/20% thresholds; per-fan min/drop would capture single-fan loss.
+
+### [UC-19.1.15](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.15.json) — Chassis PSU Redundancy Loss (Cisco UCS)
+
+- **spl** (blocker): `current_redundancy_state` comes from `psuRedundancy` on equipmentChassisStats, which does not exist. It is always `unknown`, so the `intact` branch can never match and every chassis falls through to `at_capacity_no_red… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/equipment/EquipmentChassisStats.html))
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:inventory" OR sourcetype="cisco:ucs:stats"`; the Splunk Add-on for Cisco UCS emits `sourcetype=cisco:ucs` with class-specific `source` values, so nothing matches on a default in… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): `sum(is_oper)` and `sum(is_psu_row)` over a 30-minute window count every poll row, not distinct PSUs. With six polls a four-bay chassis shows total=24, so `psu_operational_count=1 AND psu_total_count>1` never describes …
+
+### [UC-19.3.7](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.7.json) — Storage Spaces Direct (S2D) Cache Device Health and Predictive Failure SMART Signals
+
+- **spl** (blocker): `sourcetype="WinEventLog:..."` terms wrapped in backticks are parsed as macro invocations, and the search errors because no such macros exist. Remove the backticks. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (blocker): system_disk, spare_warn, critical_warn_low, uncorrected_io, wear_gate, health_pf, pd_journal_bad and pf_txt are all assigned Boolean expressions with eval, which is not allowed. Wrap each in if(...,1,0) and test with =1… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (blocker): The WinEventLog:<channel> sourcetype filters do not match on Splunk_TA_windows 5.0+, which uses sourcetype WinEventLog/XmlWinEventLog with the channel in source. ([evidence](https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/))
+- **spl** (major): wear_pct reads PercentageUsed first, and the spare/uncorrected logic uses AvailableSpare, AvailableSpareThreshold and MediaErrors, none of which Get-StorageReliabilityCounter returns. Key on Wear instead. ([evidence](https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagereliabilitycounter))
+- **spl** (minor): spaces_drv and storport_hit match event IDs regardless of channel, so System-log events with IDs 100, 153, 207 or 304 from unrelated providers feed the posture. Scope each by source/channel.
+
+### [UC-19.1.11](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.11.json) — Service Profile Association Failures (Cisco UCS)
+
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:inventory"`, `sourcetype="cisco:ucs:audit"` and `sourcetype="cisco:ucs:faults"`. The Splunk Add-on for Cisco UCS emits `sourcetype=cisco:ucs` with class-specific `source` values… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): The fault join regex `^(?<sp_key>org-root/.*?/ls-[^/]+)` requires a sub-org segment between `org-root/` and `/ls-`, so faults on service profiles in the root org (`org-root/ls-NAME/fault-...`), the most common layout, n… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Rex))
+- **spl** (minor): `first(inv_fail)`/`first(audit_fail)` take an arbitrary row per sp_dn rather than any failing row (use `max`). `latest(assoc)` and similar fields can be overwritten by empty strings from audit rows. The joined `fault_se…
+
+### [UC-19.1.1](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.1.json) — Blade/Rack Server Health (Cisco UCS)
+
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:faults"`, which the Splunk Add-on for Cisco UCS does not produce. The add-on writes `sourcetype=cisco:ucs` with `source=cisco:ucs:faultInst`, so the search returns nothing on a … ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (minor): `sort 0 - count, - severity` sorts severity as a string (warning > minor > major > critical), so critical rows sort last among equal counts. Also, each poll re-ingests the same open fault, so `count` measures poll repet…
+
+### [UC-19.1.13](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.13.json) — Fabric Interconnect Port-Channel Member Error Rates (Cisco UCS)
+
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:stats"` (main and join), which the Splunk Add-on for Cisco UCS does not emit; its events are `sourcetype=cisco:ucs` with `source=cisco:ucs:etherErrStats` and similar. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): The counters read via `coalesce(crcAlignErrs, ...)`, `fcsErrs`, `outDiscardEarly`, `rcvErrs` and `unicastRx`/`totalRx` do not exist on UCSM etherErrStats/etherRxStats, whose attributes are `fcs`, `align`, `outDiscard`, … ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherErrStats.html))
+- **spl** (needs_verification): The `rex` expects `sys/switch-X/slot-N/(switch-)?(eth|aggr)-port-N`, but FI Ethernet port DNs normally look like `sys/switch-A/slot-1/switch-ether/port-17` (with the stats child `err-stats`). If so, `fi`, `slot` and `po…
+
+### [UC-19.2.22](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.22.json) — HPE dHCI Storage Tier Latency, Capacity, and Array Link Health
+
+- **spl** (blocker): The ESXi arm searches sourcetype="vmware:perf" with read_latency_ms and write_latency_ms. The Splunk Add-on for VMware emits vmware:perf:datastore with counter-named fields, so this arm will return nothing as written. ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **spl** (major): Pool oversubscription normalisation is inverted. The eval `pool_oversub=if(po>1.0, po/100, po)` turns a real overcommit ratio such as 1.5 into 0.015, while under-committed ratios below 1 pass through unchanged and trigg…
+- **spl** (major): The title promises per-tier latency, but stats rolls up BY cluster_name only. Joining dhci_latency_baseline with max=0 then fans each cluster's single p95 out to every tier, so latency_drift_pct per tier compares one cl…
+- **spl** (major): `latest(fabric_link_state)` runs across all arms, and most arms hard-code "unknown", so a real 'down' from the OneView arm can be masked by a later perf event. The hpe:alletra:event arm also marks any warning severity, …
+- **spl** (minor): The search has no `where severity_bucket!="ok"` filter, yet implementation tells the reader the alert should trigger only on non-ok rows (troubleshooting item l admits this). As written, the scheduled alert fires every …
+
+### [UC-19.2.16](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.16.json) — HCI Node Failure Domain Risk (Topology and Configured Redundancy)
+
+- **spl** (blocker): The DRS join searches `sourcetype="vmware:vc:event"`, which the Splunk Add-on for VMware does not produce (it uses `vmware:events`), so drs_violation_count is always 0. ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **spl** (major): `cft=tonumber(coalesce(current_fault_tolerance, ..., "0"))` defaults missing FT to 0, and the base search includes vmware:vsan:health, cisco:hyperflex:cluster and azure_stack_hci:cluster rows that carry no current_fault… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): `sort 0 - severity_bucket` sorts strings in descending lexical order (ok, medium, low, high, critical), so critical rows sort last; there is also no `where` filter, so ok clusters are returned and any results-based aler… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (minor): The comment macro text ('uppercase AND in combined predicates') is authoring residue.
+
+### [UC-19.2.28](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.28.json) — HCI Erasure Coding Rebuild Amplification and EC-vs-RF Capacity Tradeoff
+
+- **spl** (blocker): Every multisearch arm contains `bin` and `stats`; multisearch requires purely streaming subsearches, so the search errors before producing any result. Restructure as append/union or do the per-arm normalisation with str… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): vSAN RAID-5 is mapped to EC-4+1 (ec_data_blocks=4, expected overhead 1.25). OSA RAID-5 is 3+1 (1.33x) needing 4 fault domains; with fault_domain_required = data+parity+1 the search requires 6 for RAID-5 and 7 for RAID-6… ([evidence](https://techdocs.broadcom.com/us/en/vmware-cis/vsan/vsan/8-0/vsan-administration/increasing-space-efficiency-in-a-vsan-cluster/using-raid-5-6-erasure-coding-in-vsan-cluster.html))
+- **spl** (major): RAID-5 vs RAID-6 is inferred from like(ftml,"%raid-6%") on replicaPreference, but SPBM reports erasure coding as 'RAID-5/6 (Erasure Coding) - Capacity' with the level set by FTT; that string never matches %raid-6%, so R…
+- **spl** (major): fault_domain_count defaults to tonumber("0") on vSAN policy rows and on Nutanix rows lacking the field; `coalesce(fault_domain_count, fdom_peak)` never replaces 0 (not null), and capacity rows carry a different containe…
+- **spl** (major): vSAN capacity rows (container_id vSAN_CLUSTER_CAPACITY) fall through to ec_scheme RF2 via the default 'RAID-1'/pftt=1 and are compared against a 2.0 expected ratio using cluster-wide physical/logical usage, while policy…
+- **spl** (minor): The final stats renames latest(capacity_drift_pct_ma7) to capacity_drift_pct, but the post-join eval overwrites it with the instantaneous drift whenever ratios exist, so the 168-hour smoothing described in the docs is e…
+- **spl** (minor): Azure parity geometry uses ec_data_blocks = PhysicalDiskRedundancy+1 (single) / +2 (dual) and a fixed 4+2 for MAP, ignoring the exported NumberOfDataColumns, so expected overhead and rwaf do not reflect the real column …
+
+### [UC-19.2.8](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.8.json) — HCI Cluster Balance and Per-Node Skew Detection
+
+- **spl** (blocker): Each of the four multisearch arms ends with `stats latest(...) BY cluster_id node_id vendor`. multisearch allows only streaming commands in its subsearches, so the search errors with 'Multisearch subsearches might only … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.4.2604/search-commands/multisearch))
+- **spl** (blocker): The VMware arm searches sourcetype="vmware:perf", which the Splunk Add-on for VMware does not emit; it uses vmware:perf:cpu, vmware:perf:mem and so on.
+- **spl** (major): In the VMware arm every metric is coalesced to "0" on every event, so stats latest(cpu_pct_used) returns 0 whenever the most recent event is a mem or inventory line. capacity_max_gb also falls back to MemoryTotalGB, so …
+- **spl** (major): streamstats window=288 runs after rows have been collapsed to one per node, so it averages across nodes rather than over 24 hours of samples. balance_score_24h is therefore not a 24-hour measure. cpu_skew_pct is compute…
+
+### [UC-19.1.36](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.36.json) — Service Profile vNIC Redundancy and Failover Audit (Cisco UCS)
+
+- **spl** (blocker): is_op reads operState from vnicEther rows, but vnicEther has no operState property (operState is on vnicEtherIf). is_op is always 0, so vnic_count_a/vnic_count_b are always 0 and every profile lands in unknown_topology/… ([evidence](https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/vnic/VnicEther.py))
+- **spl** (blocker): failover_enabled_count is built from vnicEtherIf.failoverEnabled, a property that does not exist; fabric failover is vnicEther.switchId in (A-B, B-A). The sw="a"/"b" tests also ignore A-B/B-A values, so failover-enabled… ([evidence](https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/vnic/VnicEtherIf.py))
+- **spl** (blocker): Base and subsearches use sourcetype="cisco:ucs:inventory"; the add-on's default sourcetype is cisco:ucs (class in source), so the search returns nothing without a local override. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): The sp_dn regex `^(?<sp_dn>org-root/.+?/ls-[^/]+)` and the org replace require a sub-org, so service profiles directly under org-root (org-root/ls-NAME) are never joined to their vNICs; the nested join/subsearch pattern…
+
+### [UC-19.2.13](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.13.json) — Dell VxRail Cluster Health
+
+- **spl** (blocker): The severity case has no branch for cluster health `Critical`, a documented VxRail health value; a Critical cluster with no flagged hosts falls through to `1=1, "ok"` and is filtered out by `where sev!="ok"`. ([evidence](https://dl.dell.com/content/docu96731))
+- **spl** (blocker): `host_risk` fires when `pwr!="poweredon"` or `host_health!="Healthy"`; cluster-hosts returns `power_status="on"` and the health field is `health` (not in the coalesce list), so every host row scores as at risk and every… ([evidence](https://dl.dell.com/content/docu96731))
+- **spl** (major): `sum(host_risk)` over a 4h window counts unhealthy poll events, not distinct hosts, and keeps a host that was unhealthy hours ago in the critical result; host and LCM rows that lack cluster_name/cluster_id coalesce to "… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (minor): The comment macro text ('Placeholder name vxrail:cluster is not a real feed') is authoring residue rather than operational context.
+
+### [UC-19.2.30](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.30.json) — vSAN Component Overhead and Resync Backlog Depth Tracking
+
+- **spl** (blocker): The search reads every poll in a two-hour window (earliest=-2h@h) and then runs stats sum(bytes_to_resync) BY cluster_id host_id without keeping only the latest poll per component. With the documented one-minute cadence… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (minor): The maintenance coalesce does not include host_maintenance_mode, which is the field the documented poller emits, so maint_mode_list is always null.
+
+### [UC-19.1.35](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.35.json) — IOM / FEX to Fabric Interconnect Link Flap Pairs (UCSM Syslog)
+
+- **spl** (blocker): Line 2 `# Anchor on real UCSM tokens ...` sits before the first pipe, so Splunk does not treat it as a comment: its words become additional search terms in the base search and the search returns nothing. Use triple-back… ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+- **spl** (blocker): `| sort 0 _time` (ascending) immediately before `transaction ... maxspan=300s`; the transaction command requires descending chronological order and Splunk documents that ascending order with maxspan returns incorrect re… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Transaction))
+- **spl** (blocker): recommended_action tells on-call to 'cross-check cisco:ucs:fault for F0408/F0282'; F0408 is a chassis power problem and F0282 a fabric external port-channel down, so the runbook points at the wrong faults (IOM/FI port l… ([evidence](https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/Reference-Docs/Faults-Error-Msgs/4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference-4-2/b_Cisco_UCS_Faults_and_Error_Messages_Reference_chapter_01.html))
+- **spl** (minor): The optic lookup keys on chassis_id/slot/port, so FEX host ports (chassis_id null) and switch-ether ports never match; fi_id is only set for switch-A/B DNs, so the owner lookup misses all chassis/IOM rows. The final `so…
+
+### [UC-19.1.16](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.16.json) — IOM Uplink Utilization
+
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:stats"`; the Splunk Add-on for Cisco UCS emits `sourcetype=cisco:ucs` with `source=cisco:ucs:<classId>`, so the base search returns no events on a default install. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): `where cidl in ("etheriomstats","etheriomtxstats","etheriomrxstats")` and `coalesce(totalBytesRx, ...)` / `coalesce(totalBytesTx, ...)` reference classes and attributes that UCSM does not have. Port byte counters are `e… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherRxStats.html))
+- **spl** (major): Utilization adds Rx and Tx bytes together (`tbr+tbt`, or the summed split classes) and divides by one direction's link speed. On a full-duplex link a fully loaded port shows up to 200%, and a port at 45% each way alread…
+- **spl** (needs_verification): The rex requires a `fabric-(a|b)` RN segment under the IOM slot, which probably does not match real IOM port DNs (`etherSwitchIntFIo` has rn `port-N` under a port-group). `where isnotnull(chassis_num)` would then drop e… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/ucsmsdk.mometa.ether.html))
+- **spl** (minor): `last(operSpeed)` and `last(model)` are read from stats rows, which carry neither field, so `link_speed_bps` always falls back to the lookup's 10G default. The second `streamstats current=f last(prior1) as prior2` runs …
+
+### [UC-19.2.9](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.9.json) — HCI Data Resiliency and Rebuild Progress (Post-failure recovery)
+
+- **spl** (major): All VMware sourcetypes share one stream per cluster. vmware:vsan:cluster, vmware:vsan:health and event rows set bytes_rem=0 through coalesce(...,"0"), so streamstats deltas between a resync row and the next health row y… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/search-reference/9.4/search-commands/streamstats))
+- **spl** (major): Lookback is earliest=-2h@h and rebuild_start is the minimum _time in that window, so time_in_rebuild_h is capped at about 2 hours. With the default max_acceptable_rebuild_h=24, the 'high' (>SLA) and 'critical' (>2x SLA)…
+- **spl** (major): Severity is inverted for slow rebuilds. 'medium' requires throughput_gbps>=e_thr, and 'low' only applies in the first 10 minutes. An active rebuild running below expected throughput, past 10 minutes, with no other flag …
+- **spl** (major): The Azure arm sets cur_ft=0 whenever any storage job has bytes remaining, including routine Rebalance/Optimize jobs, so every pool rebalance pages as 'critical'. The HyperFlex arm sets exp_obj=1 for any cisco:hyperflex:…
+- **spl** (major): The VMware arm searches sourcetype vmware:vc:event, which the Splunk Add-on for VMware does not emit (it uses vmware:events), so the event-based start-time logic is dead code.
+
+### [UC-19.1.25](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.25.json) — UCS X-Series Intelligent Fabric Module (IFM) Health (UCSM, UCSX-9508)
+
+- **spl** (blocker): The search filters on sourcetype="cisco:ucs:stats"/"cisco:ucs:faults"/"cisco:ucs:inventory", but the add-on writes sourcetype `cisco:ucs` with the class in `source` (cisco:ucs:<classId>). As written, it returns nothing … ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (needs_verification): fabricEthLanEp/fabricEthLanEpStats rows are required to match `^sys/chassis-(\d+)` before the fe_bad test. If, as usual, these MOs live under fabric/lan/..., the fe_bad branch can never fire. Verify the DN and drop or r…
+- **spl** (minor): `sort 0 - _time, severity_bucket` sorts the bucket alphabetically as a tie-breaker, so critical rows are not prioritised. `fault_hit` also treats UCS `condition` severity as a warning.
+
+### [UC-19.1.2](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.2.json) — Service Profile Compliance (Cisco UCS)
+
+- **spl** (blocker): The `compliance` case tests `confg="pending-reboot"` and `confg="unsupported-config"`, which are not configState values. It also tests `assoc="establishing"/"throttled"/"removing"`, which are not assocState values. Pend… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ls/LsServer.html))
+- **spl** (blocker): `sourcetype="cisco:ucs:inventory"` is not emitted by the add-on; all events are `sourcetype=cisco:ucs`, with the class in `source`. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): `stats ... by org, name, dn, compliance` gives one row per state seen in 24 hours. A profile that was Drifted earlier and is Compliant now still produces a Drifted row, and the alert fires on it. Take the latest state p…
+- **spl** (minor): The `org` regex `^org-root/(.+)/ls-[^/]+$` does not match profiles directly under root (`org-root/ls-X`), so `org` ends up as the full dn for those profiles.
+
+### [UC-19.3.1](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.1.json) — Azure Stack HCI Cluster Validation, Quorum Health, and Witness Reachability
+
+- **spl** (blocker): Plain search terms are wrapped in backticks (`index=azure_stack_hci`, `sourcetype="..."`, `earliest=-24h`). Splunk treats backtick-delimited text as a search macro invocation, so the search fails with a macro-not-found … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (blocker): `max(case(scripted_quorum_risk IN (...),1,0))` inside stats is not valid. Stats functions accept an eval expression only when it is wrapped as max(eval(...)), so the search errors. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): posture uses mvfind(...)>0, but mvfind returns a 0-based index. Because values() sorts lexically, 'quorum_failure' is always at index 0 when present, and a lone 'witness_transport' or 'witness_state' is also at index 0.… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/MultivalueEvalFunctions))
+- **spl** (major): The event-ID mapping uses the wrong meanings (1554, 1561, 1566, 1571, 1606), omits 1177 'quorum lost', and searches only the Operational channel, while these events are written to the System log. ([evidence](https://learn.microsoft.com/en-us/troubleshoot/windows-server/high-availability/failover-clustering-system-log-events))
+- **spl** (major): WinEventLog events have no cluster_name field, so cluster_name falls back to ComputerName. Results are therefore per node rather than per cluster, and reporting_nodes is always 1 for event-log rows. A node-to-cluster lo…
+
+### [UC-19.1.21](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.21.json) — Cisco UCS HCL Compliance via Intersight (cond.HclStatus)
+
+- **spl** (blocker): `ServerMoid=coalesce(ServerMoid, server_moid, 'Server.Moid', "")` is always empty, because cond.HclStatus links to the server through `ManagedObject`. The following `where ... ServerMoid!=""` therefore drops every event. ([evidence](https://github.com/CiscoUcs/intersight-python/blob/master/docs/CondHclStatus.md))
+- **spl** (blocker): The severity `case` compares against `NotListed`, `NotValidated` and `ServiceUnavailable`. The real values are `Not-Listed`, `Incomplete` and `Not-Evaluated`, so critical and high can never fire and everything falls to … ([evidence](https://github.com/CiscoUcs/intersight-python/blob/master/docs/CondHclStatus.md))
+- **spl** (blocker): The search starts with a `// ...` line. SPL has no `//` comment syntax, so that text becomes literal search terms. Use triple-backtick comments. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments))
+- **spl** (blocker): `sourcetype="cisco:intersight:condhclstatus"` and `cisco:intersight:computephysicalsummary` are not published by the Cisco Intersight Add-on for Splunk. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data))
+- **spl** (major): Filtering out `Validated` before `stats latest(...)` means a server that has since returned to Validated keeps its last non-validated row for the whole 7-day window, and the alert keeps firing. Compute the latest status…
+
+### [UC-19.2.6](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.6.json) — HCI Replication Factor Policy Compliance (vSAN, Nutanix, HyperFlex, Azure Stack HCI)
+
+- **spl** (blocker): The sev0 case uses `tolower(tostring(compliance_class))`. Splunk eval has no tolower function (the text function is lower()), so the search fails to parse. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/TextFunctions))
+- **spl** (major): The vSAN mapping `_vsan_rf=if(RAID-5 OR RAID-6, 2+sftt, 1+pftt)` gives a non-stretched RAID-6 policy (FTT=2) actual_rf=2, the same as RAID-5 (FTT=1). RAID-6 objects then show false rf_drift against a min_required_rf of …
+- **spl** (major): The vmware:vsan:object subsearch counts non-compliant objects by policy_id only. vSAN policies are vCenter-wide, so every cluster row with that policy gets the full vCenter-wide count and can be raised to critical for o…
+- **spl** (minor): The HyperFlex arm searches index=cisco, while dataSources and the guide use index=hyperflex. The force-provisioning subsearch groups by a raw cluster_name without the coalesce applied in the main arm, so it misses event…
+
 ### [UC-19.2.14](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.14.json) — Nutanix CVM (Controller VM) Resource and Service Health (Per-Service Deep-Dive)
 
 - **spl** (major): The os arm sets `_memp2 = 100 - df UsePct` whenever a df event is present and stores it as mem_used_max_pct, so disk free percent is reported as memory used. pctIowait is read from vmstat, which does not have that field…
 - **spl** (needs_verification): Every multisearch arm contains `stats` (and the os arm contains `lookup`). multisearch only accepts purely streaming subsearches, so Splunk rejects the search with 'Multisearch subsearches may only contain purely stream…
 
+### [UC-19.2.18](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.18.json) — HCI Topology Change Auditing and Unauthorized Expansion Detection
+
+- **spl** (blocker): Every multisearch arm ends with `stats ... BY cluster_id event_id vendor`; multisearch only accepts purely streaming subsearches, so Splunk rejects the search ('Multisearch subsearches may only contain purely streaming … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (blocker): The VMware arm searches `sourcetype="vmware:vc:event"`, which the Splunk Add-on for VMware does not produce (it emits `vmware:events`). ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **cimSpl** (major): The Change query (object_category="configuration" OR action="modified") has no HCI scoping and returns every configuration change in the estate; it does not reproduce the topology-change detection.
+- **spl** (major): `join type=left max=0 cluster_id [| inputlookup change_tickets_24h]` fans each event out to one row per ticket on that cluster; an event inside ticket A's window is also compared with ticket B's row and counted as unaut… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (minor): `streamstats ... count AS ev_seq` is computed but never used; the comment macro is a long tunables note rather than a short description.
+
+### [UC-19.2.7](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.7.json) — CVM (Controller VM) Health
+
+- **spl** (blocker): bad_cas excludes 'kforwarding', so a Cassandra service in forwarding mode (Nutanix's degraded-node / ring-detach state) never raises a row. ([evidence](https://hyperhci.com/what-is-nutanix-degraded-node-forwarding-state/))
+- **spl** (minor): sevord=case(cvm_severity="critical",3, cvm_severity="high",2, 1, 1) uses the bare literal 1 as a condition, where the catalogue elsewhere uses 1=1 or true(). It may fail type-checking. Also, the u and l evals before the…
+
+### [UC-19.2.24](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.24.json) — HCI Live-Cluster Data Reduction Efficiency Drift and Savings-at-Risk Tracking
+
+- **spl** (blocker): Each multisearch arm ends in `bin ... | stats ... BY cluster_id container_id vendor _time`. multisearch subsearches may contain only purely streaming commands, and stats is a transforming command, so the search fails. M… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (major): Ratio normalisation divides values above 45 by 100 but passes values from 0 to 45 through as multipliers. A savings percentage such as 30 (meaning 30%) becomes a ratio of 30, which inflates combined_efficiency_ratio. Th…
+- **spl** (major): `streamstats time_window=30d` (and 7d) runs after `sort 0 + cluster_id container_id vendor _time`. time_window requires results in time order, and sorting by key first breaks global time order, so this errors or produce…
+
+### [UC-19.1.20](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.20.json) — Intersight Firmware Compliance — UCS, X-Series, and Fabric Interconnects
+
+- **spl** (blocker): `sourcetype="cisco:intersight:firmwarerunningfirmware"` and `cisco:intersight:computephysicalsummary` are not sourcetypes published by the Cisco Intersight Add-on for Splunk, so the base search and the join subsearch bo… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data))
+- **spl** (blocker): `server_moid = coalesce('Server.Moid', server_moid, ServerMoid, parent_moid)` reads fields that firmware.RunningFirmware does not have. `server_moid` is therefore null, and `stats ... by server_moid, server_name, compon… ([evidence](https://www.rubydoc.info/gems/intersight_client/IntersightClient/FirmwareRunningFirmware))
+- **spl** (needs_verification): Check that the drilldown pattern `https://www.intersight.com/an/operate/server/<moid>/inventory/system` is a valid Intersight UI deep link. ([evidence](https://www.intersight.com/an/operate/server/<moid))
+- **spl** (minor): `sort +severity_bucket` sorts alphabetically (critical, high, low, medium), not by severity. `hcl_outdated` is computed from the lookup's end_of_support_date, not from HCL status, so the name is misleading.
+
+### [UC-19.1.48](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.48.json) — Dell VxRail vSAN Unhealthy vSAN Objects and Resync Backlog
+
+- **spl** (minor): `sort 0 - fleet_sev_critical - resync_gb` sorts first by a fleet-wide constant (eventstats gives every row the same fleet_sev_critical), so critical clusters are not ranked above warning/watch ones; sort on a severity r…
+
+### [UC-19.2.23](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.23.json) — vSAN Witness Appliance Health
+
+- **spl** (blocker): Statements such as `eval crit_q=(quorum!="met")`, `eval crit_w=(...)`, and `eval low_hb=(...)` assign a bare Boolean expression to a field. The Search Reference says the result of an eval expression cannot be a Boolean,… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (major): `quorum!="met"` is true when the poller omits quorum (an empty string), so any feed that lacks that customer-defined field turns every row critical. The vsan_object_health comparisons are also exact, case-sensitive matc…
+
+### [UC-19.1.23](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.23.json) — Intersight Audit Log and Configuration Changes
+
+- **spl** (blocker): The search uses sourcetype="cisco:intersight:aaaauditrecord", which the Cisco Intersight Add-on does not publish. The real audit sourcetype is cisco:intersight:auditrecords, so as written the search returns no events. ([evidence](https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data))
+- **spl** (blocker): The first line is a `// ...` comment. SPL has no `//` comment syntax (comments use triple backticks), so the leading text is parsed as search terms and the search fails or returns nothing. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments))
+- **spl** (needs_verification): 'Account.Name' and 'Organization.Name' assume expanded relationships. Intersight MoRefs normally carry only Moid/ObjectType unless $expand is used, so account_name and org_name will likely always be 'unknown'. Check aga…
+- **cimSpl** (minor): `where nodename=Change.All_Changes` should be `nodename=All_Changes`. `All_Changes.object` only fills in if a custom mapping exists, and dataModelAcceleration says the add-on ships none. As written, the search will retu… ([evidence](https://docs.splunk.com/Documentation/CIM/latest/User/Change))
+- **spl** (minor): `eval source=coalesce(Source, source, "")` overwrites Splunk's built-in `source` metadata field with the Intersight Source value, and the later `eval source=mvindex(_sources,0)` reuses the name. Rename it to `change_sou…
+- **spl** (minor): `sort severity_tier, ...` sorts alphabetically (critical, info, warning), so info rows appear before warning rows. Add a numeric rank, e.g. eval tier_rank=case(severity_tier=="critical",1,severity_tier=="warning",2,1=1,…
+
+### [UC-19.2.36](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.36.json) — oVirt / Red Hat Virtualization (RHV) Storage Domain Used Percent and Low-Space Warning
+
+- **spl** (blocker): The first multisearch leg contains '| comment("UC-19.2.36 — ...")' without backticks. comment is a macro, not a search command, so the search fails with an unknown-command error. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Addcommentstosearches))
+- **spl** (blocker): '| eval _hard=(critical_space_breach=1) OR (external_status="error") OR (recent_984=1)' assigns a boolean to a field, which eval rejects ('Fields cannot be assigned a boolean result'). This aborts the search; it needs i… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): Codes 983/984 are RECONSTRUCT_MASTER_FAILED_NO_MASTER and RECONSTRUCT_MASTER_DONE, not low-space events. recent_984 makes a successful master reconstruction 'critical', and the real low-space codes 26, 201 and 1403 are … ([evidence](https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java))
+- **spl** (major): Missing or zero capacity values coalesce to "0", which makes free_pct=0 and available_gb=0, so critical_space_breach=1. Inactive or detached domains, ISO and export domains, and polls missing fields all page as critical…
+- **spl** (minor): 'sort 0 sev_order, -free_pct' lists the highest free_pct first within each severity, the opposite of the ascending order the visualization and detailedImplementation describe. depl_bps comes from one 5-minute delta, so …
+
+### [UC-19.1.5](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.5.json) — FI Port Channel Health
+
+- **spl** (blocker): The search filters sourcetype="cisco:ucs:stats", but the add-on assigns sourcetype cisco:ucs (class identified by source cisco:ucs:<classId>), so on a default install the search returns nothing. Use sourcetype=cisco:ucs… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): configured_members=sum(is_ep) and active_members=sum(member_up) over 30 minutes count poll rows, not members: a 2-member LAG polled every 5 minutes shows configured_members≈12, and one down poll for any member in the wi… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+
+### [UC-19.2.32](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.32.json) — VxRail vCenter Plugin Availability and VxM API Heartbeat Health
+
+- **spl** (blocker): Both vCenter join arms search sourcetype="vmware:vc:event" OR "vmware:vc:log", but the Splunk Add-on for VMware does not emit those sourcetypes. It uses vmware:events and vmware:vclog*. plugin_register_failures_1h, whic… ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **spl** (minor): The subsearches use earliest=-1h@h latest=@h while the alert runs every 15 minutes, so the newest 0 to 59 minutes of plugin-failure, SSO and health events are always excluded. The '1h' failure count is really the previo…
+
+### [UC-19.3.5](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.5.json) — Windows Admin Center (WAC) Gateway Connection Telemetry and Administrative Action Audit
+
+- **spl** (blocker): The lane case() keys on undocumented event IDs (1000/1001/2000/2001/2010/2020/2021/2030/2040/2041/2050/2099). Microsoft documents WAC management actions as EventID 4000 (Source SMEGateway), so every lane except the snap… ([evidence](https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/logging))
+- **spl** (blocker): sourcetype="WinEventLog:Microsoft-ServerManagementExperience" and sourcetype="WinEventLog:WindowsAdminCenter" will not match on Splunk_TA_windows 5.0+, which assigns sourcetype WinEventLog (or XmlWinEventLog, since the … ([evidence](https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/))
+- **spl** (minor): There is no final `where risk!="monitor"`, so the alert returns every active gateway host.
+
+### [UC-19.1.6](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.6.json) — Power and Thermal Monitoring (Cisco UCS)
+
+- **spl** (blocker): All three searches filter sourcetype="cisco:ucs:stats", which the add-on does not emit (it uses sourcetype cisco:ucs with source cisco:ucs:<classId>), so a default install returns no rows. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (blocker): `stats latest(_time) ... by dn, classId, metric, chassis_num, fi_side` discards any result where a BY field is null; chassis/blade DNs never contain switch-A|B and FI DNs never contain chassis-N, so almost every row is … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+
+### [UC-19.1.10](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.10.json) — Blade Firmware Compliance per FRU (Cisco UCS B-Series and X-Series)
+
+- **spl** (blocker): Both the main search and the join subsearch filter `sourcetype="cisco:ucs:inventory"`, which the Splunk Add-on for Cisco UCS does not emit; all add-on data is `sourcetype=cisco:ucs`, with the class ID in `source` (for e… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (needs_verification): Grouping `fw-boot-loader` with running/system children under one `fru_parent` and treating any version difference as `MultipleVersionsActive` may produce steady-state false positives. Separately, the `boardctrl` pattern…
+
+### [UC-19.1.18](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.18.json) — UCS Central Domain Registration and Heartbeat Health (multi-domain governance)
+
+- **spl** (blocker): The search starts with two `// ...` lines. SPL has no `//` comment syntax, so the words, parentheses and `+` on those lines become literal search terms in the base search and filter out every event. Use triple-backtick … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments))
+- **spl** (blocker): `reg_s` reads `regState`/`reg_state`, and the heartbeat age reads `lastHeartbeat*`. `extpolClient` exposes `operState` and `lastPollTs` instead, so `reg_s` is always empty and every domain is classified REGISTRY_STATE. … ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/extpol/ExtpolClient.html))
+- **spl** (major): When the heartbeat timestamp fails to parse, `heartbeat_age_seconds` is null and a registered domain shows OK. A stale or missing feed fails silently. There is also no staleness check on `_time`, so a domain that stops …
+
+### [UC-19.1.24](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.24.json) — Intersight Contract and Warranty Compliance
+
+- **spl** (blocker): The SPL reads top-level EndDate, LineStatus and ContractNumber, which do not exist on asset.DeviceContractInformation (ServiceEndDate, Contract.LineStatus, Contract.ContractNumber). end_epoch and days_to_expiry are ther… ([evidence](https://github.com/CiscoDevNet/intersight-go/blob/main/model_asset_device_contract_information.go))
+- **spl** (major): `table ... ` drops `sev_n` before `sort 0 - sev_n days_to_expiry`, so the severity ordering the comment promises does nothing. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Table))
+- **spl** (major): A 7-day window over an inventory feed polled several times a day, with no `dedup Moid` or `stats latest(...) by Moid`, returns one row per poll per contract, which inflates counts and tickets. ([evidence](https://github.com/jerewill-cisco/intersight-splunk-addon))
+- **spl** (minor): Bucket labels do not match their thresholds: with default warn_days=180, `warning_90d` covers 61–180 days and `low_180d` covers 181–360 days (warn_days*2). The `Unknown` contract status is also labelled `expired`, which…
+
+### [UC-19.1.47](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.47.json) — Dell VxRail Physical Disk Predictive Failure and Unhealthy Drive Status
+
+- **spl** (major): `node=coalesce(host, ...)` always resolves to `host`, which is always set: the HEC or forwarder host for vxm rows and the iDRAC IP for syslog rows. iDRAC rows also get `cluster="default"` because they carry no cluster_i…
+- **spl** (major): iDRAC SEL/LCL syslog events carry no `predictive_failure`, `PredictiveFailureCount`, `disk_state` or `smart_alert` fields, and the props EXTRACTs create none. SEL rows therefore always score pred=0, smart=0 and state=""…
+- **spl** (needs_verification): `match(sourcetype, "idrac:lcl|idrac:syslog")>0` compares the boolean result of `match()` with a number. Eval typechecking may reject it, or the branch may never be true. Use `match(sourcetype, "idrac:lcl|idrac:syslog")`…
+
+### [UC-19.2.17](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.17.json) — vSAN Disk Group Health
+
+- **spl** (major): `eval host=coalesce(host, hostName, ...)` takes Splunk's default `host` field first, which for HEC is the poller/forwarder, so the ESXi host from the payload is never used and every disk group reports the poller as its … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): During a change freeze, the spl sets every non-ok severity, including permanent_error and health=error, to 'ok', so a real disk-group failure is silently hidden; sibling UC-19.2.16 deliberately never demotes critical.
+- **spl** (minor): vmware:vsan:health is searched and then discarded by `where len(disk_group_uuid)>0`, and no final filter removes 'ok' rows, so the alert depends on an undocumented custom trigger condition.
+- **spl** (minor): Comment macro text ('Templated sourcetype vsan:diskgroup is fictional') is authoring residue.
+
+### [UC-19.2.3](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.3.json) — HCI Shared Storage I/O Latency (Cluster, Host, VM, Disk Group)
+
+- **spl** (blocker): Every multisearch arm ends with `| table ...`. table is a non-streaming (transforming) command, and multisearch only accepts purely streaming subsearches, so the search errors. Replace each `table` with `fields` (stream… ([evidence](https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/table))
+- **spl** (major): `sum(iops_total)` aggregates instantaneous IOPS across all samples in the 30-minute window, so iops_total is inflated by the sample count (about 60x at 30-second polling) and is not comparable across vendors with differ…
+- **spl** (major): The 24-hour baseline join is keyed on cluster_name only and pools every vSAN entity type (cluster, host, disk-group, VM) and every Nutanix row into one p95 per cluster. HyperFlex and Azure sources are missing from it. t…
+- **spl** (needs_verification): The vSAN per-VM scope test `match(entity, "^vm:")` does not match vSAN perf entity refs, which use the 'virtual-machine:' prefix. Per-VM rows would be labelled 'other'.
+- **spl** (needs_verification): The eval function is written `toString(...)` throughout while the documented function is `tostring`. If eval function names are case-sensitive on the target Splunk version, every arm fails with an unsupported-function e…
+- **spl** (minor): For Nutanix and HyperFlex, latency_max_*_ms is set to the average latency, so the 'max latency over 100 ms' critical rule only fires on a 100 ms average for those vendors. That is inconsistent with the vSAN semantics. T…
+
+### [UC-19.3.3](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.3.json) — Hyper-V VM Placement and Live Migration Failure Rate Detection
+
+- **spl** (blocker): Filters such as sourcetype="WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Operational" and sourcetype="WinEventLog:Microsoft-Windows-FailoverClustering/Operational" will not match. Since Splunk_TA_windows 5.0, every event … ([evidence](https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/))
+- **spl** (blocker): The vmms_state case() keys on 22106/22112/22113/22114/22117/22125/21024/25030. Microsoft documents live migration as 20413/20415/20417/21502/22038/21024 in Hyper-V-VMMS-Admin, so lm_fail and lm_cancel would rarely or ne… ([evidence](https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/troubleshoot-live-migration-issues))
+- **spl** (major): `dc(host) as nodes_seen by cluster_key host` is always 1 because host is a group-by key. The title promises a failure rate, but the search computes no rate (there is no ratio of failures to starts).
+- **spl** (needs_verification): `eval mig_bytes_sent='Migration Bytes Sent'` assumes perfmon writes one field per counter name. Standard Splunk perfmon events carry counter="..." and Value=..., so this field is null unless mode=multikv or a custom ext…
+
+### [UC-19.1.4](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.4.json) — Fault Trending by Severity (Cisco UCS)
+
+- **spl** (blocker): The search filters `sourcetype="cisco:ucs:faults"`, but the Splunk Add-on for Cisco UCS indexes faults as `sourcetype=cisco:ucs source=cisco:ucs:faultInst`. On a default install it returns nothing; it should use `source… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (needs_verification): The search coalesces `fault_code`, `fault_type`, `fault_cause` and `sev`, which look like invented alternate names. `sort 0 sev_rank, _time` has no effect after `chart`. If `_time` is the poll time rather than `created`…
+
+### [UC-19.2.33](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.33.json) — Proxmox VE / Ceph Pool NEARFULL and OSD Space Pressure
+
+- **spl** (major): The OSD branch normalizes utilization with if(osd_tu>1, osd_tu/100, osd_tu), but 'ceph osd df' reports utilization in percent. Any OSD under 1% (for example a newly added, nearly empty OSD at 0.97%) is read as a fractio…
+- **spl** (minor): ceph_health coalesces health__status and health_status but not 'health.status', the name JSON extraction produces for the PVE /cluster/ceph/status payload, so HEALTH_ERR is never seen unless the poller renames it.
+
+### [UC-19.3.9](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.9.json) — oVirt / Red Hat Virtualization (RHV) Administrator Login and Privileged Action Audit Trail
+
+- **spl** (blocker): privileged_motion requires both evt and evt_num to match, and most pairs are wrong: USER_RUN_VM/34 (real 32), USER_ADD_CLUSTER/811 (809), USER_ADD_PERMISSION/852 (850), USER_REMOVE_PERMISSION/854 (852), USER_ADD_ROLE/89… ([evidence](https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java))
+- **spl** (major): `coalesce(principal, user_name, 'unknown_principal')` uses single quotes, which eval treats as a field reference, not a string literal. The fallback is null, and principal_norm becomes null for unparsed rows, which stat… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **cimSpl** (needs_verification): `earliest=-24h` is placed after the BY clause of tstats. Time bounds belong in the WHERE clause, so check that this parses. The query also assumes the custom ovirt:engine sourcetype is CIM-tagged for Authentication, and…
+
+### [UC-19.1.14](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.14.json) — UCS Manager Backup Validation (All Configuration, Full State, and Target-File Integrity)
+
+- **spl** (blocker): The search begins with a `// UC-19.1.14 — ...` line. SPL has no `//` comment syntax (comments use triple backticks or the `comment` macro), so that text becomes literal search terms ANDed with `index=cisco_ucs ...`. Com… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments))
+- **spl** (major): `last_str` is read from `lastBackup` on `cisco:ucs:mgmtbackup` rows described as mgmtBackup MOs, but mgmtBackup has no lastBackup attribute (it lives on mgmtBackupPolicy / mgmtCfgExportPolicy). `miss_ratio` is then alwa… ([evidence](https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/mgmt/MgmtBackup.html))
+- **spl** (minor): `sort 0 severity_bucket` sorts alphabetically (CRITICAL, INFO, WARNING), placing WARNING below INFO. `fillnull value=0 file_size_bytes` turns a missing filesystem join into a CRITICAL under-100KB result.
+
+### [UC-19.2.31](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.31.json) — Nutanix protection-domain replication lag and RPO compliance
+
+- **spl** (blocker): stats ... by cluster_name, remote_site_name drops every event whose remote_site_name is null. The search explicitly sets remote_site_name to null for the nutanix:cluster:metrics and Prism Central alert branches, and the… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (minor): max(replication_state) takes the lexicographic maximum of strings such as COMPLETED, FAILED and RUNNING, which is not a meaningful worst-state rollup.
+
+### [UC-19.3.2](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.2.json) — Storage Spaces Direct (S2D) Storage Pool Utilization and Tier-Imbalance Detection
+
+- **spl** (blocker): Statements such as `eval pool_warn=st="s2d:pool" AND pool_usage_pct>=70 ...` (and pool_crit, map_footprint, parity_heavy, optimize_slow, tier_hot) assign Boolean results to fields. eval rejects this with 'Fields cannot … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (blocker): optimize_eta_sec reads EtaSecondsRemaining/eta_seconds. Get-StorageJob (MSFT_StorageJob) has no such property, so optimize_slow can never be true. Derive the ETA from ElapsedTime and PercentComplete instead. ([evidence](https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagejob))
+
 ### [UC-19.1.45](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.45.json) — OpenStack Control-Plane RabbitMQ Alarms, Connection Churn, and Partition or Queue-Depth Stress
 
 - **spl** (major): `stats ... by host` groups Management API events by the poller host, not by the RabbitMQ node: /api/nodes returns every cluster member in one response, keyed by `name` (rabbit@node). Alarms on any node collapse onto the…
 - **spl** (minor): The `memdisk_l` regex matches the generic phrase 'file descriptor' and `n_part_l` counts 'mnesia is overloaded', which is a load warning, not a partition. Both can raise warnings without a real alarm. The `coalesce(mem_…
+
+### [UC-19.1.26](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.26.json) — Nutanix Prism Central Alert Monitoring
+
+- **spl** (blocker): The SPL reads is_resolved/resolved, is_acknowledged, impact_types and cluster_name, none of which exist in the v3 alert payload (resolution_status.is_true, acknowledged_status.is_true, impact_type_list, source_entity.cl… ([evidence](https://www.nutanix.dev/api_reference/apis/prism_v3.html))
+- **spl** (major): The unresolved filter runs before `dedup alert_id`, and the search has no explicit time bound. A resolved alert's last earlier unresolved poll is still kept, so resolved alerts stay on the list until they age out of the… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Dedup))
+
+### [UC-19.3.6](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.6.json) — Cluster-Aware Updating (CAU) Run Status, Node Drain Success, and Patch-Window Compliance
+
+- **spl** (blocker): sourcetype="WinEventLog:Microsoft-Windows-ClusterAwareUpdating/Admin" will not match on Splunk_TA_windows 5.0+, which indexes all event logs as sourcetype WinEventLog/XmlWinEventLog with the channel in source. ([evidence](https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/))
+- **spl** (blocker): The urgent list keys on 1003/1008/1023/1027 and omits 1007 (run failed) and 1013 (node failed) as they appear in real CAU logs, so genuine run failures are missed. ([evidence](https://community.spiceworks.com/t/cluster-aware-updating-fails-2016-servers/675755))
+- **spl** (major): run_status is set with coalesce(Status,""), so it is the empty string rather than null when Status is absent. `coalesce(run_status,json_Status)` therefore always returns run_status, and the Get-CauReport Summary_Status … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (minor): cluster_key falls back to ComputerName, so WinEventLog rows group per node rather than per cluster, and reporting_hosts and posture fragment across nodes of the same cluster.
+
+### [UC-19.1.19](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.19.json) — Intersight Server Alarm Monitoring (Cisco Intersight cloud)
+
+- **spl** (blocker): `MoId=coalesce(MoId, mo_id, moid, "")` misses the actual Intersight field `Moid`, because Splunk field names are case-sensitive. `RegisteredDevice=coalesce(RegisteredDevice, ...)` reads a MoRef object that JSON extracti… ([evidence](https://github.com/CiscoDevNet/intersight-powershell/blob/master/docs/Set-IntersightCondAlarm.md))
+- **spl** (needs_verification): Check whether the add-on re-emits every open alarm on each poll or only alarms changed since the last poll (by ModTime). If it re-emits, the eventstats counts over 24 hours grow with the number of polls rather than the …
+- **spl** (minor): `OriginSys` is not a cond.Alarm property. Its attributes are Acknowledge, AffectedMo*, AncestorMo*, Code, CreationTime, Description, LastTransitionTime, Name, OrigSeverity, RegisteredDevice and Severity, so the column i… ([evidence](https://www.rubydoc.info/gems/intersight_client/IntersightClient/CondAlarm))
+
+### [UC-19.2.27](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.27.json) — vSAN Cluster Capacity Headroom and Slack Space
+
+- **spl** (minor): `dedup_enabled` defaults to "true" when the field is missing, so every cluster reports dedup_enabled=1. `headroom_for_host_rebuild_bytes` subtracts the largest host's raw capacity rather than the data it holds, which ov…
+- **spl** (minor): The base search pulls vmware:vsan:health and vmware:vsan:diskgroup over 25 hours only to drop them at the next `where sourcetype="vmware:vsan:capacity"`. The health data is fetched again in the join subsearch, so the ba…
+
+### [UC-19.1.41](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.41.json) — oVirt / RHV Engine ERROR and SEVERE Log Burst Detection
+
+- **spl** (blocker): The search relies entirely on an extracted `log_level`, `level` or `severity` for its level filter and only backfills `logger` with `rex`. With the documented props, `log_level` is never extracted, so the search returns… ([evidence](https://bugzilla.redhat.com/show_bug.cgi?id=1524308))
+- **spl** (needs_verification): The IPv4 sed pattern uses `\\.` inside the SPL string, which may reach the regex engine as a literal backslash rather than an escaped dot, so IPs would not be masked. Test it on a sample `_raw`.
+
+### [UC-19.1.32](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.32.json) — CNA / vNIC Adapter Firmware Drift (Cisco UCS)
+
+- **spl** (blocker): fwr_run/fwr_start require firmwareRunning `deployment` = "running"/"startup" and `type` in (system, combined, ""), but UCSM firmwareRunning deployment values are boot-loader/kernel/service-pack/system/unspecified and th… ([evidence](https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/firmware/FirmwareRunning.py))
+- **spl** (blocker): Base search filters `sourcetype="cisco:ucs:inventory"`, but the add-on assigns sourcetype `cisco:ucs` and puts the class in `source=cisco:ucs:<classID>`; on a default install the search returns nothing. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): business_org logic is broken: server_mo is an equipment DN (sys/chassis-N/blade-N or sys/rack-unit-N) that never contains `org-` or `/ls-`, so the prod/qa regex branches never match; and if they did, the first pattern `…
+- **spl** (minor): `presence!="missing"` keeps adaptorUnit rows with presence=empty (and other non-equipped states), so empty slots can still be evaluated; filter on presence="equipped" or a match on ^equipped.
+
+### [UC-19.1.12](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.12.json) — Fault Suppression Policy Audit (Cisco UCS)
+
+- **spl** (blocker): Both the main search and the join subsearch filter `sourcetype="cisco:ucs:faults"` and `sourcetype="cisco:ucs:audit"`, which the Splunk Add-on for Cisco UCS never assigns; its data is `sourcetype=cisco:ucs` with `source… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **cimSpl** (major): The cimSpl counts every Change and Inventory event in the estate with no UCS source or sourcetype filter, and appends unrelated `head 20` lists. It does not express this detection, and the add-on provides no Change mapp… ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): `business_service` is derived from `prod`/`test`/`lab`/`dr` substrings in `dn`, but an earlier `where` keeps only `^sys/` physical DNs (chassis, blade, rack-unit paths), which never contain org names. So business_servic…
+- **spl** (needs_verification): Suppressed faults are detected via `lc` containing `suppress`. Cisco shows suppression as a Suppressed severity filter in the Faults view, and faultInst `lc` normally takes values such as raised, flapping, soaking and c…
+
+### [UC-19.1.3](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.3.json) — Firmware Compliance (Cisco UCS)
+
+- **spl** (blocker): The base search requires sourcetype="cisco:ucs:inventory", which the Splunk Add-on for Cisco UCS does not emit (sourcetype cisco:ucs, source cisco:ucs:firmwareRunning), so it returns no events on a default install. ([evidence](https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/))
+- **spl** (major): Lookup on component_type alone with a string equality test cannot express model-specific baselines, so mixed-generation fleets show mass false non-compliance. The `%mgmt%` branch also labels board-controller and other m…
+- **spl** (minor): `like(classId, "firmware%")` is an eval function used inside the `search` command, which does not evaluate functions, so that OR branch never matches as intended. Use `where` or `classId=firmware*`. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search))
+
+### [UC-19.2.11](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.11.json) — HCI Storage Controller and Storage-Network Throughput Saturation Tracking
+
+- **spl** (blocker): The vSAN multisearch arm contains `bin span=1m _time` and `stats max(...) BY cluster_id node_id vendor _time`. multisearch only accepts purely streaming subsearches, so the whole search fails. Move the 1-minute aggregat… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (major): `sourcetype="vmware:perf"` is an exact match. The Splunk Add-on for VMware emits vmware:perf:disk, vmware:perf:net, vmware:perf:storageAdapter and similar, so the vSAN arm returns nothing. Use sourcetype="vmware:perf:*"… ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **spl** (major): The default target_max_p99_latency_us is 1500000 µs (1.5 s). Critical requires p99 controller latency ≥ 1.5 s and high requires ≥ 1.275 s, so unless the lookup overrides it, those tiers practically never fire, and 'warn…
+- **spl** (major): Missing queue-depth fields are coalesced to "0", and the Nutanix arm's queue fields are not in Prism v2 host stats. Queue utilisation is therefore 0 for those nodes, and the critical/high tiers, which AND queue, link an… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (minor): The search starts with a `comment(...)` macro before the generating `| multisearch`. Splunk warns that comments before a generating command can cause errors or incorrect results. ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+
+### [UC-19.2.37](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.37.json) — VxRail vSAN Cluster Free Capacity and Failures-To-Tolerate Rebuild Headroom
+
+- **spl** (major): The 'critical' branch requires slack_pct<tmins, but slack_pct is null whenever slack is not exported, because coalesce defaults it to "0" and slack_pct is only set when slack>0. Get-VsanSpaceUsage and the documented sam… ([evidence](https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/get-vsanspaceusage))
+- **spl** (minor): ftt_src and ftt_policy default to "0" through coalesce, so ftt_use falls to 0 rather than the intended "1" fallback when the feeds are missing. The evacuation estimate then uses (0+1), which understates the requirement.
+- **spl** (minor): 'sort 0 + severity0' sorts alphabetically (critical, high, low, medium, ok), so low ranks above medium. The freeze rewrites even 'critical' to 'info' for severity_bucket. largest_host_contribution_gb is read only from t…
+
+### [UC-19.2.10](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.10.json) — Nutanix AOS, AHV, NCC, and LCM version compliance
+
+- **spl** (blocker): The nutanix:host leg of the multisearch ends in `stats dc(hvk) ... by cluster_uuid`, and the upgrade_history leg uses `sort 0 - _time | dedup cluster_uuid`. multisearch requires every subsearch to be purely streaming, s… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (major): `sort 0 - severity_bucket, cluster_name` sorts the bucket names as text in descending order (ok, medium, low, high, critical), so critical and high clusters land at the bottom of the alert table. Add a numeric rank (for… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (minor): The search starts with a `comment(...)` macro placed before the generating `| multisearch` command. Splunk documents that comments placed before a generating command can produce errors or incorrect results. Use triple-b… ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+- **spl** (minor): The ncc_older fallback `tostring(ncc_version)<tostring(min_ncc_version)` compares versions as text ('4.10' sorts before '4.6'), and the `failed_check_count<8` cap means eight or more failed NCC checks produce no prechec… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+
+### [UC-19.2.35](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.35.json) — OpenStack Cinder Backend Free Capacity and Over-Subscription Risk
+
+- **spl** (blocker): streamstats window=288 first(free_capacity_gb) only sees about 2 to 3 hours of data (earliest=-2h@h), but free_delta_24h is divided by 24. The shrink rate is therefore understated and eta_to_full_h is inflated roughly 1… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): Missing capacity fields are coalesced to "0". If free_capacity_gb is absent but total is present, free_pct=0 and the pool is marked critical. If total is absent (including the unflattened capabilities.* names, which are… ([evidence](https://docs.openstack.org/api-ref/block-storage/v3/index.html))
+- **spl** (major): max_over_subscription_ratio defaults to "1" and tonumber("auto") is null, which also falls back to 1.0. thin_provisioning_support is never checked. Cinder only enforces the ratio for thin pools with ratio >1.0, the conf… ([evidence](https://docs.openstack.org/cinder/latest/admin/over-subscription.html))
+- **spl** (minor): The quota and service multisearch legs are discarded immediately by where sourcetype="openstack:cinder:pool". The service join uses max(isdown) over a 2 to 3 hour window per region, so one cinder-volume that was briefly…
+- **spl** (minor): The medium branch fires when over_sub_drift > -0.5, so any pool running within 0.5 of its expected ratio is always 'medium'. The lookup outputs min_free_pct and expansion_planned_date but never uses them. The comment st…
+
+### [UC-19.3.4](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.4.json) — Azure Arc for Servers Heartbeat Health and Extension Inventory Drift
+
+- **spl** (blocker): Search terms are wrapped in backticks: (`index=azure_arc` OR ...), (`sourcetype="azure:hybrid_compute_machines"` ...) and `earliest=-24h`. Backticks invoke search macros, so Splunk tries to expand macros literally named… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros))
+- **spl** (blocker): `eval ordering_risk=guest_missing OR mma_without_ama OR failed_extensions>0 OR ...` assigns a Boolean, which eval rejects. Use if(..., 1, 0). ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (major): Unquoted dotted field names in eval (properties.status, properties.lastStatusChange) are parsed as the '.' concatenation of fields 'properties' and 'status', not as JSON paths. Field names containing '.' must be single-… ([evidence](https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval))
+- **spl** (major): In extension rows, name is the extension name, not the machine name, so machine_key never joins machine rows with their extensions. The earlier `where heartbeat_gap=1 OR extension_gap=1` also discards healthy Guest Conf…
+- **spl** (major): heartbeat_gap is also set by `match(lower(_raw),"(?i)(token|tls|cert|proxy|403|401|407)")`. Any himds/azcmagent log line or JSON payload containing these substrings (for example 'certificate' in normal start-up logs) is…
+
+### [UC-19.1.27](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.27.json) — Nutanix AOS Version Compliance
+
+- **spl** (blocker): The search begins with five `//` lines. SPL has no `//` comment syntax, so these become search terms, and the backtick-quoted `nutanix:cluster` and `nutanix_aos_baseline.csv` inside them are parsed as macro calls, so th… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/Search/Addcommentstosearches))
+- **spl** (major): `lts_breach` tests `is_lts=0`, but the Prism JSON value extracted by spath is the boolean string true/false, so LTS_BREACH never fires.
+- **spl** (major): The header comment promises in-flight suppression only "for <2h", but the where clause drops any row whose target_version differs from the running NOS, with no time bound. A stalled upgrade is silently suppressed foreve…
+- **spl** (minor): `sort 0 - severity_bucket` sorts strings descending (warning > info > critical), so critical rows land below warnings, contrary to the intent. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+
+### [UC-19.1.40](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.40.json) — Proxmox Storage Replication (pvesr) Sync Failure and Lag
+
+- **spl** (major): `eventstats ... as crit_sum by guest` runs after the 5-minute `stats`, so it sums critical rows across all bins in the search window. One job that stays critical for two bins sets `dual_direction_critical`. This contrad…
+- **spl** (needs_verification): `proxmox:replication:log` events carry no `last_sync`, so `last_sync_epoch` falls back to 0 and `lag_sec` to 999999999. Every log row is therefore at least `warning`. Separately, `eval source=coalesce(source, ...)` coll…
+
+### [UC-19.2.12](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.12.json) — Nutanix Prism Central Management Plane Health
+
+- **spl** (blocker): The search starts `| localop | inputlookup nutanix_prism_central_owner`. inputlookup is an event-generating command and must be the first command of a search or subsearch (unless append=true), so Splunk rejects the sear… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/inputlookup))
+- **spl** (major): t_crit, t_warn and t_info are computed as now()-_time, the age of the poll event, not the alert's creation time. The subsearch window is earliest=-2h@h, so the values never exceed about 2–3 h. The warn (>14400 s) and in… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): /clusters/list returns one entity per PE cluster (and the PC itself), each keyed by its own uuid. pc_u therefore takes each PE's UUID, and only the PC's own row joins to the lookup. pe_raw defaults to "0" when no pe_cou… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (minor): A `comment(...)` macro precedes the leading generating command. Splunk warns that comments before a generating command can cause errors or incorrect results. ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+
+### [UC-19.1.33](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.33.json) — Intersight Device Connector / Tunnel Health
+
+- **spl** (blocker): The first line `// UC-19.1.33 — Intersight asset.DeviceRegistration ...` is not SPL comment syntax. Splunk comments use triple backticks (or a comment macro); a `//` line becomes literal search terms ANDed into the base… ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+- **spl** (major): No dedup/stats by Moid or device before filtering, so with earliest=-2h and 5-minute polling each disconnected device appears once per poll (about 24 rows), inflating alert counts and making last_change_age_minutes vary…
+- **spl** (minor): `connection_status IN ("NotConnected", "Disconnected")`: Disconnected is not a documented asset.DeviceRegistration ConnectionStatus value (the dataSources list gives Connected, NotConnected, Claimed, Unclaimed, ClaimInP…
+
+### [UC-19.2.2](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.2.json) — HCI shared-storage pool capacity and growth-rate ETA-to-full
+
+- **spl** (major): Each arm uses `earliest=-24h@h`, but `streamstats window=2016 current=f first(pool_used_bytes) AS used_7d_ago` expects 7 days of 5-minute samples; with only 24h of data, used_7d_ago is just the oldest sample of the day,… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (minor): During a change freeze, critical is demoted to medium even when the pool is ≥90% used or will be full within 7 days, which can suppress a real out-of-space page.
+- **spl** (minor): Comment macro restates sources and lookups rather than a short purpose line.
+
+### [UC-19.2.26](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.26.json) — VxRail LCM bundle compliance and lifecycle drift
+
+- **spl** (blocker): Every multisearch arm ends with `stats ... by cluster_id`. multisearch accepts only purely streaming subsearches, so the search fails. Move the per-arm aggregation after the union, or use append or union. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch))
+- **spl** (major): The arm that searches sourcetype="vmware:perf" for os_version or product_version will match nothing, because the VMware add-on emits vmware:perf:* and vmware:inv:hostsystem, and perf data carries no product version. ([evidence](https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes))
+- **spl** (needs_verification): The third `join type=left max=0 [ ... | fields + ga_seq ]` has no join field and no field in common with the main results, so how ga_seq is attached is unclear. Use appendcols, or eval a constant key on both sides.
+
+### [UC-19.2.21](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.21.json) — Azure Stack HCI Cluster Health
+
+- **spl** (major): cluster_status, billing_status and last_billing_ts come from Status, BillingStatus and LastBillingTimestamp, which Get-AzureStackHCI does not emit (it emits ClusterStatus and LastConnected). The cls="error" critical bra… ([evidence](https://learn.microsoft.com/en-us/azure/azure-local/upgrade/troubleshoot-upgrade-to-23h2))
+- **spl** (major): In the 25-hour storage-job subsearch, run_dur is now()-_time for any event that was in state running. It never checks the job's latest state or groups by job. A job that finished hours ago still yields long_run_sec up t…
+- **spl** (needs_verification): On-prem ConnectionStatus values (for example Connected, RepairRegistrationRequired) and the Azure resource connectionStatus values (for example Connected, Disconnected, NotYetRegistered, NotConnectedRecently) use differ…
+- **spl** (needs_verification): The eval function is called as toString(...). The Search Reference documents tostring(); confirm that the mixed-case call is accepted, or normalise it. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConversionFunctions))
+- **spl** (minor): sort 0 ClusterName, severity_bucket sorts severity labels lexically (critical, high, low, medium, ok), not by urgency.
+
+### [UC-19.1.39](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.39.json) — Proxmox Ceph Cluster HEALTH_WARN and OSD Flap Detection
+
+- **spl** (blocker): `spath` names JSON array values with a `{}` suffix, so the `quorum` array is extracted as `quorum{}`, not `quorum`. `isnotnull('quorum')` is therefore always false, giving `quorum_count=0` and `quorum_loss_pct=100` for … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Spath))
+- **spl** (major): `degraded_sum+tonumber(dN,10)` returns null whenever a state rex does not match, and nulls propagate through later additions. Unless all four exact states are present, degraded_pg_count becomes null and is then filled t… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): Syslog rows are aggregated by `host`, and the cluster_id join only resolves hosts that run the JSON poller. Flap lines from other OSD nodes end up as separate `UNMAPPED-<host>` rows with no health context instead of joi…
+- **spl** (minor): The flap regex alternative `(?<![A-Za-z])boot(?![A-Za-z])` matches every routine OSD boot or start-up message, which inflates `flap_hits` after normal reboots or upgrades.
+
+### [UC-19.2.1](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.1.json) — Cisco HyperFlex Cluster Health
+
+- **spl** (major): nbad tests the healthy regex `(?i)up|online|healthy|ok|normal|active|connected|ready` first and unanchored, so 'unhealthy', 'disconnected', 'inactive' and similar statuses match 'healthy'/'connected'/'active' and are sc… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): hpart=tonumber(healthLevel) but HX returns healthLevel as a string (the guide's sample event shows "healthLevel": "GREEN"), so hlv_m is always 0 after fillnull and the rebuild tiers that require hlv_m>=2 or hlv_m=1 neve…
+
+### [UC-19.1.22](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.22.json) — Intersight Server Power and Thermal Telemetry
+
+- **cimSpl** (blocker): `Performance.Facilities.temperature_celsius` and `Performance.Facilities.power_load_watts` are not CIM fields; Facilities defines `temperature` (°C), `power` (kW) and `fan_speed`. The nodename should be `All_Performance… ([evidence](https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance))
+- **spl** (blocker): The base search unions `cisco:intersight:equipmentpsustats`, `psumetricsplatform`, `equipmentchassisstats`, `processorenvironmentstats` and `thermalmetricsplatform`. None is published by the Cisco Intersight Add-on for … ([evidence](https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data))
+- **spl** (major): `peak_temp_c` mixes inlet, CPU and PSU temperatures, and `stats max(peak_temp_c)` per chassis then picks the hottest, normally the CPU at 60–90 °C. That value is compared with `max_inlet_c+5` (default 27+5), so practica…
+- **spl** (minor): `fillnull value=5000 pdu_circuit_max_watts` silently applies an arbitrary 5 kW budget to every chassis that is missing from the lookup. Per-PSU `OutputPower` (one leg) is also compared against a whole-circuit budget whe…
+
+### [UC-19.1.49](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.49.json) — Dell VxRail Secure Remote Services / Support Connectivity Degradation
+
+- **spl** (blocker): The search begins with five lines prefixed '//'. SPL has no '//' comment syntax (comments are enclosed in triple backticks), so those words become search terms, and the backticked text inside them (`/rest/vxm/v1/support… ([evidence](https://docs.splunk.com/Documentation/SplunkCloud/latest/Search/Comments))
+- **spl** (major): appendcols attaches the single srs_log_error_hits row only to the first cluster row; every other cluster gets null, and the count is not scoped by gateway or cluster. Use a join or eventstats keyed by site/gateway host,… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Appendcols))
+
+### [UC-19.2.25](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.25.json) — Nutanix Cluster Health Score and Critical Services
+
+- **spl** (major): The final `sort 0 - severity_bucket, cluster` sorts strings in reverse alphabetical order (warning, info, high, critical), so critical rows land last, not first. Sort on sevord instead.
+- **spl** (major): `where r>0` runs before the RF lookup, so rf_breach can never surface a row on its own. The second `where` that repeats `(r>0)` is redundant.
+
+### [UC-19.1.42](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.42.json) — oVirt / RHV Storage Pool Manager (SPM) Lease Contention, Loss, and Transition Risk
+
+- **spl** (major): `is_eng_spm_fail` keys on `SPM_ACQUIRE_FAILED` and `SPM_RELEASE_FAILED`, which do not exist in oVirt AuditLogType, so the strongest critical branch, `has_cross`, rarely fires. Real events such as `SYSTEM_CHANGE_STORAGE_… ([evidence](https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java))
+- **spl** (major): `stats ... by _time` has no data-center or host split, so several data centers merge into one row and the alert names no entity. `is_split_hint` (`SPM.+acquire`) and `is_sanlock` match healthy SPM-start and lockspace li…
+- **spl** (minor): The search hardcodes `earliest=-1h`, while Step 2 tells operators to schedule with `earliest -65m@m`. The inline value overrides the saved-search time range.
+
+### [UC-19.3.10](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.10.json) — OpenStack Keystone Failed Authentication Burst Detection (Federation, Token Lifecycle, and Domain Boundary Crossings)
+
+- **spl** (blocker): `max(len(blob)) as widest` in stats is an eval expression without the required eval() wrapper (max(eval(len(blob)))), so the search fails. The field is also never used and can simply be dropped. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **cimSpl** (major): `earliest=-4h` is placed after the BY clause of tstats. Time modifiers must be in the WHERE clause, otherwise tstats rejects or misparses the search. Also, nodename="Authentication" is redundant for the root dataset; Au… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats))
+- **spl** (major): One failed login usually produces both an access-log 401 line and a keystone.log 'Authorization failed' line, so failures are double-counted. keystone.log lines carry no src_ip/clientip, so client_ip coalesces to "" and…
+- **spl** (major): is_bad counts HTTP 404, 409, 500 and 503 as authentication failures, and the bare rex `\s([45][0-9]{2})\s` matches any 4xx/5xx-looking number in keystone.log text. Server saturation and not-found responses therefore inf…
+- **id** (minor): An OpenStack Keystone detection is filed under subcategory 19.3 'Azure Stack HCI', which makes it hard to find and inconsistent with the subcategory guide. Consider moving it to an OpenStack/private-cloud or identity su…
+- **splunkPillar** (minor): The UC is tagged Security/Audit with detectionType Correlation, securityDomain identity and MITRE T1110/T1078, yet splunkPillar is Observability. It should be Security.
+
+### [UC-19.1.38](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.38.json) — Proxmox QEMU/KVM Live Migration Task Failure Detection
+
+- **spl** (needs_verification): The reason classifier depends on the task `status` string carrying the root cause. Failed migrations often end with a bare `migration aborted` or `migration problems` status, with the cause only in the task log. Most fa… ([evidence](https://forum.proxmox.com/threads/cant-migrate-container-back-to-node.161719/))
+- **spl** (minor): Tasks with `WARNINGS: n` status are not filtered and are counted as failures. Also, `sort +severity_bucket` orders alphabetically (critical, high, low, medium), not by severity rank.
 
 ### [UC-19.2.15](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.15.json) — HCI Proactive Rebalance Job Progress and Per-Disk Skew Tracking
 
@@ -1184,11 +3082,49 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **spl** (major): total_mbps adds received and transmitted bytes, then divides by a single-direction full-duplex link speed taken from one NIC row, so utilisation can be overstated by up to 2x on symmetric traffic. On an LACP bond it ign…
 - **spl** (minor): `streamstats window=60 list(sat_pct)` followed by `mvexpand` multiplies event volume by about 60 before `stats ... BY host_uuid, _time`, which is expensive over 4h of one-minute samples. The output field 'peak_12' is re…
 
+### [UC-19.1.37](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.37.json) — Proxmox vzdump Scheduled Backup Task Failure Detection
+
+- **spl** (minor): The `where status_norm != "ok"` filter counts tasks with status `WARNINGS` (backup completed with warnings) as failures. They get `other_error` and contribute to `failures_24h`, so a guest with repeated benign warnings …
+- **spl** (minor): `| sort -failures_24h, +severity_bucket` sorts severity_bucket alphabetically (critical, high, low, medium), not by severity rank.
+
+### [UC-19.2.19](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.19.json) — Nutanix AHV Host Capacity Headroom and Workload Placement
+
+- **spl** (major): `coalesce(usage_stats.hypervisor_cpu_usage_ppm, ...)` is not quoted, so eval treats `.` as string concatenation of two non-existent fields instead of reading the dotted field; dotted names must be wrapped in single quot… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): `cluster_name=coalesce(cluster_name, clusterName, name)` on host events falls back to the host's own `name`; the eventstats N-1 rollup then runs per host, where spare memory can never cover the largest host's memory, so… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats))
+- **spl** (minor): A vCPU overcommit above the default 4.0 is treated as critical alongside N-1 failure; overcommit is a planning threshold, and paging P1 on it will be noisy.
+- **spl** (minor): `vm_count_vs_max = vm_count/(lproc*2)` has no defined meaning, and the comment macro carries tunables/authoring notes.
+
+### [UC-19.2.34](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.2.34.json) — Proxmox LVM-thin storage oversubscription, thin-pool data %, and metadata % saturation
+
+- **spl** (major): The pool branch uses earliest=-30m@m, but streamstats window=288 and g24/24 assume 24 hours of samples. grow_pct_per_h and eta_to_full_hours are therefore computed from 30 minutes of growth divided by 24, which badly un… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (minor): pool_state uses like(ro_raw, "%ro%"), which matches any status string containing 'ro' (for example 'error'), so such rows become read-only and critical. The where clause also keeps every proxmox:storage:status row regar…
+
 ### [UC-19.1.28](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.28.json) — Nutanix Protection Domain Snapshot Retention and RPO Compliance
 
 - **spl** (major): The coalesce chains lack the documented v2 keys (snapshot_create_time_usecs, snapshot_expiry_time_usecs, protection_domain_name), so the `isnotnull(t_create)` filter may drop every event. `sort 0 - severity_bucket` sort…
 - **spl** (major): The leading `//` comment lines are not valid SPL comments. Splunk uses triple-backtick ``` comment ``` syntax, and the search will fail to parse as written.
 - **spl** (needs_verification): `earliest=-24h@h` combined with `_time` taken from the snapshot creation time (per the UC's props.conf) means snapshots older than 24h are never in scope. worst_snapshot_age_days can never exceed about 1, so over_age ca…
+
+### [UC-19.1.46](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.46.json) — OpenStack Galera / MariaDB Cluster Non-Primary or Split-Brain Indicators
+
+- **spl** (major): Error-log events have no `cluster_name`, so they fall into `cluster_name="default"` with `cluster_size=0`. Their `partition_events` never share a row with poll rows, and `expected_size>=3 AND reporting_hosts<expected_si…
+- **spl** (minor): `in_donor_or_join` matches `joiner`, but `wsrep_local_state_comment` reports `Joining`, `Waiting on SST`, `Joined`, `Synced` and `Donor/Desynced`, so joining nodes are missed. Also, `wsrep_flow_control_paused` is a frac…
+
+### [UC-19.1.43](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.43.json) — oVirt / RHV VDSM Host Reconnect Storm and Storage Lease Errors
+
+- **spl** (major): `stats ... max(len(_raw)) as maxraw` puts an eval expression inside a stats function without the required `eval()` wrapper. Splunk either rejects the argument, failing the scheduled search, or treats `len(_raw)` as a fi… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): `hostkey` coalesces `host` first, so engine rows never fall back to `engine-aggregate`. `cross_hint` requires `n_eng_vdsm>0 AND n_reconnect>0` in the same host bin, which cannot happen because engine and VDSM events com…
+- **spl** (needs_verification): `is_reconnect` depends on the `vds:Client` and `vdsm.client` tokens, which may not exist in VDSM logs. The search also returns `ok` rows (there is no `where`), and `sort 0 - _time, severity_bucket` orders buckets alphab…
+
+### [UC-19.1.44](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.1.44.json) — OpenStack Nova Compute Instance Build and Spawn Failure Rate
+
+- **spl** (needs_verification): Some class tokens look unverified: `NoMoreHosts`, `SpawnFailed` and `BuildError` do not appear to be nova exception names. The common terminal conductor message 'Exceeded maximum number of retries' (MaxRetriesExceeded) …
+- **spl** (minor): `is_ks` matches any `HTTP 401` or `Unauthorized` line, and `is_resched` matches any `re-?schedul` substring. These count ordinary client token expiry and informational scheduler lines as spawn failures. `msg=coalesce(me…
+
+### [UC-19.3.8](../../content/cat-19-compute-infrastructure-hci-converged/UC-19.3.8.json) — Proxmox VE pveproxy and API Authentication Failure Spike Detection
+
+- **spl** (needs_verification): realm_suffix and automation_lane are derived from http_user, which in pveproxy access.log is '-' for unauthenticated (failed) ticket requests. Most failure rows therefore land in 'missing_identity_token' / 'pre_ticket_p…
+- **spl** (minor): `sort client_ip_nat http_user burst_bin` without a count keeps only 10,000 rows by default, so the streamstats baseline silently truncates during large sprays. Use `sort 0`.
 
 ## cat-20-cost-capacity-management
 
@@ -1287,11 +3223,86 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 
 ## cat-23-business-analytics
 
+### [UC-23.3.3](../../content/cat-23-business-analytics/UC-23.3.3.json) — Email Campaign Performance and Engagement
+
+- **spl** (blocker): `lag_hours` is only computed for open/click/unsub/spam events, so every delivered/bounce event lands in velocity_bucket="unknown". Because stats groups `by campaign_key velocity_bucket send_id`, delivered_ct sits in the… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (blocker): SendGrid Event Webhook payloads carry the event name in the `event` key, not `event_type` or `sg_event_type`, so `evt_raw` is null for `sendgrid:events` unless the field is renamed at ingest. The `delivered_evt` regex a… ([evidence](https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event))
+- **spl** (major): The `eventstats` without a by-clause computes cohort_engagements/cohort_delivered across all campaigns. The `<0.015` alarm leg therefore fires on every row (or none) based on the global ratio rather than per campaign.
+- **monitoringType** (minor): 'Availability' does not describe email engagement analytics; 'Business'/'Analytics' (plus 'Performance') would match siblings.
+
+### [UC-23.3.2](../../content/cat-23-business-analytics/UC-23.3.2.json) — Lead-to-Revenue Funnel Conversion Rates
+
+- **spl** (blocker): Two problems mean the ratios are not real funnel conversions. (1) The Salesforce Object input re-emits a Lead each time LastModifiedDate changes, so over earliest=-90d `sum(is_mql)` and the other stage sums count events… ([evidence](https://splunk.github.io/splunk-add-on-for-salesforce/Configureinputsv1modular/))
+- **spl** (needs_verification): `Amount` is not a standard field on the Salesforce Lead object, and `is_won` matches 'customer|won' on Lead.Status, whose standard picklist values (Open/Working/Closed - Converted/Closed - Not Converted) never contain t…
+- **criticality** (minor): 'critical' is high for a 90-day marketing-funnel report with no alert threshold; 'medium' or 'high' would fit better.
+
+### [UC-23.2.1](../../content/cat-23-business-analytics/UC-23.2.1.json) — Sales Pipeline Velocity and Forecast Accuracy
+
+- **spl** (major): Each Opportunity modification is ingested as a new event (LastModifiedDate watermark), but the SPL sums `pipeline_amt`/`won_amt` over every event in 90 days with no `dedup Id` or `latest(...) by Id`. An opportunity edit…
+- **title** (major): The title promises 'Pipeline Velocity and Forecast Accuracy', but the SPL computes neither: there is no velocity formula (opportunities × win rate × deal size ÷ cycle length) and no comparison of forecast (Commit/Best C…
+- **spl** (minor): pipeline_coverage is open pipeline divided by trailing-90-day won revenue. The usual coverage ratio, and the 3x rule cited in the prose, divides open pipeline by remaining quota or target, so the below_3x flag does not …
+
+### [UC-23.2.8](../../content/cat-23-business-analytics/UC-23.2.8.json) — Pipeline Coverage Ratio (3x/4x Rule), Quota Attainment Forecasting, and Sales-Rep-Tier Performance Distribution
+
+- **spl** (major): 120 days of incremental Opportunity snapshots are summed without `dedup Id` or `latest() by Id`, so every modification of an open opportunity adds its Amount again. open_pipeline_fq, coverage_ratio and attainment_fcst_p…
+- **spl** (minor): `sort fiscal_segment rep_tier - closed_won_cq` followed by `streamstats ... by fiscal_segment` accumulates in rep_tier order, not by descending bookings, so cumulative_book_pct is not a Pareto curve. rep_book_pct is a s…
+- **spl** (minor): The rep_quota_forecast.csv lookup is keyed on OwnerId only, while the narrative keys quota by OwnerId + fiscal_segment and ForecastingQuota stores monthly rows. Without a period key the lookup returns an arbitrary quota…
+
 ### [UC-23.3.5](../../content/cat-23-business-analytics/UC-23.3.5.json) — Paid Media Cost Per Acquisition and Quality Score
 
 - **spl** (major): `bin _time span=7d` and the week-over-week `streamstats` run after a `stats` that dropped `_time`, so there is one row per campaign and `cpa_delta_pct` is always null. Join keys also mismatch: numeric `campaign_id` is j…
 - **spl** (needs_verification): Dotted field names are unquoted inside coalesce (`metrics.cost_micros`, `metrics.impressions`, `metrics.quality_score`, `ad_group.id`). In eval, `.` is the concatenation operator, so these do not reference the GAQL fiel…
 - **spl** (minor): `fillnull value=999999 target_cpa_threshold` and the default `monthly_budget_usd=250000` hide missing lookups. `pacing_health` treats the 30-day spend total as month-to-date.
+
+### [UC-23.6.6](../../content/cat-23-business-analytics/UC-23.6.6.json) — Intercompany Reconciliation Exception Queue
+
+- **spl** (blocker): Every string literal in the eval and where expressions is in single quotes ('UNKNOWN', 'USD', '%Y-%m-%d', 'MATERIAL', 'await', '|' ...). In SPL eval, single quotes mark field names and double quotes mark literal strings… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.2/search-commands/eval))
+- **spl** (major): The search covers 60 days of snapshot feeds (REST polled every 30 minutes, nightly JDBC) with no dedup or `stats latest(...) by ic_pair_id`. The same open exception appears once per poll, which inflates the queue and th…
+- **spl** (major): `posting_period_end_date` is set to the posting date itself, so the lookup into `fx_rates_period_end.csv` (period-end rates) misses on most days and falls back to hard-coded FX constants (1.08, 1.27, ...). Those constan…
+- **spl** (needs_verification): `latest=now()` is not a standard time-modifier form (the documented token is `latest=now`). Check that it parses.
+
+### [UC-23.8.4](../../content/cat-23-business-analytics/UC-23.8.4.json) — Rule-of-40 & Investor Scorecard for SaaS Public-Comp Benchmarking (Magic-Number / Hype-to-Reality Forward Multiples / Quick Ratio / Burn Multiple / Net-Dollar-Retention)
+
+- **spl** (blocker): `churn_usd` is never assigned or coalesced, so `denom_quick=churn_usd + downgrade_usd + 1` is null whenever the raw field is absent, and `quick_ratio_calc` is null. The `+1` fudge also distorts small denominators. Add `… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): `efficiency_score` is computed as mn + ndr/100 + ro40/100, which is not the Bessemer Efficiency Score (net new ARR ÷ net burn, or ARR growth + FCF margin). `burn_multiple_recalc` (nb/nna) is the inverse of the early-sta… ([evidence](https://www.bvp.com/atlas/scaling-to-100-million))
+- **spl** (major): `latest(ndr_pct)` relies on a raw `ndr_pct` field, but dataSources names `chartmogul_net_dollar_retention` and ChartMogul does not emit NDR directly. Add a coalesce or derivation, otherwise ndr is always null and effici…
+- **spl** (major): `sum(net_new_arr_usd)` and `sum(net_burn_cash_usd)` by month will double-count when Mosaic/ChartMogul emit repeated snapshots of the same month; use latest() per source, or dedup on metric id and period, before summing.
+- **title** (minor): The title packs six metrics plus the undefined phrase 'Hype-to-Reality Forward Multiples' and is hard to scan; consider 'SaaS Investor Scorecard: Rule of 40, Magic Number, Burn Multiple, NDR, Quick Ratio vs Public Peers…
+
+### [UC-23.8.3](../../content/cat-23-business-analytics/UC-23.8.3.json) — Business Risk Heatmap and Early Warning System
+
+- **spl** (blocker): SLA breach rate is computed on events already filtered to `sla_breached="true"`, so `breached` counts all breached incidents while `total` counts only breached-and-not-closed ones. The ratio is meaningless and can excee… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): The metric labelled `DSO` is `avg(days_overdue)` of open invoices. That is not Days Sales Outstanding (AR / revenue × days), and it goes negative for invoices not yet due. Likewise `NPS Score` is `avg(score)` of 0–10 re…
+- **spl** (needs_verification): `sla_breached` is not a standard ServiceNow incident column (the incident table exposes `made_sla`; breach detail lives in `task_sla.has_breached`). Check the Splunk Add-on for ServiceNow `snow:incident` field list befo…
+- **spl** (minor): The leading `| inputlookup business_risk_thresholds.csv` rows have no `value`, so `where isnotnull(value)` removes them all; the inputlookup does nothing and makes the search harder to read. Start with the first subsear…
+
+### [UC-23.5.4](../../content/cat-23-business-analytics/UC-23.5.4.json) — Delivery SLA Compliance and Last-Mile Performance
+
+- **spl** (blocker): `business_days_taken` and `sla_met` are evaluated per event, before any correlation. Promised dates come from OMS extracts and actual delivery times from carrier scans, which are different events, so almost no single ev… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (blocker): `sort tracking_number scan_ts` without a count truncates to 10,000 results, so 30 days of multi-carrier scans are cut off before streamstats and stats run. Use `sort 0 tracking_number scan_ts`. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (major): `index=business earliest=-30d@d` has no sourcetype filter and no `where tracking_number!=""`, so every CRM, HR and finance event in the index becomes a 'parcel' with tracking_number "", which drags on_time_pct down. Res…
+- **spl** (major): `holiday_flag=if(match(dest_zip,"^430|^441|^972|^381"),1,0)` hard-codes four zip prefixes as a 'holiday' flag and uses it to forgive weather/force-majeure exceptions. `failed_first_attempt_rate=round(avg_failed_attempts…
+- **spl** (major): The final grouping by carrier × service × dest_zip × hour gives cells of one or two parcels with no minimum-volume guard, so `on_time_pct < 95` fires on a single late parcel. revenue_at_risk also assigns free_shipping_c…
+
+### [UC-23.1.6](../../content/cat-23-business-analytics/UC-23.1.6.json) — Mobile App Crash Rate and User Impact
+
+- **spl** (blocker): The `join ... [stats dc(session_id) as sessions dc(user_id_hash) as total_users by app_version os_version]` attaches the full 168-hour session/user totals to every hourly × device × signature × vendor × classification r… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (major): `sort stack_signature | streamstats current=f window=1 last(crash_rate) as previous_release_cr by app_version` returns the previous row's crash rate for another stack signature in the same app_version, not the previous … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+
+### [UC-23.6.3](../../content/cat-23-business-analytics/UC-23.6.3.json) — Budget vs Actual Variance Tracking
+
+- **spl** (blocker): `where tostring(VERSN) IN ("000","00","0")` and `where VERSN IN ("100",...,"104")` filter on a field that ACDOCA/ACDOCP do not have (ACDOCP uses `CATEGORY`), so unless the SQL fabricates `VERSN`, both legs return nothin… ([evidence](https://community.sap.com/t5/technology-q-a/data-extraction-from-acdoca-and-acdocp-missing-field-quot-planning-version/qaq-p/12761970))
+- **spl** (blocker): The plan subsearch sums `budget_amount` across all of VERSN 100–104 (AOP plus four quarterly forecasts) into one budget, so budget is roughly 5× the real plan whenever several versions exist. Select a single comparison … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): In the universal journal, revenue is posted as credits (negative HSL). With `account_type="REV" AND variance_lc<0` flagged unfavourable, higher revenue (more negative actual) is treated as unfavourable. Check the sign c…
+- **spl** (minor): `materiality_floor_usd` is compared with `HSL`, which is in company-code (local) currency, so the floors are wrong for non-USD entities. Use `KSL` (group currency) or convert.
+
+### [UC-23.4.4](../../content/cat-23-business-analytics/UC-23.4.4.json) — Training Completion and Compliance Tracking
+
+- **spl** (blocker): `match(raw_status,"complete")` is an unanchored regex. It matches 'incomplete' and 'not_completed', which are common SCORM and LMS status values, so learners who have not finished are classed completion_ok=1 and silentl… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): The search reads 45 days of snapshot or poll events but never reduces them to the latest state per learner_key+course_key (for example `stats latest(raw_status) latest(due_epoch) latest(completed_epoch) by learner_key c…
+- **spl** (major): The output keeps the 'on-track' (more than 30 days) and 'optional' training_type rows, so scheduling it as an alert on result count pages on non-urgent work. Consider `where deadline_proximity IN ("overdue","at-risk-7d"…
+- **spl** (needs_verification): The numeric status mapping ("3" = completed, "4" = failed) is attributed to Workday Learning_Status_Code but is not documented anywhere in the UC. Verify it against the Workday Learning enrollment status reference befor…
+- **monitoringType** (minor): ["Performance","Availability"] does not describe a training-compliance overdue tracker. A Compliance (or Business/KPI) monitoring type fits better.
 
 ### [UC-23.8.6](../../content/cat-23-business-analytics/UC-23.8.6.json) — Working Capital and Cash Conversion Cycle
 
@@ -1303,11 +3314,153 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **spl** (needs_verification): The RACCT regexes `^5[0-9]{5,7}$` and `^4[0-9]{5,7}$` assume unpadded account numbers. RACCT is CHAR(10) and is normally stored with leading zeros at the database level (for example 0041000000), so the filters may match…
 - **spl** (minor): coalesce(DMBTR, WRBTR) and coalesce(HSL, KSL) fall back to document or group currency, mixing currencies in one sum. This contradicts the guidance to align on DMBTR/HSL.
 
+### [UC-23.1.5](../../content/cat-23-business-analytics/UC-23.1.5.json) — Customer Journey Cross-Channel Attribution
+
+- **spl** (blocker): `| sort stitch_key _time` without a count limit returns at most 10,000 results, so 45 days of multi-CDP touch events are silently truncated before `streamstats` builds paths. Use `sort 0 stitch_key _time`. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (blocker): `markov_removal_effect_mass` is computed as `revenue_usd*0.13/(depth-1)` or `revenue_usd*0.07`, which are arbitrary constants, not a Markov removal effect. `confidence_pct` is a hard-coded ladder (92/81/67/56/51) with n…
+- **spl** (major): `streamstats current=f window=20 ... by stitch_key` never resets at a conversion, so touches before an earlier purchase are re-credited to later purchases. `revenue_first_touch`/`revenue_last_touch` are summed per expan… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **monitoringType** (minor): `Performance, Reliability` does not describe a marketing attribution report; `Business`/`Analytics` fits the signal.
+
+### [UC-23.1.3](../../content/cat-23-business-analytics/UC-23.1.3.json) — Real-Time Page Load Performance Impact on Revenue
+
+- **spl** (blocker): `case(lcp_ms<=2500,...,inp_ms<=200,...,1=1,"Poor")` sends sessions where the metric is null to the `1=1` branch, so every session with no LCP beacon, or with no user interaction (web-vitals does not report INP when ther… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): `join type=left session_id [search ... earliest=-30d | stats ... by session_id]` is subject to subsearch result limits (default 50,000 rows); a store with more than 50k ordering sessions in 30 days silently loses purcha… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **title** (major): Title says 'Real-Time' but the SPL is a 30-day aggregate and implementation schedules weekly steering extracts; nothing is real-time.
+
+### [UC-23.3.7](../../content/cat-23-business-analytics/UC-23.3.7.json) — Email Deliverability, Sender Reputation, DKIM/SPF/DMARC Authentication, and Inbox-Placement Telemetry
+
+- **spl** (blocker): SendGrid Event Webhook payloads carry the event name in `event`, which is missing from `coalesce(event_type,eventType,notification_type,ses_event_type,messaging_event_type,type,"")`. processed and delivered events there… ([evidence](https://www.twilio.com/docs/sendgrid/for-developers/tracking-events/event))
+- **spl** (major): The `delivered_evt` regex `delivered|delivery` also matches SES `DeliveryDelay` (lowercased 'deliverydelay'), which `defer_evt` (`deferred|delayed`) misses. Delayed SES mail is therefore counted as delivered. SES bounce…
+- **spl** (major): `sort + deliverability_alarm` sorts the tier labels alphabetically (elevated, severe, steady, watch), so 'severe' rows are not first. Map the tiers to a numeric rank before sorting.
+- **spl** (major): Sender Score rows are keyed by `published_ip`, and Postmaster/DMARC rows use their own domain fields that are not all in the sending_domain coalesce. Reputation and placement averages can land in a `sending_domain=""` b…
+- **criticality** (minor): 'critical' is high for a 30-day marketing deliverability rollup; 'high' would match the sibling UC-23.3.3.
+
+### [UC-23.1.9](../../content/cat-23-business-analytics/UC-23.1.9.json) — Customer Support Ticket Re-Open Rate, Time-to-True-Resolution, and Cause-Forensics Analytics
+
+- **spl** (major): `resolved_like_volume` is `count` of (tid, grp, actor, channel) rows, so the denominator includes every ticket touched in 90 days, solved or not, and a reassigned ticket counts once per assignee. That understates `reope…
+- **spl** (major): `st_raw=coalesce(status,NewValue,...)` does not filter `salesforce:case_history` to `Field="Status"`, so Owner/Priority/other field changes feed `NewValue` into the state machine. For Zendesk audits, status transitions …
+- **spl** (major): `agent_quality_idx` adds up to 45 points for higher `avg_touch_segments`, so agents who need more interactions score as higher quality, the opposite of the FCR intent; the coefficients are arbitrary. `median_hours_true_…
+
+### [UC-23.1.2](../../content/cat-23-business-analytics/UC-23.1.2.json) — Shopping Cart Abandonment Rate and Recovery
+
+- **spl** (blocker): `device` is derived from Shopify `source_name`, which is a sales-channel handle (web, pos, shopify_draft_order, iphone, android = Shopify mobile apps, or app handles), not the shopper's device. Virtually all online-stor… ([evidence](https://shopify.dev/changelog/channel-attribution-is-now-available-in-beta))
+
+### [UC-23.1.1](../../content/cat-23-business-analytics/UC-23.1.1.json) — Website Conversion Funnel Analysis
+
+- **spl** (blocker): `streamstats current=t window=1 last(distinct_visitors) as prior_step_visitors` includes only the current row in a 1-row window, so `prior_step_visitors` always equals `distinct_visitors` and `step_delta_pct` is always … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+
+### [UC-23.6.1](../../content/cat-23-business-analytics/UC-23.6.1.json) — Accounts Receivable Aging and Cash Collection
+
+- **spl** (major): The search sums `amt_fc` over `earliest=-90d@d` of `dbx:ar_invoices` without keeping only the latest snapshot per invoice. With the documented hourly pulls of open items, each invoice is counted up to ~2,000 times, infl…
+- **spl** (needs_verification): `coalesce(amount,amount_due_remaining,...)` prefers `amount` (often the original invoice amount) over `amount_due_remaining`, which overstates partially paid invoices. The enterprise ×1.15 / SMB ×0.85 ECL multipliers ar…
+- **spl** (minor): `eventstats sum(total_outstanding) as portfolio_total` sums across all `curr` values, so `pct_of_total` and `dso_days` mix currencies whenever more than one currency is present. Compute these per `curr` or after FX norm…
+
 ### [UC-23.1.4](../../content/cat-23-business-analytics/UC-23.1.4.json) — Customer Satisfaction Score (CSAT/NPS) Trend Dashboard
 
 - **spl** (major): `coalesce(customer_id_pii_hash,customer_hash,account_hash,acct_h_77,"")` uses a sample data value (`acct_h_77`) as a field name. SurveyMonkey's `custom_value` is never mapped.
 - **spl** (major): `sum(incident_hit)` counts responses on incident days, not incident days. `correlated_to_incident` fires on any single detractor during an incident, which makes this condition very noisy. `wilson_margin` is calculated b…
 - **spl** (minor): `strptime(recordedDate,"%Y-%m-%dT%H:%M:%S.%3NZ")` will not parse the sample `2024-09-15T14:30:00Z`, which has no milliseconds, so it silently falls back to `_time`.
+
+### [UC-23.3.6](../../content/cat-23-business-analytics/UC-23.3.6.json) — Content Marketing & Resource-Center Lead Conversion Analytics
+
+- **spl** (blocker): `dwell_sec=if(tonumber(dwell_raw)>200000, dwell_raw/1000, dwell_raw)` treats every `engagement_time_msec` value below 200,000 ms (about 3.3 minutes) as seconds. A typical 60,000 ms read becomes 60,000 s, so `dwell_sec>=… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions))
+- **spl** (major): The join-leg MQL regex `marketingqualified|mql|lead|subscriber` also matches 'salesqualifiedlead', plain 'lead' and 'subscriber', so SQLs and raw leads are counted as MQLs. sql_from_mql_pct and cost_per_mql are therefor…
+- **spl** (major): asset_key is built from content_asset_id/page_location/landing_page_url/page_url. GSC and Ahrefs rows carry `page`/`url`, so their rank data ends up under asset_key="" and never attaches to an asset, which means rank_de…
+
+### [UC-23.8.5](../../content/cat-23-business-analytics/UC-23.8.5.json) — Customer Acquisition Cost and Payback Period (SaaS Unit Economics)
+
+- **spl** (blocker): In the cohort append branch, `sort cid cohort_month ym` without a count keeps only the first 10,000 rows, so customer-month cohort history is silently truncated before streamstats. Use `sort 0 ...`. Also `streamstats cu… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (major): `eval gm_pct=coalesce(tonumber(gm_pct_override),0.72)` and `monthly_churn=coalesce(...,0.017)` silently substitute hard-coded 72% margin and 1.7% churn whenever the policy lookups are missing a month. The resulting payb…
+- **spl** (needs_verification): The search queries `salesforce:opportunity`, but the Splunk Add-on for Salesforce emits `sfdc:opportunity`; the sourcetype must match whichever collector is actually deployed. ([evidence](https://splunk.github.io/splunk-add-on-for-salesforce/SourceTypes/))
+- **monitoringType** (minor): `Performance` and `Reliability` do not describe a CAC/payback finance KPI; `Business` fits the signal and the sibling UCs.
+- **spl** (minor): `stats dc(cid) by ym tier segment | stats sum(new_logos) by ym` double-counts any account appearing under more than one tier or segment in a month; compute dc(cid) by ym directly. Monthly economics rows and cohort rows …
+
+### [UC-23.5.6](../../content/cat-23-business-analytics/UC-23.5.6.json) — Production Throughput vs Forecast Capacity
+
+- **spl** (blocker): `actual_good` is summed per `line_id` per 1-hour `prod_hour`, then compared with `forecast_units` from `sop_fc_line_week.csv`, which is keyed by `iso_week`. One hour of output is compared with a full week's forecast, so… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Bin))
+- **spl** (needs_verification): `sum(Counter_Good)` assumes each event carries an incremental count. Sparkplug/OPC-UA PLC counters such as `Counter_Good` are commonly cumulative, so summing raw samples inflates throughput. Planned runtime also default…
+- **spl** (minor): `max(State_Code) as last_state` returns the lexicographically largest state string, not the most recent one. Use `latest(State_Code)`. ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Aggregatefunctions))
+- **spl** (minor): `strftime(prod_hour,"%Y-%V")` pairs the calendar year with the ISO week number, so dates around 1 January produce the wrong key (e.g. 2027-01-01 falls in ISO week 2026-W53 but becomes '2027-53'). Use `%G-%V` so the key …
+
+### [UC-23.9.5](../../content/cat-23-business-analytics/UC-23.9.5.json) — ESG Disclosure Readiness and Data Completeness
+
+- **spl** (blocker): `join max=0 join_hint [| inputlookup esg_source_health_weekly.csv ...]` uses the default type=inner, so every registry metric whose index::sourcetype has no row in the health snapshot is dropped. Those are exactly the m… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (major): `bound_ok` compares dq_numeric (a 0–100 data-quality score) against lower_bound/upper_bound from metric_value_bounds.csv, which by name and per the detailedImplementation (FX tolerance bands) are bounds on the metric's …
+- **spl** (minor): Hard-coded defaults mask missing data: `coalesce(data_quality_score,dq_flag_mean,68)` assigns a passable quality score when no quality data exists, and `days_to_deadline=999` for unparseable or missing deadlines suppres…
+
+### [UC-23.3.4](../../content/cat-23-business-analytics/UC-23.3.4.json) — Website Traffic Source and SEO Performance
+
+- **spl** (blocker): Channel is assigned per hit rather than per session, and the site's own hostname is not excluded from referers. Every internal page view (referer = own site) therefore falls into 'Referral'. Then `stats first(epv) ... b… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats))
+- **spl** (major): The social regex `t\\.co` is unanchored, so it matches any referer containing 't.co' (for example microsoft.com, reddit.com, *soft.com). Those visits are mis-tagged as 'Social — ref'. Anchor the match on ref_host (for e…
+- **spl** (major): Only favicon/robots/health are excluded, so CSS/JS/image/font requests are counted as pages. This inflates pages_per_session and suppresses bounce_rate. Including 3xx and 4xx in the status filter also counts 404s and re…
+- **title** (minor): The title promises 'SEO Performance', but the SPL only measures channel share from server logs; no Search Console impressions, rankings or queries are ingested. Consider 'Website Traffic Source Mix from Web Server Logs'…
+
+### [UC-23.9.3](../../content/cat-23-business-analytics/UC-23.9.3.json) — Waste Diversion and Recycling Rate Tracking
+
+- **spl** (blocker): `true_certification_status` maps diversion_rate to Platinum (100%), Gold (99%), Silver (95%) and Bronze (90%). TRUE has no Bronze level; its levels are Certified, Silver, Gold and Platinum, awarded on rating-system poin… ([evidence](https://true.gbci.org/true-certification-zero-waste))
+- **spl** (major): `weight_kg/1000*mtco2e_per_tonne*1000` treats WARM factors as per metric tonne, but WARM and the EPA Cat 5 factors are per short ton, so results are about 10% off. WARM net factors are also negative for recycling, which… ([evidence](https://www.epa.gov/system/files/documents/2024-01/warm_management_practices_v16_dec.pdf))
+- **spl** (major): The `iot:bin_weight` branch sums every fill-weight reading per day; with five-minute cadence the same contents are counted many times. Those bins are also emptied by the haulers whose manifests are appended, which doubl…
+- **spl** (minor): In the IoT branch, `material_type IN ("cardboard",...)` runs before `lower()` normalisation and before `material_synonyms.csv` mapping, so vendor tokens like `OCC` or `Cardboard` default to landfill. Normalise first.
+
+### [UC-23.4.7](../../content/cat-23-business-analytics/UC-23.4.7.json) — Overtime Cost and Burnout Risk Indicator
+
+- **spl** (major): `streamstats window=14 sum(eval(if(worked_hours>0,1,0))) as days_worked_in_14` runs after weekly `stats ... by employee_id_hash _time`, so each row is a week. The value is 'weeks worked in the last 14 weeks', and `days_…
+- **spl** (major): Overtime falls back to `computed_ot=max(0,worked_hours-scheduled_hours)` with scheduled_hours defaulting to 40 per event. A Workday time block such as the dataSources sample (Quantity=10, Time_Type_Reference=OVERTIME) h…
+- **spl** (major): `lookup pay_rule_codes vendor_pay_code OUTPUT canonical_code jurisdiction_hint multiplier` keys on vendor_pay_code, which the search never creates, so the lookup never matches. Its `multiplier` output is ignored anyway:…
+- **spl** (needs_verification): `bucket _time span=1w@w` (snap suffix in a bin span) and the separately computed `weekly_marker=strftime(_time,"%Y-%W")` (Monday-based weeks) may disagree on week boundaries, which would split one week into two rows. Ch…
+- **spl** (minor): `sha256(coalesce(worker_ref,associate_oid,userId,user_id,"MISSING"))` runs after `fields - ... associate_oid ...`, so ADP rows without employee_id_hash or worker_ref collapse into one hid (sha256("MISSING")). `pto_balan…
+
+### [UC-23.1.8](../../content/cat-23-business-analytics/UC-23.1.8.json) — Form Abandonment and Field-Level Drop-Off
+
+- **spl** (major): The first `join ... [ ... | transaction session_id maxspan=1800 ... | fields session_id session_outcome abandonment_field ue_join]` runs a 30-day transaction inside a subsearch, which is bound by subsearch row and time … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (major): Form-level `starters`/`completers` are joined onto every field × vendor × device × viewport row, so `revenue_recoverable=(starters-completers)*...` repeats the whole form's loss on each row, and summing it multiplies do…
+
+### [UC-23.4.6](../../content/cat-23-business-analytics/UC-23.4.6.json) — Internal Mobility & Promotion Velocity Analytics (Talent Marketplace, Career Pathing, Tenure-to-Promotion, Lateral Movement)
+
+- **spl** (blocker): `impact_flag=if(prm<floor_rate, "review_four_fifths")` compares a raw monthly promotion count (prm) with a lookup 'floor_rate'. The Uniform Guidelines four-fifths test compares selection rates (selected ÷ eligible) for … ([evidence](https://www.ecfr.gov/current/title-29/subtitle-B/chapter-XIV/part-1607/section-1607.4))
+- **spl** (major): `ef_score=tonumber(coalesce(...,"0"))` and `gloat_score=tonumber(coalesce(...,"0"))` run on every event from every sourcetype, so avg(ef_score) and avg(gloat_score) are diluted by zeros from non-Eightfold and non-Gloat … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Aggregatefunctions))
+- **spl** (major): None of the searched sourcetypes is an external-hire or requisition feed, so ext_h (driven by hire_channel external/agency) will usually be 0 and fill_pct=100*int_h/(int_h+ext_h) will read about 100%. Internal fill rate…
+- **spl** (minor): The cohort floor `where int_h+ext_h>=5 OR prm>=5 OR lat>=5 OR tmp_app>=5` uses OR, so a job_family × cohort_demo × perf_rating × month row can show prm=1 or 2 when another metric reaches 5. This defeats the 'cohort_floo…
+- **spl** (minor): p95m measures months from hire to any promotion, not time in grade between promotions, so it grows with tenure rather than showing promotion velocity. The `vel` ratio (applications+mentor pairings)/(hires+promotions) ha…
+
+### [UC-23.9.2](../../content/cat-23-business-analytics/UC-23.9.2.json) — Energy Consumption and Efficiency by Facility
+
+- **spl** (blocker): `kwh_val=tonumber(coalesce(kwh_delta,kwh_total,kwh,kwh_consumed,"0"))` falls back to the cumulative register `kwh_total` and then sums it per day, which inflates consumption by orders of magnitude for any meter lacking … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): The baseline subsearch covers 30 days (-365d@d to -335d@d) summed per site, while `eui` covers 90 days per sys_att and day_kind, so `yoy_eui_delta` subtracts incompatible quantities. Use -455d@d to -365d@d with the same…
+- **spl** (minor): The IT_load regex `IT|...` matches substrings such as KITCHEN or EXIT, and `EV` in the plug_load regex matches LEVEL. Anchor the tokens (e.g. `\bIT\b`, `^EV`) so attribution is not silently skewed.
+
+### [UC-23.6.5](../../content/cat-23-business-analytics/UC-23.6.5.json) — Purchase Order Cycle Time and Maverick Spend
+
+- **spl** (major): The base search unions ariba:cxml_invoice events with PO events and sums po_amount_usd across all of them, so invoice amounts are added to PO spend and spend_usd / maverick_pct are inflated. Repeated snapshots of the sa…
+- **spl** (minor): streamstats window=4 runs after a stats grouped by legal_entity, cost_center and commodity_category, so rolling_4w_spend adds up four adjacent cost-centre rows, not four weeks. The data has no time dimension at that poi… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (minor): po_amount_usd falls back to PurchOrdAmount and TaxInclusiveAmt, which are in document currency, not USD, and the search does no FX conversion. holiday_req and complexity_score are computed but never used. high_risk_supp…
+
+### [UC-23.5.7](../../content/cat-23-business-analytics/UC-23.5.7.json) — Returns Rate and Reverse Logistics Cost
+
+- **spl** (blocker): `sap_credit_doc=if(fkart IN ("S2","G2"),1,0)` counts S2 credit-memo cancellations as return credits and ignores RE (credit for returns), so SAP return value is wrong in both directions. ([evidence](https://community.sap.com/t5/enterprise-resource-planning-q-a/cancellation-of-credit-memo/qaq-p/5426033))
+- **spl** (major): The search reads all of `index=business` with no sourcetype filter, and the `where gross_rev_order>0 OR ...` clause admits any event with an order subtotal. Ordinary sales orders are swept into 'Other_returns_plane' and…
+- **spl** (major): Per-return costs are applied per event without deduplication, so one return seen as Loop `return.created` + `return.completed` + WMS event + SAP credit is costed four times. For liquidate/destroy dispositions `adj_unit_…
+- **title** (major): The title promises a 'Returns Rate', but the SPL computes no rate of returned orders against total orders. It only aggregates refund and cost for return-bearing events, with no shipped-order denominator. Rename the UC o…
+- **difficulty** (minor): Marked 'beginner', but the UC needs multi-vendor webhook ingestion, ERP JDBC extracts and a heuristic cost model. That is at least intermediate, likely advanced.
+
+### [UC-23.1.7](../../content/cat-23-business-analytics/UC-23.1.7.json) — App-Store Rating Drift, Review-Sentiment Topic Modelling, and Public-Review-to-Uninstall Correlation
+
+- **spl** (blocker): `dc(eval(if(isnotnull(developer_reply_ms),"review_id",null())))` counts distinct values of the string literal "review_id", so `responded_reviews` is at most 1 per day/topic. `review_response_rate_pct` is therefore near … ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval))
+- **spl** (major): `net_sentiment_score` is on a −100…+100 scale, but `aspect_sentiment_drift < -0.3` uses a fractional threshold, so any tiny dip triggers. `streamstats window=28` includes the current day in its own baseline. Field names… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **title** (minor): 'Review-Sentiment Topic Modelling' overstates the SPL, which does no topic modelling; it consumes externally assigned `aspect_topic` labels.
+
+### [UC-23.7.1](../../content/cat-23-business-analytics/UC-23.7.1.json) — On-Time Resolution and SLA Breach Rate for CSM Service Work
+
+- **spl** (blocker): `mttr_business_s=tonumber(business_duration)` and `tonumber(calendar_duration)`: ServiceNow duration fields come back from the Table API as date-times offset from 1970-01-01 (for example "1970-01-01 08:00:00"), not as n… ([evidence](https://github.com/ServiceNow/ServiceNowDocs/blob/australia/markdown/api-reference/scripts/r_ScriptingOfFieldTypes.md))
+- **spl** (major): The task_sla subsearch keeps only `latest(has_breached)` per task. Most tickets carry several task_sla rows (response and resolution SLAs, and new rows after a reopen), so breached_flag reflects whichever SLA row update…
+- **spl** (needs_verification): `state_n IN (6,7)` is right for incident (Resolved/Closed), but `sn_customerservice_case` uses different state values (Closed is commonly 3, and 7 is Cancelled). Check the CSM case state choices: as written, closed case…
+
+### [UC-23.4.5](../../content/cat-23-business-analytics/UC-23.4.5.json) — Unplanned Absence Spike Detection
+
+- **spl** (blocker): `streamstats window=1 global=f last(day_bucket) as prev_day by hid week_bucket` uses the default current=t, so prev_day is the current row's own day_bucket. gap_days is then always 0 and prev_day is never null, so spell… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+- **spl** (major): Bradford Factor (S²×D) is defined over a rolling 52-week period, and the avg_bf>=200 threshold is calibrated to that period. Here S and D are computed per hid per calendar week (spells also reset at the week boundary), …
+- **spl** (major): `fields - ... associate_oid ...` runs before `coalesce(employee_id_hash, sha256(... associate_oid ...,"MISSING"))`, so the associate_oid fallback is always null. All ADP rows without employee_id_hash, worker_ref, user_i…
+- **spl** (minor): The baseline `streamstats current=t window=12 ... by geo_cluster` includes the current week in its own mean and stdev, which dampens the z_score. Weeks with no absence rows are absent rather than zero, which inflates ba…
 
 ### [UC-23.2.6](../../content/cat-23-business-analytics/UC-23.2.6.json) — Quota Attainment and Pipeline-Coverage Capacity Analysis
 
@@ -1316,10 +3469,170 @@ Problems in fields the AI fix loop must not edit (`spl`, `cimSpl`, `compliance`,
 - **criticality** (minor): 'critical' is high for a sales-capacity analytics report with no operational or security impact.
 - **monitoringType** (minor): 'Performance' and 'Reliability' describe IT monitoring; this is a Business analytics report.
 
+### [UC-23.2.5](../../content/cat-23-business-analytics/UC-23.2.5.json) — Pricing and Discount Effectiveness Analysis
+
+- **spl** (major): `discount_pct` is computed as (ListPrice − Amount) / ListPrice, where ListPrice is the per-unit OpportunityLineItem list price and Amount falls back to the opportunity total. Without multiplying ListPrice by Quantity (o…
+- **spl** (major): `count as deals` counts ingested rows, not distinct opportunities, so deals with many lines dominate win_rate. Rows from `dbx:quote_line_item` / `salesforce:opportunity_lineitem` usually lack StageName and are dropped b…
+- **spl** (minor): The verdict logic labels any band with win_rate < 30 'Ineffective — discount not winning', including the 'No Discount' band. 'Margin erosion — high discount low effectiveness' can only fire when win_rate ≥ 30, which con…
+
+### [UC-23.2.4](../../content/cat-23-business-analytics/UC-23.2.4.json) — Subscription Renewal and Expansion Pipeline
+
+- **spl** (major): The search reads 24 hours of snapshot events without `dedup subscription_key` or `stats latest(...) by subscription_key`. With the documented 900-second Stripe poll, each subscription appears about 96 times, so the work…
+- **spl** (major): days_to_renewal falls back to Stripe `current_period_end`, which is the end of the billing period, not the contract term. Every monthly-billed Stripe subscription therefore always falls within 30 days and is classified …
+- **spl** (minor): `if(mrr>100000, mrr/100.0*12, mrr*12)` guesses currency units from magnitude: a real USD 150,000 MRR is divided by 100, and cent-denominated values below 100000 are not converted. Normalize units per source.
+
+### [UC-23.6.2](../../content/cat-23-business-analytics/UC-23.6.2.json) — Expense Report Anomaly Detection
+
+- **spl** (blocker): `stats ... by OwnerLoginID, department` drops every event where `OwnerLoginID` is null. Concur Entries v3.0 returns `ReportOwnerID`, not `OwnerLoginID`, so unless the input renames the field the search returns no rows. … ([evidence](https://github.com/concur/developer.concur.com/blob/preview/src/api-reference/expense/expense-report/expense-entry.markdown))
+- **spl** (minor): Thresholds are absolute amounts applied to `TransactionAmount` in the transaction currency, and `sum(amount)` mixes currencies. Use the report-currency `PostedAmount`/`ApprovedAmount`, or convert first.
+- **spl** (minor): The flag named `ROUND_NUMBER_SPLIT_RULE` only checks for specific round amounts. It does not detect split transactions (several entries summing past a limit), so the label overstates the rule.
+
+### [UC-23.3.1](../../content/cat-23-business-analytics/UC-23.3.1.json) — Cross-Channel Marketing ROI and Multi-Touch Spend Versus Revenue
+
+- **spl** (major): The DB Connect rising-column input on last_modified_date ingests each opportunity once per change, and the SPL sums won_amt/pipe_amt across all 180 days of rows without `dedup OppId`. Revenue_closed and pipeline_generat…
+- **title** (major): The title promises 'Multi-Touch' attribution, but the SPL credits each opportunity to a single coalesced campaign_source/lead_source, which is single-touch. Either retitle (for example 'Cross-Channel Marketing ROI: Sour…
+- **spl** (needs_verification): `join type=left campaign_key create_month max=50000 [...]` puts the `max` option after the field list. The join syntax expects options before the fields, so confirm this parses as intended rather than treating `max=5000… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+
+### [UC-23.9.6](../../content/cat-23-business-analytics/UC-23.9.6.json) — Renewable Energy Share and Green Tariff Attribution
+
+- **spl** (major): `attribution_total_kwh` adds bundled PPA, unbundled RECs, on-site generation and bill green-tariff kWh without capping or de-duplicating them. `renewable_share_pct` can therefore exceed 100%, and RECs delivered under a …
+- **spl** (major): `coalesce(residual_mix_factor_g_co2e_per_kwh,"412")` silently uses an undocumented 412 g/kWh factor whenever the lookup misses. This happens for every row if the lookup is built keyed on `subregion` as the prose says. M…
+- **spl** (minor): `max(green_tariff_pct)` across all accounts of a facility is applied to the facility's total load, which overstates `bill_green_kwh` when only one account is on a green tariff. Compute green kWh per account before summi…
+
+### [UC-23.7.6](../../content/cat-23-business-analytics/UC-23.7.6.json) — Knowledge Base Deflection and Self-Service ROI
+
+- **spl** (major): `kb_or_web_views` and `kb_or_web_sessions` add `snow:kb_use` rows to `access_combined` hits, but a portal article read usually produces both a kb_use record and a web access log line. The same view is counted twice, and…
+- **spl** (major): `tickets_per_kb_session` uses every incident opened that day as the numerator, with no search-then-ticket attribution, so it says nothing about deflection. The title's 'Deflection and Self-Service ROI' is not computed a…
+- **spl** (needs_verification): `clicked=tonumber(coalesce(result_clicked,...,"0"))`: if result_clicked arrives as "true"/"false" (as ServiceNow booleans do), tonumber returns null, `clicked==0` is never true, `searches_no_click_after_hit` stays 0, an…
+
+### [UC-23.9.7](../../content/cat-23-business-analytics/UC-23.9.7.json) — Scope-3 Supply-Chain Carbon Accounting & Emissions-Hotspot Detection (15 GHG-Protocol Categories with Spend-Based + Activity-Based + Hybrid Methodologies)
+
+- **spl** (major): `multisearch` adds Persefoni inventory lines, Watershed measurements, Ariba spend multiplied by EEIO factors, and Climatiq estimates for the same suppliers without any de-duplication or source-precedence rule. `supplier…
+- **spl** (major): The Watershed branch uses `coalesce(co2e_kg,measurement_mass_kg,"0")`. When `co2e_kg` is missing, a physical activity mass is summed as kg CO2e. Persefoni falls back from `methodology` to `data_quality_band` in the same…
+- **spl** (major): `eval scope3_category=1` labels all Ariba spend as Category 1. Spend on capital goods (Cat 2), freight (Cat 4), travel (Cat 6) and waste (Cat 5) is therefore misclassified.
+- **title** (minor): The title promises '15 GHG-Protocol Categories', but `cat_label` keeps only C1, C4, C6 and C15 and collapses the other 11 categories into 'CX'. The Climatiq branch is the only one labelled 'hybrid'. The title overstates…
+
+### [UC-23.5.1](../../content/cat-23-business-analytics/UC-23.5.1.json) — Order-to-Cash Cycle Time and Bottleneck Analysis
+
+- **spl** (blocker): A bare `sort order_id, stage_time` returns at most 10,000 results by default. Across 90 days of order-stage events this silently drops everything after the first 10,000 rows, so dedup, streamstats and the per-stage perc… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (major): Durations are aggregated `by stage_canon` (the arriving stage), and the computed prev_stage is discarded, so the output never shows the stage pair (for example Picked→Packed) that the description and detailedImplementat…
+- **criticality** (minor): 'critical' is high for a 90-day bottleneck report with no alert condition. 'high' or 'medium' fits a planning KPI better.
+- **spl** (minor): `streamstats current=f latest(stage_time)` picks the value from the previous event with the greatest _time, not the immediately preceding row in sort order. If _time comes from a DB Connect watermark rather than stage_t… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats))
+
+### [UC-23.5.3](../../content/cat-23-business-analytics/UC-23.5.3.json) — Supplier On-Time In-Full (OTIF) Delivery Performance
+
+- **spl** (major): The search starts from goods-receipt rows (dbx:sap_ekbe, MOVEMENT_TYPE=101), so PO lines whose promised date has passed with no receipt never appear. The most severe OTIF failures (not delivered at all) are excluded and…
+- **spl** (major): `join type=left PO_NUMBER, ITEM_NUMBER [search ... dbx:sap_eket ...]` keeps only the first matching subsearch row by default (max=1), so items with multiple EKET schedule lines get one arbitrary promise date and quantit… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (minor): `max(qty_ordered)` across schedule lines takes the largest single line rather than the total ordered quantity for the item, so in_full is wrong for split schedules. Use `sum` over distinct schedule lines, or EKPO.MENGE.
+
+### [UC-23.5.2](../../content/cat-23-business-analytics/UC-23.5.2.json) — Inventory Level Monitoring and Stockout Risk
+
+- **spl** (major): `qty_raw=tonumber(coalesce(qty_on_hand, on_hand_qty, quantity_on_hand, "0"))` turns any row missing a quantity column into qty 0, which the first case branch classifies as STOCKOUT. Partial or malformed JDBC rows, such …
+- **spl** (minor): `sort - revenue_at_risk sku_key` without a count returns at most 10,000 rows. For large SKU×warehouse estates the exception table is silently truncated, although portfolio_at_risk is computed before the sort and stays c… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort))
+- **spl** (minor): OVERSTOCK rows survive `where status!="HEALTHY"`, so the hourly alert in implementation step (4) also pages on overstock, which the prose says should go to a weekly digest. Filter to STOCKOUT/CRITICAL_BELOW_LEAD/REORDER…
+
 ### [UC-23.7.3](../../content/cat-23-business-analytics/UC-23.7.3.json) — Customer Effort Score and Support Channel Effectiveness
 
 - **spl** (major): `ces_normalized` inverts CES (8-x / 6-x) and is then summed with friction penalties into `effort_index` but also reported as `avg_ces_good`. The direction must be confirmed against the source scale. For an unlabelled sc…
 - **spl** (minor): `survey_uid` is computed with a fixed `%Y-%m-%d %H:%M:%S` format and never used. `channels_used` only exceeds 1 when a case has several survey rows, so channel-switch detection is usually zero, as the UC itself admits.
+
+### [UC-23.5.5](../../content/cat-23-business-analytics/UC-23.5.5.json) — Perfect Order Rate (POR) and Customer Impact
+
+- **spl** (major): Orders without a delivery timestamp get `on_time=0`, so in-transit orders whose promised date has not yet passed are counted as late and imperfect. With `earliest=-90d`, the most recent shipments depress POR. Exclude or…
+- **spl** (minor): The tolerance `case()` tests CUSTOMER_SEGMENT before TRADE_LANE, so the 7-day international tolerance only applies to orders whose segment is not DTC/SMB_B2B/ENT_B2B. A DTC cross-border order gets 0 days. Check whether …
+- **spl** (minor): Both `join` subsearches are subject to the subsearch output limit (default 50,000 rows), regardless of `max=200000`. Over 120 days of RMAs and surveys the joined data can be silently truncated. Consider `stats`-based me… ([evidence](https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join))
+- **spl** (minor): The `failure_category` case() sends any combination involving `docs_complete=0` plus another break, and short+damaged without late, to `OTHER_MIX`, while `MULTI_BREAK` covers only late+short+damaged with docs complete. …
+
+### [UC-23.4.2](../../content/cat-23-business-analytics/UC-23.4.2.json) — Time-to-Hire and Recruiting Pipeline Health
+
+- **spl** (blocker): For `greenhouse:job`, `filled_raw` never picks up `closed_at`, `status` is 'closed' (not 'closed - filled'), and `close_reason` is nested in openings. pipeline_status therefore falls to 'Open' for every closed Greenhous… ([evidence](https://github.com/grnhse/greenhouse-api-docs/blob/master/source/includes/harvest/_jobs.md))
+- **spl** (major): There is no `dedup req_key` to the latest snapshot. With hourly polling over 180 days, `stale_hot` counts any req that was open and stale in any historical snapshot, even if it has since been filled or withdrawn, and av…
+- **spl** (major): Lever's API returns timestamps such as `createdAt` as Unix epoch milliseconds, which none of the strptime branches handle (and `openedAt` is not a Lever field). Lever postings therefore get null opened_epoch and land in…
+- **spl** (minor): `crit_priority` is looked up but unused in the stats/table output, so the Critical-role escalation described in implementation needs a separate search.
+
+### [UC-23.7.4](../../content/cat-23-business-analytics/UC-23.7.4.json) — Backlog Age and Breach Risk Forecast
+
+- **spl** (major): `earliest=-24h@h` combined with dedup on snapshot events only sees tickets updated in the last 24 hours. Open tickets untouched for longer, which are the stalest and most likely to breach, drop out of the backlog entire…
+- **spl** (major): The weekend adjustment depends on the weekday of now(), not on the ticket's actual elapsed weekend time. It subtracts an arbitrary 35% of age (capped at 48h) only when the search runs on Saturday or Sunday, so pct_of_sl…
+- **spl** (major): The task_sla subsearch takes `latest(percentage)` per task over 7 days without filtering stage or SLA definition. Tickets with response plus resolution SLAs (or completed/cancelled SLA rows) get whichever row updated la…
+- **spl** (minor): The state filter excludes 6/7 and Closed/Resolved/Cancelled labels but not incident state 8 (Canceled). `historical_close_avg` is built only from snow:incident, so case and request rows always fall back to `sla_target_h…
+
+### [UC-23.4.3](../../content/cat-23-business-analytics/UC-23.4.3.json) — Diversity and Inclusion Metrics Dashboard
+
+- **spl** (major): Small-cell suppression is defeatable: `where headcount >= 5` runs after `level_total` and `representation_pct` are computed, so the remaining rows' headcounts and percentages let a reader subtract their way back to the …
+- **spl** (minor): `coalesce(gender, "Prefer not to say")` merges missing or never-collected data with employees who actively declined. That inflates the declined cohort and hides ingestion gaps. Use a separate 'Not recorded' bucket.
+- **spl** (minor): `ethnicity_normalized` is computed but never used by the stats, so the ethnicity breakdown promised in visualization and the grandma text is not produced by this search.
+- **spl** (minor): `join type=outer` with the diversity_targets subsearch adds target rows for suppressed or absent cells with null headcount and representation_pct. `gap_vs_goal` then evaluates to null and status_flag falls through to 'N… ([evidence](https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/join))
+
+### [UC-23.7.5](../../content/cat-23-business-analytics/UC-23.7.5.json) — Agent Occupancy and Schedule Adherence
+
+- **spl** (major): `lookup erlang_c_sl.csv staffed_heads AS staffed_agents traffic_erlangs AS traffic_erlangs` exact-matches continuous values (avg staffed agents and float Erlangs), so it will almost never hit and `erlang_sl_pct` falls b…
+- **spl** (major): The join key `team_uid` is built from different source fields on each side (team_id/skill_group_id/GroupId vs skill_cluster_id/routing_team_id), so the queue-plane join is likely to miss without a mapping lookup. staffe…
+- **monitoringType** (minor): 'Availability' does not describe a workforce occupancy/adherence KPI. Business/Capacity fits better.
+- **spl** (minor): `occupancy_pct` and `occupancy_login_pct` compute the same ratio, because busy_like_s = busy_only_s + acw_s. One of the two outputs is redundant.
+
+### [UC-23.8.1](../../content/cat-23-business-analytics/UC-23.8.1.json) — CEO/CFO Business Health Scorecard
+
+- **spl** (major): revenue_mtd uses `earliest=-1mon@mon`, which snaps to the start of the previous month. The value is therefore last month plus month-to-date, not MTD. Use `earliest=@mon`, or a fiscal-period POPER filter.
+- **spl** (major): pipeline_coverage is calculated as open pipeline ÷ won amount over 90 days. Coverage is normally open pipeline ÷ remaining quota/target. The salesforce:opportunity snapshots are also not deduped by Id, so repeated polls…
+- **spl** (needs_verification): In ACDOCA, revenue postings are credits stored as negative HSL/KSL values. `sum(HSL)` on revenue accounts would then be negative, so `current_value>=threshold_amber` is never met and the tile is always RED. `^4[0-9]{4,6…
+- **spl** (needs_verification): The BLART filter includes RE (in SAP standard, the MM vendor invoice) and DZ (customer payment), which are not revenue documents, and leaves out DR (customer invoice). Confirm the document types with controlling.
+- **spl** (needs_verification): `sum(eval(band="P"))` sums a Boolean comparison. The usual idiom is `count(eval(band="P"))`, so check that sum returns counts rather than null. Missing scores are also coalesced to "0" and counted as detractors.
+
+### [UC-23.2.2](../../content/cat-23-business-analytics/UC-23.2.2.json) — SAP S/4HANA Aligned Bookings and Recognized Revenue Trends
+
+- **spl** (major): When a billing document is cancelled in SAP, the original F2 is flagged FKSTO='X' and a separate S1 document is created. The SPL drops the cancelled F2 (FKSTO filter) and also subtracts the S1 amount, so each cancellati…
+- **spl** (major): Billing is aggregated by period, BUKRS, VKORG and WAERK (document currency), but the joined recognized_revenue is per period and BUKRS only, in local currency. Every VKORG/WAERK row gets the full company recognized amou…
+- **spl** (needs_verification): `strptime(FKDAT, "%Y-%m-%d")` assumes ISO dates. SAP DATS fields read raw from VBRK over JDBC are usually 8-character YYYYMMDD strings, in which case _time and bill_period are null and every row drops out of stats. Chec…
+- **title** (minor): The title says 'Bookings', but the SPL measures billing documents (VBRK). Bookings are normally sales-order intake (VBAK/VBAP). The title should say 'Billings', or the SPL should add order intake.
+
+### [UC-23.2.7](../../content/cat-23-business-analytics/UC-23.2.7.json) — Average Deal Size and Deal-Mix Trend
+
+- **spl** (major): `annual_contract_value=if(term_eff>0 AND term_eff<12, booked_amount*12/term_eff, booked_amount)` annualizes only sub-12-month deals. Multi-year deals keep their full TCV as 'ACV', so avg_acv and acv_pool (and arr_run_ra…
+- **spl** (major): `streamstats global=f window=12 first(avg_deal_size)` labelled asp_prior_year compares against 11 rows earlier (or against the first available row when history is short), not the same month a year earlier, so cohort_asp…
+- **spl** (minor): `arr_run_rate=round(acv_pool,2)` is simply the ACV booked in that cohort month, not an ARR run rate. Rename it or compute it properly.
+
+### [UC-23.9.1](../../content/cat-23-business-analytics/UC-23.9.1.json) — Enterprise GHG Inventory: Scopes 1–3 CO2e with Dual Scope 2 and Factor Lookup
+
+- **spl** (major): All `rs_travel_air_rail` passenger-km, including rail and long-haul air, are labelled `business_travel_cat6_air_domestic` and multiplied by one domestic-air factor. Split by mode and haul (e.g. by a `mode`/`haul` field)…
+- **title** (major): The title claims an 'Enterprise GHG Inventory: Scopes 1–3', but the search covers only electricity, natural gas, fleet diesel and Scope 3 Category 6 travel, and the exclusions list most other Scope 3 categories. Conside…
+- **spl** (minor): `coalesce(kg_co2e_per_activity_unit,0)` turns a missing factor row into zero emissions, and the output has no null-factor indicator. Add a `factor_missing` count per source so silent under-reporting is visible.
+
+### [UC-23.7.2](../../content/cat-23-business-analytics/UC-23.7.2.json) — First Contact Resolution Rate and Escalation Patterns
+
+- **spl** (needs_verification): `strptime(opened_at/resolved_at/sys_updated_on, "%Y-%m-%d %H:%M:%S")` parses ServiceNow UTC timestamps in the search user's timezone because no zone is given, so `_time` and the closure-day buckets are shifted for non-U…
+- **spl** (minor): `escalated` is computed but never used in stats, so the 'Escalation Patterns' half of the title produces no output from the primary search. `sort - resolved | head 50` also silently drops low-volume category/group pairs…
+
+### [UC-23.6.4](../../content/cat-23-business-analytics/UC-23.6.4.json) — Payment Processing Success Rate and Revenue Leakage
+
+- **spl** (major): Stripe emits both `payment_intent.succeeded` and `charge.succeeded` (and `payment_intent.payment_failed` + `charge.failed`) for the same payment, and Adyen sends AUTHORISATION and CAPTURE for one transaction. Without `d…
+- **spl** (major): `amt` sums Stripe `amount` and Adyen `value` (minor units, e.g. cents) together with PayPal/Braintree decimal amounts, across currencies, so `revenue_leakage_soft`, `challenge_amt` and `hard_decline_amt` are not in any …
+- **spl** (needs_verification): Adyen notifications carry `eventCode` and `success` fields. The SPL reads `event_type`/`type`/`notification_event` and `success_flag`/`outcome_status`/`auth_result`, so unflattened Adyen events would get a null `authori…
+- **monitoringType** (minor): Performance/Availability/Reliability fits poorly for a revenue-leakage KPI. 'Business' (as used by sibling 23.6.x UCs) is the closer classification.
+
+### [UC-23.9.4](../../content/cat-23-business-analytics/UC-23.9.4.json) — Water Consumption Monitoring and Conservation
+
+- **spl** (major): `stats sum(gal) as daily_gal` adds master or district-feed meters, submeters and loss tags together, so every gallon passing a master meter and a submeter is counted twice. `weekly_gal`, `suspect_idle_leak` (daily_gal>5…
+- **spl** (major): `gal=tonumber(coalesce(gallons_increment, gal_delta, volume_gal, makeup_volume_gal, "0"))` omits `gal_pulse` (Modbus) and any delta derived from `cum_volume_gal` (BACnet), so the primary sourcetypes evaluate to 0.
+- **monitoringType** (minor): `Performance` and `Reliability` do not fit a water-consumption and conservation KPI; `Business` and/or `Compliance` (drought ordinance tiers, GRI 303/CDP water) match the signal and the sibling UCs.
+- **spl** (minor): `max(apparent_loss_gal) as wk_apparent` and `max(real_loss_gal) as wk_real_loss` take the single worst day rather than the weekly total, so the weekly loss columns are not comparable to `weekly_gal`. Use sum() for weekl…
+
+### [UC-23.8.2](../../content/cat-23-business-analytics/UC-23.8.2.json) — Operational Efficiency and Productivity Metrics
+
+- **spl** (major): Headcount is `dc(wid)` over a full month of daily HRIS snapshots, so it counts everyone active on any day of the month (leavers and joiners together). This inflates the revenue_per_FTE denominator. Use the period-end sn…
+- **spl** (major): The exception_rate branch searches `index=business sourcetype="app:process_event"`, while the automation branch and dataSources place app:process_event in index=automation. One of the two will be empty.
+- **spl** (minor): `automation_rate` counts every execution event in index=automation. For uipath:robot:execution events, automated is essentially always "yes", so the rate trends toward 100% unless manual-step events are also ingested. T…
+
+### [UC-23.2.3](../../content/cat-23-business-analytics/UC-23.2.3.json) — Customer Churn Prediction and Early Warning
+
+- **spl** (major): The base search is `app:login` only, so a customer with zero logins in 90 days produces no row and is never scored, although fully dormant accounts are the strongest churn signal. Seed the customer list from the ID map,…
+- **spl** (major): Four `join` subsearches over 90 days are subject to the default subsearch row and time limits; `max=0` does not lift them. With more than about 50,000 customers or slow subsearches, feature, ticket or billing data is si…
+- **title** (minor): 'Prediction' overstates a fixed-weight heuristic score; no model is trained or applied. Consider 'Churn Risk Scoring and Early Warning'.
+
+### [UC-23.4.1](../../content/cat-23-business-analytics/UC-23.4.1.json) — Workday Employee Attrition Risk and Voluntary Turnover Prediction
+
+- **spl** (minor): `like(lower(tostring(Worker_Status_Detail)),"%active%")` also matches 'inactive'. It is harmless only because Active_Status_norm=1 is applied first; use an exact or anchored match.
+- **title** (minor): 'Turnover Prediction' overclaims. The SPL is an additive rule-based heuristic score (tenure, compa-ratio, time since increase, rating, manager losses) with no model trained or validated against actual exits. Consider 'A…
 
 ## cat-24-business-intelligence-analytics-platforms
 

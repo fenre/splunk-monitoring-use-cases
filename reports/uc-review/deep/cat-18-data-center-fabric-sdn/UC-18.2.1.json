@@ -1,0 +1,138 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "84a3f37cb1e07b6adcb37c3c0e417b482e5d40c64df3bfbede6f9ac2e88af6fc",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on, and no Splunk-supported 'Splunk_TA_vmware-nsxt' exists. The NSX options on Splunkbase are the VMware NSX-T Splunk App (4241) and the community 'VMware NSX add-on' (6805). The same wrong ID appears in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856), current **1.x** aligned with VMware NSX **4.2**, **4.1**, NSX-T maintenance trains)",
+      "severity": "blocker",
+      "suggested_fix": "Name an add-on that exists (for example VMware NSX-T Splunk App 4241 or VMware NSX add-on 6805), or SC4S with its vmware:nsxlog:* sourcetypes, and remove every 4856 reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1810",
+      "explanation": "Splunkbase 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware is a different listing, and its inventory sourcetypes are vmware:inv:* and vmware:perf:*. 'vmware:vmware:vsphere:vcenter' does not appear to be a real sourcetype. The same wrong ID appears in app, detailedImplementation and references.",
+      "field": "dataSources",
+      "quote": "**`Splunk_TA_vmware`** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) supplies **`vmware:vmware:vsphere:vcenter`** naming",
+      "severity": "blocker",
+      "suggested_fix": "Look up the current Splunk Add-on for VMware listing (or the vCenter / ESXi log add-ons 5601 / 5603), and use its documented inventory sourcetype."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/nsxt-dc/3-2/administration-guide/security/troubleshooting-firewall/firewall-packet-logs.html",
+      "explanation": "NSX DFW packet logs record accepted packets as 'PASS' (actions are PASS, DROP, REJECT and others). A log line reads 'INET match PASS mainrs/1024 IN 52 TCP ...'. 'ALLOW' never appears in dfwpktlogs, so every allow-side metric described in the UC is wrong.",
+      "field": "detailedImplementation",
+      "quote": "Aim ESXi syslog streams carrying **`INET match ALLOW|DROP|REJECT`** narratives",
+      "severity": "blocker",
+      "suggested_fix": "Describe the verdicts as PASS/DROP/REJECT, and say that PASS must be normalised to ALLOW."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-connect-for-syslog/main/sources/vendor/VMWare/vsphere/",
+      "explanation": "SC4S assigns NSX DFW packet logs the sourcetype vmware:nsxlog:dfwpktlogs (other NSX programs get vmware:nsxlog:${PROGRAM}), not vmware:nsxt:firewall. An implementer following this text would search the wrong sourcetype.",
+      "field": "dataSources",
+      "quote": "**`Splunk Connect for Syslog`** scales **`vmware:nsxt:firewall`** when fabrics spike past ten thousand EPS",
+      "severity": "major",
+      "suggested_fix": "State that SC4S produces vmware:nsxlog:dfwpktlogs, and either include it in the search or document a props rename."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "In dfwpktlogs the rule identity is the 'ruleset/ruleID' token (for example mainrs/1024). The rule tag is an optional, free-text label the operator sets on the rule, not a fixed seq|policy|id tuple. Parsing it as a tuple will usually yield nulls.",
+      "field": "detailedImplementation",
+      "quote": "**`rule_tag_raw`** carries the **`sequence|policy-name|numeric-id`** tuple that maps to **`security-policies`** / **`rules`** API objects",
+      "severity": "needs_verification",
+      "suggested_fix": "Extract rule_id from the ruleset/ruleID token and join it to Policy API rule objects. Treat the tag as optional free text."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "IDFW lines are firewall verdicts that carry a user context. They are not logon or authentication events, so mapping them to the Authentication model would put firewall hits into login analytics. Network_Traffic is the right model.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Authentication\"",
+      "severity": "major",
+      "suggested_fix": "Keep Network_Traffic only, and map USERNAME to the Network_Traffic user field."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "content/cat-12-devops-ci-cd",
+      "explanation": "cat-04 is Cloud Infrastructure and cat-12 is DevOps CI/CD. Firewall use cases belong to the security categories (cat-10 / cat-17), so these cross-references send readers to the wrong place.",
+      "field": "exclusions",
+      "quote": "third-party kernel-mode firewalls running in vSphere (Palo Alto VM-Series, Check Point CloudGuard) — separate UCs in cat-04 / cat-12; physical-firewall ACL/policy traffic (Cisco Secure Firewall, Palo Alto, Fortinet) — covered under cat-04",
+      "severity": "major",
+      "suggested_fix": "Point to the categories that actually hold firewall UCs (check cat-10 and cat-17)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A UPS SNMP model has nothing to do with NSX DFW logs. The snmp equipment tag is also unused.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups and the snmp equipment tag."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This links to the Broadcom docs root rather than the DFW administration guide.",
+      "field": "references",
+      "quote": "\"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 'Distributed Firewall Packet Logs' page on techdocs.broadcom.com."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Two wrong Splunkbase IDs and the wrong verdict keyword show that the UC was not checked against real data or the listings.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status until it is validated against real dfwpktlogs samples."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/nsxt-dc/3-2/administration-guide/security/troubleshooting-firewall/firewall-packet-logs.html",
+      "field": "spl",
+      "issue": "dfw_action_norm maps only ALLOW/ACCEPT to ALLOW, and the rex 'INET\\s+match\\s+(ALLOW|DROP|REJECT)' cannot match NSX's 'PASS'. Accepted traffic therefore stays 'PASS', allow_hits is always 0, and east_src_allow_cardinality is empty. Add PASS to the ALLOW branch and the rex.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "stats ... by _time rule_tag_raw dfw_action_norm ip_family puts each action in its own row, so effectiveness_ratio is null for ALLOW rows (no drops in the row) and 0 for DROP/REJECT rows. It can never express a per-rule allow-versus-deny mix. Remove dfw_action_norm from the by-clause.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search has no threshold or where clause, so it is a report rather than an alert, despite the description's alert framing. The 'match(_raw,\"\\bDROP\\b\")' fallbacks can also misclassify TERM lines and other log types.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0023-UC-18.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The implementation narrative is well organised, but the UC cites two Splunkbase IDs that belong to unrelated apps. It also normalises DFW verdicts as ALLOW, while NSX logs accepted packets as PASS, so allow counts and the effectiveness ratio come out empty. The RULE_TAG parsing assumes a format that NSX does not emit.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.1",
+  "verdict": "incorrect"
+}

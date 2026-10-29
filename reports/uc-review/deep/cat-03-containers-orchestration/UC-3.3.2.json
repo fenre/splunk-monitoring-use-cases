@@ -1,0 +1,115 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c93a8ce66f84f31849ae72ba73fa8bbc0fe8f972344660a6338992da9f5d053d",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.2.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation and dataSources describe ocp_events, ocp_audit, Insights and Telemeter log lanes plus a 'tel_insight' lane (Case 7). The SPL has only four arms: ClusterOperator, pod readiness, remote_write counters and self-monitoring. Case 5 also claims the UC compares uwm_ns_expected_cnt to live ServiceMonitors, but the SPL only counts lookup rows.",
+      "field": "cross_field",
+      "quote": "Stand up six complementary lanes Splunk multisearch can fuse",
+      "severity": "major",
+      "suggested_fix": "Describe the four lanes the SPL actually uses. Mark events, audit and Insights logs as optional investigation drilldowns, and remove the tel_insight and ServiceMonitor-comparison claims."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Cluster Monitoring Operator and its operands run in openshift-monitoring, with user workload monitoring in openshift-user-workload-monitoring. The other three namespace names do not appear to exist in OCP 4.x.",
+      "field": "detailedImplementation",
+      "quote": "openshift-monitoring-federation, openshift-user-workload-monitoring, openshift-cluster-monitoring-operator, and openshift-monitoring-operator style namespaces",
+      "severity": "needs_verification",
+      "suggested_fix": "Check with oc get ns on a current OCP 4.x cluster and list only openshift-monitoring and openshift-user-workload-monitoring."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Insights Operator is a separate ClusterOperator (insights), not part of the Cluster Monitoring Operator payload. The condition name InsightsRecommendationActive could not be confirmed as the signal for upload errors, which the Insights Operator normally reports through conditions such as UploadDegraded.",
+      "field": "detailedImplementation",
+      "quote": "Insights Operator InsightsRecommendationActive condition stuck",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current Insights Operator ClusterOperator and ClusterVersion condition types. Treat Insights as a separate operator rather than a CMO operand."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "No Splunk-published 'Splunk Add-on for Kubernetes' (Splunk_TA_kubernetes) is listed in the grounding guide, which uses the Splunk OpenTelemetry Collector for Kubernetes for events.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) for event routing",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace with the Splunk OpenTelemetry Collector for Kubernetes, or name a verifiable Splunkbase add-on."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint). Neither model represents Prometheus or ClusterOperator telemetry, and dataModelAcceleration invents a Performance.metric_name field.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State and the invented acceleration guidance. Use schema none for metrics-native data unless a real CIM mapping exists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic repository handle, but the SPL cannot run and would page permanently.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a named SME runs the search against real openshift-monitoring telemetry."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch arms contain sort, streamstats, bucket and stats. multisearch accepts only purely streaming subsearches, so the search errors.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "kube_pod_status_ready emits one series per condition label (true/false/unknown). For every healthy pod the condition=\"false\" and condition=\"unknown\" series equal 0, so bad_ready (mv<1) is set on healthy pods. The OR branch also has no namespace filter, so stack_bad=1 for essentially every cluster and the page tier fires permanently.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "prometheus_rule_evaluation_failures_total and the remote-storage failure metrics are cumulative counters. The SPL sums raw counter samples instead of computing increases, so any historical failure keeps rule_eval_fail >= 1 and remote_fail_sum > 0 indefinitely. remote_fail_rate is a rounded sum, not a rate.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=2 current=t last(co_prog) returns the current row's value, so prog_tick counts every Progressing snapshot rather than consecutive ones.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "field": "cimSpl",
+      "issue": "Uses Performance.* with nodename=Performance and the non-CIM fields Performance.metric_name and Performance.value. The Performance root dataset is All_Performance with CPU, Memory and Storage children. Application_State is deprecated since CIM 4.12.0.",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "The title lists Insights as part of the Cluster Monitoring Operator plane, but the Insights Operator is a separate ClusterOperator that CMO does not manage.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0084-UC-3.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation covers the Cluster Monitoring Operator well, but the SPL cannot run (non-streaming commands inside multisearch). Its readiness and counter logic would page on every healthy cluster. The prose also promises six lanes (events, audit, Insights/Telemeter logs) that the four-arm SPL never reads, and the UC uses a deprecated CIM model.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.2",
+  "verdict": "incorrect"
+}

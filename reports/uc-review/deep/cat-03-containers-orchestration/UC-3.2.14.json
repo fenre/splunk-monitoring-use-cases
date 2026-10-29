@@ -1,0 +1,134 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d3d308c754c45e974d543756ae215ba59b852a0cf0b10b87775dd0b2dd5e2029",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.14.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "kube_pod_container_status_waiting_reason carries only container, pod, namespace, reason and uid. Image is on kube_pod_container_info and node on kube_pod_info, so the image and node fields the SPL rexes from the waiting_reason series are always empty, and the image_registry storm correlation never resolves from the KSM arm.",
+      "field": "detailedImplementation",
+      "quote": "relabel rules that preserve namespace, pod, container, node, and image labels on kube_pod_container_status_waiting_reason series",
+      "severity": "blocker",
+      "suggested_fix": "State that image must be joined from kube_pod_container_info (namespace, pod, container) and node from kube_pod_info, and drop the claim that relabeling can preserve labels the metric never had."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 (replaced by Endpoint) and models process/service/port inventory, not container image pulls. Network_Traffic does not fit kubelet waiting reasons or Kubernetes events either. dataModelAcceleration repeats both.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Application_State\",\n    \"Network_Traffic\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to none (schema=custom, kube-native telemetry) or justify a specific current model; remove the Application_State acceleration guidance."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The search groups by cluster, namespace, pod and container (not node) and fires when dwell time is at least 3 minutes OR the registry storm floor is crossed. The description names only the storm floor, omits the main 3-minute dwell condition, and lists intermediate fields as outputs.",
+      "field": "description",
+      "quote": "using `index=k8s_metrics` sourcetype `prometheus:scrape:metrics`, grouped by `cluster`, `node`, `namespace`, `pod`. Outputs `kubelet_pull_err_on_node`, `dwell_ipb_pod_max` each `the scheduled window`; alert when `registry_failed_events_5m` >= 25.",
+      "severity": "major",
+      "suggested_fix": "Say: one row per cluster/namespace/pod/container whose container has been in ErrImagePull/ImagePullBackOff (or has 'Failed to pull image' events) for at least 3 minutes, or whose registry has 25+ failed pulls in 5 minutes; severity comes from namespace tier."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated fluentd-based Helm chart, not a modular input or scripted poll, and the rest of the UC uses the OTel collector. The sentence contradicts the collection design described in app and Step 2.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Drop the sentence or replace it with 'Collected by the Splunk OpenTelemetry Collector for Kubernetes Helm chart (legacy: Splunk Connect for Kubernetes, deprecated)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The listed scenarios are generic. The real false positives are already described in Step 5 (large images on cold autoscaled nodes, chaos pods with deliberately invalid images, short ErrImagePull blips during registry failover) but are missing from this field.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `node`, `namespace`, `pod`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with the real causes from Step 5 cases 9 and 10, plus deleted pods whose last waiting sample is still inside the 4-hour window."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The SPL never reads pager_suppress from k8s_workload_routing.csv, so this suppression does not exist in the search as written. Likewise sourcetype kube:container:runtime is invented here and not in the guide's sourcetype list.",
+      "field": "detailedImplementation",
+      "quote": "Suppress namespaces or pods labeled chaos.imagepull=expected in k8s_workload_routing.csv with pager_suppress=1",
+      "severity": "minor",
+      "suggested_fix": "Either add pager_suppress to the lookup join and a where clause in the alert wrapper, or describe suppression as a separate wrapper step; use a sourcetype documented in docs/guides/kubernetes.md for CRI logs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "'RegistryAuthFailed' does not look like an Amazon ECR CloudTrail event name (ECR auth is logged as GetAuthorizationToken).",
+      "field": "detailedImplementation",
+      "quote": "validate awslogs or CloudTrail RegistryAuthFailed patterns",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ECR CloudTrail event list and name the real event and errorCode values, or remove the reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "There is no 'Splunk Add-on for Kubernetes' in the repository Splunkbase catalogue; the collector is Splunkbase 6264. The same name appears in the app field.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Docs — Splunk Add-on for Kubernetes\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the page exists; otherwise link the splunk-otel-collector-chart repository and drop the add-on name from app."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "There is no named SME reviewer, and the search depends on label shapes that KSM does not emit, so the verified status is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until validated on a real cluster with the Step 4 tests."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Uses `datamodel=Application_State WHERE nodename=Application_State BY Application_State.dest Application_State.app` with `latest(Application_State.state)`. The model is deprecated, its root dataset is All_Application_State, and it has no app or state field, so the tstats returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "time_in_ipb_min is computed as now() minus the first entry time, and nothing requires the waiting sample to be recent. A pod that recovered or was deleted hours ago keeps its old ImagePullBackOff rows in the -4h window, so it is reported with growing dwell for up to 4 hours. Add a recency gate (for example latest(_time) > now()-2*scrape_interval) or compute dwell to the last sample.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The registry join extracts the first quoted token containing a dot. For short Docker Hub names (`nginx:1.25`) that gives `nginx:1.25` instead of docker.io, while the main path maps the same images to docker.io, so Docker Hub rate-limit storms never match on image_registry.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Function is written `toString(...)` throughout; the eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Confirm the search parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-3.2.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The runbook (Steps 1, 4 and 5) is concrete and useful, but the detection assumes kube-state-metrics labels that do not exist (node and image on the waiting_reason series), the CIM mapping uses a deprecated and ill-fitting model, and description, value and false positives are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.14",
+  "verdict": "incorrect"
+}

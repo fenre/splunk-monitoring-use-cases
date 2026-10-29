@@ -1,0 +1,163 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "cd5e57c460356a6ac531e6e3afa366cfba30c1042c7c0f6088bf5e59788a8895",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.15.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "explanation": "Cisco's ACI System Messages Reference defines F0952 as fltFvRsCtxResolveFail ('The object refers to an object that was not found'), a missing VRF relation, not a policy TCAM programming failure. detailedImplementation ('F0952 policy programming', 'live F0952 indicates hardware exhaustion'), the visualization and the runbook all build on this wrong meaning.",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:aci:fault` for structured faultInst rows including F0952/F1585",
+      "severity": "blocker",
+      "suggested_fix": "Look up the actual policy-CAM overflow / rule-programming-failure fault codes in the ACI System Messages Reference and replace F0952 everywhere. Also verify F1585."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated in favour of Cisco DC Networking, 7777). The ID repeats in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package `Splunk_TA_cisco-aci`)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Cisco DC Networking (7777) as the supported collector, with TA_cisco-ACI (1897, deprecated) as legacy, and remove every 4022 reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide-42x-and-later/m_using_the_rest_api.html",
+      "explanation": "rsp-subtree accepts only no, children or full. 'no-unresolved' is not a documented value.",
+      "field": "detailedImplementation",
+      "quote": "`GET /api/class/actrlRule.json?rsp-subtree=no-unresolved`",
+      "severity": "blocker",
+      "suggested_fix": "Use rsp-subtree=no (attributes only), optionally with rsp-prop-include=naming-only to shrink the payload."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These ceilings look invented. FX-class leaves support tens of thousands of policy CAM entries depending on forwarding scale profile, and the 9364C is a spine.",
+      "field": "detailedImplementation",
+      "quote": "SKU guidance (**93180YC-FX ~4K**, **9364C ~8K**, **9348GC-FXP ~2K** compiled-entry hints keyed by model)",
+      "severity": "needs_verification",
+      "suggested_fix": "Take per-SKU policy CAM limits from the Cisco ACI Verified Scalability Guide for the running release, or drop the numbers and rely on polUsageCap."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "I could not find this HAL command. Cisco troubleshooting guides check policy TCAM usage with 'vsh_lc -c \"show platform internal hal health-stats\"' and the APIC Capacity Dashboard.",
+      "field": "detailedImplementation",
+      "quote": "`vsh_lc -c \"show platform internal hal l2 phase4 policy-stats\"`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the exact leaf command in Cisco's ACI troubleshooting guide and replace it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "APIC shows per-leaf Policy CAM usage in the Capacity Dashboard under the Operations tab, not under Fabric → Inventory.",
+      "field": "detailedImplementation",
+      "quote": "APIC: Fabric → Inventory → Pod → Leaf capacity views should match **pol_pct_now within ±2%**",
+      "severity": "minor",
+      "suggested_fix": "Point validation at Operations → Capacity Dashboard → Leaf Capacity."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The description contains a literal placeholder ('configured sourcetype', also 'configured_sourcetype' in knownFalsePositives). Its 'thresholds' are divide-by-zero guards, not the alert logic (pol_pct_now >= 70, pol_pct_max15 >= 75, pol_free_min15 <= 256, fault flag, or forecast <= 48).",
+      "field": "description",
+      "quote": "over `index=cisco_aci` sourcetype `configured sourcetype` with thresholds `pol_cap` > 0, `pct_delta15` > 0, `burn_rate` > 0",
+      "severity": "major",
+      "suggested_fix": "Name the five sourcetypes and state the real alert conditions and the risk >= 80 paging rule."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance datamodel covers host CPU, memory, storage, interface and OS metrics, not switch policy-CAM occupancy, and the SPL uses no datamodel.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Performance\", \"Alerts\"]",
+      "severity": "major",
+      "suggested_fix": "Drop Performance, and keep Alerts only if fault mapping is actually described."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The embedded SPL uses earliest=-4h@m.",
+      "field": "detailedImplementation",
+      "quote": "Save `aci_uc1815_policy_tcam_pressure` on cron `*/15 * * * *` with earliest=-6h@m.",
+      "severity": "minor",
+      "suggested_fix": "Use one time window in both places."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This link points to the Cisco homepage, and the 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC REST API Configuration Guide (Release 6.0(x))\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide/m_using_the_rest_api.html, and replace 4022 with 7777 or 1897."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while the core fault code is misidentified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "field": "title",
+      "issue": "The title names 'F0952 Program-Failure Triangulation', but Cisco defines F0952 as fltFvRsCtxResolveFail (unresolved VRF relation), not a TCAM programming failure.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "field": "spl",
+      "issue": "`fault_code IN (\"F0952\",\"F1585\")` and `\\bF0952\\b` mark unresolved-VRF-relation faults as TCAM failures, and tcam_fault_flag forces risk=100.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-policy-infrastructure-controller-apic/217765-addressing-aci-fault-code-f0321-f0323.html",
+      "field": "spl",
+      "issue": "`rex field=dn \"(?i)/topology/pod-(?<pod_id>[^/]+)\"` requires a leading slash, but APIC dn values start with 'topology/pod-<id>/node-<id>/...'. Even when it matches, it captures only the pod number, and node_key=coalesce(pod_id,...) then groups every leaf in a pod into one row, so the later node-(\\d+) rex can never match. Extract node-(\\d+) directly from dn.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "est_hours_to_90 = (90 - pol_pct_now) / burn_rate, where burn_rate is percentage points per 15-minute bucket, so the result is in 15-minute intervals, not hours. The '<= 48 hours' gate actually fires at about 12 hours, and the alert subject misstates the runway. Multiply the denominator by 4 (or divide the result by 4).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "actrlRule DNs look like topology/pod-N/node-N/sys/actrl/scope-<vnid>/rule-..., which contain neither the literal 'actrlrule' nor 'tn-'. actrl_marker and tenant_tag would then always be 0/null, and approx_rule_dns 0. Check against live JSON and key on classId or a 'rule-' segment instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "pol_cap coalesces polUsageCap, but the eqptcapacityPolUsage5min capacity property may be polUsageCapCum (or polUsageCapLast). Verify the attribute names in the MIM, or pol_pct is always null.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-18.1.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Policy-CAM pressure is a valuable detection, but the UC rests on F0952 as a TCAM programming-failure fault when Cisco documents it as an unresolved VRF relation (fltFvRsCtxResolveFail). The SPL's DN parsing groups by pod instead of node, and the forecast is labelled in hours but computed in 15-minute units. The add-on ID, a REST query option and several CLI commands are also wrong or unverifiable.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.15",
+  "verdict": "incorrect"
+}

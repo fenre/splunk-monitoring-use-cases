@@ -1,0 +1,121 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "55d7da370552ebc33a19ab6dad0845a98e2daa6abfcfa905e40c5dc1907fb324",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.22.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is the 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. The legacy ACI add-on was TA_cisco-ACI (Splunkbase 1897), which is now archived. Its replacement, Cisco DC Networking (7777), emits cisco:dc:aci:* sourcetypes, not the cisco:aci:pc_stats or cisco:aci:interface names listed here. The same wrong ID appears in implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)) for **`cisco:aci:interface`**, **`cisco:aci:pc_stats`**",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (Splunkbase 7777) as the primary collector and use its documented cisco:dc:aci:* sourcetypes, or describe cisco:aci:* as custom REST sourcetypes defined by the operator. Remove every reference to 4022."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.ciscolive.com/c/dam/r/ciscolive/global-event/docs/2024/pdf/TACDCN-2006.pdf",
+      "explanation": "In ACI, pcAggrIf objects are addressed as topology/pod-<X>/node-<Y>/sys/aggr-[po<N>]. The sys/intf/aggr- path is the NX-OS standalone DME layout. Per-member state lives under pcRsMbrIfs or the member l1PhysIf/ethpmPhysIf children, not a separate 'parity' endpoint. The same path appears in app and detailedImplementation Step 1.",
+      "field": "dataSources",
+      "quote": "**`GET https://<apic>/api/node/mo/<node>/sys/intf/aggr-[<name>].json`** for **member-level** **parity** checks",
+      "severity": "blocker",
+      "suggested_fix": "Use GET https://<apic>/api/node/mo/topology/pod-<X>/node-<Y>/sys/aggr-[po<N>].json?query-target=children&target-subtree-class=pcRsMbrIfs, plus member l1PhysIf counters such as eqptIngrTotal5min and eqptEgrTotal5min, for per-member bytes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The list reads as four alternative triggers. The SPL instead requires active_members>=2 AND (pct_spread>=28 OR pct_jitter>=16), and it never tests po_bytes>0 directly. The Alert paragraph in detailedImplementation adds a two-consecutive-bucket rule and a 'pct_jitter with open_pc_faults>0' rule that the SPL does not implement.",
+      "field": "description",
+      "quote": "pages when `po_bytes` > 0, `active_members` >= 2, `pct_spread` >= 28, or `pct_jitter` >= 16",
+      "severity": "major",
+      "suggested_fix": "Describe one alert condition that matches the SPL, 'at least two active members AND (spread >= 28 points OR standard deviation >= 16)', and either implement the consecutive-bucket and fault conditions or remove them from the Alert prose."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "The CIM Network_Traffic data model describes flow and session records (src, dest, ports, action). It does not describe per-interface byte counters for port-channel members. The SPL also does not use tstats or any data model. The schema text that justifies this ('interface-scoped traffic facts') misdescribes the model.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic, keep Performance at most, or state that no CIM model applies because the search runs on raw REST counters."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Neither 4856 nor 1810 is in the cached Splunkbase catalogue, so the IDs and app names cannot be confirmed. Their role (VM motion calendars) is also only loosely tied to port-channel hashing skew.",
+      "field": "app",
+      "quote": "optional **Splunk_TA_vmware-nsxt** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) and **Splunk_TA_vmware** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the current Splunkbase IDs for the VMware and NSX-T add-ons, or drop these optional apps."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The reference titled 'Cisco APIC REST API Class Queries (KB)' points to the cisco.com home page, not a document. The 4022 reference is also labelled 'Splunk Add-on for Cisco ACI', but that ID belongs to an unrelated add-on.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the Cisco APIC REST API Configuration Guide page on class and MO queries, and replace the 4022 reference with Splunkbase 7777 (and 1897 if legacy context is needed)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot produce alert rows (active_members is always 1), the add-on ID is wrong, and the member DN path is not ACI. A 'verified' status overstates how well this UC has been tested.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until the SPL is fixed and tested against real pcAggrIf member telemetry."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The metadata command needs explicit syntax (| metadata type=sourcetypes index=cisco_aci), and the SPL itself only depends on two of the five sourcetypes for detection. The 'all five' check implies equal criticality.",
+      "field": "detailedImplementation",
+      "quote": "Run metadata on sourcetypes for the day and verify recentTime across all five sourcetypes.",
+      "severity": "minor",
+      "suggested_fix": "Give the exact command: | metadata type=sourcetypes index=cisco_aci | where sourcetype IN (...) | eval lag=now()-recentTime."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats",
+      "field": "spl",
+      "issue": "The detection can never fire. stats groups by member_dn and computes dc(member_dn) as mbr_tags, which is always 1 per row. The later eventstats dc(mbr_tags) as active_members therefore counts the distinct values of a constant 1 and returns 1, so 'where active_members>=2' filters out every row. Use count or dc(member_dn) in the eventstats instead. In addition, node_id and fabric_pod are never extracted or evaled from the pc_stats/interface payloads (only parsed from the DN, if at all). stats drops any row whose by-field is null, so the search returns nothing unless these fields already exist.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Aggregatefunctions",
+      "field": "spl",
+      "issue": "The search sums tx_bytes and rx_bytes per 15-minute bucket. APIC l1PhysIf and ethpm counters are cumulative, so summing raw values overweights members that are polled more often. Use 5-minute stats classes or delta per member. Coalescing adminSt into oper_state mixes administrative and operational state.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "In the fault subsearch, coalesce(severity,fault_severity,code,\"\") falls back to the fault code (e.g. F1394), which inflates sev_spread. All three join subsearches use a constant join_key, so their counts are fabric-wide and not tied to the alerted po_id or node.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0014-UC-18.1.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is well organised, but it rests on a misattributed Splunkbase add-on (4022) and an NX-OS-style port-channel DN that ACI does not use. Its SPL computes active_members as a constant 1, so the alert as written can never fire, which contradicts the 'verified' status.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.22",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,150 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "269c490fc9c0173fa7a0c242b82e26682050e0c0ecddc4c7f0f353c16010cbba",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.22.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunk Connect for Docker (Splunkbase 4496) is a Docker logging plugin that forwards container stdout/stderr to HEC. It has no modular input for Engine events, so docker:events and docker:inspect need a separate collector. Step 2 repeats the claim ('When using Splunk Connect for Docker or an equivalent modular input, confirm the Docker Events stream...').",
+      "field": "app",
+      "quote": "Splunk Connect for Docker modular inputs streaming docker:events",
+      "severity": "blocker",
+      "suggested_fix": "Say docker:events comes from a scripted input or service running `docker events --format '{{json .}}' --filter event=health_status` (or the Engine /events API), and docker:inspect from a scripted docker inspect poller. Reserve Splunk Connect for Docker for docker:container_logs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/moby/moby/blob/master/daemon/health.go",
+      "explanation": "dockerd sets the starting status when the health monitor initialises but emits no event for it. health_status events are logged only when the status changes, so in practice the stream contains 'health_status: healthy' and 'health_status: unhealthy'.",
+      "field": "dataSources",
+      "quote": "filtered to Docker Engine health_status transitions (healthy, unhealthy, starting)",
+      "severity": "minor",
+      "suggested_fix": "List only healthy and unhealthy transitions, and note that events fire on state change, not on every probe."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.1.22.json",
+      "explanation": "'be <= 15' is not a field, and 'denom > 0' is a guard clause. The description omits the SPL's real tiers: unhealthy ≥15 min on production, no HEALTHCHECK on production, unhealthy with flat RestartCount, pass rate <50% with ≥6 transitions, FailingStreak ≥3, and drift below health_check_baseline.csv.",
+      "field": "cross_field",
+      "quote": "alert when `be` <= 15, `denom` > 0, `unhealthy_streak_min` >= 15, or `pass_rate_24h` < 50",
+      "severity": "major",
+      "suggested_fix": "Rewrite the description around the six severity tiers, the 24-hour window and the per-container grain, joined to docker:inspect and docker:container_logs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The closing checklist is generator residue and is false against the sidecar. equipment lists asterisk, db_connect, docker, mysql, opentelemetry and redis, and there is no equipmentModels field. 'Asterisk' (a VoIP PBX) appears to have been tagged from the word 'asterisk' in this checklist.",
+      "field": "detailedImplementation",
+      "quote": "equipment lists docker only; equipmentModels include docker_engine and docker_compose; narrative JSON fields contain no asterisk emphasis",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the 'six mandated tier strings' wording. Set equipment to the products actually involved (docker, plus opentelemetry/db_connect if kept optional), and remove asterisk."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template scenarios with a non-existent field. Step 5 already lists the real false-positive causes: long JVM or warehouse warm-up exceeding start-period, a downstream database restart cascade, a deliberate maintenance 423 response, overlay network blips, and duplicated events after bulk replay.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `docker:events` — Scheduled automation elevates `container_id` without crossing `be` <= 15 for UC-3.1.22.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with those Step 5 causes and how to recognise each (start-period vs uptime, correlated DB errors, maintenance-window lookup, replay _indextime)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "The CIM Application_State data model is deprecated. Performance (host CPU/memory/storage metrics) does not fit Docker HEALTHCHECK transitions. Neither is used by the primary SPL.",
+      "field": "cimModels",
+      "quote": "\"Application_State\", \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Drop both models, or state that no CIM model fits HEALTHCHECK state and that the UC runs on raw docker:events / docker:inspect."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "No product by this name exists. Splunk ships the Splunk Distribution of the OpenTelemetry Collector, which can run on Docker hosts with the docker_stats receiver and a filelog receiver.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Docker",
+      "severity": "minor",
+      "suggested_fix": "Use 'Splunk Distribution of the OpenTelemetry Collector' and name the receivers used for container logs."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The URL is the top-level docker CLI index, not the events page.",
+      "field": "references",
+      "quote": "\"title\": \"Docker Docs — docker events CLI reference\", \"url\": \"https://docs.docker.com/reference/cli/docker/\"",
+      "severity": "minor",
+      "suggested_fix": "Point to https://docs.docker.com/reference/cli/docker/system/events/."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Blog posts and incident literature are background, not evidence that this control runs. status 'verified' with a generic reviewer handle overstates validation of a search with broken pass-rate maths.",
+      "field": "evidence",
+      "quote": "External research includes Honeycomb Kubernetes monitoring write-ups ... and production incident literature where HTTP health checks masked partial outages",
+      "severity": "minor",
+      "suggested_fix": "Limit evidence to saved-search exports, lookup versions and alert tickets, and set status to draft until an SME validates it."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/moby/moby/blob/master/daemon/health.go",
+      "field": "spl",
+      "issue": "dockerd logs a health_status event only when the status changes (oldStatus != current), not on every probe. pass_rate_24h = healthy_hits/(healthy_hits+unhealthy_hits) therefore counts alternating transitions and sits near 50% for any flapping container. It is not a probe pass rate, so high_pass_rate_below_50pct_24h and low_baseline_pass_rate_drift fire on transition parity. Derive pass rate from State.Health.Log ExitCodes in docker:inspect, or from healthcheck exec_die exit codes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/moby/moby/blob/master/daemon/health.go",
+      "field": "spl",
+      "issue": "Because events are transition-only, an unhealthy row's prev_healthy_ts is when the container became healthy. unhealthy_streak_min (_time - prev_healthy_ts) therefore measures how long it was healthy before failing, not how long it has been unhealthy. A container unhealthy for hours after one transition never reaches the 15-minute critical tier. Measure elapsed time from the unhealthy transition to now() (or to the next healthy transition).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The base search keeps only containers that emitted health_status events, which requires a configured HEALTHCHECK. A container with no HEALTHCHECK never enters the result set, and has_healthcheck is null (not 0) when the inspect join misses, so critical_no_healthcheck_configured_production cannot fire. Drive that tier from docker:inspect instead.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no final roll-up: severity is evaluated per health_status event. One container produces a row for every qualifying transition in 24 hours, re-evaluated every 5 minutes. Add stats latest(...) BY host_id, container_id before the severity case.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The root_cause_family regexes are loose. '5\\d{2}' matches any number starting with 5 (ports, durations, IDs), and 'oom' matches words such as 'room' or 'zoom', so log evidence will often be misclassified.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions",
+      "field": "spl",
+      "issue": "toString() (camelCase) is used throughout. The Search Reference documents lowercase tostring() and states that eval function names are case-sensitive. Confirm it parses.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The query relies on the deprecated Application_State data model and filters state!=\"running\". That is unrelated to Docker HEALTHCHECK status, so it is not an equivalent of the primary detection.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-3.1.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The operational framing of HEALTHCHECK silent degradation is strong. But the SPL assumes dockerd emits a health_status event per probe, when it only emits one on state transitions. That makes pass_rate_24h and unhealthy_streak_min meaningless. The UC also credits Splunk Connect for Docker with streaming docker events, and its closing checklist contradicts the actual equipment fields.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.22",
+  "verdict": "incorrect"
+}

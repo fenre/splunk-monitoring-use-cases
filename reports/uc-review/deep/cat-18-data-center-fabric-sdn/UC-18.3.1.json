@@ -1,0 +1,172 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "5c54078446d0096db2c59a11c1011085602339c8f63d92da90bda92e001e666b",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.1.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto",
+      "explanation": "The Hubble flow API Verdict enum is VERDICT_UNKNOWN, FORWARDED, DROPPED, ERROR, AUDIT, REDIRECTED, TRACED and TRANSLATED; there is no ALLOWED. policy_match_type is a uint32 that applies only to PolicyVerdict events, not a string such as L3_L4/L7, and KNOWN_TRAFFIC/CUSTOM_REASON are not match types. The 'Search mechanics' and 'Operational misreads' bullets repeat the ALLOWED wording.",
+      "field": "detailedImplementation",
+      "quote": "**cilium:hubble:flow** carries **verdict** values ALLOWED/DROPPED/ERROR/AUDIT plus **policy_match_type** markers such as **L3_L4**, **L7**, KNOWN_TRAFFIC, CUSTOM_REASON",
+      "severity": "blocker",
+      "suggested_fix": "List the real verdicts (FORWARDED for permitted traffic) and describe policy_match_type as a numeric code from the Cilium monitor API, with a lookup that translates it to labels."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto",
+      "explanation": "In the Hubble Flow message, the Layer7 record field is `http` (HTTP http = 101), so exported JSON carries l7.http.method. Splunk field names are case-sensitive, so l7.HTTP.method never populates http_verbs_seen. The same name appears in detailedImplementation ('l7.HTTP.method/code/type').",
+      "field": "dataSources",
+      "quote": "**l7.HTTP.method**",
+      "severity": "blocker",
+      "suggested_fix": "Use l7.http.method (and l7.http.code, l7.type), or define a FIELDALIAS from the exporter's actual key, confirmed with fieldsummary."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/projectcalico/calico/blob/release-v3.30/release-notes/v3.30.0-release-notes.md",
+      "explanation": "dataSources and Step 1(2) source calico:felix:flow from 'Calico Cloud or Whisker'. However, Whisker and the Goldmane flow-logs API first shipped in Calico Open Source 3.30 (May 2025). An OSS 3.27–3.28 estate has no Whisker flow rows, and source_name_aggr/dest_name_aggr are Calico Enterprise/Cloud flow-log fields.",
+      "field": "cross_field",
+      "quote": "Pin **Calico 3.27–3.28** **Felix** DaemonSets",
+      "severity": "blocker",
+      "suggested_fix": "Require Calico OSS 3.30+ with Goldmane enabled (or Calico Enterprise/Cloud) for the flow lane, and check field names against the Goldmane API proto."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes reached end of support on January 1, 2024, and its repository is archived. Splunk directs users to the Splunk OpenTelemetry Collector for Kubernetes, which this field already lists. SCK is repeated in dataSources, implementation and detailedImplementation.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** ([documentation](https://github.com/splunk/splunk-connect-for-kubernetes)) for DaemonSet log forwarding",
+      "severity": "blocker",
+      "suggested_fix": "Drop SCK and use the splunk-otel-collector-chart filelog receiver for cilium-agent/calico-node logs, linking the SCK migration guide."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/InfraApp/2.2.5/Install/About",
+      "explanation": "Splunk App for Infrastructure reached end of life on August 22, 2022, so it should not be recommended for new deployments.",
+      "field": "app",
+      "quote": "optional **Splunk App for Infrastructure** for fleet CPU or RAM overlays on cilium and calico DaemonSets",
+      "severity": "major",
+      "suggested_fix": "Point to Splunk IT Essentials Work or Splunk Observability Cloud Kubernetes navigators for node and DaemonSet resource overlays, or drop the line."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Authentication",
+      "explanation": "CIM Authentication models login and logon attempts (user, src, action=success/failure). CiliumIdentity labels and ServiceAccount selectors on flow records are not authentication events. The integration guide maps CNI flows only to Network_Traffic, and reserves Authentication for NSX IDFW and APIC AAA. schema and dataModelAcceleration repeat the misfit.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "blocker",
+      "suggested_fix": "Keep Network_Traffic only. Carry identity labels as extra Network_Traffic fields (e.g. src_identity, dest_identity) instead of Authentication."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto",
+      "explanation": "Hubble's AUDIT verdict marks flows that would have been dropped had policy audit mode been off. It signals real policy violations, not a logging-verbosity toggle, so dismissing AUDIT spikes as compliance-scan noise misleads triage. The 'Search mechanics' bullet makes the same misreading.",
+      "field": "detailedImplementation",
+      "quote": "Spikes in **audit_trail_only** without security stories — compliance scans toggled AUDIT verbosity",
+      "severity": "major",
+      "suggested_fix": "Explain that AUDIT rows are would-be denies under policy audit mode, and that they should be reviewed before enforcement is switched on."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Hubble natively exposes flows over the Hubble Relay gRPC API and the Hubble exporter (JSON to file). OTLP output relied on the separate, experimental hubble-otel adapter. The text presents OTLP as a native Hubble feature.",
+      "field": "detailedImplementation",
+      "quote": "Deploy Splunk OpenTelemetry Collector for Kubernetes ... to receive **Hubble OTLP** telemetry",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the current Cilium Hubble exporter docs. If OTLP is not native, describe collecting the Hubble exporter's JSON file with the OTel filelog receiver."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "CiliumEgressGatewayPolicy is documented with apiVersion cilium.io/v2 in current Cilium releases. v2alpha1 belonged to the older CiliumEgressNATPolicy. 'Container Egress Gateway' is also not a Cilium product name.",
+      "field": "detailedImplementation",
+      "quote": "**cilium.io/v2alpha1.CiliumEgressGatewayPolicy**",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the apiVersion on the Cilium Egress Gateway page for the pinned release and use the product's own name, 'Egress Gateway'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL keeps only rows where notable is set, so there is no total-flow count to divide by. Heatmap 'deny density' likewise needs per-pair totals the search discards.",
+      "field": "visualization",
+      "quote": "(4) Single value ratio explicit_denies versus total flows.",
+      "severity": "minor",
+      "suggested_fix": "Describe the ratio as needing a separate total-flow search, or compute the ratio over notable buckets only."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "NetworkPolicy and CRD write operations are recorded by the API server audit log, not by container stdout logs.",
+      "field": "dataSources",
+      "quote": "optional **`sourcetype=kube:audit`** / **`kube:container:log`** for NetworkPolicy CRD edits",
+      "severity": "minor",
+      "suggested_fix": "Name kube:audit only for CRD edits; keep container logs for agent health."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/releases/",
+      "explanation": "By April 2026, 1.27–1.31 are no longer the current upstream releases. 'Docker 24+' as a container runtime also needs cri-dockerd, because dockershim was removed in Kubernetes 1.24.",
+      "field": "hardware",
+      "quote": "Kubernetes versions: 1.27, 1.28, 1.29, 1.30, 1.31 (current Apr 2026)",
+      "severity": "minor",
+      "suggested_fix": "List the Kubernetes minors supported upstream at review time and qualify Docker as 'via cri-dockerd'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The link points to the generic splunk.github.io landing page and cites an end-of-support product.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Connect for Kubernetes\",\n      \"url\": \"https://splunk.github.io/\"",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the splunk-otel-collector-chart migration guide (docs/migration-from-sck.md)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated reviewer, yet the verdict vocabulary is wrong, the recommended collectors are end-of-support, and the Calico version pin cannot produce the described flow logs.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until SME validation against a live Hubble and Calico export."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/cilium/cilium/blob/main/api/v1/flow/flow.proto",
+      "field": "spl",
+      "issue": "`verdict_u IN (\"ALLOWED\",...)` never matches Cilium's FORWARDED verdict. `pm_type IN (\"L7\",\"L3_L4\")` never matches the numeric policy_match_type, so the policy_matched_allow class is unreachable. `coalesce(verdict,\"\",\"\")` returns an empty string, so the \"UNKNOWN\" fallback is never used. The identity_or_endpoint_string branch sits after the DROPPED test, but drop_reason_desc is only set on dropped flows, so that branch is effectively dead. `'l7.HTTP.method'` uses the wrong case (the proto field is http). Calico PASS rows are classified as nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "title",
+      "issue": "The title promises 'eBPF Dataplane Health', but the SPL reads only the cilium:hubble:flow and calico:felix:flow verdict lanes. It never searches cilium:agent:log, calico:felix:log or any BPF map, agent or Felix health signal, and detailedImplementation concedes that flow absence is not green health.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0040-UC-18.3.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The troubleshooting prose is rich and Kubernetes-aware, but the core Hubble facts are wrong (there is no ALLOWED verdict, and policy_match_type is numeric). It recommends end-of-support Splunk collectors, expects Whisker flow logs from Calico versions that predate Whisker, and maps flows to the Authentication CIM model. The 'eBPF Dataplane Health' promise is not backed by the search.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.1",
+  "verdict": "incorrect"
+}

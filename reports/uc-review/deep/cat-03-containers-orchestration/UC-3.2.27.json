@@ -1,0 +1,170 @@
+{
+  "confidence": 0.88,
+  "content_sha256": "f8063600ae73999fe5ed19eddd1c95aeb023c2e91cafabacfd1eaafdde7a8334",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.27.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/networkpolicy-metrics.md",
+      "explanation": "kube-state-metrics has no kube_networkpolicy_info metric. Its NetworkPolicy family is kube_networkpolicy_created, _labels, _annotations, _spec_ingress_rules and _spec_egress_rules. Policy-name inventory built on the 'info' series is therefore always empty.",
+      "field": "dataSources",
+      "quote": "carrying kube-state-metrics kube_networkpolicy_info, kube_networkpolicy_spec_ingress_rules, kube_networkpolicy_spec_egress_rules",
+      "severity": "blocker",
+      "suggested_fix": "Use kube_networkpolicy_created (or kube_networkpolicy_spec_ingress_rules) as the per-policy inventory series carrying namespace and networkpolicy labels. Make the same correction in detailedImplementation Step 2."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "kube_pod_info carries no phase label. Pod phase is exposed only by kube_pod_status_phase{phase=...}, so following this validation step can never succeed.",
+      "field": "detailedImplementation",
+      "quote": "kube_pod_info lines must include Running phase labels for workload namespaces you expect in inventory",
+      "severity": "blocker",
+      "suggested_fix": "Estimate running pods from kube_pod_status_phase{phase=\"Running\"} with value 1, and update the validation step and the dataSources wording to match."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated Helm-chart collector, not a Splunk modular input. The grounding guide treats it as legacy and names the Splunk OTel Collector chart as the collection plane. This sentence contradicts the app field's own OTel description.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the SCK/modular-input sentence, or mark SCK as a deprecated legacy alternative to the splunk-otel-collector chart."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/network-traffic",
+      "explanation": "Network_Traffic describes network flow and session records. This UC inspects NetworkPolicy object inventory and audit deletes and uses no flow data, so Network_Traffic does not fit the signal. Change fits only the audit-delete arm.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Network_Traffic\",\n    \"Change\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic. Keep Change only if the audit deletes are actually mapped to Change.All_Changes, and say so."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The collector sketch references a filelog/audit receiver in the pipeline but never defines it under receivers. The OpenTelemetry Collector rejects configurations whose pipelines reference undefined components.",
+      "field": "detailedImplementation",
+      "quote": "    logs/audit:\n      receivers: [filelog/audit]\n      exporters: [splunk_hec/audit]",
+      "severity": "major",
+      "suggested_fix": "Add the filelog/audit receiver definition, as in the guide's 'Forwarding to Splunk' example, or remove the logs/audit pipeline from this snippet."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "Default-deny status is inferred only from policy names matching regexes such as 'default-deny-ingress'. A real default-deny policy (empty podSelector, policyTypes Ingress, zero rules) with any other name is reported as missing, and a misnamed permissive policy counts as deny. The 'empty_selector_allow_all_hint' also matches names, not selectors.",
+      "field": "detailedImplementation",
+      "quote": "whether default-deny ingress and optional default-deny egress objects exist",
+      "severity": "major",
+      "suggested_fix": "State plainly that coverage is a naming-convention heuristic. Recommend pairing kube_networkpolicy_spec_ingress_rules==0 with GitOps or policy-as-code evidence of an empty podSelector."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The detection does not run on the Change datamodel; it runs on kube-state-metrics and audit JSON. The listed comparisons are not its alert conditions. A reader cannot tell that it flags deleted default-deny policies, namespaces missing required denies, and running workloads in namespaces with no policies.",
+      "field": "description",
+      "quote": "Identifies West Governance) anomalies for UC-3.2.27 with window `the scheduled window` on datamodel `Change`. Combines `running_pod_dc`, `last_delete_time`, `default_deny_ingress_flag` by `cluster`, `namespace`, `_time`, `signal_lane` and compares against `ingress_rule_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the four outcomes the severity ladder produces (default-deny delete, delete burst, ungoverned workload namespace, missing required deny) and the inputs: KSM NetworkPolicy series, pod phase, audit deletes, and the compliance lookup."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generated placeholders. Real causes are left out: GitOps (Argo CD/Flux) prune-and-recreate of policies, Helm upgrades that rename policies, namespaces enforced by Cilium/Calico cluster-wide CRDs instead of NetworkPolicy, and policies that deny correctly but do not follow the naming convention.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `prometheus:scrape:metrics`** — Scheduled automation elevates `namespace` without crossing `ingress_rule_count` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with those scenarios and how to recognise each one (controller service-account actor, recreate within one window, mesh_authz_alternate or alternate-CRD flag)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is authoring-QA residue about the document itself. It is also inaccurate: the closing table projects 16 columns, not twelve.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matches the spl field exactly; ... closing table projects twelve analyst columns",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No standard Kubernetes namespace label by this name is known. kube-state-metrics also exposes namespace labels only when they are allow-listed via --metric-labels-allowlist, and renders them as label_<sanitized> with single underscores, whereas the SPL rex expects a double underscore.",
+      "field": "dataSources",
+      "quote": "kube_namespace_labels including optional network_policy_enforcement.kubernetes.io/mode style labels",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether any CNI or distribution sets this label. If none does, remove it. If one does, document the --metric-labels-allowlist requirement and the label_ prefix."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL depends on a non-existent metric and a non-streaming multisearch, so it cannot have been validated against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been fixed and run against a lab cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch subsearch contains stats, which is not a streaming command, so the search fails to parse. Use union or append, or move the aggregation outside the subsearches.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/networkpolicy-metrics.md",
+      "field": "spl",
+      "issue": "The first arm keys inventory on kube_networkpolicy_info, which kube-state-metrics does not emit. np_names stays empty, so default_deny_*_flag is always 0 and policy_inventory_mvcount is always null. Every lookup namespace with requires_default_deny_ingress=1 is therefore flagged missing. Use kube_networkpolicy_created.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "The second arm filters kube_pod_info on phase=\"Running\", but kube_pod_info has no phase label, so running_pod_dc is always 0 and ungoverned_workload_heuristic never fires. Use kube_pod_status_phase{phase=\"Running\"} with value 1.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "After the outer stats there is one row per cluster and namespace, so streamstats window=6 over delete_events just equals delete_events. 'high_np_delete_burst' therefore means more than two deletes in four hours, not a burst. The audit arm also drops _time in its stats before carrying the field forward.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The Change tstats uses nodename=Change.All_Changes, but the nodename should be the dataset path starting at the root (All_Changes). The join also renames All_Changes.dest to cluster, which will rarely equal a Kubernetes cluster name, so cim_change_adjacent is effectively always 0.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/network-traffic",
+      "field": "cimSpl",
+      "issue": "cimSpl counts Network_Traffic events by dest with head 50, using nodename=Network_Traffic and Network_Traffic.dest even though the root dataset is All_Traffic. It has no relationship to NetworkPolicy coverage or deletes.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://attack.mitre.org/techniques/T1562/008/",
+      "field": "mitreAttack",
+      "issue": "T1562.008 is 'Disable or Modify Cloud Logs'. Deleting or weakening NetworkPolicy segmentation fits T1562.007 'Disable or Modify Cloud Firewall' far better.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0047-UC-3.2.27",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The governance intent is clear and the audit-delete arm is reasonable, but the detection is built on a kube-state-metrics series that does not exist (kube_networkpolicy_info) and a phase label kube_pod_info does not carry. As a result, default-deny coverage and ungoverned-namespace detection cannot work. The SPL also fails because multisearch contains stats, and the CIM, MITRE and description content is mismatched or templated.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.27",
+  "verdict": "incorrect"
+}

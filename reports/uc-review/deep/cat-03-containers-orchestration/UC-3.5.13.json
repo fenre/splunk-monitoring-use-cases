@@ -1,0 +1,100 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "cd4961005809f3a11c732f5531cc3f2bb5f85024c31c5d400a13f2219d695f58",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector/blob/main/docs/components.md",
+      "explanation": "The Splunk Distribution of OpenTelemetry Collector component list contains no Hubble receiver; a supported path is Cilium's Hubble exporter writing JSON flow logs to a file, collected with the filelog receiver (the Splunkbase 'Add On for Cilium', 7349, parses that exporter format).",
+      "field": "app",
+      "quote": "**Splunk Distribution of OpenTelemetry Collector** with the **Hubble receiver** for eBPF flow log collection",
+      "severity": "blocker",
+      "suggested_fix": "Describe the Hubble exporter (`hubble.export.static` / dynamic exporter) writing JSON to a node file, collected by the Splunk OTel Collector filelog receiver, and reference Splunkbase 7349 for parsing; drop the 'Hubble receiver' and the Splunk Connect for Kubernetes (Splunkbase 5167) reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.cilium.io/en/v1.16/observability/visibility/",
+      "explanation": "Annotation-based L7 visibility was deprecated in Cilium 1.15 and removed in 1.16; L7 (including DNS) visibility now requires a CiliumNetworkPolicy with L7 rules, which also restricts traffic. The troubleshooting bullet repeats the same advice.",
+      "field": "detailedImplementation",
+      "quote": "To enable **L7 visibility** (HTTP, DNS, Kafka), annotate pods or namespaces:\n  `policy.cilium.io/proxy-visibility: \"<Ingress/53/UDP/DNS>,<Egress/53/UDP/DNS>,<Ingress/80/TCP/HTTP>\"`",
+      "severity": "blocker",
+      "suggested_fix": "Replace with a CiliumNetworkPolicy example containing `rules.dns` / `rules.http` entries, and warn that L7 rules also enforce allow-lists."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "These Helm values size Hubble's event queue and ring buffer; they do not implement 1-in-N sampling. Likewise 'Cilium's eBPF programs intercept DNS traffic at the kernel level' understates that DNS visibility comes from Cilium's userspace DNS proxy enabled by DNS L7 rules.",
+      "field": "detailedImplementation",
+      "quote": "configure Hubble flow **sampling** to capture 1-in-N flows: set `hubble.eventQueueSize` and `hubble.eventBufferCapacity` in the Cilium Helm values",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cilium Helm reference; recommend exporter `allowList`/`denyList` filters (e.g. only DROPPED and DNS flows) for volume control, and describe DNS visibility as provided by the DNS proxy."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The k8s_cluster receiver emits cluster metrics, not arbitrary CRD snapshots (that is the k8sobjects receiver), and the SPL uses only `cilium:hubble:flows`, so 'requiring five distinct sourcetypes' is false; `cilium:metrics`, `cilium:policy` and `kube:container:logs` are unverified sourcetype names.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cilium:policy`** (CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy resource snapshots collected via the k8s_cluster receiver",
+      "severity": "major",
+      "suggested_fix": "List Hubble flow JSON as the single required source, and describe policies via the k8sobjects receiver and agent metrics as optional context with the sourcetypes the collector actually assigns."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Cilium's metrics reference lists `cilium_policy` and `cilium_endpoint` / `cilium_endpoint_state` rather than `_count` names; the names given may not exist.",
+      "field": "detailedImplementation",
+      "quote": "`cilium_policy_count` (gauge) — number of active **CiliumNetworkPolicies**\n  — `cilium_endpoint_count` (gauge)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm metric names against https://docs.cilium.io/en/stable/observability/metrics/ and correct them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Reviewer is an automated agent and the collection and SPL contain factual errors, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/cilium/cilium/blob/main/api/v1/flow/README.md",
+      "field": "spl",
+      "issue": "DNS variant filters `l7_type=\"DNS\"`, but in Hubble's flow schema `l7.type` is an L7FlowType (REQUEST/RESPONSE/SAMPLE) and the protocol is indicated by the presence of `l7.dns`; the filter never matches, so the DNS search returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Dotted JSON paths in eval (`source.namespace`, `destination.pod_name`, `l7.dns.query`, `l7.dns.rcode`) are unquoted, so `.` is evaluated as string concatenation; they need single quotes (e.g. 'flow.source.namespace' — Hubble exporter JSON also nests records under `flow`).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`case()` evaluates `dropped_flows > 0` before `unique_destinations > 50`, so any source with a single drop is labelled POLICY_HIT and WIDE_FAN_OUT is masked; also unique_destinations is computed per destination namespace (by dst_ns), not across all destinations as the prose implies.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0108-UC-3.5.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Hubble verdict and DNS narrative is relevant and the CIM choice fits, but the ingest path depends on a Hubble receiver that the Splunk OTel distribution does not ship, L7 visibility is configured with an annotation Cilium removed, and the SPL's DNS filter and dotted field references cannot match Hubble's flow schema.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.13",
+  "verdict": "incorrect"
+}

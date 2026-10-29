@@ -1,0 +1,165 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "465a03f1571a16a9bcb9564a1bddf32f5f267cd4af8a053f00c6e8113c979fe8",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.7.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/build/v1/consts.go",
+      "explanation": "OpenShift has no FailedRetrieveBuilder build reason. The builder-image pull failure reason is PullBuilderImageFailed ('Failed pulling builder image.'). The token is repeated in Case 3, and in the SPL's critical_reason and recommended_action branches, so those branches never match.",
+      "field": "detailedImplementation",
+      "quote": "FailedRetrieveBuilder when the nominated builder image cannot be pulled or is rejected by policy",
+      "severity": "major",
+      "suggested_fix": "Replace FailedRetrieveBuilder with PullBuilderImageFailed throughout the prose and dataSources. Also mention GenericBuildFailed (assemble failure), DockerBuildFailed, OutOfMemoryKilled and MissingPushSecret (the build stays Pending) as reasons analysts will see."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/build/v1/consts.go",
+      "explanation": "This is the same non-existent token, in the field that tells exporters which reason values to expect.",
+      "field": "dataSources",
+      "quote": "status.reason (FetchSourceFailed PushImageToRegistryFailed FailedRetrieveBuilder PostCommitHookFailed and other controller reason tokens)",
+      "severity": "minor",
+      "suggested_fix": "Use PullBuilderImageFailed and point to build/v1 consts.go for the full StatusReason list."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/build/v1/types.go",
+      "explanation": "The JenkinsPipeline strategy is marked 'Deprecated: use OpenShift Pipelines' in the build API. The Custom strategy is omitted. Cases 5 and the risk briefing present JenkinsPipeline as a normal current option.",
+      "field": "detailedImplementation",
+      "quote": "strategy (Source for S2I including assemble and save-artifacts hooks, Docker for Dockerfile builds inside cluster builders, JenkinsPipeline for integration with external Jenkins)",
+      "severity": "minor",
+      "suggested_fix": "List Source, Docker and Custom. Note that JenkinsPipeline is deprecated in favour of OpenShift Pipelines (UC-3.3.3)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "GROUNDING siblings UC-3.3.10, UC-3.3.13, UC-3.3.16",
+      "explanation": "UC-3.3.10 is the Storage Operator and ClusterCSIDriver health UC, and ImageStream import health is UC-3.3.13. UC-3.3.16 already exists, so it is not reserved. The same wrong mapping appears in detailedImplementation ('UC-3.3.10 remains reserved for ImageStream digest drift').",
+      "field": "exclusions",
+      "quote": "UC-3.3.10 ImageStream digest drift (reserved), UC-3.3.16 DeploymentConfig rollout analytics (reserved)",
+      "severity": "major",
+      "suggested_fix": "Point ImageStream exclusions to UC-3.3.13 and drop the '(reserved)' labels from both fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "prom_build_counter is not used in severity or recommended_action. It is also a sum of every openshift_build* sample over 24 hours, so it has no meaning as a count. The metric lane does not protect against anything.",
+      "field": "detailedImplementation",
+      "quote": "A follow-on join adds openshift_build_total style counters summed by cluster when prometheus:metrics lines exist, so a silent metrics outage does not hide a genuine FetchSourceFailed surge.",
+      "severity": "minor",
+      "suggested_fix": "Say the metric is informational only, or describe a real cross-check (for example the latest openshift_build_total per phase and reason compared with snapshot counts)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL produces no fail_rate_24h field; the output column is fail_rate.",
+      "field": "detailedImplementation",
+      "quote": "Include recommended_action, fail_rate_24h, and median_duration_sec in pager descriptions",
+      "severity": "minor",
+      "suggested_fix": "Use fail_rate (and cluster_fail_rate)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "ImageContentSourcePolicy is deprecated on current OCP 4.x in favour of ImageDigestMirrorSet and ImageTagMirrorSet. The guide targets 4.16 and 4.17.",
+      "field": "detailedImplementation",
+      "quote": "verify ImageContentSourcePolicy mirrors for air-gapped registries",
+      "severity": "minor",
+      "suggested_fix": "Reference ImageDigestMirrorSet/ImageTagMirrorSet, with ICSP as the legacy name."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template entries that name no real false-positive cause. The real causes are already in the prose: user and duplicate-webhook cancellations, Git or mirror maintenance causing FetchSourceFailed, history-limit pruning, JenkinsPipeline builds idling on the cluster side, and 404/409 audit responses from controllers and oc logs.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `ocp_build` — Scheduled automation elevates `namespace` without crossing `cluster_build_obs` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace these entries with those causes and give a concrete mitigation for each."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are divide-by-zero guards, not the alert tiers. Page fires on fail_rate>=35 or (fail_obs>=5 and a critical reason). Warn fires on fail_rate>=15, any critical reason, any admission hint, or a duration ratio combined with a failure rate.",
+      "field": "description",
+      "quote": "Alert logic enforces `cluster_build_obs` > 0, `build_obs` > 0, `cluster_med_dur` > 0, or `audit_code` >= 400.",
+      "severity": "minor",
+      "suggested_fix": "Describe the real severity tiers."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The grounding guide names this app, but it does not appear in the Splunkbase catalogue snapshot. The catalogue's OpenShift-capable collectors are Splunk OpenTelemetry Collector for Kubernetes (6264) and Outcold's Monitoring OpenShift.",
+      "field": "app",
+      "quote": "Splunk OpenShift App",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the product exists. Otherwise name Splunk OpenTelemetry Collector for Kubernetes with distribution=openshift plus k8sobjects watches on builds.build.openshift.io."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12.0. It models host processes, services and ports, not CI build outcomes.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "major",
+      "suggested_fix": "Keep Change only for audited BuildConfig mutations, and treat build outcomes as non-CIM."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The build_event and audit_lane arms end in `stats ... BY cluster namespace bc_name lane` inside multisearch. multisearch accepts only purely streaming subsearches, so the search fails with 'Multisearch subsearches may only contain purely streaming operations'. Move those stats after fan-in, or use union/append.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "build_obs and fail_obs count snapshot events, not distinct builds. Builds are re-emitted on every 2–5-minute poll and remain listed until history-limit pruning, so a single retained Failed build adds hundreds of fail_obs in 24 hours. That trivially satisfies fail_obs>=5, and fail_rate and the duration percentiles are weighted by how long objects stay listed. Dedup on cluster, namespace and build_name (latest phase) before computing rates, or use dc(build_name).",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/openshift/api/blob/master/build/v1/consts.go",
+      "field": "spl",
+      "issue": "critical_reason and recommended_action match 'failedretrievebuilder', which is not an OpenShift build reason. Builder-image pull failures (PullBuilderImageFailed) never get the critical tier or the builder-image action.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "admission_hint fires on any audit_code>=400 for any build resource. Routine 404s (oc logs or get after pruning) and 409 update conflicts from the build controller would push most active BuildConfigs to warn. Restrict the hint to create, update and instantiate verbs with 403 or 422 codes, or to admission-denied messages.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/sort",
+      "field": "spl",
+      "issue": "`sort cluster namespace bc_name` without a 0 limit truncates the output to 10,000 rows on large fleets.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "It uses `nodename=Change` and Change.* fields, but the Change root dataset is All_Changes. It also uses Application_State.state and Application_State.info, which do not exist in that deprecated model (root All_Application_State). Both tstats calls return no rows.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0094-UC-3.3.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The Build and BuildConfig lifecycle narrative is mostly accurate and the runbook cases are useful. However, the SPL cannot run (stats inside multisearch), one headline reason token does not exist, the failure-rate maths counts snapshot polls instead of builds, and the CIM mapping and sibling cross-references are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.7",
+  "verdict": "incorrect"
+}

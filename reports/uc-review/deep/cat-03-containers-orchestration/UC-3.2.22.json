@@ -1,0 +1,160 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "2062cdb8849ebc364ff8939cb655d423923c64391ae2cea615305e49ba4cd9e3",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.22.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/audit/request.go",
+      "explanation": "kube-apiserver records responseStatus (code, reason, message) at Metadata level; only requestObject/responseObject need Request/RequestResponse. The text pushes readers to costly RequestResponse logging for a signal Metadata already carries. dataSources repeats the claim ('RequestResponse level ... so responseStatus carries structured PodSecurity denial text').",
+      "field": "detailedImplementation",
+      "quote": "Metadata-only policies help volume but strip the message analysts need; keep RequestResponse on create, update, and patch for pods",
+      "severity": "blocker",
+      "suggested_fix": "State that Metadata level is enough for the 403 'violates PodSecurity' responseStatus message. Recommend RequestResponse only if analysts need the full denied pod spec, and note the volume and secret-exposure trade-off."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/staging/src/k8s.io/apiserver/pkg/audit/policy/checker.go",
+      "explanation": "Audit policy namespaces entries are exact string matches with no wildcard support, so namespaces: [\"*\"] matches only a namespace literally named '*'. The policy also has no catch-all rule, so pod create, update and patch events would not be audited at all and the denial arm would be blind.",
+      "field": "detailedImplementation",
+      "quote": "        resources: [\"pods\", \"podtemplates\"]\n    namespaces: [\"*\"]",
+      "severity": "blocker",
+      "suggested_fix": "Omit the namespaces field (an empty list means every namespace) and add a final catch-all rule such as '- level: Metadata' so unmatched requests are still recorded."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+      "explanation": "Kubernetes audit levels are None, Metadata, Request and RequestResponse; 'ResponseRecorded' does not exist and would fail policy validation.",
+      "field": "detailedImplementation",
+      "quote": "explicit rule for Pod create, update, and patch resources at ResponseRecorded or RequestResponse level",
+      "severity": "major",
+      "suggested_fix": "Replace 'ResponseRecorded' with 'Metadata' (enough for responseStatus) or 'RequestResponse'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/security/pod-security-admission/#workload-resources-and-pod-templates",
+      "explanation": "PSA enforce applies only to Pod objects, not to Deployments/Jobs. When a deploy bot applies a non-compliant Deployment, the 403 goes to the ReplicaSet/Job controller service account, so denied_user shows system:serviceaccount:kube-system:replicaset-controller (or similar), not the bot. The 'who keeps knocking on the door' framing and Case 1 attribution only hold for direct pod creates.",
+      "field": "detailedImplementation",
+      "quote": "Case 1 — Privileged escalation attempt by deploy bot: treat as potential credential misuse or poisoned pipeline template; page application security and freeze the pipeline",
+      "severity": "major",
+      "suggested_fix": "Explain that controller-created pods are denied under the controller's service account and the same denial repeats on every controller retry. To attribute the human or CI identity, pivot to the warn/audit annotations on the workload create (pod-security.kubernetes.io/audit-violations) or to the Deployment's audit event."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/namespace-metrics.md",
+      "explanation": "kube-state-metrics only exports namespace labels named in --metric-labels-allowlist, as label_<name> Prometheus labels. With the default deployment no pod-security label appears, so the drift arm flags every namespace as missing_enforce_label.",
+      "field": "detailedImplementation",
+      "quote": "Second, deploy kube-state-metrics with RBAC that can list namespaces and expose kube_namespace_labels.",
+      "severity": "major",
+      "suggested_fix": "Add the flag, for example --metric-labels-allowlist=namespaces=[pod-security.kubernetes.io/enforce,pod-security.kubernetes.io/enforce-version,pod-security.kubernetes.io/audit,pod-security.kubernetes.io/warn]. Say the resulting labels are label_pod_security_kubernetes_io_enforce and so on (label names, not series names)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The entries are templated (one cites a span=1h the SPL never uses) and miss the real false-positive sources for this detection.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `kube:apiserver:audit`** — Scheduled automation elevates `namespace` without crossing `exception_expiry` > 0",
+      "severity": "major",
+      "suggested_fix": "List real causes: ReplicaSet/Job controller retries multiplying one bad manifest into many 403s; namespaces enforced by a cluster-wide PodSecurity AdmissionConfiguration default with no namespace label (looks like drift); a missing kube-state-metrics label allowlist; intentionally privileged system namespaces (kube-system, CNI or CSI namespaces); exempted users, namespaces or runtimeClasses."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Nothing in the SPL, data sources or cimSpl uses Endpoint, and the guide maps Endpoint to container logs and events, not to audit admission outcomes. Change at least matches the guide's mapping for kube:apiserver:audit.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Change\", \"Endpoint\"]",
+      "severity": "minor",
+      "suggested_fix": "Keep Change only, or justify Endpoint with a concrete dataset and field use."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "One exporter with sourcetype kube:apiserver:audit and no index serves both the audit logs and the kube-state-metrics pipeline, so metrics would land with the audit sourcetype in the token's default index. The Go-style timestamp layout also needs layout_type: gotime (the guide uses a strptime layout).",
+      "field": "detailedImplementation",
+      "quote": "exporters:\n  splunk_hec:\n    token: \"${SPLUNK_HEC_TOKEN}\"\n    endpoint: \"https://splunk.example.com:8088/services/collector\"\n    sourcetype: kube:apiserver:audit",
+      "severity": "minor",
+      "suggested_fix": "Use separate exporters (splunk_hec/audit with index k8s_audit, and splunk_hec/metrics with index k8s_metrics), and either set layout_type: gotime or use the guide's strptime layout."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at parse time because the metrics arm runs stats inside multisearch, so it cannot have been validated end to end; the reviewer is a generic repository handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the search runs on real audit and kube-state-metrics data and a named SME signs off."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL closing table projects 17 columns (cluster through signal_lane).",
+      "field": "detailedImplementation",
+      "quote": "closing table projects sixteen analyst columns",
+      "severity": "minor",
+      "suggested_fix": "Say seventeen columns or drop the count."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The URL is the access-control index page, not the auditing page. The 'Splunk — Add-on for Kubernetes (OTel Collector guidance)' entry labels a Helm chart as an add-on, and its docs.splunk.com URL could not be confirmed.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes — Auditing\",\n      \"url\": \"https://kubernetes.io/docs/reference/access-authn-authz/\"",
+      "severity": "minor",
+      "suggested_fix": "Point Auditing at https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/ and replace the add-on link with the splunk-otel-collector-chart repository or Splunkbase 6790."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Neither the index k8s_logs nor the sourcetype kube:apiserver:server appears in the Kubernetes guide's index or sourcetype lists; they look invented.",
+      "field": "dataSources",
+      "quote": "index=k8s_logs sourcetype=kube:apiserver:server for pod-security admission warnings",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the sourcetype the collector actually assigns to kube-apiserver logs, or drop this optional source."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The second multisearch arm contains stats latest(...) BY cluster, namespace. multisearch only allows purely streaming subsearches, so the search errors with 'Multisearch subsearches may only contain purely streaming operations'. Use append, or a single base search followed by one stats.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "field": "spl",
+      "issue": "The metrics arm rex-parses Prometheus exposition text from _raw (namespace=\"...\"). If the OTel splunk_hec exporter writes kube-state-metrics to a metrics index (the guide checks k8s_metrics with mstats), there is no such _raw and the arm returns nothing. Confirm the index type and use mstats with the label_pod_security_kubernetes_io_enforce dimension if it is a metrics index.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "cimSpl counts every All_Changes event by dest, object and action with head 200. It does not filter to pod admission denials (action=failure or blocked, object_category pod), so it is not a CIM equivalent of the detection.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0042-UC-3.2.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has a sound design: PodSecurity 403 denials from audit plus namespace enforce-label drift from kube_namespace_labels, governed by an inventory lookup. But the SPL cannot run (stats inside multisearch), and the prose gets several Kubernetes facts wrong: which audit level carries responseStatus, a non-existent audit level, who the denied subject is for controller-created pods, and the kube-state-metrics label allowlist the drift arm depends on.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.22",
+  "verdict": "incorrect"
+}

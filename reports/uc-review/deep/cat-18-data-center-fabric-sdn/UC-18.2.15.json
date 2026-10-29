@@ -1,0 +1,173 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "f3287044f11f7473019980debcce8b9f04ff3483fe86d9158ebdf3709f37b6ca",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1546",
+      "explanation": "Splunkbase 1546 is 'REST API Modular Input' (rest_ta). Splunk Connect for Syslog is distributed from GitHub, not Splunkbase. The same wrong attribution is repeated in app.",
+      "field": "dataSources",
+      "quote": "optional **Splunk Connect for Syslog** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546)) for high-volume Manager feeds",
+      "severity": "blocker",
+      "suggested_fix": "Cite SC4S as https://github.com/splunk/splunk-connect-for-syslog. If a REST polling add-on is intended, name 1546 as REST API Modular Input."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The VMware NSX-T Splunk App is 4241 and the Splunk Add-on for VMware is 3215. The wrong IDs repeat in dataSources, detailedImplementation and references, and in the grounding guide.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) for NSX parsing plus **`Splunk_TA_vmware`** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Use 4241 and 3215 throughout, and correct docs/guides/datacenter-fabric-sdn.md."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide and sibling UCs use the vmware:nsxt:* namespace (for example vmware:nsxt:dfw_policy). This UC invents vmware:nsx:dfw_stats, vmware:nsx:dfw_rules, vmware:nsx:policy and vmware:nsx:audit, so readers end up with two naming schemes for the same NSX feeds.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsx:dfw_stats`** (Policy `.../rules/{rule-id}/statistics` when enabled",
+      "severity": "major",
+      "suggested_fix": "Align on vmware:nsxt:* names (for example vmware:nsxt:dfw_policy for the rule catalog), or state clearly that these are site-defined sourcetypes from a custom collector."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The DFW rule statistics API returns per-rule aggregate counters (hit_count, packet_count, byte_count, session_count, max/total session counts, popularity_index). It does not identify a protected VM. Without a VM field, the SPL's vm_key lookup into nsx_vm_tier.csv cannot assign a tier, so every row lands in 'unmapped' and the UC's 'by application tier' premise does not hold. The section, applied_to and category fields come from the rule definition, not the statistics call.",
+      "field": "detailedImplementation",
+      "quote": "Emit JSON with `hit_count`, `packet_count`, `byte_count`, `session_count`, `rule_id`, `section_name`, `applied_to`, `transport_node_id`, `category`, and `ingest_ts`",
+      "severity": "major",
+      "suggested_fix": "Derive the tier from the rule's applied_to groups or its security policy (joined from the rule catalog), not from a VM field. Tell readers to check the Policy rule statistics schema in the NSX API reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no mandatory_allow_rules lookup, no 72 h zero-hit condition and no power-state join, and it applies no alert filter (it returns up to 5000 rows). The description's 'alert when tier_day_total > 0' is true for any rule with traffic. The alert tiers in detailedImplementation Step 5 need SPL the UC does not contain.",
+      "field": "implementation",
+      "quote": "wire dashboard **`ds_nsx_dfw_tier_hits`** with throttled alerts on zero-hit mandatory **`db`** **`ALLOW`** rows",
+      "severity": "major",
+      "suggested_fix": "Describe the SPL as a daily per-tier rule report, and present the Critical/High/Medium alerts as follow-on searches still to be written."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://techdocs.broadcom.com/us/en/vmware-cis/nsx/vmware-nsx/4-2/administration-guide.html",
+      "explanation": "In NSX DFW, Emergency is the category for quarantine and override rules, and Ethernet holds Layer-2 rules. Neither is 'hypervisor chatter'.",
+      "field": "detailedImplementation",
+      "quote": "**Ethernet noise** — `ETHERNET` / `EMERGENCY` sections carry hypervisor chatter",
+      "severity": "minor",
+      "suggested_fix": "Say that Ethernet (L2) and Emergency (quarantine) category rules behave differently from Application-category rules and should be reported separately."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "NSX Manager API clients normally authenticate with basic auth, session cookies (POST /api/session/create) or principal-identity certificates. OAuth2 refresh tokens apply only in VIDM/VCF integrations. The 'vmware:vsphere:vcenter' sourcetype attributed to Splunk_TA_vmware also does not match its documented vmware:inv:* / vmware:events names.",
+      "field": "detailedImplementation",
+      "quote": "Store OAuth2 refresh tokens or session cookies in Splunk credential stanzas",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX authentication options and the Splunk Add-on for VMware sourcetype list, and name the right mechanism and sourcetype."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL does not compute pct_unmapped.",
+      "field": "visualization",
+      "quote": "(5) Single-value **`pct_unmapped`** VMs for data-quality gates.",
+      "severity": "minor",
+      "suggested_fix": "Add a note that pct_unmapped needs a separate count of tier_tag=\"unmapped\" over total, or remove the panel."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "A stray ']' token appears as a grouping field. It is a generator artefact that confuses readers. The same token appears in knownFalsePositives.",
+      "field": "description",
+      "quote": "grouped by `_time`, `tier_tag`, `rule_ref`, `]`",
+      "severity": "minor",
+      "suggested_fix": "List only _time, tier_tag and rule_ref."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365 has no connection to NSX DFW rule statistics.",
+      "field": "equipment",
+      "quote": "\"m365\",\n    \"nsx\",",
+      "severity": "minor",
+      "suggested_fix": "Remove m365."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Aggregate rule counters are not flow records, and the SPL uses no datamodel. The schema text itself admits Network_Traffic is only for 'future correlated flow fields'.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Change\",\n    \"Alerts\"",
+      "severity": "minor",
+      "suggested_fix": "Leave cimModels empty for this statistics UC, or keep only Change for the audit correlation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The kitchen-pass metaphor ('chit', 'cold vault') is hard to decode, and it hides the actual meaning: counting how often each firewall rule is used for each application layer (web, app, database). The SPL is daily, not weekly.",
+      "field": "grandmaExplanation",
+      "quote": "We tally kitchen passes still swiped at the bakery, grill, and cold vault every week—when one chit stays silent while neighbors buzz, an outdated permit can retire",
+      "severity": "major",
+      "suggested_fix": "Say: 'Every day we count how often each network permission rule is used for web, application and database servers, so rules nobody uses can be reviewed and removed safely.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an agent, three Splunkbase IDs are wrong and the SPL has a syntax error, so this has clearly not had SME verification.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an SME has validated it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The link points to the techdocs root, not the DFW chapter, and the Policy rule statistics API reference is missing.",
+      "field": "references",
+      "quote": "\"title\": \"VMware NSX 4.2 Distributed Firewall Administration\",\n      \"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 Distributed Firewall chapter and the NSX API reference for rule statistics."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "'streamstats window=1 current=f global=f BY tier_tag rule_ref last(hit_eod) AS prev_hit' puts the BY clause before the aggregation. streamstats syntax is options, then functions, then BY clause, so this does not parse. Rewrite as 'streamstats window=1 current=f global=f last(hit_eod) AS prev_hit BY tier_tag rule_ref'.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Tier assignment depends on a VM field (protected_vm/src_vm/...) that per-rule DFW statistics do not carry, so tier_tag will be 'unmapped' for all rows. Stats are also split by tier_tag, so one rule with many VMs cannot be shared across tiers. The rule-catalog join searches only index=vmware.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "No alert filter is applied (no where on stale_allow_candidate or thresholds), so scheduling as an alert would always fire. Mandatory-rule and power-state conditions described in the prose are missing.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-18.2.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 2,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has a well-structured implementation guide and a sensible idea (per-tier DFW rule hit statistics with stale-ALLOW hints). However, it cites three wrong Splunkbase IDs (4856, 1810, and 1546 as SC4S) and uses vmware:nsx:* sourcetypes that disagree with the guide's vmware:nsxt:* names. It also tiers per-rule statistics by a VM field that the rule-statistics API does not return. The streamstats line has invalid syntax.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.15",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,149 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "4b888e07bc897b902bb83f3fa01e6d872a27a0bca76eb96c91954053c2d3dfbe",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.34.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/coredns/coredns/blob/master/plugin/forward/README.md",
+      "explanation": "The reload plugin exports coredns_reload_failed_total, not coredns_reload_failed_count_total. The forward plugin has deprecated coredns_forward_responses_total and coredns_forward_request_duration_seconds in favour of coredns_proxy_request_duration_seconds{proxy_name=\"forward\",to,rcode}. On current CoreDNS, the reload and upstream-failure signals described here never populate.",
+      "field": "dataSources",
+      "quote": "coredns_forward_responses_total{rcode}, coredns_cache_hits_total, coredns_cache_misses_total, coredns_cache_entries or coredns_cache_size, coredns_health_request_duration_seconds, coredns_reload_failed_count_total",
+      "severity": "blocker",
+      "suggested_fix": "Use coredns_reload_failed_total and coredns_proxy_request_duration_seconds_count{proxy_name=\"forward\",rcode}, and note that the coredns_forward_* names apply only to older CoreDNS releases."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/prometheusreceiver/README.md",
+      "explanation": "In OpenTelemetry Collector configuration, `${1}` is interpreted as environment-variable expansion, not a Prometheus capture group, so the scrape address is not built and the collector may fail to load.",
+      "field": "detailedImplementation",
+      "quote": "target_label: __address__\n              replacement: \"${1}:9153\"",
+      "severity": "blocker",
+      "suggested_fix": "Escape the capture group as \"$$1:9153\"."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "This UC has no UPS or SNMP data, and nothing uses Docker or PagerDuty data either (the equipment list includes docker, pagerduty and snmp). These tags misroute the UC in the equipment picker.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\n    \"kubernetes_k8s\",\n    \"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Keep kubernetes_k8s only. Trim equipment to kubernetes, opentelemetry and prometheus."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The description names a placeholder sourcetype and lists guard clauses as thresholds. The real alert gates (SERVFAIL ≥1% / 2.5%, p99 ≥200 / 500 ms, cache hit <70%, forward failure ≥3%, reload failure) are never stated.",
+      "field": "description",
+      "quote": "with window `1m` on `index=k8s_metrics` sourcetype `configured sourcetype`. Combines `req_sum`, `resp_sum`, `servfail_sum` by `cluster`, `coredns_pod`, `zone_l`, `_time` and compares against `resp_sum` > 0, `resp_sum` > 0, `fwd_all_sum` > 0, or `reload_failed_raw` > 0.",
+      "severity": "major",
+      "suggested_fix": "State the per-pod, per-minute SERVFAIL rate, p99 latency, cache-hit, upstream-failure and reload-failure checks, with their thresholds and severity tiers."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template placeholders with a placeholder sourcetype. The real benign causes are already written up in Step 5 but not here: NXDOMAIN from search-path expansion (ndots:5), synthetic DNS probes, EKS managed add-on rollovers, NodeLocal DNSCache toggles, and autoscaler ramps.",
+      "field": "knownFalsePositives",
+      "quote": "2. **Batch `sum` on `configured_sourcetype`** — Scheduled automation elevates `coredns_pod` without crossing `resp_sum` > 0",
+      "severity": "major",
+      "suggested_fix": "Move those Step 5 scenarios into knownFalsePositives, each with how to recognise it."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is authoring-QA residue about the document's structure, of no use to an implementer.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five step headers use em dashes; Step 3 fenced SPL matches the spl field; multisearch is not required because unified metric normalization keeps cardinality bounded;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The detection uses CoreDNS Prometheus counters, which are not DNS query events and do not populate Network_Resolution. Performance plays no part in the SPL. Network_Resolution fits only if CoreDNS query logs (the log plugin) are ingested and mapped, which this UC does not configure.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Network_Resolution\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Either declare that the SPL uses raw metrics and no CIM model, or add a CoreDNS log-plugin ingestion path mapped to Network_Resolution.DNS. Drop Performance."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "No 'Splunk Add-on for Kubernetes' appears in data/splunkbase-catalog.json, and the grounding guide names only the splunk-otel-collector chart. The same URL is listed in references.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes documentation for field expectations",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm that docs.splunk.com/Documentation/AddOns/released/Kubernetes exists. If it does not, remove it and the reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/",
+      "explanation": "tutum/dnsutils is an abandoned Docker Hub image. The Kubernetes DNS debugging guide (already in references) uses registry.k8s.io/e2e-test-images/jessie-dnsutils.",
+      "field": "detailedImplementation",
+      "quote": "kubectl run dns-test --rm -i --restart=Never --image=tutum/dnsutils",
+      "severity": "minor",
+      "suggested_fix": "Use the dnsutils image from the Kubernetes DNS debugging task."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reload metric name is wrong and the counter and histogram math cannot produce current rates, so the SPL cannot have been validated against live CoreDNS.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been corrected and compared with PromQL output, as Step 4 path D already proposes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/coredns/coredns/blob/master/plugin/reload/README.md",
+      "field": "spl",
+      "issue": "The SPL matches coredns_reload_failed_count_total, but CoreDNS exports coredns_reload_failed_total, so config_reload_failed is always 0. It also matches only coredns_forward_responses_total, which is deprecated in favour of coredns_proxy_request_duration_seconds_count{proxy_name=\"forward\"}, so upstream_failure_rate_pct is always 0 on current releases.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#histogram",
+      "field": "spl",
+      "issue": "The p99 subsearch treats Prometheus histogram buckets as disjoint counts (eventstats sum(bcnt) as the total, then a running sum), but buckets are cumulative by le. The total is therefore inflated and the computed p99 lands on the wrong bucket. It also works on lifetime cumulative counts rather than per-window deltas, and the +Inf bucket parses to null. Use per-window bucket deltas divided by the +Inf bucket.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "requests_total, responses_total, cache_hits_total and the other series are monotonic counters. sum(v) per one-minute bin adds lifetime totals from every scrape in the minute, so requests_per_sec = req_sum/60 is not a rate, and servfail_rate_pct and cache_hit_ratio_pct are lifetime ratios that barely move during an incident. Compute per-series deltas (streamstats or a range of latest minus earliest per window) before forming rates.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/sort",
+      "field": "spl",
+      "issue": "In the histogram subsearch, `sort cluster coredns_pod zone_l _time le_num` has no count argument, so it uses the default limit of 10,000 rows. Seventy minutes × pods × zones × buckets easily exceeds that, silently truncating the p99 input. Use `sort 0`.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/network-resolution-dns",
+      "field": "cimSpl",
+      "issue": "cimSpl uses nodename=All_Resolution and All_Resolution.* fields, but the Network_Resolution dataset is DNS (DNS.reply_code, DNS.dest). It also compares reply_code to 'SERVFAIL', whereas CIM's prescribed value is 'Server Failure', so it returns nothing on a standard CIM install.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0055-UC-3.2.34",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The operational narrative and troubleshooting cases are strong and CoreDNS-specific. The detection math is wrong, though: it sums cumulative Prometheus counters as if they were per-minute counts, treats cumulative histogram buckets as disjoint, and uses a non-existent reload-failure metric and deprecated forward metrics. The collector snippet also breaks on `${1}`.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.34",
+  "verdict": "incorrect"
+}

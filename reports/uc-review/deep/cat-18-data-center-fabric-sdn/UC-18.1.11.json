@@ -1,0 +1,116 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "fd51d6002d5e29c292428758478450daa30a8976457c8bdfa03045c50a37284a",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.11.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated in favour of Cisco DC Networking, Splunkbase 7777). The same wrong ID and directory name appear in detailedImplementation Prerequisites and in references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** (**Splunkbase** **4022**, install directory **Splunk_TA_cisco-aci**)",
+      "severity": "blocker",
+      "suggested_fix": "Make Cisco DC Networking (cisco_dc_networking_app_for_splunk, Splunkbase 7777) the primary collector and list TA_cisco-ACI (Splunkbase 1897, deprecated) as legacy. Remove '4022' and 'Splunk_TA_cisco-aci' from app, detailedImplementation and references."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Faults/Events guide and the faultInst object-model references point at site root pages, so a reader cannot use them. The 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\" ... \"url\": \"https://developer.cisco.com/docs/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual Cisco APIC Faults, Events, and System Messages Management Guide page and the APIC MIM faultInst class page. Replace the 4022 link with app 1897 or 7777."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "fvFaultLifecycleP and fvFaultLcP do not match known APIC class names (the fault lifecycle profile is configured under monitoring policies), and the 'five-day' retention default is unsupported.",
+      "field": "detailedImplementation",
+      "quote": "Map **fvFaultLifecycleP** defaults (roughly five-day retention for cleared records) versus per-code **`fvFaultLcP`** soak overrides",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the fault lifecycle profile class and its default soaking, clearing and retention intervals in the APIC Faults, Events, and System Messages guide, then cite that guide."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Documented APIC fault lifecycle states are soaking, soaking-clearing, raised, raised-clearing and retaining. Acknowledgement is a separate 'ack' attribute, so 'retaining-acknowl' looks invented. The SPL also matches on this value.",
+      "field": "detailedImplementation",
+      "quote": "**soaking → raised → raised-clearing → retaining → retaining-acknowl** ordering",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the lc enumeration in the APIC faultInst MIM page, drop 'retaining-acknowl', and add soaking-clearing if it is missing. Describe acknowledgement through the ack attribute."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL reads only cisco:aci:fault and cisco:aci:fault_record. Syslog, audit and health are optional context for dashboards, not requirements for the detection.",
+      "field": "dataSources",
+      "quote": "requiring five distinct sourcetypes",
+      "severity": "major",
+      "suggested_fix": "Say the detection needs cisco:aci:fault and cisco:aci:fault_record, and list syslog, audit and health as optional enrichment lanes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunkbase listing name is 'Cisco DC Networking'. Also, this app collects ACI faults through its own API inputs, so it can replace the rest_ta collector rather than only providing panels.",
+      "field": "app",
+      "quote": "optional **Cisco DC Networking for Splunk Platform** (**cisco_dc_networking_app_for_splunk**, **Splunkbase** **7777**)",
+      "severity": "minor",
+      "suggested_fix": "Use the name 'Cisco DC Networking' and describe it as the supported ACI collector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while it still carries a wrong add-on ID and placeholder references.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until a human SME validates the search on APIC fault data."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "The SPL uses raw APIC attributes and no datamodel, and the UC does not show that any ACI add-on maps faults to Alerts or audit records to Change.",
+      "field": "schema",
+      "quote": "CIM **Alerts** supplies normalized **severity**, **signature**, and lifecycle-friendly **vendor_product** fields",
+      "severity": "minor",
+      "suggested_fix": "Either describe the eventtypes and tags needed to map faults into Alerts, or say the CIM mapping is aspirational and the search runs on raw sourcetypes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`bin span=5m _time | eventstats count as raises_in_5m by apic_id _time` counts every polled faultInst snapshot row in a 5-minute bucket, not newly raised faults. A REST poll every 120-300s returns all active faults, so any fabric with more than about 50 standing faults sets fault_storm=1 on every run. Count only first-seen (dn, code, created) tuples, or use created timestamps, to detect real raise bursts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The lc_state IN list includes 'retaining-acknowl', which does not appear to be a documented APIC lifecycle value, and the list omits 'soaking-clearing'. Verify against the faultInst lc enumeration.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The strptime formats have no timezone directive, while APIC created/lastTransition values carry an offset (for example +00:00). Check that hours_since_last and mttr_sec are not skewed by the search head's timezone.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0002-UC-18.1.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation explains a coherent fault-lifecycle detection, but the UC names an unrelated Splunkbase add-on, links placeholder references, and cites lifecycle states and policy classes that look invented. The storm heuristic in the SPL counts poll snapshot rows rather than new fault raises.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.11",
+  "verdict": "incorrect"
+}

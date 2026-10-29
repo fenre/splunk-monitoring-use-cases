@@ -1,0 +1,138 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "0d71918115ad5c53b5506f1d6e3eca179f2fe8cb6b28787029d08aaf70055d0a",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/operator_apis/etcdbackup-operator-openshift-io-v1alpha1",
+      "explanation": "EtcdBackup (operator.openshift.io/v1alpha1) is a one-time backup object. Its spec has only pvcName and its status only conditions and backupJob; there is no spec.schedule or status.lastBackupTime. Recurring schedules live on the separate Backup CR (config.openshift.io/v1alpha1, spec.etcd.schedule). backup_age_h therefore has no real source field.",
+      "field": "detailedImplementation",
+      "quote": "For EtcdBackup resources, map spec.schedule into backup_schedule_cron when present, map status.lastBackupTime into last_backup_epoch",
+      "severity": "blocker",
+      "suggested_fix": "Derive backup recency from EtcdBackup status.conditions[].lastTransitionTime where the condition reports success, or from the backup Job completion time (status.backupJob). Read the schedule from the Backup config CR. For the common production path, the cluster-backup.sh CronJob, use the Job's completion status."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/backup_and_restore/control-plane-backup-and-restore",
+      "explanation": "Automated etcd backups (the EtcdBackup and Backup CRDs) are a Technology Preview that requires the TechPreviewNoUpgrade feature set. That feature set blocks minor upgrades, cannot be disabled, and Red Hat says not to enable it on production clusters. Presenting it as the production backup-health signal misleads readers.",
+      "field": "detailedImplementation",
+      "quote": "the operator-managed etcd backup workflow that materializes EtcdBackup objects under the etcd backup API group",
+      "severity": "blocker",
+      "suggested_fix": "State that EtcdBackup and Backup are Tech Preview only. Make the primary backup lane the documented cluster-backup.sh procedure, run by a customer CronJob or automation, with Job success and snapshot file age as the evidence."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These look like invented event reason strings. The cluster-etcd-operator's documented signals are Etcd CR conditions (EtcdMembersDegraded, EtcdMembersAvailable, BootstrapTeardownDegraded, and others), and backup outcomes surface as EtcdBackup conditions and Job status. If the reasons do not exist, the event lane and the member_fail_f / backup_fail_f page triggers never fire.",
+      "field": "detailedImplementation",
+      "quote": "Ensure reasons such as MemberRemoved, MemberAdded, MemberFailed, MemberFlapping, BackupSucceeded, BackupFailed, EtcdRecovery, and BootstrapTeardown are not dropped at forwarder filters.",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture the actual event reasons the cluster-etcd-operator emits on a lab cluster (oc get events -n openshift-etcd-operator -n openshift-etcd) and the EtcdBackup condition reasons, then list only those."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is a bare list of custom sourcetype tokens with no index, collector, or object description. A reader cannot tell that most of them come from a custom oc-polling exporter they must build.",
+      "field": "dataSources",
+      "quote": "ocp_clusteroperator, ocp_etcd_cr, ocp_etcdbackup, ocp_etcd_pod, ocp_etcd_audit, ocp_audit, ocp_events, ocp_metrics",
+      "severity": "major",
+      "suggested_fix": "For each lane, give the index, sourcetype, producing mechanism (for example a scripted 'oc get etcd cluster -o json' poller to HEC, or the OTel k8sobjects receiver) and key fields, and mark which lanes are required and which are optional."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The Etcd CR snapshot lane is placed in ocp_metrics in one paragraph and validated in ocp_events in another, while the SPL comment calls (index=ocp_audit OR index=ocp_events) the 'required anchor lane'. The UC also names Splunk-side CIM and app conventions inconsistently with sibling UCs (UC-3.3.1 and UC-3.3.6 use ocp_metrics for snapshots).",
+      "field": "detailedImplementation",
+      "quote": "designate index=ocp_metrics for structured API snapshots with sourcetype=ocp_etcd_cr ... Pre-save validation: index=ocp_events sourcetype=ocp_etcd_cr earliest=-1h must return events",
+      "severity": "major",
+      "suggested_fix": "Pick one index per lane, for example ocp_metrics for oc-get snapshots, matching UC-3.3.6, and use it consistently in the prose, validation searches and SPL comment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunkbase app ID is given and no app by this name is listed in the cached Splunkbase catalog. The UC also routes alerts 'through the Splunk OpenShift App' and hosts dashboards there, which may describe a product that does not exist.",
+      "field": "app",
+      "quote": "\"app\": \"Splunk OpenShift App\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm whether a Splunkbase app with this exact name exists and add its ID. Otherwise name the actual collection path (Splunk OTel Collector for Kubernetes with distribution=openshift, plus a custom oc snapshot exporter to HEC)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0. Neither model represents etcd operator conditions, backup recency or leader metrics, and the primary SPL uses no data model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Inventory\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Drop cimModels entirely or keep Inventory only as an optional asset-context overlay, and say so."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at parse time and the backup lane depends on non-existent fields, so this UC cannot have been verified. The reviewer is the generic catalogue handle.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until an OpenShift SME validates the fields and search on a real cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm contains non-streaming commands (stats, bucket, sort, streamstats), and the last arm starts with the generating command mstats. Splunk rejects this with 'Multisearch subsearches may only contain purely streaming operations', so the search never runs.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/concepts/metric_types/#histogram",
+      "field": "spl",
+      "issue": "commit_hist_inf is the +Inf bucket of etcd_disk_backend_commit_duration_seconds_bucket, a cumulative counter that is always greater than 0 once etcd has committed anything. The rule 'coalesce(commit_hist_inf,0)>0 => warn' therefore puts every cluster with etcd metrics into warn permanently.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "ceo_etcd_rst is sum(mv) of kube_pod_container_status_restarts_total samples over 6h. That counter is cumulative and sampled every scrape, so a single historical restart adds up across hundreds of samples and crosses the 15-restart page threshold. Use max-min, or the per-container latest delta.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "The leader-change delta sorts '- _time' and then uses last(leader_chg_hi) with window=2 current=t. On descending rows, last() is the current row itself, so prev_lc equals leader_chg_hi and leader_chg_delta is always 0.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/mstats",
+      "field": "spl",
+      "issue": "'mstats prestats=t avg(_value) AS mv' is invalid: prestats output cannot be renamed and is meant to feed a following stats/chart/timechart of the same function, so 'stats latest(mv)' finds no mv field.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The cimSpl uses invalid dataset paths. Application_State is deprecated and its root is All_Application_State, so nodename=Application_State and the Application_State.* fields do not resolve. The Inventory model's root dataset is All_Inventory, so nodename=Inventory and the Inventory.* fields return nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0079-UC-3.3.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The scope is a useful one (OpenShift etcd operator and DR readiness), but the UC is built on fields that do not exist: an EtcdBackup lastBackupTime and schedule, invented event reasons. It also presents a Tech-Preview-only backup API as production backup health, and the SPL cannot run because multisearch arms contain stats and mstats.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.15",
+  "verdict": "incorrect"
+}

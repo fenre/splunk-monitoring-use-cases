@@ -1,0 +1,125 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "30c1963b5605a8d317983168f3aeafe2ed337932c61921e7fdfd2e0418b4beba",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.32.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+      "explanation": "ResourceQuota objects most often use requests.cpu, limits.cpu, requests.memory, limits.memory and requests.storage, and extended resources may only be quota'd as requests.<name> (e.g. requests.nvidia.com/gpu). The list presents bare cpu/memory as the norm, and the SPL allow-list mirrors it, silently ignoring the common keys.",
+      "field": "dataSources",
+      "quote": "kube_resourcequota with type hard and type used labels for cpu, memory, pods, services, configmaps, persistentvolumeclaims, services.nodeports, services.loadbalancers, and extended resources such as nvidia.com/gpu",
+      "severity": "major",
+      "suggested_fix": "List the actual quota resource names (requests.*/limits.* compute, requests.storage, count/<resource>, requests.nvidia.com/gpu) and describe the allow-list accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL does no regression. streamstats takes first() and last() of util_ratio in a 28-point window and divides their difference by the elapsed time, so the forecast is a two-point slope that a single noisy endpoint can distort.",
+      "field": "detailedImplementation",
+      "quote": "linear regression across six-hour buckets assumes roughly monotonic growth",
+      "severity": "major",
+      "suggested_fix": "Describe the method as an endpoint slope over the window, or point to a real least-squares approach (e.g. streamstats sums or predict/trendline) if regression is intended."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/resourcequota-metrics.md",
+      "explanation": "kube-state-metrics has no separate extended-resource collector. The resourcequotas collector emits every resource present in the ResourceQuota spec and status, including extended ones.",
+      "field": "detailedImplementation",
+      "quote": "Enable extended-resource collectors when device plugins register nvidia.com/gpu, amd.com/gpu, or internal vendor.com segments",
+      "severity": "minor",
+      "suggested_fix": "Say that the quota must define requests.<extended-resource> for it to appear in kube_resourcequota; no extra collector is needed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The data arrives through the OTel Collector prometheus receiver and HEC, as the same field and the guide state. The Universal Forwarder modular-input sentence (repeated as the app suffix) contradicts that and is template residue.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the sentence and the '— Universal Forwarder (Splunkbase 617)' suffix in app."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "ResourceQuota gauges map to neither model. Application_State has been deprecated since CIM 4.12.0 and describes host process and service inventory, and Performance host CPU/memory is not namespace quota consumption. The SPL's Application_State join adds nothing to the forecast.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty and drop the CIM alignment paragraph and plat_state narrative, or justify a model with fields the detection uses."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "No SNMP or UPS data is involved in ResourceQuota forecasting; the snmp equipment tag and snmp_ups model are residue.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove snmp_ups and the snmp equipment entry."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "No hrs_to_72 field exists. The SPL produces hrs_to_full and the forecast_hit_72h severity.",
+      "field": "detailedImplementation",
+      "quote": "measure whether hrs_to_72 would have fired the morning before denial",
+      "severity": "minor",
+      "suggested_fix": "Refer to severity=forecast_hit_72h (or hrs_to_full<=72)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under a generic reviewer handle, yet the search fails to parse and the lab test in Step 4 could not have been executed against it.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL runs end to end in a lab cluster, and record the SME reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both multisearch arms end with stats ... BY ... _time, but multisearch allows only streaming commands in its subsearches, so the search is rejected.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/concepts/policy/resource-quotas/",
+      "field": "spl",
+      "issue": "The resource allow-list ^(cpu|memory|pods|services|configmaps|persistentvolumeclaims)$ plus nodeports/loadbalancers drops requests.cpu, limits.cpu, requests.memory, limits.memory and requests.storage, which are the most common quota keys, so most CPU and memory quotas are never forecast.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The severity filter runs before 'sort 0 - _time | dedup', so dedup can keep an older alerting bin when the latest bin is healthy, producing stale alerts. Separately, util_ratio<=1.02 discards over-quota rows that the saturated_now tier is meant to catch.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "It uses Application_State.state, Application_State.info and Application_State.app with nodename=Application_State. The deprecated model's root is All_Application_State and defines no such fields, and none of it relates to ResourceQuota.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0053-UC-3.2.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "This is a well-scoped quota-forecast UC with clear sibling boundaries and a good lab plan. But the SPL cannot run, because multisearch arms contain stats. Its resource allow-list drops the most common quota keys (requests.cpu, limits.memory and similar). The prose calls the forecast a linear regression when the SPL computes a two-point slope, and the CIM and equipment mappings are unrelated template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.32",
+  "verdict": "incorrect"
+}
