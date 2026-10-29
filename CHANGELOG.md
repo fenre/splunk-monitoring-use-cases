@@ -12,6 +12,25 @@ the release notes block in `index.html` by hand.
 
 ## [Unreleased]
 
+## [8.26.0] - 2026-10-28
+
+### Added
+
+- **Permanent UC identifiers (ADR-0016).** `data/id-ledger.json` records every
+  identifier ever issued, its status, and an append-only history of title + SPL
+  fingerprints. `audit-uc-ids` fails on reuse of a removed identifier or an
+  unrecorded content change; `audit-uc-id-migration-blast` fails a pull request
+  that changes more than 10 identifiers without a manifest under
+  `data/uc-id-migrations/`. `catalog.json` and the API manifests carry
+  `identityGuaranteeSince`, `identityBaselineVersion`, and the policy text.
+- **Identity baseline.** 8.26.0 is the first release that enforces identifier
+  permanence; 8.25.0 is the recorded baseline. Revision 1 of each of the 16,644
+  identifiers present at tag `v8.25.0` is hashed from that tag. The 348
+  identifiers whose title or SPL changed between 8.25.0 and 8.26.0 carry a
+  second revision and are classified in
+  `data/uc-id-migrations/2026-10-28-v8.26.0-identity-baseline.json`. 2,422
+  removed identifiers are recorded and can never be reissued.
+
 ## [8.25.0] - 2026-07-24
 
 ### New Use Cases

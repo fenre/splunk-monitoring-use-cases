@@ -488,6 +488,8 @@ class EquipmentEntry(TypedDict, total=False):
     label: str
     tas: list[str]
     models: list[str]
+    kind: str
+    vendor: str
 
 
 class ImplementationRoadmapEntry(TypedDict, total=False):
@@ -540,6 +542,11 @@ class CatalogJson(TypedDict, total=False):
     implementationRoadmap: dict[str, ImplementationRoadmapEntry]
     lastModified: str
     version: str
+    identityGuaranteeSince: str
+    identityBaselineVersion: str
+    identityPolicy: str
+    identityPolicyDoc: str
+    identityLedgerPath: str
 
 
 # ---------------------------------------------------------------------------

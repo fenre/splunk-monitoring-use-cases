@@ -6,6 +6,24 @@
 
 ## Current release
 
+**v8.26.0 — Permanent use case identifiers (16,652 use cases)** *(shipped 2026-10-28)*
+
+Theme: **a UC identifier, once published, always refers to the same use case.**
+The identity ledger records every identifier ever issued from the v8.25.0
+baseline onward, and CI blocks reuse and unmanifested bulk renumbering.
+
+### Shipped outcomes
+
+- **`data/id-ledger.json`** — 19,074 identifiers (16,652 active, 2,422 removed) with append-only title + SPL fingerprint history.
+- **348** identifiers edited between v8.25.0 and v8.26.0 classified in a committed migration manifest.
+- **`audit-uc-ids`** and **`audit-uc-id-migration-blast`** gate every pull request.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.26.0 release entry.
+
+---
+
+## Previous releases
+
 **v8.25.0 — Industry expansion + Fun Stuff consolidation (16,644 use cases)** *(shipped 2026-07-24)*
 
 Theme: **scale industry vertical coverage and consolidate the Personal &
@@ -14,18 +32,7 @@ Hobbyist taxonomy without losing UC count.** cat-21 gains four new subcategories
 6,431 use cases; documentation, metrics, and MCP payload limits catch up to
 catalogue scale.
 
-### Shipped outcomes
-
-- **16,644** use cases across **25** categories (cat-21 now **860** UCs; cat-25 **69** subcategories).
-- **Plain-language view** — four new Industry Verticals areas (21.11–21.14); cat-25 areas consolidated **108 → 72**.
-- **MCP payload cap** raised to **16 MiB** for `recommender/uc-thin.json`.
-- **Link-check (#75) and regulatory change-watch (#80)** resolved.
-
 See [`CHANGELOG.md`](CHANGELOG.md) for the full v8.25.0 release entry.
-
----
-
-## Previous releases
 
 **v8.24.0 — Cloud expansion + compliance gap closure (15,930 use cases)** *(shipped 2026-07-24)*
 

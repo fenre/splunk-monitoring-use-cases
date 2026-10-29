@@ -140,7 +140,7 @@ The structure of `catalog.json` is the input contract; you do not need to parse 
 
 The following are **domain-agnostic** and work unchanged in any fork:
 
-- The three-part ID scheme (`UC-X.Y.Z`) and the gap-free ordering rule.
+- The three-part ID scheme (`UC-X.Y.Z`) and the permanent-identity ledger ([ADR-0016](docs/adr/0016-permanent-uc-identifiers.md), `data/id-ledger.json`).
 - The virtualised list in `index.html`.
 - The `api/cat-N.json` + `llms*.txt` output.
 - The CI audits: `audit_uc_ids.py`, `audit_uc_structure.py`, `audit_non_technical_sync.py`, `audit_links.py`, `audit_catalog_schema.py`.
