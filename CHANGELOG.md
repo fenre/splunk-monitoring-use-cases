@@ -196,6 +196,17 @@ the release notes block in `index.html` by hand.
   `Splunk_TA_nix` does not emit `linux:journald`. Nexus 9000 CoPP
   profiles are strict, moderate, lenient, and dense. Searches were left
   unchanged.
+- Category 18 API and fault sentences: APIC health uses an Lp-norm, not
+  90/60/30 weights. Fault objects are `faultInst`. `rsp-subtree` is
+  `no`, `children`, or `full`. The APIC Python SDK is the `acicobra`
+  wheel from the APIC, not `pip install cobra`. Fault lifecycle states
+  include `retaining`. F0952 is a missing VRF relation. F1394 is a
+  fabric port down. F0467 is an EPG deployment failure. NSX DFW allows
+  are `PASS`. The Edge load balancer is NGINX. NAT rules are under
+  `/nat/{nat-id}/nat-rules`. NSX Intelligence is `/napp/api/v1/intelligence/`.
+  There is no `vmware:vmware:vsphere:vcenter` sourcetype. Hubble verdicts
+  use `FORWARDED`, not `ALLOWED`. NDO APIs are under `/mso/api/v1/`.
+  Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
