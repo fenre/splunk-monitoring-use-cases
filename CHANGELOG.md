@@ -186,6 +186,16 @@ the release notes block in `index.html` by hand.
   authenticate with HTTP Basic client `simplivity`. Azure Local load
   balancing is `AutoBalancerMode`. Hyper-V live migration events are on
   the VMMS Admin channel. Searches were left unchanged.
+- Category 18 product names that were still wrong: Splunkbase 1917 and
+  2847 are not in the catalogue, and there is no `Splunk_TA_cisco-nexus`
+  or `Splunk_TA_junos`. 1918 is Arista Networks Telemetry For Splunk.
+  1897 is the deprecated ACI add-on. Cisco openVuln calls for
+  registrations after March 2023 use `apix.cisco.com`. The EoX Support
+  API is `apix.cisco.com/supporttools/eox/rest/5/`. Cisco DC Networking
+  (7777) indexes Nexus Dashboard advisories as `cisco:dc:nd:advisories`.
+  `Splunk_TA_nix` does not emit `linux:journald`. Nexus 9000 CoPP
+  profiles are strict, moderate, lenient, and dense. Searches were left
+  unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
