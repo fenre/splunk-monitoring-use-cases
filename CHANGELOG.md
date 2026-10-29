@@ -59,6 +59,19 @@ the release notes block in `index.html` by hand.
   are `snow://` stanzas. Also corrected the Sentry signature header, the
   day-five cron, the Zendesk audits method, the Sparkplug B topic paths, and
   the SAP `AFRU` quantity fields. Searches were left unchanged.
+- Corrected the remaining category 23 blocker sentences: pretrained
+  `access_combined` needs no Apache add-on; App Store Connect JWTs use
+  `aud=appstoreconnect-v1`; Marketo activities are GET with a paging token;
+  Salesforce quotas are `ForecastingQuota` and the add-on writes `sfdc:`
+  sourcetypes; Stripe subscriptions have no `updated` field; forwarder
+  traffic is port 9997 and HEC is 8088; `outputcsv` does not write an index;
+  DB Connect uses `interval` and cannot be both `batch` and rising;
+  `SEDCMD` cannot mint a hash (use `INGEST_EVAL`); SQL Server is Splunkbase
+  2648, not 2926; Splunkbase has no ADP add-on; Dashboard Studio has no
+  `splunk.funnel`; SES review and pause thresholds differ; SAP `S2` cancels
+  a credit memo; Shopify returns are GraphQL-only; `append` truncates on
+  `maxtime`; the SEC climate rule is stayed; WattTime tokens last about
+  thirty minutes. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
