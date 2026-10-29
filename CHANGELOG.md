@@ -216,6 +216,19 @@ the release notes block in `index.html` by hand.
   `linux:df`, `linux:cgroup`, `audit:json`, or eBPF sourcetypes, and it
   has no journald input. Journald is the platform `[journald://]` input.
   auditd is `linux_audit`. Searches were left unchanged.
+- Corrected the remaining reviewed category 3 blocker sentences.
+  Docker events are `type=container` (`exec_create`, `exec_start`,
+  `exec_die`), not `type=exec`. `docker stats` has no log-line rate and
+  prints NetIO and BlockIO as strings. cgroup v2 reports `throttled_usec`,
+  and an unlimited `memory.max` is the string `max`. kube-state-metrics
+  names are `kube_rolebinding`, `kube_clusterrolebinding`,
+  `kube_endpoint_address`, `kube_cronjob_info`,
+  `kube_horizontalpodautoscaler_status_target_metric`, and
+  `kube_pod_status_qos_class`. CronJob misses are `MissSchedule`.
+  OpenShift audit is an APIServer profile, not an `audit.k8s.io` Policy.
+  Harbor webhooks post to HEC `/services/collector/raw`. Istio merged
+  metrics are port 15020. Cilium has no Hubble receiver in the Splunk
+  OpenTelemetry Collector. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
