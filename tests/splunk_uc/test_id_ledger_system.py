@@ -382,6 +382,99 @@ class TestGenerateIdLedger:
         assert doc["generatedAt"] != "2026-09-01T00:00:00Z"
         assert len(doc["entries"][0]["fingerprintRevisions"]) == 2
 
+    def test_main_writes_then_check_passes(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        _write_ledger(
+            fake_repo,
+            [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "a" * 64,
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        )
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        assert gen_id_ledger.main([]) == 0
+        assert "Wrote" in capsys.readouterr().out
+        assert gen_id_ledger.main(["--check"]) == 0
+        assert "PASS: id-ledger OK" in capsys.readouterr().out
+
+    def test_main_check_fails_when_ledger_missing(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        monkeypatch.chdir(fake_repo)
+        monkeypatch.setattr(gen_id_ledger, "load_baseline_payloads", lambda: {})
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        assert gen_id_ledger.main(["--check"]) == 1
+        assert "missing" in capsys.readouterr().err
+
+    def test_main_check_fails_when_catalogue_changed(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        _write_ledger(
+            fake_repo,
+            [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": id_ledger.content_fingerprint(
+                        {"title": "Test UC", "spl": "index=x"}
+                    ),
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        )
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        _write_uc(cat, "1.1.1", title="Renamed")
+        assert gen_id_ledger.main(["--check"]) == 1
+        assert "stale" in capsys.readouterr().err
+
+    def test_main_reseed_fails_when_baseline_tag_is_absent(
+        self, fake_repo: pathlib.Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        assert gen_id_ledger.main(["--reseed"]) == 1
+        assert "cannot read" in capsys.readouterr().err
+
+    def test_main_refuses_to_shorten_revision_history(
+        self, fake_repo: pathlib.Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cat = _make_cat(fake_repo, 1)
+        _write_uc(cat, "1.1.1")
+        _write_ledger(
+            fake_repo,
+            [
+                {
+                    "id": "1.1.1",
+                    "status": "active",
+                    "contentFingerprint": "b" * 64,
+                    "firstSeenVersion": "8.25.0",
+                }
+            ],
+        )
+        monkeypatch.setattr(id_ledger, "discover_removed_ids", lambda _catalogue: set())
+        monkeypatch.setattr(
+            gen_id_ledger,
+            "validate_ledger_revision_monotonicity",
+            lambda _previous, _generated: ["1.1.1 lost a revision"],
+        )
+        before = (fake_repo / "data" / "id-ledger.json").read_text(encoding="utf-8")
+        assert gen_id_ledger.main(["--check"]) == 1
+        assert "shortened" in capsys.readouterr().err
+        assert gen_id_ledger.main([]) == 1
+        assert "shortened" in capsys.readouterr().err
+        assert (fake_repo / "data" / "id-ledger.json").read_text(encoding="utf-8") == before
+
 
 class TestMigrationBlastGuard:
     def test_manifest_change_key_round_trip(self) -> None:
