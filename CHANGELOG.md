@@ -37,6 +37,32 @@ the release notes block in `index.html` by hand.
   they were written from the product documentation without tenant access.
   `AGENTS.md`, `docs/DESIGN.md`, `docs/PITCH.md`, `llms.txt` and the landing
   page no longer say every use case has SPL.
+- **`audit-uc-product-fit` (warn-only).** Reports use cases whose SPL does not
+  implement them on the Splunk platform: makeresults-only checklists, SPL over
+  another product's sourcetypes or indexes that its documentation does not
+  list (`data/product-fit-rules.json`, each rule citing a skill or vendor
+  doc), and prose that configures another product while the SPL reads its
+  mirrored data. Reviewed verdicts go in `data/product-fit-review.json`.
+
+### Changed
+
+- **15 Splunk Edge Hub use cases now list `products: [splunk-edge-hub,
+  splunk-platform]`** (UC-14.3.1–14.3.7, 14.3.20, 14.3.32, 14.3.42, 14.5.2–14.5.4,
+  14.5.9, 14.5.13). Each carries the Edge Hub OS Datastreamer configuration as
+  a `source-configuration` artifact and searches the documented indexes
+  (`edge_hub_data`, `edge_hub_status`, `edge_hub_logs`, `edge_hub_opcua`,
+  `edge_hub_modbus`) instead of the hyphenated `edge-hub-*` names. Metrics
+  indexes are queried with `mstats`, log searches group on the documented
+  `priority` field, and the universal forwarder claim is gone (Edge Hub OS does
+  not support one). Identifiers are unchanged; the ledger appends a revision.
+- **UC-10.7.4 and UC-22.7.6 now list `products: [splunk-soar,
+  splunk-platform]`** and carry a `forwarder-group` artifact (new SOAR artifact
+  type in `data/splunk-products.json`). Both search `index=phantom_playbook_run`,
+  the index the SOAR forwarder writes Playbook run records to, and group by the
+  numeric `playbook` ID instead of the undocumented `playbook_name` field.
+  UC-22.7.6 resolves names through a `soar_playbook_names.csv` lookup built from
+  `index=phantom_playbook`. The modular-input and `inputs.conf` text is replaced
+  with the SOAR forwarder group steps.
 
 ## [8.26.0] - 2026-10-28
 
