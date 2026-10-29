@@ -87,6 +87,16 @@ the release notes block in `index.html` by hand.
   is TimeTicks; outlet current is `rPDU2OutletMeteredStatusCurrent`; InRow
   temperatures are the PowerNet-MIB `airIRRCUnitStatus*TempUS` objects;
   Meraki is Splunkbase 5580. Searches were left unchanged.
+- Corrected the remaining category 15 blocker sentences. Splunk Connect for
+  SNMP (6266) is a container that sends to HEC (`sc4snmp:metric`,
+  `sc4snmp:event`, `sc4snmp:traps`); only SNMP Modular Input (1537) uses
+  heavy-forwarder `inputs.conf` stanzas. `upsCommStatus` is the NMC-to-UPS
+  link. Outlet load is tenths of an amp. There is no `coolingUnitState` or
+  AirIR-MIB. Meraki webhook logs are delivery metadata; MV Sense people
+  counts are MQTT or camera analytics REST; uplink loss does not cover
+  cameras. ASHRAE's recommended humidity band is dew point, not 40–60% RH.
+  `_time` is epoch. Index access is `srchIndexesAllowed`. Searches were
+  left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
