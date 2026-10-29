@@ -166,6 +166,26 @@ the release notes block in `index.html` by hand.
   event wrapper or the raw endpoint. BuildKit cache hits come from
   `--progress=rawjson`, not `buildkit:metadata`. Searches were left
   unchanged.
+- Corrected reviewed collector and API sentences outside category 3 and
+  the category 18 product-name pass. Windows channel events use
+  sourcetype `WinEventLog` or `XmlWinEventLog` with the channel in
+  `source`. Citrix VDA inventory is `xendesktop:7:machine` and
+  `xendesktop:7:InstalledSoftware`. uberAgent crashes are
+  `uberAgent:Application:Errors`. Artifact Registry audit methods are
+  `CreateRepository` and `DeleteRepository`. GCP audit failures are
+  `protoPayload.status.code`. RA Guard syslog is a one-line
+  `%SISF-4-PAK_DROP` with `P=NDP::RA`. NX-OS unnumbered IPv6 uses
+  `ipv6 address use-link-local-only`. NIOS login failures are
+  `LOGIN_DENIED`. ServiceNow changes are `snow:change_request`.
+  UCS environmental thresholds use the high-side columns for thermals
+  and watts. Scheduled UCS backups are `mgmtBackupPolicy` and
+  `mgmtCfgExportPolicy`. Intersight contracts are
+  `asset.DeviceContractInformation` on sourcetype
+  `cisco:intersight:contracts` (Splunkbase 7828). Prism v3 alerts sit
+  under `status.resources`. SimpliVity backups page with `offset` and
+  authenticate with HTTP Basic client `simplivity`. Azure Local load
+  balancing is `AutoBalancerMode`. Hyper-V live migration events are on
+  the VMMS Admin channel. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
