@@ -138,6 +138,14 @@ the release notes block in `index.html` by hand.
   `Get-StorageReliabilityCounter` returns Wear and error counters.
   `cisco:intersight:metrics` is a real sourcetype of Splunkbase 7828.
   Searches were left unchanged.
+- Corrected Splunkbase product names the category 18 review still had
+  wrong. Splunkbase 2846 is Fortinet FortiGate, not Cisco IOS or NX-OS.
+  Splunkbase 1917 is not in the catalogue, and there is no
+  `Splunk_TA_cisco-nexus`. Splunkbase 2847 is not in the catalogue.
+  Splunkbase 1918 is Arista Networks Telemetry For Splunk. Splunkbase 1897
+  is the deprecated Cisco ACI add-on; current ACI collection is Cisco DC
+  Networking (7777). Splunk Connect for Syslog is Splunkbase 4740.
+  Splunkbase 1546 is REST API Modular Input. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
