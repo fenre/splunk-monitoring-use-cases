@@ -97,6 +97,14 @@ the release notes block in `index.html` by hand.
   cameras. ASHRAE's recommended humidity band is dew point, not 40–60% RH.
   `_time` is epoch. Index access is `srchIndexesAllowed`. Searches were
   left unchanged.
+- Corrected reviewed blocker sentences outside the fully reviewed categories.
+  Trusted Advisor is not a Splunk_TA_aws input. GCP audit sourcetypes follow
+  the Pub/Sub add-on. Cisco IOS syslog is the Catalyst add-on (7538), not
+  Splunkbase 2812. Google Cloud Platform is 3088, Office 365 is 4055, Teams
+  call records are 4994, and Zoom webhooks are Splunk Connect for Zoom (4961).
+  TrueNAS 25.04 uses `pool.query`. License volume is `license_usage.log`.
+  `crcSalt` is not an integrity check. A 24-hour window cannot see a 60-day
+  idle account. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
