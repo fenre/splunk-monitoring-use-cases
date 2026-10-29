@@ -1,0 +1,159 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "7ae978c288c02928b4f742fc98c10d9cc7e21fc148e5bcd3e2b2f20b4068660f",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.28.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "explanation": "kube_pod_info carries pod, namespace, host_ip, pod_ip, node, created_by_*, uid, priority_class and host_network. It has no qos_class label and no numeric priority. QoS is exposed by kube_pod_status_qos_class, so the BestEffort/Burstable/Guaranteed counts in qos_at_risk_pods are always zero. detailedImplementation repeats the claim ('kube_pod_info with qos_class and priority when your chart version includes those labels').",
+      "field": "dataSources",
+      "quote": "kube_pod_info for qos_class priority and node placement",
+      "severity": "blocker",
+      "suggested_fix": "Join kube_pod_info (node placement) with kube_pod_status_qos_class (qos_class) on namespace+pod. Use priority_class names, not numeric priority, or drop the priority claim."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "explanation": "No UPS or SNMP data appears anywhere in this UC. snmp_ups (and the 'snmp' equipment tag) misroutes the UC in the equipment picker.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\n    \"kubernetes_k8s\",\n    \"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp_ups from equipmentModels, and remove snmp from equipment."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 and does not model kubelet node conditions. The detection itself uses raw kube-state-metrics and node_exporter series, not CIM.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Performance\",\n    \"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Keep Performance only if node_exporter memory and filesystem data are actually mapped to All_Performance.Memory and All_Performance.Storage."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "'EvictionAuthFailed' is not a known kubelet Node event reason, and the detailedImplementation explanation ('when RBAC or policy blocks eviction') looks invented. The list also omits the kubelet's actual pressure-transition reasons: NodeHasInsufficientMemory, NodeHasDiskPressure and NodeHasInsufficientPID.",
+      "field": "dataSources",
+      "quote": "reasons EvictionThresholdMet NodeHasSufficientMemory ImageGCFailed EvictionAuthFailed",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the reason against the kubelet events source (pkg/kubelet/events). Replace it with NodeHasInsufficientMemory, NodeHasDiskPressure and NodeHasInsufficientPID if it cannot be confirmed."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/",
+      "explanation": "Kubernetes documents that the kubelet does not use QoS class for eviction order. It ranks pods by whether usage exceeds requests, then by priority, then by usage relative to requests; QoS is only an estimate. The hard-coded evict_order_first column presents the estimate as fact.",
+      "field": "detailedImplementation",
+      "quote": "MemoryPressure true means the kubelet is telling the apiserver that reclaimable memory is below eviction thresholds and BestEffort pods are first in line for eviction",
+      "severity": "minor",
+      "suggested_fix": "Say that QoS class approximates the likely eviction order, and name the kubelet's actual ranking criteria."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are template placeholders and name no real cause, while detailedImplementation Step 5 already describes real ones. Missing examples: NetworkUnavailable=true on freshly bootstrapped nodes until the CNI or route controller programs them, transient DiskPressure during image pulls on scale-up, logrotate spikes, and build pools with intentionally small ephemeral disks.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `node`, `_time`, `]`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the entries with those node-pressure scenarios and how to recognise each one (node age below N minutes, image-pull events, a maintenance calendar, node_pool=build)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Step 2 refers to a collector configuration without providing one. It also never says how node_exporter series get a `node` label matching the Kubernetes node name, and without that the metrics cannot join to kube_node_status_condition. The closing checklist paragraph is authoring-QA residue.",
+      "field": "detailedImplementation",
+      "quote": "Collector YAML sketch for prometheus receiver scraping kube-state-metrics and node_exporter targets with splunk_hec exporters routing to k8s_metrics and sourcetype prometheus:scrape:metrics appears in platform runbooks",
+      "severity": "major",
+      "suggested_fix": "Provide the prometheus receiver job with a relabel rule copying __meta_kubernetes_pod_node_name (or the node SD name) into a `node` label for node_exporter. Delete the closing checklist."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "No 'Splunk Add-on for Kubernetes' appears in data/splunkbase-catalog.json, and the grounding guide names only the splunk-otel-collector Helm chart. The same doubtful page is listed in references.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes (Splunk Add-on for Kubernetes documentation)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm that docs.splunk.com/Documentation/AddOns/released/Kubernetes exists. If it does not, replace it with the splunk-otel-collector-chart repository."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Node metrics are documented under docs/metrics/cluster/, not workload/.",
+      "field": "references",
+      "quote": "\"title\": \"kube-state-metrics node metrics\",\n      \"url\": \"https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/node-metrics.md."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot execute (multisearch with stats) and relies on labels the source metrics do not carry, so it cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been corrected and validated."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "All three multisearch subsearches end in stats, which is not a streaming command, so the search fails to parse. Use union or append instead.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/pod-metrics.md",
+      "field": "spl",
+      "issue": "The QoS arm reads qos_class and priority from kube_pod_info, which has neither label, so cnt_be, cnt_bu and cnt_gu are always 0 and min_pri is always null. QoS must come from kube_pod_status_qos_class.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/tstats",
+      "field": "spl",
+      "issue": "The opening `tstats ... BY cluster` returns rows only if `cluster` is an indexed field. In the eval arms, cluster is computed with coalesce(k8s_cluster_name, ...). If no indexed field is literally named cluster, tstats returns nothing and the inner join drops every result.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Node_exporter series normally carry instance=<ip>:9100, not the Kubernetes node name. nodex therefore never matches the kube_node_status_condition `node` label, so mem/fs/pid percentages stay null. latest(node_filesystem_avail_bytes) across all mountpoints also picks an arbitrary mount rather than nodefs or imagefs.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "eventstats dc(node) AS pool_pressured_nodes runs before the any_pressure filter, over every node returned by the inner search, including unpressured nodes that appear through the node_exporter and pod arms. pool_pressure_frac is therefore near 1.0, and the 30% pool rule escalates any single node with five minutes of pressure to critical.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The node_priority regex '(?i)tier|gold|prod|0' matches any value containing 'tier' or the digit 0 (for example tier3 or tier10), so lower-priority pools are escalated to critical.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "cimSpl queries the deprecated Application_State model and uses Performance.* with nodename=Performance, but the Performance root dataset is All_Performance, with memory and storage fields under All_Performance.Memory and All_Performance.Storage. It would return nothing on a standard CIM install.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0048-UC-3.2.28",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (kubelet pressure conditions before NotReady) and risk briefing are sound, and the grandma text is faithful. However, the SPL cannot run because multisearch contains stats. It reads QoS and priority from kube_pod_info, which carries neither label, its node_exporter join key and pool-fraction math are broken, and the equipment and CIM metadata are wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.28",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,131 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "1a392ec4ee65a1894d965a9daa7576bd2e1fce713680329aba897d5fda1918a3",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.5.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/splunk-connect-for-kubernetes",
+      "explanation": "Splunk Connect for Kubernetes is a Helm-deployed Fluentd project distributed on GitHub, not a Splunkbase modular input, and it reached end of support in January 2024 in favour of the Splunk OpenTelemetry Collector for Kubernetes. A reader would look for a non-existent modular input and adopt an unsupported collector. The same reference appears in app.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "blocker",
+      "suggested_fix": "Name the Splunk OpenTelemetry Collector for Kubernetes (Helm chart splunk-otel-collector) as the kube:audit / admission log path, describe it as a Helm deployment, and drop the modular-input wording and the SCK Splunkbase reference."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Trivy and Grype JSON reports are stateless per scan: they list findings but have no 'oldest open' or first-seen epochs, so the SLA aging fields the SPL depends on cannot come from the scanners themselves. The reader must build a stateful summariser (or use a platform such as Anchore Enterprise / Harbor that tracks first-seen) to produce them.",
+      "field": "dataSources",
+      "quote": "post-scan summary JSON from Aqua Trivy and Anchore Grype CI jobs (open counts by severity, oldest-open epochs, scanner DB sync epoch, digest)",
+      "severity": "major",
+      "suggested_fix": "Say the governance manifest is a customer-built summary written by a CI step that diffs successive scan reports (or reads a vulnerability-management platform) to compute open counts and first-seen epochs per severity; list the exact JSON fields that summariser must emit."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The Splunk App for AWS has been retired; CloudWatch Logs collection is done with the Splunk Add-on for AWS (Splunkbase 1876) or Data Manager. The app field also mixes prose with a duplicated trailing SCK reference.",
+      "field": "app",
+      "quote": "optional Splunk App for AWS when admission evidence lands via CloudWatch",
+      "severity": "major",
+      "suggested_fix": "Replace with 'Splunk Add-on for AWS (Splunkbase 1876) or Splunk Data Manager for CloudWatch Logs' and rewrite app as a clean list: custom HEC input for governance manifests, Splunk OpenTelemetry Collector for Kubernetes for audit/admission logs, optional Splunk ES."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The 'Supplemental engineering depth' and 'Extended platform steering notes' sections are long lists of generic 'When X, do Y' sentences (GDPR, PCI, ITIL, FedRAMP, COSO, DORA, FinOps, academic clusters) that do not help implement the search, plus unverified claims such as 'Aqua CSPM JSON can land as trivy:governance:manifest aliases'.",
+      "field": "detailedImplementation",
+      "quote": "When board members ask for a single metric, lead with coverage_pct trend rather than raw CVE counts. When auditors reference NIST SP 800-190, attach this saved search description plus lookup versions to the evidence bundle.",
+      "severity": "major",
+      "suggested_fix": "Delete the supplemental and extended steering sections and the Aqua CSPM sentence; keep Steps 1 to 5 focused on collection, the search, validation and troubleshooting."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL has no final where clause, so every row including WITHIN-SLA is returned; a saved alert on 'number of results > 0' would page hourly on the whole fleet. The routing rule needs an explicit alert condition.",
+      "field": "implementation",
+      "quote": "Save container_uc_3_1_5_image_scan_coverage_patch_sla hourly, route BREACH and COVERAGE-GAP tiers to platform and appsec bridges",
+      "severity": "major",
+      "suggested_fix": "State the alert trigger explicitly (for example a custom condition search sla_breach_severity!=\"WITHIN-SLA\") and note that dashboards use the unfiltered result."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by a generic repository handle while compliance entries say 'Auto-drafted — SME review required' and the SPL join cannot work as described.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until SME review is recorded."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Microsoft 365 has no role in container image scanning or Kubernetes admission evidence.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365; consider adding registry equipment (harbor, ecr) if scanned registries are in scope."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The Splunk OpenTelemetry Collector for Kubernetes and SCK default the API server audit sourcetype to a different name (for example kube:apiserver-audit); kube:audit may not match what readers' collectors emit.",
+      "field": "dataSources",
+      "quote": "sourcetype=kube:audit from Kubernetes API audit forwarding",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetype assigned to API server audit logs in the splunk-otel-collector Helm chart and use that name (or document it as a renamed sourcetype set in props.conf)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Scan and admission rows cannot merge: stats groups BY row_key registry repo tag, but the admission arm sets registry/repo/tag from fields kube:audit does not carry (usually empty) while scan manifests populate them, so the same digest lands in two different rows. Every deployed digest then reads never_scanned and digest_mismatch_hint can never fire (on a digest-keyed row latest_deploy_digest equals row_key). Group by row_key only and take registry/repo/tag with values() or latest().",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "latest_deploy_digest uses max() on a string, which returns the lexicographically largest digest, not the most recent; open_* counts and oldest-open epochs also use max() across 30 days of manifests, so a Critical fixed weeks ago still counts as open and keeps BREACH-CRITICAL alive. Use latest() on the newest manifest per digest.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "sort - sla_breach_severity orders the tier strings descending lexicographically, putting WITHIN-SLA first and BREACH-* last, the opposite of the intended triage order; the streamstats scan_trend_seq counter is meaningless. Fields such as requestObject_spec_containers_0_image assume a custom flattening; default Splunk JSON extraction yields requestObject.spec.containers{}.image.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "Entries are duplicated under two regulation spellings (asd-e8 and 'ASD E8'; eu-cra and 'EU CRA') with identical content.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://eur-lex.europa.eu/eli/reg/2024/2847/oj",
+      "field": "compliance",
+      "issue": "EU CRA Art.14 concerns manufacturers notifying CSIRTs/ENISA of actively exploited vulnerabilities and severe incidents; an internal scan-coverage search does not evidence that reporting obligation, and Art.13 applies to manufacturers placing products with digital elements on the EU market, not to internal container operations. mode 'satisfies' overstates the mapping; 'contributes' at most, and only for product-shipping organisations.",
+      "severity": "major"
+    },
+    {
+      "field": "compliance",
+      "issue": "Container base-image scanning maps at least as much to the Essential Eight 'Patch applications' strategy as to 'Patch operating systems'; confirm the intended E8 strategy and maturity-level requirement behind clause id E8.06.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0024-UC-3.1.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The governance idea (scan coverage, scanner freshness, per-severity SLA aging, digest drift) is valuable and clearly separated from UC-3.1.10, but the collection story relies on a deprecated Helm project mislabelled as a Splunkbase modular input, implies scanners emit stateful aging fields they do not produce, the SPL cannot join scan and admission rows as described, and the implementation text is padded with long generic steering notes; compliance mappings are duplicated and overreach.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.5",
+  "verdict": "incorrect"
+}

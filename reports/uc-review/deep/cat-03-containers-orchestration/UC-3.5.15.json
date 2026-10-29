@@ -1,0 +1,124 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a00caaf7628e7183250b8fae2dc4131c948aa6590c803e8bba025bb4c571f675",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.15.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://opentelemetry.io/docs/specs/semconv/http/http-metrics/",
+      "explanation": "`http.server.request.duration` is defined by OpenTelemetry semantic conventions as a histogram in seconds (`s`), which is what Beyla exports over OTLP; thresholds of 5000/2000/500 against that value mean 5000 seconds and will never fire.",
+      "field": "detailedImplementation",
+      "quote": "**CRITICAL** (latency): p99 > 5000ms — the service is severely degraded\n  — **HIGH** (latency): p95 > 2000ms",
+      "severity": "blocker",
+      "suggested_fix": "State that the metric is in seconds and express thresholds as 5 s / 2 s / 0.5 s (or multiply by 1000 before comparing)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and plays no role in an OTLP-based Beyla pipeline; the relevant component is the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 in the cached catalogue).",
+      "field": "app",
+      "quote": "**Splunk HEC** for metric event delivery. — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Remove the SCK reference and cite the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "In a non-hostNetwork DaemonSet pod, localhost is the Beyla pod itself, not the node's Splunk OTel agent; the endpoint must be the node IP (downward API `status.hostIP`) or the agent Service. The sample manifest also omits `template.metadata.labels: {app: beyla}`, so the API server rejects it because the selector does not match the template.",
+      "field": "detailedImplementation",
+      "quote": "- name: OTEL_EXPORTER_OTLP_ENDPOINT\n          value: \"http://localhost:4318\"",
+      "severity": "major",
+      "suggested_fix": "Set the endpoint to `http://$(NODE_IP):4318` with NODE_IP from `status.hostIP`, add matching template labels, and pin an image tag instead of `latest`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "dataSources names collector self-metrics differently from detailedImplementation (`otelcol_receiver_accepted_metric_points`, `otelcol_exporter_send_failed_metric_points`), and lists five 'required' sourcetypes although the detection needs only Beyla metrics; `kube:pod:status` / `kube:container:logs` are not default collector sourcetypes.",
+      "field": "cross_field",
+      "quote": "`otlp_receiver_accepted_metric_points`, processor_batch_send_size, and exporter_queue_size",
+      "severity": "major",
+      "suggested_fix": "Use the `otelcol_*` names consistently, mark traces/logs/pod status as optional, and use the sourcetypes the collector actually assigns."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The searches run `mstats` on OpenTelemetry metrics and use no datamodel; Web models individual HTTP request events and Performance models host resource metrics, so neither describes aggregated RED histograms.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Web\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty (metrics-index UC), or map only if Beyla traces/request events are indexed and aliased to Web fields."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The SAPM exporter has been deprecated in favour of OTLP/HTTP export to Splunk Observability Cloud, and `BEYLA_EXECUTABLE_NAME` may be superseded by `BEYLA_AUTO_TARGET_EXE` in current Beyla releases (Beyla is also now upstreamed as OpenTelemetry eBPF Instrumentation).",
+      "field": "detailedImplementation",
+      "quote": "export traces to **Splunk Observability Cloud** (via the `sapm` exporter)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Splunk OTel Collector exporter docs and the current Beyla configuration reference and update exporter and env-var names."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Beyla's protocol coverage has documented limits (for example, TLS visibility depends on supported libraries and gRPC support varies by language), so 'any language' overstates it.",
+      "field": "detailedImplementation",
+      "quote": "it works with **any language** or **framework** that communicates over HTTP/gRPC",
+      "severity": "minor",
+      "suggested_fix": "Say it supports most HTTP/gRPC services, and link the Beyla supported-languages/protocols page."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Reviewer is an automated agent and the thresholds/SPL are demonstrably wrong, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://opentelemetry.io/docs/specs/semconv/http/http-metrics/",
+      "field": "spl",
+      "issue": "Thresholds `p99_latency > 5000`, `p95_latency > 2000`, `> 500` treat `http.server.request.duration` as milliseconds, but the OTel semantic-convention unit is seconds, so latency_status is always OK.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`coalesce(service_name, \"service.name\")` uses double quotes, which makes \"service.name\" a string literal; the fallback returns the text 'service.name' instead of the field (needs single quotes), and unquoted `http.response.status_code` in eval is parsed with `.` as concatenation. Both the anomaly and coverage searches therefore group or join on wrong values.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "field": "spl",
+      "issue": "The anomaly and coverage variants use event searches (`index=containers sourcetype=beyla:metrics metric_name=...`, `metric_value`) against data the first variant reads with mstats from a metrics index; event search cannot read metrics-index data, so the coverage search would mark every service uninstrumented.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "OTLP histograms are typically written by the Splunk HEC exporter as `_bucket`/`_sum`/`_count` series; `avg()`/`perc95()`/`count()` over `http.server.request.duration` would not yield request counts or latency percentiles. Verify the stored metric names and compute percentiles from buckets (or use `_sum`/`_count` for averages).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0110-UC-3.5.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Beyla deployment narrative is detailed, but every latency threshold assumes milliseconds while the OpenTelemetry metric Beyla emits is in seconds; the sample DaemonSet would be rejected and cannot reach the node collector on localhost; and the SPL mixes mstats with event searches and string literals where it means field names.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.15",
+  "verdict": "incorrect"
+}

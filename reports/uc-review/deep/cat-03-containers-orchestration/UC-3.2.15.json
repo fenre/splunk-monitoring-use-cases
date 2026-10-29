@@ -1,0 +1,134 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "aea4a914472066c742b5986637ae405e7ca0008d4f79909eb5cec9b7db034d53",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.15.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/daemonset-metrics.md",
+      "explanation": "kube-state-metrics has no DaemonSet strategy gauge; its DaemonSet family is created, status_* (current/desired/available/misscheduled/ready/unavailable/updated/observed_generation), metadata_generation, labels, annotations and deletion_timestamp. The same invented metric is repeated in detailedImplementation, and the useful kube_daemonset_status_number_unavailable is missing.",
+      "field": "dataSources",
+      "quote": "kube_daemonset_spec_strategy_rolling_update_max_unavailable when exposed",
+      "severity": "blocker",
+      "suggested_fix": "Remove the max_unavailable metric everywhere (or source it from a kube:objects snapshot of spec.updateStrategy) and list kube_daemonset_status_number_unavailable."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 and models host processes/services/ports. Neither it nor Inventory represents DaemonSet scheduling gauges, and the Step 1 rationale ('DaemonSet-managed agents are first-class application availability objects') does not change that. dataModelAcceleration repeats the error.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Application_State\",\n    \"Inventory\"\n  ]",
+      "severity": "blocker",
+      "suggested_fix": "Mark the UC as kube-native (no CIM model) or name a current model with a concrete field mapping; delete the Application_State/Inventory rationale paragraph and acceleration text."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "explanation": "The validation search wraps the subsearches in an extra bracket and puts stats inside them; multisearch subsearches allow only streaming commands. The same defects appear in the fenced Step 3 SPL, and the Step 3 narrative ('multisearch fans two arms', 'first arm ends with stats latest') describes a pipeline Splunk will reject.",
+      "field": "detailedImplementation",
+      "quote": "| multisearch [\n    [ search index=k8s_metrics earliest=-30m latest=now kube_daemonset_status_desired_number_scheduled | stats count ]",
+      "severity": "blocker",
+      "suggested_fix": "Use `| multisearch [search ... kube_daemonset_status_desired_number_scheduled | eval arm=\"ds\"] [search ... kube_pod_owner | eval arm=\"owner\"] | stats count by arm` and rewrite the Step 3 narrative to match a working search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detection reads kube-state-metrics gauges, not the Inventory datamodel. 'desired > 0' is not an alert condition, and the real conditions (ready/current/available below desired, generation lag, misscheduled > 0, gap sustained for 600 s, rolling stall for 1800 s) are never stated. There is also a stray `]` token.",
+      "field": "description",
+      "quote": "on datamodel `Inventory`. Summarises ... grouped by `cluster`, `namespace`, `daemonset`, `]` across `1m` before applying `rolling_lag_units` > 0, `kube_daemonset_status_number_misscheduled` > 0, `kube_daemonset_status_desired_number_scheduled` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe one row per cluster/namespace/DaemonSet where ready, current, available or updated pods fall short of desired, misscheduled > 0, or observed generation lags metadata generation, with the 10-minute coverage and 30-minute rollout-stall gates."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated fluentd Helm chart, not a modular input, and the rest of the UC collects with the OTel collector's prometheus receiver.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Drop the sentence or say 'Collected by the Splunk OpenTelemetry Collector for Kubernetes (legacy SCK deprecated)'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Step 1 and Step 2 carry many generic filler paragraphs (FinOps, wellbeing, telemetry hygiene, documentation alignment, back-pressure, version pinning) that would fit any UC, burying the DaemonSet-specific guidance.",
+      "field": "detailedImplementation",
+      "quote": "Operator wellbeing note: pair this alert with shift handoff templates so secondary responders inherit gauge deltas without re-running the full SPL manually.",
+      "severity": "major",
+      "suggested_fix": "Cut the generic alignment/note paragraphs and keep the signal inventory, lookup schema, scrape config and the 12 troubleshooting cases."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the scenarios is a real DaemonSet false positive. The real ones are already in Step 5: new autoscaled nodes still pulling the agent image, cordoned or maintenance nodes, GPU-only or Fargate scopes, OnDelete strategy lag, and in-progress RollingUpdates.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `dc` on `prometheus:scrape:metrics`** — Scheduled automation elevates `namespace` without crossing `rolling_lag_units` > 0 for UC-3.2.15.",
+      "severity": "major",
+      "suggested_fix": "Replace with those concrete causes and the lookup columns (ondelete_expected, gpu_selector_exclusion, eks_fargate_scope) that suppress them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The URL is the generic contributor development directory, not a DaemonSet guide.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes Community — sig-apps DaemonSet contributor guide\",\n      \"url\": \"https://github.com/kubernetes/community/blob/master/contributors/devel/\"",
+      "severity": "minor",
+      "suggested_fix": "Remove it or link the DaemonSet controller design/KEP page."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The search cannot run as written, so it cannot have been verified by an SME.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until the SPL runs on a real cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "`| multisearch` appears after `| eval ... | join ... | fields`. It is a generating command and must be first. Its two arms are wrapped in an extra `[ ... ]`, and the first arm ends in `stats`, which is not allowed because subsearches must be purely streaming. The search also starts with `| eval` and no generating command, so the leading Inventory join runs on an empty set. The query fails to parse. Restructure as `| multisearch [search ...streaming...] [search ...streaming...] | stats ... BY cluster namespace daemonset` and drop the Inventory tick join.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "cimSpl",
+      "issue": "Uses datamodel=Inventory with nodename=Inventory and fields Inventory.os/Inventory.version/Inventory.dest, joined to datamodel=Application_State with Application_State.state/info. The CIM model names are Compute_Inventory (root All_Inventory) and the deprecated Application_State (root All_Application_State, no state or info fields), and the filter `like(lower(inv_os), \"linux\")` returns every Linux host whatever the DaemonSet health.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the minute_gap subsearch, `fillnull value=0 desired ready current` sets any metric missing from a minute bucket to 0. Because the three gauges arrive as separate lines, a minute with only `desired` scraped counts as a gap. Use latest-per-minute with filldown, or require all three values before comparing.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`toString(...)` is used throughout; the eval reference documents lowercase `tostring` and says eval expressions are case-sensitive. Confirm the search parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0035-UC-3.2.15",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The DaemonSet coverage idea and the kube-state-metrics gauge set are mostly right, but the SPL cannot run: multisearch is placed mid-pipeline, wrapped in nested brackets, and given a stats arm. The CIM mapping (deprecated Application_State plus Inventory) is unjustified and malformed, and much of the narrative is padding or template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.15",
+  "verdict": "incorrect"
+}

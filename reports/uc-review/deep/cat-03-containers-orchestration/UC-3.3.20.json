@@ -1,0 +1,147 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "466324430dcfa663d4612e7f8214df6ee87e1fb221fdc1d9e36d9e9d25fadaa3",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.20.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "explanation": "apiserver_client_certificate_expiration_seconds is an ALPHA histogram. It records the remaining lifetime, in seconds, of client certificates presented to the API server. It is not a gauge and has no per-secret notAfter epoch, so it cannot be joined to individual secrets.",
+      "field": "dataSources",
+      "quote": "apiserver_client_certificate_expiration_seconds gauges and apiserver_client_certificate_expiration_seconds_bucket histogram lines",
+      "severity": "blocker",
+      "suggested_fix": "Describe it as a histogram (_bucket/_sum/_count) of remaining client-certificate lifetime in seconds, usable only as a fleet-level early warning (for example, a non-zero count in buckets below 7 or 30 days). It is not a source of per-secret expiry dates."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "explanation": "Application_State was deprecated in CIM 4.12 in favour of the Endpoint datamodel. Neither Application_State nor Inventory models certificate expiry; CIM has a Certificates datamodel (All_Certificates.SSL) with ssl_end_time, ssl_subject and ssl_issuer.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Inventory\"",
+      "severity": "blocker",
+      "suggested_fix": "Map openshift:certificates to the Certificates datamodel (All_Certificates.SSL.ssl_end_time, ssl_subject_common_name, ssl_issuer). Drop Application_State, and drop Inventory unless it is used for node context."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository's Splunkbase catalogue lists app 3743 as 'Monitoring Kubernetes - Metrics and Log Forwarding' (monitoringkubernetes); the guide calls it Splunk Connect for Kubernetes. No 'Splunk Add-on for Kubernetes' exists at that ID.",
+      "field": "references",
+      "quote": "\"title\": \"Splunkbase — Splunk Add-on for Kubernetes\",\n      \"url\": \"https://splunkbase.splunk.com/app/3743\"",
+      "severity": "blocker",
+      "suggested_fix": "Retitle the reference to the actual 3743 listing, or replace it with the Splunk OpenTelemetry Collector for Kubernetes, which the guide recommends for OpenShift."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The guide names Splunk OpenTelemetry Collector for Kubernetes and Splunk Connect for Kubernetes (3743) for OpenShift. No Splunk_TA_kubernetes add-on appears in the grounding.",
+      "field": "app",
+      "quote": "Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm on Splunkbase whether a Splunk_TA_kubernetes package exists. If it does not, name the Splunk OpenTelemetry Collector for Kubernetes plus the scripted oc exporter."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The fenced SPL in detailedImplementation does not match the spl field. The spl field uses `secret_name=\"clusteroperator__\".co_name` and `cert_subject_cn=\"clusteroperator:\".co_name`, while the fenced copy uses strcat(). The text claims the two match exactly.",
+      "field": "cross_field",
+      "quote": "Fenced SPL must match the spl JSON field exactly",
+      "severity": "major",
+      "suggested_fix": "Make detailedImplementation reproduce the spl field verbatim, or remove the 'must match exactly' sentence."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "This is the root of the Red Hat Knowledgebase, not a specific article, so it does not support the 'certificate recovery guidance' title.",
+      "field": "references",
+      "quote": "\"url\": \"https://access.redhat.com/solutions/\"",
+      "severity": "major",
+      "suggested_fix": "Link the specific OpenShift documentation for recovering from expired control-plane certificates for the supported minor version, or remove the entry."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The OAuth server serving material in openshift-authentication normally uses names such as v4-0-config-system-serving-cert. 'v4-0-0-system-master-auth' does not appear to be a real secret name.",
+      "field": "detailedImplementation",
+      "quote": "openshift-authentication v4-0-0-system-master-auth serving cert",
+      "severity": "needs_verification",
+      "suggested_fix": "Run `oc get secret -n openshift-authentication` on a supported release and use the actual serving-cert secret name."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The OpenShift kube-apiserver-operator auto-rotates the kube-apiserver-to-kubelet signer. Manual CSR approval is normally needed only for kubelet client or serving CSRs after a cluster has been offline. Case B and the SPL 'manual' rotation_policy class rest on this claim.",
+      "field": "detailedImplementation",
+      "quote": "many leaves auto-rotate while kube-apiserver-to-kubelet signers may still need manual approvals",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OpenShift 'API server certificates' and 'Node certificates' documentation. Reword Case B to cover pending kubelet CSRs after prolonged downtime rather than manual signer rotation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "'DistIssuer' is not an OpenShift component. The service-ca-operator injects CA bundles into ConfigMaps annotated with service.beta.openshift.io/inject-cabundle.",
+      "field": "detailedImplementation",
+      "quote": "verify DistIssuer still publishes valid CABundle ConfigMaps",
+      "severity": "minor",
+      "suggested_fix": "Say: verify the service-ca operator still injects the CA bundle into ConfigMaps annotated service.beta.openshift.io/inject-cabundle=true."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with only a generic reviewer handle, yet its SPL cannot run (stats inside a multisearch arm) and it misinterprets the Prometheus metric. That is not evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an SME has run the search against real OpenShift data and recorded the sign-off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The fourth multisearch arm contains `stats count ... BY cluster namespace secret_name`. multisearch accepts only streaming commands in its subsearches, so the search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "field": "spl",
+      "issue": "The Prometheus lane treats metric values between 1e9 and 4e9 as a notAfter epoch. apiserver_client_certificate_expiration_seconds is a histogram of remaining seconds, so bucket counts and _sum never represent an epoch. The lane yields null or meaningless expiry and one fake secret row named prom__apiserver_client_certificate_expiration_seconds.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the ClusterOperator lane, any message matching cert|tls|rotate|expir sets a synthetic expiry of now+1d, which yields page severity. This happens even when the operator is Available=True and not Degraded, because the Degraded condition status is never checked. Routine 'rotating certificate' Progressing messages would therefore page.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The `streamstats window=20000 current=t min(...)` that produces cat_fastest_expiry depends on event order: early rows see only partial minima. Use eventstats min(days_until_expiry) BY cluster ca_bundle_kind instead.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/endpoint",
+      "field": "cimSpl",
+      "issue": "cimSpl queries the deprecated Application_State model and uses the wrong root dataset prefixes (Application_State.*, Inventory.* rather than All_Application_State / All_Inventory). Neither model carries certificate expiry, so the query cannot support this detection. The Certificates datamodel (All_Certificates.SSL.ssl_end_time) fits the signal.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0085-UC-3.3.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC scopes operator-managed OpenShift PKI well and has useful case-based runbooks. However, it misreads apiserver_client_certificate_expiration_seconds as a per-certificate gauge or epoch, its SPL cannot run because a multisearch arm uses stats, it maps to the deprecated Application_State CIM model, and it misnames Splunkbase 3743.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.20",
+  "verdict": "incorrect"
+}

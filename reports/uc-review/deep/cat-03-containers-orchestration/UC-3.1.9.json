@@ -1,0 +1,125 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "76e73a7264ee155cd1febad6d904d013e13490af624c912030ca7c1cab3c92cd",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.9.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/UnixLinux/Sourcetypes",
+      "explanation": "Splunk_TA_nix ships a fixed set of OS scripts (cpu, ps, df, vmstat and so on) and has no docker version or docker info inputs or docker:* sourcetypes. Operators must write these scripted inputs themselves.",
+      "field": "app",
+      "quote": "Splunk Add-on for Unix and Linux ([Splunkbase 833](https://splunkbase.splunk.com/app/833)) delivering scripted inputs that execute docker version and docker info on a schedule",
+      "severity": "major",
+      "suggested_fix": "State that docker:version and docker:info come from customer-written scripted inputs (optionally packaged in a custom TA deployed alongside Splunk_TA_nix), and give the inputs.conf stanza."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "ARRAY_INDEXING does not appear to be a props.conf setting. With KV_MODE=json, Splunk already extracts JSON arrays as multivalue fields named Warnings{}, not Warnings, so the SPL's mvcount(Warnings) would not see them.",
+      "field": "detailedImplementation",
+      "quote": "add KV_MODE=json and ARRAY_INDEXING=true in props.conf for that sourcetype",
+      "severity": "needs_verification",
+      "suggested_fix": "Check props.conf.spec. Replace the setting with a FIELDALIAS of 'Warnings{}' AS Warnings or an spath extraction."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "Title, description and grandmaExplanation imply daemon health monitoring. The SPL only grades version, allowlist, sprawl and docker info Warnings. A host whose dockerd is down produces no docker:version event and therefore no alert, and Step 2 only suggests a manual timechart for gaps.",
+      "field": "cross_field",
+      "quote": "Docker Daemon Health and Version Drift",
+      "severity": "major",
+      "suggested_fix": "Say in description and implementation that health means docker info Warnings only. Point to UC-3.1.8 and UC-3.1.11 for liveness, or document a separate stale-collector check."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "had_version_change_window is computed but never used in the severity ladder or projected in the table, yet description and controlTest present it as a monitored metric. Step 3 also calls the output a 'twelve-column' table when it has thirteen columns.",
+      "field": "cross_field",
+      "quote": "Cross-check streamstats version flips ... verifying had_version_change_window flags the transition in the underlying pre-stats data if you temporarily remove the stats command during debugging",
+      "severity": "minor",
+      "suggested_fix": "Drop had_version_change_window from description and validation, or note that it is unused. Fix the column count."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The listed scenarios do not describe real version-drift false positives. The real ones are in Step 5: canary lanes on newer builds, mid-wave patch transitions, distro-suffixed versions missing the allowlist, mitigated CVEs, and hosts defaulting to the 'unsegmented' bucket.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host_id`, `segment` — Health checks in `oti_containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with Step 5 Cases 2, 3, 5, 7 and 9, each with its lookup-based remedy."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "With KV_MODE=json these extract as dotted names such as Server.Version, but the SPL coalesces server_version, Server_Version and ServerVersion. Unless props define aliases, docker:version events yield an empty sv_line, and only docker:info's ServerVersion populates the version.",
+      "field": "dataSources",
+      "quote": "preserving Server.Version, Server.ApiVersion, Server.GoVersion, Server.Os, Server.Arch, Server.KernelVersion, and Server.BuildTime fields after KV indexing",
+      "severity": "needs_verification",
+      "suggested_fix": "Document the required FIELDALIAS entries (Server.Version AS server_version and so on), or check field names against a real indexed event."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The detection never reads CIM data. Vulnerabilities only fits if a scanner feed is joined, which the primary SPL does not do.",
+      "field": "cimModels",
+      "quote": "\"Inventory\",\n    \"Vulnerabilities\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Compute_Inventory (if docker:version is mapped to it) and describe Vulnerabilities as optional enrichment."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "No Prometheus data is used. The UC reads only docker version and docker info JSON.",
+      "field": "equipment",
+      "quote": "\"prometheus\"",
+      "severity": "minor",
+      "suggested_fix": "Remove prometheus from equipment."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Verified status with a generic reviewer handle, while field-name assumptions (Warnings, Server.Version aliases) remain unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to draft until validated against real docker:version and docker:info events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Inventory",
+      "field": "cimSpl",
+      "issue": "'FROM datamodel=Inventory WHERE nodename=Inventory' with field Inventory.os: the CIM Inventory model's object name is Compute_Inventory (root dataset All_Inventory, OS fields under the OS child dataset), so this tstats search fails or returns nothing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Every host in any segment that has 2–3 distinct versions is labelled medium_minor_version_drift, including hosts already on the approved target. The final fallback labels any docker info warning (for example 'No swap limit support') high_warnings_security_relevant even when sec_warn was 0. Both inflate severity.",
+      "severity": "minor"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Health', but the SPL has no liveness or staleness check, so a stopped dockerd stays silent. Consider retitling to 'Docker Engine Version Drift and Configuration Warnings' or adding an absence check.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-3.1.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "This is a coherent version-compliance detection with good validation steps and troubleshooting cases. But the text implies Splunk_TA_nix ships docker version/info inputs and cites a props.conf setting that appears not to exist. The title promises daemon health that the SPL never checks, and the CIM search uses a wrong datamodel name.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.9",
+  "verdict": "rewrite"
+}

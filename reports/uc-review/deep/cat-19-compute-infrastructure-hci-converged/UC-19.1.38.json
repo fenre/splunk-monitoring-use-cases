@@ -1,0 +1,159 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ce150389bf6406f939ddcf696c34acc0a7addf18801a70abe81bc064da727f72",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.38.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/wiki/Proxmox_VE_API",
+      "explanation": "Proxmox VE expects `Authorization: PVEAPIToken=USER@REALM!TOKENID=UUID`, with an equals sign after PVEAPIToken. With a space, the poller gets 401 on every call.",
+      "field": "detailedImplementation",
+      "quote": "with the header form `PVEAPIToken user@realm!tokenid=secret`",
+      "severity": "blocker",
+      "suggested_fix": "Use `Authorization: PVEAPIToken=splunk@pve!splunk-poll=<token-uuid>`, matching the `pveum user token add splunk@pve splunk-poll` example."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/api-viewer/index.html",
+      "explanation": "`GET /cluster/tasks` takes no parameters in the PVE API viewer; it returns a recent cluster-wide list. `typefilter`, `source`, `limit`, `since` and `vmid` are parameters of `GET /nodes/{node}/tasks`. The same problem affects the prerequisites bullet, the props description, and the Step 3 check `pvesh get /cluster/tasks --typefilter qmigrate`.",
+      "field": "detailedImplementation",
+      "quote": "The poller should call a URL shaped like `https://<cluster-or-node>:8006/api2/json/cluster/tasks?typefilter=qmigrate&limit=500` and optionally `source=archive`",
+      "severity": "major",
+      "suggested_fix": "Poll `/api2/json/nodes/{node}/tasks?typefilter=qmigrate&source=all&since=<watermark>` for each node, or call /cluster/tasks without parameters and filter `type == \"qmigrate\"` in the poller. Fix the pvesh validation command to match."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/pve-docs/api-viewer/index.html",
+      "explanation": "The migrate call is `POST /api2/json/nodes/{node}/qemu/{vmid}/migrate`, and `target` is a POST parameter sent in the request body (the GUI and pvesh both send it as form data). The pveproxy access log records only the request line, not the body, so `EXTRACT-target_node = target=...` will almost never populate. Path B therefore cannot recover the destination node.",
+      "field": "dataSources",
+      "quote": "for `POST` lines that include `/qemu/<vmid>/migrate` and `target=<dst>` query pairs",
+      "severity": "major",
+      "suggested_fix": "Say that the access log provides initiator user, client IP, vmid and source node only. Obtain the target node from the task log (`GET /nodes/{node}/tasks/{upid}/log`, which prints the destination) and remove the `target_node` extraction from the access-log props."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://forum.proxmox.com/threads/detect-if-vm-ct-migration-is-running.165650/",
+      "explanation": "Container migrations run as task type `vzmigrate`, not `lxcmigrate`, according to Proxmox staff guidance on filtering /cluster/tasks by type. Step 5 (3) repeats the wrong name in `sourcetype=proxmox:task:lxcmigrate`.",
+      "field": "exclusions",
+      "quote": "LXC `lxcmigrate` is restart-based, not pre-copy online migration",
+      "severity": "major",
+      "suggested_fix": "Replace `lxcmigrate` with `vzmigrate` in exclusions and Step 5."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "`qm migrate` creates a `qmigrate` task whether or not `--online` is set, so offline VM migrations land in the same sourcetype and are counted by the SPL. The exclusion cannot be honoured by the data source as described. `qm move` is also not a qm subcommand: offline relocation is `qm migrate` without `--online`, and storage moves are `qm move-disk`.",
+      "field": "exclusions",
+      "quote": "This use case is scoped to PVE `qmigrate` (QEMU/KVM online live migration) ... It excludes cold relocation paths such as `qm move` for stopped VMs",
+      "severity": "major",
+      "suggested_fix": "Either include offline qmigrate failures in scope, or describe how to distinguish online runs (for example, task-log text 'starting online/live migration' fetched per UPID). Replace `qm move` with `qm migrate` (offline) / `qm move-disk`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "`splunk show passwd` does not read secrets from Splunk's credential store, so the variable will be empty. The script also hard-codes the default admin password on disk. It contradicts the later advice to load the token from a 0600 file.",
+      "field": "detailedImplementation",
+      "quote": "PVE_API_TOKEN=$(/opt/splunk/bin/splunk show passwd -auth admin:changeme 2>/dev/null | grep proxmox_api_token | awk '{print $NF}')",
+      "severity": "major",
+      "suggested_fix": "Drop the wrapper's CLI call. Have the Python poller read the token from storage/passwords using the session key from `passAuth`, or from a 0600 file as described in the next paragraph."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "pveproxy access lines look like `::ffff:10.0.0.5 - root@pam [dd/mm/YYYY:HH:MM:SS +zzzz] \"POST ...\"`. There are three tokens (IP, '-', user) before the bracket, so skipping two lands on the user field. The month also appears to be numeric rather than `%b`. Timestamps would then fall back to index time.",
+      "field": "detailedImplementation",
+      "quote": "TIME_PREFIX = ^\\\\S+\\\\s+\\\\S+\\\\s+\\nTIME_FORMAT = [%d/%b/%Y:%H:%M:%S %z]",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against a real /var/log/pveproxy/access.log. Use `TIME_PREFIX = \\[` with the matching TIME_FORMAT (likely `%d/%m/%Y:%H:%M:%S %z`)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "VM.Migrate lets the token start migrations; a monitoring poller only needs to read tasks. Calling it least-privilege is inaccurate. `PVEVMUser` (mentioned later) does not grant task visibility for other users' tasks either.",
+      "field": "detailedImplementation",
+      "quote": "API token for a least-privilege user: `VM.Migrate` (or equivalent for migration), `Sys.Audit`",
+      "severity": "minor",
+      "suggested_fix": "Grant the built-in `PVEAuditor` role (Sys.Audit, VM.Audit, Datastore.Audit) on `/` to a privilege-separated token, and drop VM.Migrate."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "overclaiming",
+      "explanation": "Recent Proxmox VE 8.x releases added live migration for VMs with mapped mediated devices (e.g. NVIDIA vGPU) when the driver supports it. The absolute statement, and treating every `pci_passthrough_present` as 'critical', may be outdated for vGPU estates.",
+      "field": "detailedImplementation",
+      "quote": "a passthrough GPU guest cannot be live-migrated without architecture change",
+      "severity": "needs_verification",
+      "suggested_fix": "Qualify the statement: 'raw PCI passthrough blocks live migration; mediated-device (vGPU) guests may migrate on PVE 8.x with supported drivers and resource mappings.'"
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The 60000–60050 range is used for TCP migration streams with `type=insecure`. With the default `type=secure`, traffic is tunnelled over SSH (TCP 22). UDP is not used for migration.",
+      "field": "hardware",
+      "quote": "Firewall paths must allow the documented migration port range (often TCP/UDP 60000–60050) or SSH tunnelling when `type=secure` is set.",
+      "severity": "minor",
+      "suggested_fix": "Write: 'type=secure (default) tunnels over SSH TCP 22; type=insecure uses TCP 60000–60050 on the migration network.'"
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Change",
+      "explanation": "The SPL reads a custom sourcetype with no CIM tags or field mapping, and a failed live migration is an operational task outcome rather than a CIM Change record. Listing Change/Alerts implies data-model acceleration that does not exist.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "major",
+      "suggested_fix": "Remove Change and Alerts, or add the eventtype/tags and field aliases needed to populate them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "UPS/SNMP has no role in Proxmox migration task polling. The `dell_emc` and `snmp` equipment tags are likewise unrelated.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `snmp_ups`, `dell_emc` and `snmp`. Keep `proxmox`, `linux` and `syslog`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The reference titled 'QEMU/KVM migration' links to the wiki root rather than a migration page.",
+      "field": "references",
+      "quote": "\"url\": \"https://pve.proxmox.com/wiki/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the admin guide's migration section (https://pve.proxmox.com/pve-docs/pve-admin-guide.html#qm_migration)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://forum.proxmox.com/threads/cant-migrate-container-back-to-node.161719/",
+      "field": "spl",
+      "issue": "The reason classifier depends on the task `status` string carrying the root cause. Failed migrations often end with a bare `migration aborted` or `migration problems` status, with the cause only in the task log. Most failures will then fall into `other_error`, and the 'critical' cpu/pci buckets will rarely fire. Consider enriching from `/nodes/{node}/tasks/{upid}/log` in the poller.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Tasks with `WARNINGS: n` status are not filtered and are counted as failures. Also, `sort +severity_bucket` orders alphabetically (critical, high, low, medium), not by severity rank.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0031-UC-19.1.38",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 4
+  },
+  "summary": "A rich migration-failure runbook with useful operator steps. However, the API token header is malformed, /cluster/tasks is given query parameters it does not accept, the pveproxy target extraction cannot work for POST bodies, and the exclusions misname the Proxmox task types (qmigrate also covers offline VM moves; containers use vzmigrate).",
+  "tier": "deep",
+  "uc_id": "UC-19.1.38",
+  "verdict": "incorrect"
+}

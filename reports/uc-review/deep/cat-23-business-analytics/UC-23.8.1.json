@@ -1,0 +1,123 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "7611a4f62666f904f1a36a8ae9fd618595bb582a088e617a164c4c6319a6c59f",
+  "file": "content/cat-23-business-analytics/UC-23.8.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description presents divide-by-zero guards and NPS band cutoffs as alert thresholds. The SPL actually outputs one row per KPI (revenue_mtd, pipeline_coverage, nps_current, headcount_act, doh_cash), rated GREEN/AMBER/RED against the per-KPI floors in executive_kpi_targets.csv.",
+      "field": "cross_field",
+      "quote": "with thresholds `won` > 0, `score` >= 9, `score` <= 6, or `oxd` > 0. Groups `openpipe`, `current_value` by `kpi_name`",
+      "severity": "major",
+      "suggested_fix": "Describe the five KPIs, their sources and windows, and the GREEN/AMBER/RED rule driven by threshold_amber/threshold_red in the lookup."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Nearly every word in detailedImplementation is individually bolded, which makes it very hard to read. It also contains a leftover authoring instruction ('without forbidden template phrasing') that is meaningless to a reader.",
+      "field": "detailedImplementation",
+      "quote": "**How to read the mechanics (without forbidden template phrasing):** the **SPL** **stitches** **ERP** **revenue** from **ACDOCA**-style **feeds**",
+      "severity": "major",
+      "suggested_fix": "Remove the per-word bold, keep bold only for product and object names, and delete the parenthetical about template phrasing."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL does exactly what this advice says not to do: every branch has `| head 100` straight after a single-row stats.",
+      "field": "detailedImplementation",
+      "quote": "**add** an **explicit** `| head 100` **on** **each** **append** **branch** **that** **still** **could** **emit** **wide** **pre**-**agg** **rows** **(not** after **a** **single**-**row** `stats` **on** a **KPI** **grain**)",
+      "severity": "minor",
+      "suggested_fix": "Either note that the head guards in the SPL are redundant, or change the guidance to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Maintenance windows and synthetic probes do not produce false RED tiles on an executive scorecard. The real causes are listed in Step 5: KPI definition drift (gross vs net), fiscal vs civil month, FX translation, late ERP batches, CRM cutover silence and role-driven empty tiles.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'CEO/CFO Business Health Scorecard' shifts `openpipe`, `current_value` over `span=1h` while `kpi_name` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with the Step 5 causes and their guard searches."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent with no finance SME sign-off, and the revenue and pipeline formulas have unvalidated definitional problems (see the SPL flags).",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until the controller has reconciled the KPIs to the board pack."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "'Health wheel' and 'Threshold bar' do not appear to be standard ITSI Glass Table visualization names.",
+      "field": "visualization",
+      "quote": "**Health wheel** for a composite 0–100, **Threshold bar** where a static target line matters",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the ITSI Glass Table editor's visualization list and use its exact names (for example single value, single value delta, line chart)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "spelling",
+      "explanation": "The table is ACDOCA, not ACDOCS, and the URL is only the SAP Help root.",
+      "field": "references",
+      "quote": "SAP Help — universal journal (ACDOCS / line items context)",
+      "severity": "minor",
+      "suggested_fix": "Correct it to ACDOCA and link the SAP Help page for the Universal Journal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Dell EMC storage has nothing to do with an executive KPI scorecard.",
+      "field": "equipment",
+      "quote": "\"dell_emc\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `dell_emc`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "revenue_mtd uses `earliest=-1mon@mon`, which snaps to the start of the previous month. The value is therefore last month plus month-to-date, not MTD. Use `earliest=@mon`, or a fiscal-period POPER filter.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In ACDOCA, revenue postings are credits stored as negative HSL/KSL values. `sum(HSL)` on revenue accounts would then be negative, so `current_value>=threshold_amber` is never met and the tile is always RED. `^4[0-9]{4,6}` also assumes RACCT has no leading zeros, but SAP stores numeric G/L accounts as zero-padded CHAR(10). Check both against the S/4HANA extract.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The BLART filter includes RE (in SAP standard, the MM vendor invoice) and DZ (customer payment), which are not revenue documents, and leaves out DR (customer invoice). Confirm the document types with controlling.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "pipeline_coverage is calculated as open pipeline ÷ won amount over 90 days. Coverage is normally open pipeline ÷ remaining quota/target. The salesforce:opportunity snapshots are also not deduped by Id, so repeated polls of the same opportunity inflate both open and won sums.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sum(eval(band=\"P\"))` sums a Boolean comparison. The usual idiom is `count(eval(band=\"P\"))`, so check that sum returns counts rather than null. Missing scores are also coalesced to \"0\" and counted as detractors.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0047-UC-23.8.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "A sensible executive-scorecard design with good troubleshooting content. However, the SPL's KPI math has several finance-level errors (MTD window, revenue sign and account filter, pipeline coverage formula, no snapshot dedup), and the detailed implementation is bolded word by word to the point of being unreadable, with leftover generator instructions.",
+  "tier": "deep",
+  "uc_id": "UC-23.8.1",
+  "verdict": "rewrite"
+}

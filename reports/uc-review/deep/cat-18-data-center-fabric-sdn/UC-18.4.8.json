@@ -1,0 +1,92 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "f156625a9175baacd5595ae2d80a5c96244c27e32c00d6fc37a80cc337c4735f",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.8.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/support-apis/eox/",
+      "explanation": "The Cisco EoX Support API is served at https://apix.cisco.com/supporttools/eox/rest/5/EOXByProductID/{pageIndex}/{productID} (with sibling EOXBySerialNumber / EOXBySWReleaseString methods). The URL given does not exist, so the lookup refresh step cannot be built as written.",
+      "field": "detailedImplementation",
+      "quote": "schedule a weekly refresh from **Cisco EoX API** responses at https://api.cisco.com/software/eol/v2/lifecycle/products",
+      "severity": "blocker",
+      "suggested_fix": "Use GET https://apix.cisco.com/supporttools/eox/rest/5/EOXByProductID/1/{PID list}?responseencoding=json, and map LastDateOfSupport.value to ldos_date and EndOfSaleDate.value to eos_date."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "In NDFC 12 automation (for example the cisco.dcnm collection), the all-switch inventory is usually .../lan-fabric/rest/inventory/allswitches and the per-fabric roster .../control/fabrics/{fabric}/inventory/switchesByFabric. Neither path as written is confirmed in the NDFC API reference.",
+      "field": "dataSources",
+      "quote": "**`GET /appcenter/cisco/ndfc/api/v1/lan-fabric/rest/inventory/switches`** (all managed switches) and **`GET /appcenter/cisco/ndfc/api/v1/lan-fabric/rest/control/fabrics/{fabric}/inventory`** (per-fabric roster)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check both paths against the NDFC 12.x LAN Fabric API reference and correct them in dataSources, implementation and detailedImplementation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The NDFC API and NDFC configuration guide references point at the site roots developer.cisco.com/docs/ and cisco.com/c/en/us/, so a reader cannot reach the cited documents.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco NDFC Fabric Controller configuration guide — inventory and LAN fabric operations\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the NDFC 12.x REST API reference and the 'LAN Fabric > Switches / Inventory' chapter of the NDFC configuration guide."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "The NDFC 12 train ran 12.0 to 12.2.x before NDFC folded into unified Nexus Dashboard 4.x. '12.4.x' may not be a real NDFC release.",
+      "field": "hardware",
+      "quote": "**Nexus Dashboard** cluster hosting **NDFC** **12.4.x** **LAN Fabric** application",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite a real NDFC release (for example 12.1.3 / 12.2.x) or the Nexus Dashboard 4.x unified release."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "NX-OS logs to facility local7 by default, and sibling UCs 18.4.5/18.4.6 say local7. dataSources repeats local6.",
+      "field": "detailedImplementation",
+      "quote": "forward facility=local6 lines from NDFC and switches",
+      "severity": "minor",
+      "suggested_fix": "Say local7 (the NX-OS default), or tell readers to match the facility on their `logging server` command."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, two of the four reg_risk lanes can never fire, and the EoX URL is wrong. The UC was not exercised end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL and the lookup refresh have been tested."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "reg_risk is evaluated after `stats ... latest(managed_key) AS managed_status latest(oper_key) AS oper_status ... BY dev_name`, but it tests `managed_key` and `oper_key`. Those fields no longer exist after stats, so 'registration_gap' and 'reachability_alert' can never be assigned. Test `managed_status` and `oper_status` instead.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`dev_name=coalesce(hostname, host, ...)` falls back to Splunk's default `host` metadata, which is always present. On fabric_status and audit events, and on any inventory record missing `hostname`, dev_name becomes the collector's host. Unrelated switches collapse into one row, and spurious eox_lookup_miss rows appear. Because model_key defaults to \"\", `isnotnull(model)` is always true, so the 'no_model' lane is unreachable.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0070-UC-18.4.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The inventory and EoX lifecycle design is practical and well explained, but the SPL never raises the registration_gap or reachability_alert lanes because it tests fields that stats has already dropped. It also coalesces Splunk's default `host` field as the device name. The Cisco EoX API URL given for building the lookup is wrong.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.8",
+  "verdict": "incorrect"
+}

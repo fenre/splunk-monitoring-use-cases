@@ -1,0 +1,120 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "6850d53e37c4f322f103482e25931f5065fe539ee991d20c1f1fee06a1954745",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.11.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 (replaced by Endpoint), and neither it nor Endpoint describes Kubernetes pod-spec compliance; only the namespace-label change search loosely fits Change.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Change\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State; keep Change only if the namespace label-change events are mapped to Change.All_Changes fields, otherwise leave cimModels empty."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and Splunk directs users to the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 in the cached catalogue), whose k8sobjects receiver can pull pods and namespaces.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for pod status and event collection; ... — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name only the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264), using the k8sobjects receiver for pods/namespaces and k8s events; drop SCK or mark it legacy."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "`kube:pod:status` and `kube:namespace:labels` are not default sourcetypes of either collector (SCK objects use `kube:objects:<kind>`), the grounding guide names OPA/Kyverno reports (`opa:decision`, `kyverno:report`) as the source for sidecar-injection state, and SCK is not a modular input.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=kube:pod:status`** ... **`sourcetype=kube:namespace:labels`** ... Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "Use the sourcetype your collector actually assigns for pod and namespace objects (for example `kube:objects:pods` / `kube:objects:namespaces` via k8sobjects) or align with the guide's Kyverno/OPA report source, and describe the collection mechanism accurately."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The check reads the pod spec container list; a crashed or CrashLoopBackOff istio-proxy is still listed in the spec, so a crash cannot produce this state (the text itself later says presence is not health). The likelier causes are native-sidecar mode (istio-proxy moved to initContainers) or mis-parsed container lists.",
+      "field": "detailedImplementation",
+      "quote": "**INIT_PRESENT_SIDECAR_MISSING**: the **istio-init** container ran but **istio-proxy** is not present — this may indicate the sidecar container **crashed during startup**",
+      "severity": "major",
+      "suggested_fix": "Explain that this state usually means the proxy is defined as a native sidecar in initContainers or the snapshot is incomplete, and check initContainers before flagging."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The k8s_cluster receiver emits cluster metrics and entity metadata; collecting full namespace objects with labels is normally done by the k8sobjects receiver. Also, with Istio native sidecars enabled, istio-proxy appears under spec.initContainers and the containers-only check would flag every injected pod.",
+      "field": "detailedImplementation",
+      "quote": "the **OTel Collector**'s **k8s_cluster receiver** collects namespace metadata including labels",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the OpenTelemetry k8s_cluster and k8sobjects receiver docs for which one exposes namespace labels, and check whether the target Istio version enables native sidecars by default."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/setup/additional-setup/sidecar-injection/",
+      "explanation": "Current Istio documentation uses the `sidecar.istio.io/inject` label (the annotation form is legacy), and an opted-out pod would be classified INJECTION_BYPASSED even though it is an intended exemption.",
+      "field": "detailedImplementation",
+      "quote": "kubectl run no-sidecar --image=nginx --overrides='{\"metadata\":{\"annotations\":{\"sidecar.istio.io/inject\":\"false\"}}}'",
+      "severity": "minor",
+      "suggested_fix": "Use `--labels sidecar.istio.io/inject=false` for the test and add an exemption branch for pods that carry the opt-out label/annotation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL only returns non-compliant pods and hardcodes `compliance_pct=0` without outputting it, so no search supplies the denominator for a compliance percentage.",
+      "field": "visualization",
+      "quote": "Compliance gauge (% pods with sidecar in injection-enabled namespaces)",
+      "severity": "minor",
+      "suggested_fix": "Add a companion search that counts all pods per injection-enabled namespace, or describe only the non-compliant count panels."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Reviewer is an automated agent and the content has factual errors; there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Unquoted dotted field names in eval (`metadata.namespace`, `metadata.name`, `spec.containers`, `ownerReferences.kind`) are parsed with `.` as the string-concatenation operator, not as field names; they must be wrapped in single quotes (e.g. 'metadata.namespace'), otherwise the coalesce fallbacks return wrong values.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`has_init` matches istio-init/istio-validation against the `containers` list, but these are init containers (spec.initContainers), so the INIT_PRESENT_SIDECAR_MISSING branch never fires unless init containers are merged into the field.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "field": "spl",
+      "issue": "The injection-rate variant sums cumulative counter values per hour with an event search over otel:metrics; Splunk OTel metrics land in a metrics index queried with mstats, and counters need deltas (e.g. rate_sum / last-minus-first) rather than sum(metric_value).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0107-UC-3.5.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The injection-mode and exemption narrative is useful, but the UC maps to a deprecated CIM model, depends on the end-of-support Splunk Connect for Kubernetes and invented sourcetypes, misreads what an 'init present, sidecar missing' pod means, and the SPL's dotted field references are evaluated as string concatenation.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.11",
+  "verdict": "incorrect"
+}

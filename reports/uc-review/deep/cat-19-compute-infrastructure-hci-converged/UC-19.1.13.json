@@ -1,0 +1,108 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "8f6f56ac9778e707950fd2ef91b1314b58f3ad31c55e57dcee2cb94f6c1ec267",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The add-on assigns every event the sourcetype `cisco:ucs`, with the class in `source`. Its documentation lists `cisco:ucs:etherErrStats` and `cisco:ucs:etherRxStats` as sources, not a `cisco:ucs:stats` sourcetype, and it has no separate 'statistics modular input'. The detailedImplementation claim that `cisco:ucs:stats` is 'the only statistics sourcetype you should see' is wrong for the same reason.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:ucs:stats` from the Splunk Add-on for Cisco UCS. The statistics modular input polls UCS Manager for managed-object classes including `classId=etherErrStats`",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `sourcetype=cisco:ucs` with `source=cisco:ucs:etherErrStats`, `cisco:ucs:etherRxStats` and `cisco:ucs:fabricEthLanPcEp`, collected by an Input whose Template lists those class IDs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherErrStats.html",
+      "explanation": "UCSM's etherErrStats class exposes `fcs`, `align`, `rcv`, `xmit`, `outDiscard`, `underSize`, `deferredTx`, `intMacRx`/`intMacTx` and `*Delta` variants (for example `fcsDelta`, `alignDelta`). etherRxStats exposes `totalPackets`, `unicastPackets` and so on. None of the names used throughout the UC (`crcAlignErrs`, `fcsErrs`, `outDiscardEarly`, `rcvErrs`, `unicastRx`, `totalRx`) exist, so every coalesce falls back to 0 or null.",
+      "field": "detailedImplementation",
+      "quote": "Field spelling: sample three etherErrStats events and add any alternate spellings to **coalesce()** in the spl. The UCS API and add-on generally emit camelCase keys",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the field guidance around the real attributes: `fcs`/`align` (or `fcsDelta`/`alignDelta`) for the numerator and `totalPackets`/`totalPacketsDelta` for the denominator. Note that UCSM already publishes per-interval `*Delta` values, which removes most of the streamstats reset logic."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The canonical folder and package name is `Splunk_TA_cisco-ucs` (hyphen). 4.3.1 is only listed as compatible with Splunk 9.1 to 9.4. The current release is 4.3.3.",
+      "field": "app",
+      "quote": "v4.3.1 class of releases on Splunk Enterprise 9.1 through 10.2 and Splunk Cloud). The canonical app id on disk is `Splunk_TA_cisco_ucs` (underscore).",
+      "severity": "blocker",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs`, cite 4.3.3, and copy the compatibility table from the release notes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The add-on is configured in its own UI under Configuration > Managers and Templates, plus Inputs. There is no 'Cisco UCS statistics input' with an MO checkbox list, and the documentation explicitly says Deployment Server is not supported for the configured add-on because it causes duplicate collection.",
+      "field": "detailedImplementation",
+      "quote": "In Splunk Web → Settings → Data inputs, open the Cisco UCS statistics input, set host, port 443, index, and the enabled MO list ... (or a **Deployment Server** app overlay)",
+      "severity": "major",
+      "suggested_fix": "Describe adding the class IDs to a Template, binding it to an Input on the heavy forwarder, and not distributing configured inputs via Deployment Server."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The sample threshold CSV pairs Fabric Interconnect models with port speeds they do not support. The 6248UP has 1/10G unified ports only, and the 6332-16UP has 40G QSFP plus 10G unified ports, not 25G.",
+      "field": "detailedImplementation",
+      "quote": "UCS-6248UP,40,0.12,0.7,QSFP/QSFP+ breakouts ... UCS-6332-16UP,25,0.1,0.5,25G SFP",
+      "severity": "minor",
+      "suggested_fix": "Seed the CSV only with speed and model combinations from the FI data sheets, or mark the rows as placeholders."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The XML API reference points to the Cisco home path, not the class reference its title names.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCSM XML API programmer's guide or the ucsmsdk EtherErrStats and EtherRxStats class pages."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "A search keyed on non-existent attribute names cannot have been validated against UCSM data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set a non-verified status."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters `sourcetype=\"cisco:ucs:stats\"` (main and join), which the Splunk Add-on for Cisco UCS does not emit; its events are `sourcetype=cisco:ucs` with `source=cisco:ucs:etherErrStats` and similar.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/ether/EtherErrStats.html",
+      "field": "spl",
+      "issue": "The counters read via `coalesce(crcAlignErrs, ...)`, `fcsErrs`, `outDiscardEarly`, `rcvErrs` and `unicastRx`/`totalRx` do not exist on UCSM etherErrStats/etherRxStats, whose attributes are `fcs`, `align`, `outDiscard`, `rcv`, `xmit` (plus `*Delta`) and `totalPackets`/`unicastPackets`. Every delta evaluates to 0 and `error_rate_per_million` can never cross a threshold.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The `rex` expects `sys/switch-X/slot-N/(switch-)?(eth|aggr)-port-N`, but FI Ethernet port DNs normally look like `sys/switch-A/slot-1/switch-ether/port-17` (with the stats child `err-stats`). If so, `fi`, `slot` and `port` stay null. Verify against real DNs.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-19.1.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The per-member error-rate concept and the counter-reset reasoning are well explained, but the search reads etherErrStats/etherRxStats attribute names that UCSM does not have (`crcAlignErrs`, `fcsErrs`, `unicastRx`, ...) and a `cisco:ucs:stats` sourcetype the add-on does not emit. As written it can never produce a non-zero error rate. The add-on folder name, version support and input workflow are also misstated.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.13",
+  "verdict": "incorrect"
+}

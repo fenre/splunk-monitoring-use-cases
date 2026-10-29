@@ -1,0 +1,127 @@
+{
+  "confidence": 0.72,
+  "content_sha256": "ff00d05e1e1ca2dc5b7b96d40cf9b7d2686219301f3a7d86d79095db9f882e43",
+  "file": "content/cat-23-business-analytics/UC-23.2.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "UC-23.2.3 is 'Customer Churn Prediction and Early Warning', and no sibling in 23.2 covers Oracle Fusion, NetSuite or Workday revenue, so the cross-reference sends readers to the wrong place. The same field also calls `MANDT` (the SAP client) a company-code filter.",
+      "field": "exclusions",
+      "quote": "Non-SAP ERPs (use UC-23.2.3+ for Oracle Fusion, NetSuite, Workday)",
+      "severity": "major",
+      "suggested_fix": "Drop the UC pointer, or point to an existing non-SAP revenue UC if one exists. Express company-code exclusions on BUKRS, not MANDT."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The text presents run output (last_run, count=42) as if observed, and it writes to the ES `notable` index even though the UC requires no Enterprise Security. The cron also contradicts detailedImplementation, which says to schedule at `0 6 * * *` after the FARR batch.",
+      "field": "evidence",
+      "quote": "Saved search `sap_uc2322_book_recognize_alignment` (cron `0 */4 * * *`, last_run=2026-05-12T08:00:00Z, count=42) ... written to `notable`",
+      "severity": "major",
+      "suggested_fix": "Describe the evidence an auditor should retain (saved-search definition, a period-close result export with BUKRS/period/delta, and the Finance sign-off), with no fabricated run metadata. Align the schedule with detailedImplementation."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "SAP Revenue Accounting and Reporting (RAR) tables are usually documented as FARR_D_POB, FARR_D_DEFITEM, FARR_D_POSTING and similar; `FARR_D_REVCALC` and the columns RECOGNIZED_AMOUNT/DEFERRED_AMOUNT do not match known RAR table names and look like a projected view presented as a standard table.",
+      "field": "dataSources",
+      "quote": "`sourcetype=dbx:sap_farr_revcalc` from Splunk DB Connect SQL over VBRK and FARR_D_REVCALC ... RAR extract: `POB_ID`, `POSTING_DATE` or `BUDAT`, `RECOGNIZED_AMOUNT`, `DEFERRED_AMOUNT`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the RAR data dictionary (SE11) for the real table or CDS view that holds recognized amounts per POB and period. Either name it, or state clearly that FARR_D_REVCALC and these columns are a customer-built SQL view."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "BKPF-BSTAT values are things like blank (normal), V (parked), S (noted item) and A/B (clearing); 'C' as final and 'I' as incomplete do not appear to be standard. VBUK was removed in S/4HANA, where status fields moved into the header tables, so VBUK.GBSTK is an ECC-era reference.",
+      "field": "detailedImplementation",
+      "quote": "treat items with BSTAT C on the controlling document as final for the control, and exclude documents that remain BSTAT I (incomplete) or that show VBUK.GBSTK B (partial billing)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the BSTAT domain values in SE11 and use the S/4HANA status field on VBAK/VBRK (for example GBSTK on the document header) in place of VBUK."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Neither `RBC_FARR_INVOICE_PROCESS` nor `RKE-AKK` matches known SAP program or transaction names. RAR batch processing is normally referenced through transactions such as FARR_RAI_PROC and the revenue posting run, so these names look invented.",
+      "field": "detailedImplementation",
+      "quote": "typical **SM37** jobs include RBC_FARR_INVOICE_PROCESS ... unless finance reruns RKE-AKK or the equivalent realignment program",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace them with the actual RAR job or program names from the customer's SM37 (or SAP Help for RAR) and the actual currency-realignment program, or describe them generically ('your RAR posting job')."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "In the SAP standard exchange-rate types, M is the average rate, B is the bank selling rate and G is the bank buying rate, so 'B for bank buying' appears to be reversed.",
+      "field": "detailedImplementation",
+      "quote": "document the **TCURR** rate type (M for monthly average versus B for bank buying",
+      "severity": "needs_verification",
+      "suggested_fix": "Check transaction OB07 / table TCURV and correct the description of rate type B (and use G if bank buying is meant)."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "API_BILLING_DOCUMENT_SRV is a published S/4HANA API. The journal-entry service is published as API_JOURNALENTRYITEMBASIC_SRV (the suffix is missing here), and no published API named API_REVENUE_RECOGNITION_SRV could be confirmed.",
+      "field": "implementation",
+      "quote": "OData (API_BILLING_DOCUMENT_SRV, API_JOURNALENTRYITEMBASIC, API_REVENUE_RECOGNITION_SRV)",
+      "severity": "needs_verification",
+      "suggested_fix": "Look each service up on api.sap.com and use the exact published names. Remove the revenue-recognition service if none exists."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL produces `net_billings`; it never computes `gross_billings`.",
+      "field": "detailedImplementation",
+      "quote": "three single-value panels for current-period gross_billings, current-period recognized_revenue",
+      "severity": "minor",
+      "suggested_fix": "Use net_billings, or add a gross billings measure to the search and describe it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The status claims verification, but the reviewer is an automated agent and the UC contains unverified SAP identifiers.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until an SAP FI/RAR SME validates the table, program and status-field names."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "When a billing document is cancelled in SAP, the original F2 is flagged FKSTO='X' and a separate S1 document is created. The SPL drops the cancelled F2 (FKSTO filter) and also subtracts the S1 amount, so each cancellation reduces net_billings twice.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Billing is aggregated by period, BUKRS, VKORG and WAERK (document currency), but the joined recognized_revenue is per period and BUKRS only, in local currency. Every VKORG/WAERK row gets the full company recognized amount, so book_vs_recog_delta mixes currencies and grains and is not meaningful below company code.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`strptime(FKDAT, \"%Y-%m-%d\")` assumes ISO dates. SAP DATS fields read raw from VBRK over JDBC are usually 8-character YYYYMMDD strings, in which case _time and bill_period are null and every row drops out of stats. Check the DB Connect output format.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "title",
+      "issue": "The title says 'Bookings', but the SPL measures billing documents (VBRK). Bookings are normally sales-order intake (VBAK/VBAP). The title should say 'Billings', or the SPL should add order intake.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0010-UC-23.2.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has a deep SAP-flavoured implementation guide, but it mixes real objects (VBRK, FKART F2/G2/S1, VF03, FAGLL03, T009/T009B) with several SAP identifiers that look invented. Its evidence block reports fabricated run results, its exclusions point at the wrong sibling UC, and the SPL double-counts cancellations and compares sales-org billing with company-wide recognized revenue in different currencies.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.2",
+  "verdict": "rewrite"
+}

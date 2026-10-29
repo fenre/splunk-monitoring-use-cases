@@ -1,0 +1,100 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "38c19dcbb2705a45588dc267d9824920e8cc003b6ccd1d9164bab24928074eb0",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.22.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "explanation": "`cisco:intersight:metrics` is one of the add-on's documented sourcetypes and carries the device metrics. `cisco:intersight:equipmentpsustats`, `equipmentchassisstats`, `processorenvironmentstats`, `psumetricsplatform`, `thermalmetricsplatform` and `iwo:metrics` are not published by the Cisco Intersight Add-on for Splunk.",
+      "field": "dataSources",
+      "quote": "A legacy placeholder name `cisco:intersight:metrics` (sometimes seen in old drafts) is not a single canonical label in current TA 7828 documentation",
+      "severity": "blocker",
+      "suggested_fix": "Name `cisco:intersight:metrics` as the primary source (and `cisco:intersight:custom:metrics` for custom telemetry queries), and drop the invented per-class sourcetypes."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/docs/intersight/supported-metrics-overview/",
+      "explanation": "Intersight exposes power and thermal readings through its telemetry metrics: `hw.power`, `hw.power_out`, `hw.host.power` and `hw.temperature` on hw.power_supply and hw.temperature entities. Not documented: equipment.PsuStats, equipment.ChassisStats and processor.EnvironmentStats MOs with OutputPower/AmbientTemp fields. Those look like UCS Manager stats class names.",
+      "field": "dataSources",
+      "quote": "Events carry Cisco-style JSON fields: OutputPower, OutputCurrent, Power, Temperature, Dn",
+      "severity": "major",
+      "suggested_fix": "Describe the metric names and dimensions that `cisco:intersight:metrics` actually carries (for example `hw.host.power` per host, `hw.temperature` per sensor), confirmed with `fieldsummary` on a real event."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The input pattern and the claim that the add-on lowercases MO class names into sourcetypes are not documented add-on behaviour. The add-on exposes 'device metrics' and 'network metrics' inputs that write to `cisco:intersight:metrics`.",
+      "field": "detailedImplementation",
+      "quote": "# mo_class_filter = equipment.PsuStats,equipment.ChassisStats,processor.EnvironmentStats",
+      "severity": "major",
+      "suggested_fix": "Tell readers to enable the add-on's metrics input on its Inputs page, and remove the invented stanza keys."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "IMM (Intersight Managed Mode) is the FI-attached mode. Stand-alone C-Series servers claimed directly are Intersight Standalone Mode, and 'Intersight Direct' is not the product term. The B200 M7 listed here likely does not exist (see the sibling firmware UC).",
+      "field": "hardware",
+      "quote": "Covers UCS managed through Fabric Interconnects and Intersight Direct (IMM) stand-alone servers",
+      "severity": "minor",
+      "suggested_fix": "Use 'Intersight Managed Mode (FI-attached)' and 'Intersight Standalone Mode (C-Series)', and check the B-Series model list."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The add-on does not CIM-map Intersight metrics to Performance.Facilities. The CIM path only works after custom mapping, and the cimSpl as written does not work even then.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "minor",
+      "suggested_fix": "Say that Performance applies only after a site-built CIM mapping of `cisco:intersight:metrics` to Facilities (power in kW, temperature in °C)."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "None of the five sourcetypes in the SPL is published by the add-on, so the search cannot have been verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until validated against `cisco:intersight:metrics` data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "field": "spl",
+      "issue": "The base search unions `cisco:intersight:equipmentpsustats`, `psumetricsplatform`, `equipmentchassisstats`, `processorenvironmentstats` and `thermalmetricsplatform`. None is published by the Cisco Intersight Add-on for Splunk, and the real metrics sourcetype `cisco:intersight:metrics` is excluded.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`peak_temp_c` mixes inlet, CPU and PSU temperatures, and `stats max(peak_temp_c)` per chassis then picks the hottest, normally the CPU at 60–90 °C. That value is compared with `max_inlet_c+5` (default 27+5), so practically every chassis with CPU data is labelled critical. Inlet and CPU temperatures need separate maxima and separate thresholds.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "`Performance.Facilities.temperature_celsius` and `Performance.Facilities.power_load_watts` are not CIM fields; Facilities defines `temperature` (°C), `power` (kW) and `fan_speed`. The nodename should be `All_Performance.Facilities`. Also, `prestats=true` with `as` aliases followed by `stats first(...)` does not return the aliased fields.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`fillnull value=5000 pdu_circuit_max_watts` silently applies an arbitrary 5 kW budget to every chassis that is missing from the lookup. Per-PSU `OutputPower` (one leg) is also compared against a whole-circuit budget whenever chassis-level power is absent.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-19.1.22",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A fleet power and thermal UC that gets the add-on's data model backwards. It dismisses `cisco:intersight:metrics`, which is the add-on's actual metrics sourcetype (Intersight `hw.power`/`hw.temperature` telemetry), and instead unions five sourcetypes the add-on does not publish. The cimSpl uses Performance.Facilities fields that do not exist, and the SPL compares CPU temperatures against inlet limits, so every row is critical.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.22",
+  "verdict": "incorrect"
+}

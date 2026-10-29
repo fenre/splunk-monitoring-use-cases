@@ -1,0 +1,157 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "dd0a18ab63e01bdab60520ca00ad805a7d981cc126a73e2b1f6bec494bc17295",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.23.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/1897",
+      "explanation": "Splunkbase 4022 is the 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. The legacy ACI add-on was TA_cisco-ACI (1897, archived). Its replacement, Cisco DC Networking (7777), uses cisco:dc:aci:* sourcetypes, and no shipped add-on produces cisco:aci:apic_health or cisco:aci:proc_stats. The same ID recurs in implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022)) for **`cisco:aci:apic_health`**, **`cisco:aci:proc_stats`**",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (7777) or a REST input (1546) as the collector, and state that cisco:aci:proc_stats and cisco:aci:apic_health are operator-defined sourcetypes for procEntity and eqptStorage polls. Remove 4022."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220840-address-aci-faults-f1527-f1528-f1529.html",
+      "explanation": "procEntity correctly exposes cpuPct, maxMemAlloc and memFree. eqptStorage, however, is one object per mount point (for example /firmware, /techsupport, /data2), with used and available in KB and capUtilized as a percentage. It has no diskUsed or inodePct attribute, and one APIC has many storage rows. The text never says to keep the mount dimension or to use capUtilized.",
+      "field": "dataSources",
+      "quote": "Primary class queries: **`GET https://<apic>/api/class/procEntity.json`** and **`GET https://<apic>/api/class/eqptStorage.json`**. Key Splunk fields: **`apic_id`**, **`cpuPct`**, **`memFree`**, **`diskUsed`**, **`inodePct`**.",
+      "severity": "major",
+      "suggested_fix": "Map diskUsed to eqptStorage capUtilized, keep the mount/fileSystem as a split field, and derive apic_id from the DN (topology/pod-X/node-Y/...). Describe memFree relative to maxMemAlloc."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "cpuPct and memFree are documented on procEntity. procSysLoad is a switch/NX-OS system-load class whose attributes are load averages, not cpuPct or memFree, and it is not shown to exist on APIC controllers. No APIC class that exposes inode utilisation is cited, yet inodePct is a headline metric and the grandmaExplanation promises 'file-table space'.",
+      "field": "dataSources",
+      "quote": "**procEntity** / **procSysLoad** samples exposing **`cpuPct`**, **`memFree`**, and load facts",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm in Visore on an APIC (https://<apic>/visore.html) whether procSysLoad and any inode attribute exist on controller nodes. If not, drop inode from the scope or source it from APIC syslog or an on-box collector."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detailedImplementation Alert rule does not match the description or the SPL. The SPL fires on any single threshold breach with no consecutive-window logic, no fault or syslog gating, and an undocumented extra branch (isnull(roll_mem) AND roll_disk>=78). The description lists only the four simple thresholds.",
+      "field": "cross_field",
+      "quote": "Fire when **roll_disk** ≥85% or **roll_inode** ≥85% for two consecutive evaluation windows, or **roll_cpu** ≥88% with open_res_faults > 0, or **roll_mem** ≤768 MB (tune per model) with matching **syslog_res_hits**.",
+      "severity": "major",
+      "suggested_fix": "Pick one alert definition and state it identically in description, detailedImplementation and SPL, including the roll_disk>=78 fallback if it stays."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/4-x/rest-api-config/Cisco-APIC-REST-API-Configuration-Guide-411/Cisco-APIC-REST-API-Configuration-Guide-411_chapter_0110.html",
+      "explanation": "The threshold assumes memFree is in MB. Cisco documents memFree only as 'the maximum amount of available memory' (proc:ProcMem, Uint64) without units. APIC storage counters are in KB, so if memFree is also in KB, a 768 threshold never fires on any APIC appliance.",
+      "field": "description",
+      "quote": "`roll_mem` <= 768",
+      "severity": "needs_verification",
+      "suggested_fix": "Check memFree units against a live procEntity response and express the threshold as a percentage of maxMemAlloc, or in the confirmed unit."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Metadata",
+      "explanation": "metadata accepts type=hosts, type=sources or type=sourcetypes. type=sourcetype is invalid.",
+      "field": "detailedImplementation",
+      "quote": "Run `| metadata type=sourcetype index=cisco_aci`",
+      "severity": "minor",
+      "suggested_fix": "Use `| metadata type=sourcetypes index=cisco_aci`."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "explanation": "APIC has no 'NETWORK' role. Read-only monitoring normally uses the read-all role in the 'all' security domain.",
+      "field": "detailedImplementation",
+      "quote": "Create read-only APIC accounts with NETWORK-style roles",
+      "severity": "minor",
+      "suggested_fix": "Specify a local or remote APIC user with role read-all (privilege read) in security domain all."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "APIC appliance generations are released in matching M/L pairs (M3/L3, M4/L4). An 'L5' model is not known, and the M3/L4 mix looks guessed.",
+      "field": "hardware",
+      "quote": "Cisco APIC M3/L4/L5 cluster appliances (three-node production minimum)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco APIC hardware datasheet and list the actual supported appliance models."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "APIC clusters can have three or more controllers, and the explanation leaves out CPU, which is the first alert condition in the SPL.",
+      "field": "grandmaExplanation",
+      "quote": "We watch the three policy computers that steer your fabric and warn you when they run short on memory, disk, or file-table space",
+      "severity": "minor",
+      "suggested_fix": "Say 'the controller computers (usually three or more)' and mention 'busy processors' alongside memory and disk."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The 'Cisco APIC REST API Class Queries (KB)' reference points to the cisco.com home page. The 4022 entry is labelled 'Splunk Add-on for Cisco ACI', but that ID is an unrelated Nmon add-on. The most relevant vendor documents (the APIC CPU/memory REST monitoring chapter and the F1527/F1528/F1529 storage fault note) are missing.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the APIC REST API Configuration Guide 'Monitoring APIC CPU and Memory Usage' section and Cisco doc 220840 on F1527/F1528/F1529. Replace the 4022 reference with 7777."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The add-on ID, the storage field mapping, the inode source and the memFree units all fail verification against vendor documentation, so 'verified' is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft or community until tested against a live APIC procEntity and eqptStorage feed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The detection is a Performance-style resource threshold. Alerts and Change apply only to the contextual join lanes, and the SPL does not use any data model.",
+      "field": "cimModels",
+      "quote": "\"Alerts\",\n    \"Change\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Performance (CPU, Memory, Storage datasets) and drop Alerts and Change, or explain that they are context-only."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/software/aci-data-center/220840-address-aci-faults-f1527-f1528-f1529.html",
+      "field": "spl",
+      "issue": "The fault join misses APIC's native storage-exhaustion faults. F1527, F1528 and F1529 carry cause 'equipment-full' and descr 'Storage unit /<mount> on node N ... is NN% full'. The regex looks for procEntity|eqptStorage|disk|inode|flash|memory, and code-based matching tests for words rather than fault codes, so these faults are not counted.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/4-x/rest-api-config/Cisco-APIC-REST-API-Configuration-Guide-411/Cisco-APIC-REST-API-Configuration-Guide-411_chapter_0110.html",
+      "field": "spl",
+      "issue": "Field normalisation mixes incompatible semantics. diskUsed coalesces availDisk (free space) and storageUsed alongside used-percent fields. inodePct coalesces inodeUsed (a count). cpuPct coalesces load averages (loadAvg5m, procSysLoad5min), which are not 0–100 percentages. eqptStorage capUtilized is absent. latest(diskUsed) by apic_id collapses all mount points into whichever row arrived last. apic_id never parses the DN (procEntity has no node attribute), so rows may be dropped by len(apic_id)>0.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eventstats",
+      "field": "spl",
+      "issue": "eventstats by apic_id keeps every 5-minute bucket row, so a breaching APIC returns up to 24 duplicate rows in the 2h window. The three joins use a constant join_key and are therefore fabric-wide, not per apic_id. The syslog filter includes 'apic|proc', which matches almost every APIC syslog line.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0015-UC-18.1.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The intent (watch APIC CPU, memory and storage) is sound and procEntity is the right class. However, the UC names a non-ACI add-on (4022), misdescribes eqptStorage, and relies on an inode metric that APIC REST is not shown to expose. Its SPL misses the native APIC storage-full faults (F1527/F1528/F1529) and mixes non-percentage fields into percentage thresholds.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.23",
+  "verdict": "incorrect"
+}

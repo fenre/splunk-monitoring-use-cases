@@ -1,0 +1,134 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e99fff5a05a0f6c77979c5a17f67989980706da0d8edf2ce4c0e3a9c4bc3d1f9",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.13.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunk Connect for Docker is a logging plugin that forwards container stdout/stderr. It does not stream Engine API events, so the primary data source cannot be obtained as described. The app field and detailedImplementation Step 1 ('Enable the Docker Events modular input in Splunk Connect for Docker') repeat the claim.",
+      "field": "dataSources",
+      "quote": "Primary stream is index=docker sourcetype=docker:events from Splunk Connect for Docker (Splunkbase 4496) with Docker Engine API actions start, die, and restart",
+      "severity": "blocker",
+      "suggested_fix": "Collect docker:events with a `docker events --format '{{json .}}'` systemd unit tailed by a Universal Forwarder, or with a custom scripted/modular input, as in the subcategory guide. Keep Splunk Connect for Docker for container logs only."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "Asterisk is a VoIP PBX and has nothing to do with Docker restart loops.",
+      "field": "equipment",
+      "quote": "\"asterisk\"",
+      "severity": "major",
+      "suggested_fix": "Remove 'asterisk'. Keep docker and linux, plus opentelemetry/syslog only if those collection paths are retained."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Docker lifecycle events are not CPU or memory performance data, and the SPL uses no CIM model. The mapping misdescribes the detection.",
+      "field": "cimModels",
+      "quote": "\"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty, or describe Performance only as optional host-saturation context outside the detection."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "I could not confirm that dockerd logs this exact message for restart-policy restarts. If the string is wrong, the cross-validation search returns nothing.",
+      "field": "dataSources",
+      "quote": "strings like level=info msg=\"restarting container\" container=<id> appear",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture dockerd journal output during a `--restart=always` lab loop and quote the actual message text."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/engine/containers/start-containers-automatically/",
+      "explanation": "Docker documents the doubling delay for restart policies generally, not only for on-failure. It also resets the delay once a container stays up long enough. Attributing backoff only to on-failure misleads when interpreting `always` loops.",
+      "field": "hardware",
+      "quote": "on-failure accepts an optional maximum retry count and uses exponential backoff starting near 100 milliseconds doubling each attempt",
+      "severity": "minor",
+      "suggested_fix": "State that the increasing delay applies to all restart policies and mention the reset behaviour, citing Docker's restart-policy page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The closing checklist and the 'Supplemental engineering notes' and '... alignment' paragraphs are generic template filler aimed at the authoring pipeline. Examples: 'when switching to Docker Model Runner', 'when moving collectors to ARM64, verify spath performance'. They bury the real guidance.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: prerequisiteUseCases lists UC-3.1.1; monitoringType lists Fault and Reliability; cimModels lists Performance only; wave is walk;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the supplemental/alignment paragraphs. Keep Steps 1–5 and the troubleshooting cases."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The text admits that the second arm is discarded immediately and exists only for appearance, which confuses readers about how the search works.",
+      "field": "detailedImplementation",
+      "quote": "Multisearch arm two materializes inspect context inside the same pipeline so governance reviewers see both sources declared together even though the join restates inspect for correctness after discarding non-lifecycle rows.",
+      "severity": "minor",
+      "suggested_fix": "Remove the inspect arm from the description (and from the SPL in a human edit); keep the lookup join only."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference points at the Splunkbase home page instead of the app listing.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Connect for Docker (Splunkbase 4496)\", \"url\": \"https://splunkbase.splunk.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://splunkbase.splunk.com/app/4496."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at the multisearch stage and the data source is mis-attributed, so the content cannot have been run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL executes in the documented lab."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The second multisearch arm is `[ | inputlookup container_inspect.csv ... ]`. multisearch requires at least two streaming searches and allows only streaming operations, and inputlookup is a generating command, so the search errors. The arm's rows are also discarded by `where evt_lane=\"lifecycle\"`. Replace multisearch with a plain search and keep the lookup join.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/SearchTimeModifiers",
+      "field": "spl",
+      "issue": "The search window is `earliest=-1h@h latest=@h`, but in_15m and in_1h are computed against now(). On a schedule every 5 or 15 minutes, the last event can be up to 59 minutes older than now(), so cycles_15m is 0 on most runs. The tight_loop and moderate_flap tiers then never fire, and detection latency reaches about an hour. Anchor the windows to the search's latest time (addinfo info_max_time) or use `latest=now`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/system/events/",
+      "field": "spl",
+      "issue": "Docker emits `kill` before `die` and can emit `restart` between `die` and `start`, so `prev_action=\"die\"` misses gaps whenever a restart event intervenes. Field-name case is also uncertain: Engine JSON uses `Action`/`Actor.Attributes.name`, while the SPL filters on lowercase `action`. Verify against real events.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "The CIM Performance model's root dataset is All_Performance, with CPU at All_Performance.CPU and host in `dest`. `nodename=Performance.CPU` and `Performance.host` do not exist, and a bare CPU sample count says nothing about restart loops.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-3.1.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The restart-cadence concept and the lab validation steps (`--restart=always`, `on-failure:3`) are good, and the grandma explanation is accurate. The collection path repeats the false Splunk Connect for Docker modular-input claim. The SPL cannot run as a multisearch, and its 15-minute counters look outside the search window. Equipment and CIM fields are wrong, and roughly half of detailedImplementation is template padding.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.13",
+  "verdict": "incorrect"
+}

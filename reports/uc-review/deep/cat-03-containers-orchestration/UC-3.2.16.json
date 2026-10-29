@@ -1,0 +1,151 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c91d87cb28b0d67343c8ef050839389b98e19ca746fcaf97d21c4d98c24b4576",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.16.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kubernetes/blob/master/pkg/kubelet/events/event.go",
+      "explanation": "The kubelet's event reason list has no FilesystemAlmostFull, FilesystemFull or VolumeReadOnly; volume reasons are FailedMount, FailedAttachVolume, VolumeResizeFailed, FileSystemResizeFailed and so on, and CSI health monitoring reports VolumeConditionAbnormal. The 'catastrophic' tier, Step 3 narrative and Step 4 RO test are built on these invented reasons. Note also that volume events usually name the Pod, not the PVC, as involvedObject.",
+      "field": "dataSources",
+      "quote": "index=k8s_events and index=k8s sourcetype=kube:events for FilesystemAlmostFull, FilesystemFull, VolumeReadOnly, and related volume manager messages",
+      "severity": "blocker",
+      "suggested_fix": "Base RO/precursor detection on real signals: CSI external-health-monitor VolumeConditionAbnormal events on the PVC, and container logs matching 'Read-only file system'. Map pod-scoped events back to PVCs through kube_pod_spec_volumes_persistentvolumeclaims_info."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/simpleprometheusreceiver/README.md",
+      "explanation": "prometheus_simple takes a single `endpoint` (host:port, no scheme or path) plus `metrics_path` and `use_service_account`; it has no `endpoints`/`url` list or metric_relabel_configs, and ignores `auth`. The config fails validation or scrapes nothing.",
+      "field": "detailedImplementation",
+      "quote": "prometheus_simple/kubelet:\n    collection_interval: 60s\n    tls:\n      insecure_skip_verify: false\n      ca_file: /etc/pki/kubelet/ca.crt\n    auth:\n      bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token\n    endpoints:\n      - url: https://${KUBELET_HOST}:10250/metrics\n        metric_relabel_configs:",
+      "severity": "blocker",
+      "suggested_fix": "Use `prometheus_simple: {endpoint: \"${env:K8S_NODE_IP}:10250\", metrics_path: /metrics, use_service_account: true, tls: {ca_file: ...}}`, or a full `prometheus` receiver scrape_config if metric_relabel_configs are needed."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "A Prometheus Operator ServiceMonitor that selects the OTel collector Service makes Prometheus scrape the collector's own metrics, not kubelet volume stats, and it plays no part in an OTel-to-HEC pipeline. The k8s_events receiver fragment also sets `mode: watch`, which is a k8sobjects option.",
+      "field": "detailedImplementation",
+      "quote": "spec:\n  selector:\n    matchLabels:\n      app.kubernetes.io/name: opentelemetry-collector-agent",
+      "severity": "major",
+      "suggested_fix": "Drop the ServiceMonitor (or point a kubelet ServiceMonitor at the kubelet service in kube-system when Prometheus is used); remove `mode` from k8s_events or switch to k8sobjects as in docs/guides/kubernetes.md."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "UC-3.2.40 is 'Kubernetes Admission Webhook Latency, Timeouts, and Denials' in this subcategory, not a VolumeSnapshot UC. The same wrong cross-reference appears in detailedImplementation (Step 1 and Step 5 Case 11).",
+      "field": "exclusions",
+      "quote": "UC-3.2.40 VolumeSnapshot validation",
+      "severity": "major",
+      "suggested_fix": "Remove the UC-3.2.40 snapshot references or point to the correct snapshot/backup UC if one exists."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detection reads raw kubelet metrics, not the Performance datamodel, and the 'mv >= 0' clauses are input sanity filters, not alert conditions. The real tiers (used or inode percent >= 95 critical, >= 85 or <= 3 days high, >= 75 or <= 14 days medium) are never stated.",
+      "field": "description",
+      "quote": "using datamodel `Performance` ... alert when `mv` >= 0, `mv` > 0, `mv` >= 0, or `mv` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe per-PVC hourly used/capacity and inode ratios, a 24-hour linear growth ETA, and the severity tiers as implemented."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Step 1 includes a very long run-on paragraph, plus an 'Additional platform engineering notes' block, of generic statements (PagerDuty, Slack, Jira, Thanos, air-gapped, OT edge) that do not help implement this UC.",
+      "field": "detailedImplementation",
+      "quote": "Supplemental ownership depth: storage platform engineers certify scrape intervals during peak retail events when kubelet CPU is hot; application owners attest pvc_inventory.csv criticality quarterly; ...",
+      "severity": "major",
+      "suggested_fix": "Delete the supplemental and additional-notes blocks and keep the index, lookup, StorageClass expansion and inode guidance."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Splunk Connect for Kubernetes is a deprecated fluentd Helm chart, not a modular input, and this UC collects through the OTel collector.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the sentence or say the data comes from the Splunk OpenTelemetry Collector for Kubernetes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of these are PVC-fill false positives. Real ones: pre-allocated database files that sit near 90% by design, log volumes with bursty growth that later rotate, linear ETA misfiring after one-off bulk loads, and online expansion where capacity_bytes lags.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `pvc`, `_time`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace with those real causes and the pvc_inventory.csv fields used to suppress them."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "explanation": "Performance.Storage (storage_used_percent) is a reasonable target for PVC fill, but nothing in the UC uses or maps Inventory.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Performance\",\n    \"Inventory\"\n  ]",
+      "severity": "minor",
+      "suggested_fix": "Keep Performance with an explicit field mapping (storage_used, storage_free, storage_used_percent, dest=pvc) and drop Inventory."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The search cannot parse and the RO signal is invented, so the status is not supported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until validated."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "All four multisearch arms, and both arms of the nested multisearch in the event join, end in `bin ... | stats ...`. multisearch accepts only purely streaming subsearches, so the search errors. Move stats after the multisearch (`| multisearch [..eval/where..] ... | bin _time span=1h | stats ... BY cluster namespace pvc _time`).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`coalesce(..., involvedObject_name, `involvedObject.name`, \"\")` puts the field name in backticks, which SPL expands as a search macro (macro not found). Field names containing dots must be single-quoted in eval: 'involvedObject.name'.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "ro_hit counts FilesystemAlmostFull-style matches and any message containing 'readonly' as ro_remount_flag=1, which maps straight to 'catastrophic'. A warning precursor and a broad substring therefore produce the top severity. `sort - severity` is alphabetical, so medium sorts first and catastrophic last.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "`max(Performance.disk_usage) ... WHERE nodename=Performance.Storage BY Performance.host`: the Performance model has no disk_usage or host field. The root dataset is All_Performance (dest), and Storage fields are storage_used_percent etc. (All_Performance.Storage.storage_used_percent). The same broken tstats join is in spl.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`toString(...)` is used throughout alongside lowercase `tostring`; the eval reference says expressions are case-sensitive and documents only `tostring`. Confirm the search parses.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-3.2.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The forecasting idea (hourly kubelet_volume_stats, inode percent, days-to-full) is sound, but the read-only branch depends on Kubernetes event reasons that do not exist. The SPL puts stats inside multisearch and invokes a field name as a macro, the collector configs would not load, and Step 1 is buried under a very long generic run-on.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.16",
+  "verdict": "incorrect"
+}

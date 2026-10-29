@@ -1,0 +1,147 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "91a6fd61bed64b4d2f4b0d47f8493a592b7a81e491a2691f48e4304a0714c11a",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/openshift-docs/blob/master/modules/authentication-prometheus-system-metrics.adoc",
+      "explanation": "The OpenShift OAuth server documents these login counters: openshift_auth_basic_password_count(_result), openshift_auth_form_password_count(_result) with result=success|error, and openshift_auth_password_total. oauth_authentication_request_total, oauth_apiserver_request_total and the 'legacy' oauth_apiserver_request_count do not appear, so the metrics lane, the mstats lane and the error-rate thresholds would find no data. The same names recur in implementation, detailedImplementation and the Step 4 cross-checks.",
+      "field": "dataSources",
+      "quote": "sourcetype=prometheus:metrics for oauth_authentication_request_total, oauth_apiserver_request_total, oauth_apiserver_request_count",
+      "severity": "blocker",
+      "suggested_fix": "Use openshift_auth_*_password_count_result{result=\"error\"} for login failure rates, and apiserver_request_total scraped from the openshift-oauth-apiserver pods (group oauth.openshift.io or user.openshift.io, code label) for aggregated API errors."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.okd.io/4.16/rest_api/config_apis/oauth-config-openshift-io-v1.html",
+      "explanation": "spec.identityProviders lives on the OAuth resource (oauths.config.openshift.io, name 'cluster'). authentications.config.openshift.io is a different resource, the Authentication config that holds type, webhookTokenAuthenticator and OIDC settings. The UC repeats the confusion in its RBAC guidance ('cluster read on authentication.config.openshift.io') and in the operational posture ('patch authentication.config.openshift.io identityProviders'), so readers would grant or patch the wrong object.",
+      "field": "detailedImplementation",
+      "quote": "the authentication.config.openshift.io cluster OAuth configuration surface exposed by oc get oauth cluster -o yaml, IdentityProvider stanzas under spec.identityProviders",
+      "severity": "blocker",
+      "suggested_fix": "Refer to oauths.config.openshift.io/cluster (kind OAuth) for identity providers and token settings. Mention authentications.config.openshift.io only for cluster authentication type."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/user/v1/types.go",
+      "explanation": "User, Identity, Group and UserIdentityMapping belong to the user.openshift.io group. oauth.openshift.io holds OAuthAccessToken, OAuthAuthorizeToken, OAuthClient, OAuthClientAuthorization and UserOAuthAccessToken. The oauth-apiserver serves both groups, but neither group contains the other, so the guidance to 'filter group oauth.openshift.io' for User and Identity behaviour points at the wrong group.",
+      "field": "detailedImplementation",
+      "quote": "the aggregated oauth.openshift.io API group that serves user.openshift.io resources including User and Identity objects reconciled from successful logins",
+      "severity": "blocker",
+      "suggested_fix": "Say that the oauth-apiserver serves both oauth.openshift.io (tokens and clients) and user.openshift.io (users, identities, groups), and filter each group for the matching signal."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.okd.io/4.16/security/audit-log-policy-config.html",
+      "explanation": "OpenShift 4 does not accept a custom audit.k8s.io Policy file. Audit is configured through the APIServer cluster resource, using spec.audit.profile (Default, WriteRequestBodies, AllRequestBodies, None) and spec.audit.customRules keyed by user group. The doc also notes that OAuth server events are logged only at Metadata level.",
+      "field": "detailedImplementation",
+      "quote": "Example audit-policy fragment illustrating user.openshift.io focus (tune omitStages and users per estate):\n\n```yaml\napiVersion: audit.k8s.io/v1\nkind: Policy",
+      "severity": "blocker",
+      "suggested_fix": "Replace the fragment with an oc edit apiserver cluster example that sets spec.audit.profile, or customRules per group, and note that object-level filtering for user.openshift.io has to happen in Splunk."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The oauth-openshift server reports login failures in its logs, its audit.log and the openshift_auth_* metrics. These four Kubernetes Event reasons look invented. The events lane, the Step 2 routing rule and the synthetic test that expects 'AuthenticationFailed or IdentityProviderConfigError style events' may never match.",
+      "field": "dataSources",
+      "quote": "reasons AuthenticationFailed, IdentityProviderConfigError, OAuthServerError, TokenIssuedFailed",
+      "severity": "needs_verification",
+      "suggested_fix": "After a failed login on a lab cluster, run oc get events -n openshift-authentication and oc get events -A --field-selector reason=..., and list only the reasons that actually appear. Otherwise drop the event reasons and rely on oauth-server audit and logs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "In the SPL, streamstats window=12 current=t last(mv) returns the current event's own value, so delta is always 0, tok_stdev is 0 and token_delta_z is forced to 0. The token-anomaly page and warn tiers that the prose and Case 7 describe can never fire, and the deltas also mix series across label sets.",
+      "field": "detailedImplementation",
+      "quote": "streamstats computes short-window velocity and z-score style deviations on token grant deltas per cluster",
+      "severity": "major",
+      "suggested_fix": "Describe the token velocity check only once the search computes per-series counter deltas (current=f, or delta per series using a series key), or remove the token-anomaly claims."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The idp_flow_evt lane matches any event whose _raw contains '/oauth/' or whose message contains 'oauth', which includes every successful login. flow_burst is then a running sum of six hours of those counts, with no time dimension, and the SPL has no dwell or change_ticket_id suppression. Busy clusters would warn or page on normal login volume, which contradicts this sentence.",
+      "field": "detailedImplementation",
+      "quote": "Alerts must combine dwell, multi-lane corroboration, and optional lookup-driven suppressions tied to change_ticket_id metadata on HTTP Event Collector payloads rather than paging on every denied login attempt.",
+      "severity": "major",
+      "suggested_fix": "State that the event lane must be limited to failure outcomes (HTTP 4xx or 5xx, or result=error), and that flow_burst should be a per-interval count. Add the dwell or suppression logic the text promises, or remove the claim."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The checklist names 19 columns, and the final table has 22 once cluster_tier, owner_team and environment are counted.",
+      "field": "detailedImplementation",
+      "quote": "and grant_latest for eighteen analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Say 22 columns, or list all of them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is a launch announcement and does not support any fact about OAuth flows, IdP errors or token metrics.",
+      "field": "references",
+      "quote": "Red Hat Blog — Introducing Red Hat OpenShift 4",
+      "severity": "minor",
+      "suggested_fix": "Replace it with the 'Authentication metrics for Prometheus' section and the 'Configuring the audit log policy' page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC claims verified status, but its metric names, event reasons, API groups and audit-policy mechanism are wrong for OpenShift 4, and the SPL cannot run. Nothing shows SME or lab sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search has been run against a live cluster and a reviewer has signed off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch accepts only streaming commands in its subsearches. Every arm here uses stats, the token arm adds sort, streamstats and eventstats, and the last arm starts with a generating mstats prestats=t. Splunk rejects the search. Use append or union, or restructure.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the oauth_httpserver_5xx lane, the where clause ' 5[0-9][0-9]' and rex '(?P<rex_http>5\\d{2})' match the first 5xx-looking digits anywhere in _raw, including timestamps, durations, IDs and resourceVersions. oauth_http_max>=500 then warns on noise rather than on HTTP status.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The token_issuance lane sorts _time descending and runs streamstats window=12 current=t last(mv), which returns the current row's own value, so delta is 0 and token_delta_z is 0 every time. The metric lanes also sum cumulative counter samples (sum(mv)) across six hours, so metric_sum and err_sum are not request counts, and oauth_err_rate is distorted.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The final streamstats window=6 sum(lane_events) BY cluster idp_provider runs over unsorted per-stage aggregate rows. flow_burst is therefore a sum across flow stages, not a time-window burst. Combined with the broad 'oauth' match in the first lane, it counts successful traffic toward the 25, 40 and 60 thresholds.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "field": "cimSpl",
+      "issue": "The Change data model's root dataset is All_Changes, not Change, so 'WHERE nodename=Change' and the Change.action, Change.object and Change.user fields return nothing, and the join adds only nulls.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0078-UC-3.3.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC scopes OpenShift OAuth failure modes and IdP-specific runbooks well, but it is built on metric names and event reasons that OpenShift does not emit. It also confuses the config.openshift.io OAuth resource with the user.openshift.io and oauth.openshift.io API groups, and it prescribes a raw audit Policy file that OpenShift does not accept. The SPL cannot run inside multisearch, and several of its lanes count all OAuth traffic or any three-digit number as failures.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.14",
+  "verdict": "incorrect"
+}

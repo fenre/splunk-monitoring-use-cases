@@ -1,0 +1,108 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "271cb9158116c28007bfd747a6c8275f05f293da240c45f57dd3c2693e19c29c",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/logging",
+      "explanation": "Microsoft's WAC logging page documents management actions as EventID 4000, Source SMEGateway, in the WindowsAdminCenter channel. Its payload keys are PowerShell, CIM, Module, Gateway, UserOnGateway, UserOnTarget, Delegation, LAPS and File. None of the listed IDs or field names (targetName, assignedBy, extensionName, scriptHash ...) are documented, so the detection has nothing real to match.",
+      "field": "dataSources",
+      "quote": "Expected operational IDs include **1000** gateway start, **1001** stop, **2000** sign-in, **2001** sign-out, **2010** authentication failure, **2020** connect-to-target ... **2030** RBAC assignment change ... **2040**/**2041** extension install/uninstall ... **2050** PowerShell execution ... **2099** gateway environment/authentication-mode change.",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild around EventID 4000 / SMEGateway with the documented keys. Treat Microsoft-ServerManagementExperience as a troubleshooting (errors and warnings) channel. Drop the invented ID table unless each ID can be shown in a real event export."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/logging",
+      "explanation": "WAC writes management-action events to the WindowsAdminCenter channel of each managed server, not the gateway. Collecting only on gateways misses the audit trail this UC is about.",
+      "field": "app",
+      "quote": "on each **Windows Admin Center** gateway ... with **`inputs.conf`** stanzas **`[WinEventLog://Microsoft-ServerManagementExperience]`** and **`[WinEventLog://WindowsAdminCenter]`** targeting **`index=wac`**",
+      "severity": "blocker",
+      "suggested_fix": "Deploy the [WinEventLog://WindowsAdminCenter] input on every managed server as well as the gateway, and key the audit on the Gateway, UserOnGateway and UserOnTarget fields."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "These cmdlets, and `Set-WACEnvironment -AuthenticationMode ActiveDirectory|AzureAD|Smartcard`, do not appear in Microsoft's WAC PowerShell documentation. The older ExtensionTools/ConnectionTools modules use names such as Get-Extension and Export-Connection, and the 2410+ configuration module uses its own cmdlet names.",
+      "field": "detailedImplementation",
+      "quote": "`Microsoft.SME.*` modules (`Get-WACUserAccessLog`, `Get-WACAccess`, `Set-WACAccess`, `Add-WACAccessGroup`, `Remove-WACAccessGroup`, `Get-WACExtension`, `Install-WACExtension`)",
+      "severity": "needs_verification",
+      "suggested_fix": "List the cmdlets actually exported by the WAC modules on a 2410 gateway (Get-Command -Module *WindowsAdminCenter*, *ExtensionTools*) and rewrite the scripted inputs to use only those."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "HPE iLO BMCs have nothing to do with WAC gateway auditing. The equipment tags hardware_bmc and m365 are also unrelated to this detection.",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_ilo\"",
+      "severity": "major",
+      "suggested_fix": "Remove hardware_bmc_ilo from equipmentModels, and remove hardware_bmc and m365 from equipment."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "evt_lines>=12 applies only to the auth_burst branch. The search returns every host, including risk=monitor rows, without a final filter.",
+      "field": "description",
+      "quote": "Alert logic enforces `evt_lines` >= 12.",
+      "severity": "minor",
+      "suggested_fix": "Say that each gateway gets a risk label, with auth_burst requiring 12+ lines, and that alerting should filter risk!=\"monitor\"."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The URL is the Windows Server root page, not the extensions article. The UC also omits the WAC event-logging page, which is the most relevant reference.",
+      "field": "references",
+      "quote": "\"title\": \"Manage extensions for Windows Admin Center (Microsoft Learn)\", \"url\": \"https://learn.microsoft.com/en-us/windows-server/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific extensions article and add https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/logging."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent, yet its event IDs are not documented by Microsoft.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until an SME validates the event catalogue against real WAC logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-server/manage/windows-admin-center/use/logging",
+      "field": "spl",
+      "issue": "The lane case() keys on undocumented event IDs (1000/1001/2000/2001/2010/2020/2021/2030/2040/2041/2050/2099). Microsoft documents WAC management actions as EventID 4000 (Source SMEGateway), so every lane except the snapshot lanes stays empty.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "field": "spl",
+      "issue": "sourcetype=\"WinEventLog:Microsoft-ServerManagementExperience\" and sourcetype=\"WinEventLog:WindowsAdminCenter\" will not match on Splunk_TA_windows 5.0+, which assigns sourcetype WinEventLog (or XmlWinEventLog, since the UC sets renderXml=true) and puts the channel in source.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no final `where risk!=\"monitor\"`, so the alert returns every active gateway host.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0084-UC-19.3.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is built on an invented Windows Admin Center event catalogue. Microsoft documents a single management-action event, ID 4000 from source SMEGateway, written to the WindowsAdminCenter channel on the managed server. The UC instead describes 1000/2000/2010/2020/2030/2040/2050/2099 events collected on the gateway. Several WAC cmdlets and the per-channel sourcetypes are also unverified or wrong.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.5",
+  "verdict": "incorrect"
+}

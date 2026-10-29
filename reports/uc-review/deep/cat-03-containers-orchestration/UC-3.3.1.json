@@ -1,0 +1,150 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "a7611559a6e23d1cbbd57c5dbee6d877089cc69cdb1aa35b8ac882dbe7c080b4",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.1.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/config/v1/types_cluster_version.go",
+      "explanation": "ClusterVersion status.history[].state only has two values, Completed and Partial. There is no Failed state, so the 'history Failed' cases in dataSources and detailedImplementation (Case 5, the severity tiers) describe a value that never appears.",
+      "field": "dataSources",
+      "quote": "status.history[] completion states (Completed, Partial, Failed)",
+      "severity": "blocker",
+      "suggested_fix": "List the history states as Completed and Partial only. Describe an update failure through the Failing condition plus a Partial history entry, and remove 'Failed' from Case 5 and the pipeline narrative."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/cluster-version-operator/blob/master/pkg/cvo/metrics.go",
+      "explanation": "cluster_version is a gauge whose value is a Unix timestamp in seconds, and type selects which timestamp: current, desired, failure, completed, cluster, updating or initial. It is not a counter. 'Monotonic counters' and summing type=completed values (cv_completed_sum) produce a meaningless number.",
+      "field": "detailedImplementation",
+      "quote": "Prometheus cluster_version metrics including type=completed counters",
+      "severity": "blocker",
+      "suggested_fix": "Describe cluster_version as a timestamp gauge. Use type=updating (when the update started) and type=failure (when the failure condition last changed) to measure dwell, and type=completed for the time the last update finished."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "The Application State data model has been deprecated since CIM 4.12.0. It describes inventories of ports, processes and services, with no state or info fields, so it does not fit ClusterVersion condition telemetry.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Keep Change only for the audit lane (ClusterVersion mutations), or declare the UC as not CIM-mapped for the snapshot and metrics lanes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "The Universal Forwarder has no modular input for ClusterVersion. detailedImplementation describes a custom oc/Python poller, OTel Collector receivers and HEC, which contradicts this sentence and the app field.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll",
+      "severity": "major",
+      "suggested_fix": "State that collection uses a custom scripted poller of 'oc get clusterversion' sent to HEC, plus the Splunk OpenTelemetry Collector for Kubernetes for metrics and logs. Align the app field with that."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/config/v1/types_cluster_version.go",
+      "explanation": "ClusterVersion spec has no paused field. Its fields are clusterID, desiredUpdate, upstream, channel, capabilities, signatureStores and overrides. Pausing belongs to MachineConfigPool, so paused_hint and 'pause semantics' in validation describe a field that does not exist.",
+      "field": "dataSources",
+      "quote": "spec.overrides and paused governance hints",
+      "severity": "minor",
+      "suggested_fix": "Remove the paused hint from dataSources and detailedImplementation, or say explicitly that pause applies to MachineConfigPools (UC-3.3.17), not ClusterVersion."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The prose promises hour-scale Progressing dwell and fleet-wide counts. The SPL's streamstats window=2 only measures the gap between adjacent snapshots (minutes at a 3–5 minute poll), and the eventstats run BY cluster after a per-cluster stats, so they never span the fleet. Both outputs are also left out of the final table.",
+      "field": "detailedImplementation",
+      "quote": "streamstats measures short-term Progressing dwell by cluster. eventstats adds fleet context such as count of clusters with RetrievedUpdates=False.",
+      "severity": "major",
+      "suggested_fix": "Describe dwell as now() minus the Progressing lastTransitionTime (ltt_epoch is already parsed but unused), and remove the fleet-context claim unless the SPL drops the BY cluster clause."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but its SPL cannot execute and it names fields and states that do not exist, so no working validation can have happened.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME has run the search against real ClusterVersion data."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Check Point firewall equipment has nothing to do with OpenShift ClusterVersion upgrades, and the tag would put this UC in the Check Point equipment view.",
+      "field": "equipment",
+      "quote": "\"checkpoint\"",
+      "severity": "minor",
+      "suggested_fix": "Remove 'checkpoint' from equipment."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The checklist lists 22 columns, and the SPL table emits 26, including cluster_tier, owner_team and environment.",
+      "field": "detailedImplementation",
+      "quote": "for twenty-one analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Drop the column count, or match it to the final table command."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "On current OCP 4.13+ clusters, ImageContentSourcePolicy has been replaced by ImageDigestMirrorSet and ImageTagMirrorSet. The text also mentions 'oc adm upgrade clear', but the real form is the --clear flag.",
+      "field": "detailedImplementation",
+      "quote": "validate ImageContentSourcePolicy and oc adm release info paths",
+      "severity": "minor",
+      "suggested_fix": "Mention ImageDigestMirrorSet (with ICSP for older minors) and write 'oc adm upgrade --clear'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch only accepts purely streaming subsearches, but each subsearch here contains sort 0, streamstats or stats. Splunk rejects the search with 'Multisearch subsearches may only contain purely streaming operations'. Use append or union, or move the per-lane stats after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "prog_dwell_h comes from streamstats window=2 current=t last(_time), which is the current event's own time (or at most one snapshot interval back), so dwell is about 0 to 0.08 h at a 3–5 minute poll. The >=2, >=4 and >=6/10 h tiers can never fire. Compute dwell from the Progressing lastTransitionTime (ltt_epoch is parsed but unused) or from the cluster_version type=updating timestamp.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/openshift/api/blob/master/config/v1/types_cluster_version.go",
+      "field": "spl",
+      "issue": "The match(hist_state,\"partial|failed\") and recommended_action branches test for a 'failed' history state that ClusterVersion never emits (only Completed and Partial). sum() over cluster_version type=completed adds Unix timestamps together.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "y_stream_hint treats a target of x.y.0 as a Y-stream upgrade. A Y-stream (minor) upgrade is defined by a change in minor version from the current version, and targets are rarely .0. The channel regex 'eus|stable|candidate|fast' also matches every standard channel. Compare the minor version of status_version with spec_version instead.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The Change data model's root dataset is All_Changes, so tstats must use nodename=All_Changes and All_Changes.action/object/user/dest, not Change.action. Application_State is deprecated, its root is All_Application_State, and it has no state or info fields. As written, both tstats return nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0073-UC-3.3.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation shows real OpenShift ClusterVersion knowledge, but the SPL cannot run as written (non-streaming commands inside multisearch), its dwell-time logic cannot reach the hour thresholds, and several product facts are invented (a 'Failed' history state, a paused spec field, cluster_version described as a counter). The CIM mapping uses a deprecated model and wrong dataset names.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.1",
+  "verdict": "incorrect"
+}

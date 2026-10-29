@@ -1,0 +1,117 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "25785f7573746ac94e24fbab93f00eadca89efdfd4ac50be6fd51f1102f7c585",
+  "file": "content/cat-23-business-analytics/UC-23.1.9.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4146 is the 'Webtools Add-on' (TA-webtools); the Splunk Add-on for Salesforce is Splunkbase 3549. Grounding also notes that `Splunk_TA_salesforce` focuses on EventLogFile/objects and is not a full sObject history path, so CaseHistory via that add-on needs checking.",
+      "field": "app",
+      "quote": "optional Splunk Add-on for Salesforce ([Splunkbase 4146](https://splunkbase.splunk.com/app/4146)) pulling **`Case`** / **`CaseHistory`** REST",
+      "severity": "blocker",
+      "suggested_fix": "Change the ID to 3549 and confirm whether the add-on can collect Case/CaseHistory. Otherwise point to the Bulk API 2.0 modular input already described in detailedImplementation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.zendesk.com/api-reference/ticketing/tickets/ticket_audits/",
+      "explanation": "Zendesk's List Audits for a Ticket is `GET /api/v2/tickets/{ticket_id}/audits`; there is no POST on that path. Pagination uses cursor parameters, not 'via' (`via` describes the update's channel).",
+      "field": "dataSources",
+      "quote": "**`POST https://{subdomain}.zendesk.com/api/v2/tickets/{id}/audits`** paginated **`via`** cursor history",
+      "severity": "blocker",
+      "suggested_fix": "Use `GET /api/v2/tickets/{ticket_id}/audits` with cursor pagination (or `GET /api/v2/ticket_audits` for account-wide cursor export)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/MLApp/latest/User/Algorithms",
+      "explanation": "BalancedRandomForest is not an MLTK/AI Toolkit algorithm; the supported classifier is RandomForestClassifier. Raw text needs a feature-extraction step such as TFIDF before `fit`. Splunkbase 2890 is now titled Splunk AI Toolkit.",
+      "field": "app",
+      "quote": "Splunk Machine Learning Toolkit ([Splunkbase 2890](https://splunkbase.splunk.com/app/2890)) for **`fit`** (**`BalancedRandomForest`**, **`DBSCAN`**) on textual **`subject`**/**`description`** shards",
+      "severity": "blocker",
+      "suggested_fix": "Use `fit TFIDF` then `fit RandomForestClassifier` (or KMeans/DBSCAN on the TF-IDF vectors), and refer to the app as Splunk AI Toolkit (formerly MLTK)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1546 is the 'REST API Modular Input', a community app rather than a Splunk-supported 'Splunk Add-on for REST'.",
+      "field": "app",
+      "quote": "Splunk Add-on for REST ([Splunkbase 1546](https://splunkbase.splunk.com/app/1546))",
+      "severity": "minor",
+      "suggested_fix": "Call it 'REST API Modular Input (Splunkbase 1546)' and note that it is community-supported."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL ends in a `table`; nothing writes to `notable`, which would require Enterprise Security. The run statistics are invented.",
+      "field": "evidence",
+      "quote": "emits per-queue reopen-rate findings written to `notable`.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-group/agent/channel table (reopen rate, reopened tickets, FCR-like count, true-resolution hours) archived per run, plus the Step 3 spot-check against Zendesk/Salesforce histories."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Benchmark bands (and the 'Salesforce State of Service eighty-eight percent' statistic in Step 4) are unsourced, and 'mid-teens aligns with eight–twelve percent' contradicts itself.",
+      "field": "detailedImplementation",
+      "quote": "**`reopen_rate_pct`** mid-teens aligns with HDI middle-band (**eight–twelve percent** global averages with heavier SaaS tails); **`upper_quartile_band`** thresholds stay near HDI **`<five percent`** guidance.",
+      "severity": "minor",
+      "suggested_fix": "Cite the specific HDI and Salesforce report tables, or remove the figures and say thresholds are set locally."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Zendesk has no 'Reports › Ticket audits' screen; audits are viewed per ticket ('Show all events') or via the API.",
+      "field": "detailedImplementation",
+      "quote": "Inside Zendesk Explore or **`Reports › Ticket audits`**",
+      "severity": "minor",
+      "suggested_fix": "Say: open the ticket in Agent Workspace and use 'Show all events', or call the audits API for the ticket_id."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Verified by an automated agent with no SME sign-off despite a wrong Splunkbase ID and wrong API facts.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-uc-23.1.9-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft/community pending SME review."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`resolved_like_volume` is `count` of (tid, grp, actor, channel) rows, so the denominator includes every ticket touched in 90 days, solved or not, and a reassigned ticket counts once per assignee. That understates `reopen_rate_pct` and splits one reopen across agents. The denominator should be distinct tickets with at least one solved transition.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`st_raw=coalesce(status,NewValue,...)` does not filter `salesforce:case_history` to `Field=\"Status\"`, so Owner/Priority/other field changes feed `NewValue` into the state machine. For Zendesk audits, status transitions live under `events{}.field_name=\"status\"`/`events{}.value`, not a top-level `status` field.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`agent_quality_idx` adds up to 45 points for higher `avg_touch_segments`, so agents who need more interactions score as higher quality, the opposite of the FCR intent; the coefficients are arbitrary. `median_hours_true_resolution_stub` measures first-to-last audit span inside the window, including unsolved tickets, not time to true resolution.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0008-UC-23.1.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Ticket re-open analytics is well scoped against its siblings, but the UC gives the Salesforce add-on a wrong Splunkbase ID (4146 is Webtools), lists Zendesk audits as POST, and names an MLTK algorithm that does not exist. The SPL counts every ticket as 'resolved', reads status from non-status CaseHistory rows, and scores agents higher for more touches.",
+  "tier": "deep",
+  "uc_id": "UC-23.1.9",
+  "verdict": "incorrect"
+}

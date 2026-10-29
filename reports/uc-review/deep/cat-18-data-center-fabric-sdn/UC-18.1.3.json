@@ -1,0 +1,129 @@
+{
+  "confidence": 0.9,
+  "content_sha256": "35904db4e78c8705a12363937abf748dbdf68b73e5d22449132cfc13ebfc0fa5",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "explanation": "Per the Cisco ACI System Messages Reference, F0855 is fltCallhomeRsDestGroupRelResolveFail, F0856 is fltCallhomeRsDestGroupResolveFail, and F0467 is fltFvNwIssuesConfig-failed (EPG configuration failure). None of them relates to endpoint moves, and 'EP-MOVE-NOTIFY' is not a documented mnemonic. The same codes are repeated in detailedImplementation and visualization.",
+      "field": "dataSources",
+      "quote": "capturing **`F0856`** (**EP-MOVE-NOTIFY**), **`F0855`**, **`F0467`** host-mobility strings",
+      "severity": "blocker",
+      "suggested_fix": "Remove these fault codes. Source mobility from fvCEp / fvRsCEpToPathEp path changes, or from the APIC endpoint-move events (eventRecord) after confirming their exact codes in the Cisco ACI System Messages Reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on in the catalogue is 'Cisco ACI Add-on for Splunk Enterprise' (TA_cisco-ACI, Splunkbase 1897, now deprecated), and Cisco DC Networking (Splunkbase 7777) is its successor. The wrong ID also appears in detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Cisco DC Networking (Splunkbase 7777), or TA_cisco-ACI (Splunkbase 1897, deprecated) for legacy estates. Remove 4022 everywhere, and align the stated version with the guide."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://attack.mitre.org/techniques/T1557/002/",
+      "explanation": "T1557.002 is ARP Cache Poisoning. LLMNR/NBT-NS Poisoning and SMB Relay is T1557.001.",
+      "field": "detailedImplementation",
+      "quote": "**MITRE T1557.002** LLMNR/NBT-NS poisoning belongs only when gratuitous ARP storms coincide",
+      "severity": "blocker",
+      "suggested_fix": "Write 'MITRE T1557.002 ARP Cache Poisoning' (this matches the gratuitous ARP context), or drop the reference."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.cisco.com/site/apic-mim-ref-api/",
+      "explanation": "The APIC relation class is fvRsCEpToPathEp, as written correctly in dataSources and detailedImplementation. fvCEpToPathEp is not a class, so this query returns nothing.",
+      "field": "app",
+      "quote": "**`GET https://<apic>/api/node/class/fvCEpToPathEp.json`**",
+      "severity": "major",
+      "suggested_fix": "Use /api/node/class/fvRsCEpToPathEp.json, or query fvCEp with rsp-subtree=children&rsp-subtree-class=fvRsCEpToPathEp."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "fvCEp snapshots record where an endpoint is attached, not traffic flows. Mapping mac to src_mac and ip to dest_ip (schema, detailedImplementation) misrepresents a location record as a connection. Inventory fits loosely, but Network_Traffic is the wrong model for this signal.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\"",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic. Keep Inventory or state that no CIM model applies, and remove the src_mac/dest_ip mapping from schema and detailedImplementation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation polls fvCEp every 60 to 120 seconds. The SPL needs more than 3 leaf changes or at least 4 distinct leaf_ids inside a single 60-second bin, which takes four or more snapshots per minute for one MAC. REST data at that cadence can never meet the threshold, and since the fault codes are wrong the syslog arm cannot supply mobility either, so the detection never fires.",
+      "field": "cross_field",
+      "quote": "schedule **60–120s** pulls for fvCEp",
+      "severity": "major",
+      "suggested_fix": "Match thresholds to the poll cadence, for example leaf changes per 15 or 60 minutes. Alternatively, document a streaming source (APIC websocket subscription on fvCEp, or endpoint-move events) that delivers sub-minute changes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "These are fabricated operational metrics with no source, presented as measured results. Together with status 'verified' set by an automated reviewer ('agent-handcraft-phase3-uc1813'), they claim validation the UC does not have.",
+      "field": "detailedImplementation",
+      "quote": "median acknowledgement within **35 minutes** because lookups collapse MAC-to-team routing versus manual APIC hunts that averaged **48 minutes** across FY24 bridge reviews",
+      "severity": "major",
+      "suggested_fix": "Remove the MTTR and MTBF figures, or phrase them as targets for the adopter to set. Downgrade status until an SME validates the search."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "MCT is Brocade/Extreme terminology. In ACI, vPC-attached endpoints resolve to a protpaths-<a>-<b> path, so vPC by itself does not raise distinct-leaf counts the way this troubleshooting note describes.",
+      "field": "detailedImplementation",
+      "quote": "fvRsCEpToPathEp repoints across MCT members",
+      "severity": "minor",
+      "suggested_fix": "Say 'vPC peers', and note that the SPL should map protpaths-101-102 to a single logical attachment so vPC endpoints do not count as moves."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "explanation": "The metaphor is hard to follow, and the closing clause implies identity theft is the main outcome. The UC actually targets mobility storms, which are mostly loops, vMotion bursts or misconfiguration.",
+      "field": "grandmaExplanation",
+      "quote": "so when it zips bench to bench faster than any real delivery, we notice before someone else’s name is on the package",
+      "severity": "minor",
+      "suggested_fix": "Say plainly: we track which switch port each device is plugged into and alert when a device appears to jump between switches many times in a short period, which usually means a loop, a misconfiguration or a spoofed device."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "The filter (`sourcetype=\"cisco:aci:endpoint\"` OR `sourcetype=\"cisco:aci:syslog\"`) wraps each term in backticks, which Splunk treats as macro invocations. No macro of that name exists, so the search fails at parse time. The terms should not be in backticks.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "field": "spl",
+      "issue": "sys_move matches F0856 in _raw, but F0856 is fltCallhomeRsDestGroupResolveFail (a Callhome relation fault), not an endpoint move. The syslog mobility arm flags the wrong events.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "distinct_leaf_hour is just the per-minute leaf_fanout, not an hourly count, so leaf_entropy_risk (>=6) is effectively unreachable. api_move matches the word 'move' anywhere in the raw fvCEp JSON, which produces noise unrelated to actual leaf changes.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0016-UC-18.1.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC's core mobility signal rests on invented ACI fault codes: F0855 and F0856 are Callhome relation faults, and F0467 is an EPG configuration failure. It also cites the wrong Splunkbase ID for the ACI add-on, mislabels a MITRE technique, and uses a Network_Traffic CIM mapping that does not fit endpoint-location data. The SPL wraps sourcetype filters in backticks, so the search fails as written.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.3",
+  "verdict": "incorrect"
+}

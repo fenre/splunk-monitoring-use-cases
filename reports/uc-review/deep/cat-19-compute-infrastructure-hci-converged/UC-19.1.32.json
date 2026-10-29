@@ -1,0 +1,151 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "847c4c82d99073516edb437aab2253d4b9a5f81bf6999669b344ef048023ab30",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.32.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS assigns every event the sourcetype `cisco:ucs` and encodes the class in the source as `cisco:ucs:<classID>` (for example `cisco:ucs:adaptorUnit`, `cisco:ucs:firmwareRunning`); it does not emit a `cisco:ucs:inventory` sourcetype by default.",
+      "field": "dataSources",
+      "quote": "`index=cisco_ucs` and sourcetype `cisco:ucs:inventory` from the Splunk Add-on for Cisco UCS",
+      "severity": "blocker",
+      "suggested_fix": "Describe the default as `sourcetype=cisco:ucs` with `source=cisco:ucs:adaptorUnit` and `source=cisco:ucs:firmwareRunning`; if the site remaps sourcetypes to `cisco:ucs:inventory`, say that this is a local convention."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on's documented default input sourcetype is `cisco:ucs`, so a reader who keeps the default will never match the `cisco:ucs:inventory` filter used in the search.",
+      "field": "detailedImplementation",
+      "quote": "leave `sourcetype` at the add-on’s default `cisco:ucs:inventory` unless your organisation has a written exception process",
+      "severity": "blocker",
+      "suggested_fix": "State that the default is `cisco:ucs` and that the class is in `source`; either set the input's Source Type to the value the SPL expects or align the SPL to `sourcetype=cisco:ucs source=cisco:ucs:adaptorUnit OR source=cisco:ucs:firmwareRunning`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "In the add-on, class IDs are chosen in collection Templates (Configuration > Templates, or `splunk_ta_cisco_ucs_templates.conf` with `content = <classID>`) and inputs reference them with `templates = ...`; there is no `ciscoucs://` stanza with `inventory_classes`/`stats_classes`/`class_filter` keys. The app folder is `Splunk_TA_cisco-ucs` in current docs, not an older-bundle variant.",
+      "field": "detailedImplementation",
+      "quote": "Extend the class list the modular input poller sends to the UCSM XML or JSON API ... If your TA exposes a `stats_classes` or `inventory_classes` string",
+      "severity": "major",
+      "suggested_fix": "Replace Step 1 (1)-(3) with: create a template containing `adaptorUnit`, `firmwareRunning` (and optionally the startup-bank class), attach it to an input under Inputs, and edit files under `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/local/`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/firmware/FirmwareRunning.py",
+      "explanation": "dataSources correctly places the adapter image at rn `fw-system` (deployment=system, type=adaptor), but the detailedImplementation Step 2 narrative and the SPL filter firmwareRunning on `deployment=running`/`startup` and `type` in system/combined, which contradicts the DN the same UC documents. The narrative also claims adaptorUnit carries `running`/`startup` attributes, which it does not.",
+      "field": "cross_field",
+      "quote": "the **firmwareRunning** child under `.../adaptor-*/mgmt/fw-system`",
+      "severity": "major",
+      "suggested_fix": "Make the prose say: running image = firmwareRunning with deployment=system and type=adaptor under `.../adaptor-N/mgmt/fw-system`; startup image must come from a separate boot-definition class (look up the exact class, for example firmwareBootUnit, in the UCSM schema)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "The sentence is generated word salad: it lists internal stats fields as outputs and treats the lookback `-7d` as an alert condition, so a reader cannot tell what a result row means.",
+      "field": "description",
+      "quote": "Outputs `has_unit`, `presence`, `adapter_model` each `the scheduled window`; alert when -7d.",
+      "severity": "major",
+      "suggested_fix": "Say: one row per UCS adapter whose running or startup firmware differs from the approved version for its model in `ucs_adapter_fw_baseline.csv`, classified as running+startup drift, startup-only drift, or staged pending reboot."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text: there is no `span=1h` in the SPL, 'batch max' and 'synthetic probe' are not real causes of adapter firmware mismatch, and none names a real cause such as a mid-wave bundle upgrade, an RMA card shipped with different firmware, or a per-service-profile host firmware package override.",
+      "field": "knownFalsePositives",
+      "quote": "shifts `has_unit`, `presence`, `adapter_model` over `span=1h` while `adaptor_mo` remains in-scope",
+      "severity": "major",
+      "suggested_fix": "List real causes: staged firmware awaiting server reboot, replacement adapters arriving with factory firmware before host-firmware-package re-apply, host firmware policy overrides per org, and version-string formatting differences between the baseline CSV and UCSM."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "evidence names the saved search `operations_cna_vnic_adapter_firmware_drift_cisco_ucs` while detailedImplementation Step 2 saves it as `uc_19_1_32_vic_fw_drift`.",
+      "field": "cross_field",
+      "quote": "Saved search `operations_cna_vnic_adapter_firmware_drift_cisco_ucs`",
+      "severity": "minor",
+      "suggested_fix": "Use one saved-search name in both fields."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "MAX_TIMESTAMP_LOOKAHEAD controls how far into an event Splunk looks for a timestamp; it has nothing to do with part-number length. `splunk _internal` tail is also not a CLI command.",
+      "field": "detailedImplementation",
+      "quote": "a consistent `MAX_TIMESTAMP_LOOKAHEAD` for long adapter part numbers",
+      "severity": "minor",
+      "suggested_fix": "Drop the MAX_TIMESTAMP_LOOKAHEAD advice and replace `splunk _internal` tail with a search such as `index=_internal sourcetype=splunkd lookup`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic team handle while its SPL cannot produce a correct running version and its controlTest/evidence are template text, so there is no sign of SME validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until the search is tested against real adaptorUnit/firmwareRunning events."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The same models (1227T, 1485) are listed both as mLOM and PCIe, and 1455/1495/1485 are generally PCIe cards while 1380/1480 are blade mezzanine cards.",
+      "field": "hardware",
+      "quote": "mLOM models such as 1227, 1227T, 1340, 1380, 1387, 1440, 1455, 1457, 1480, 1495, 1497, and 1485 ... PCIe stand-up I/O such as 1225, 1285, 1227T, and 1485",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each VIC model's form factor against the Cisco VIC data sheets and list each once under the right form factor."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Sibling UCs use different Intersight naming patterns, and I could not confirm that the Cisco Intersight Add-on (7828) emits an `adapterunit` sourcetype or collects adapter.Unit objects at all.",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:intersight:adapterunit` from `Splunk_TA_Cisco_Intersight`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the 7828 add-on's input list and props.conf for an adapter inventory sourcetype; if absent, describe IMM coverage as requiring a custom poll of `/api/v1/adapter/Units`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/firmware/FirmwareRunning.py",
+      "field": "spl",
+      "issue": "fwr_run/fwr_start require firmwareRunning `deployment` = \"running\"/\"startup\" and `type` in (system, combined, \"\"), but UCSM firmwareRunning deployment values are boot-loader/kernel/service-pack/system/unspecified and the adapter image has type=adaptor; adaptorUnit has no running/startup/runningVersion attributes. running_fw is therefore always empty, startup_fw falls back to the same empty value, and every adapter with a baseline row is classified running_and_startup_drift (critical/high). Filter firmwareRunning on deployment=\"system\" AND type=\"adaptor\" and source the startup bank from the boot-definition class.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "Base search filters `sourcetype=\"cisco:ucs:inventory\"`, but the add-on assigns sourcetype `cisco:ucs` and puts the class in `source=cisco:ucs:<classID>`; on a default install the search returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "business_org logic is broken: server_mo is an equipment DN (sys/chassis-N/blade-N or sys/rack-unit-N) that never contains `org-` or `/ls-`, so the prod/qa regex branches never match; and if they did, the first pattern `org-[^/]+/` also matches org-root/org-qa/, making the qa branch unreachable. Prod classification effectively depends only on lcm_phase.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`presence!=\"missing\"` keeps adaptorUnit rows with presence=empty (and other non-equipped states), so empty slots can still be evaluated; filter on presence=\"equipped\" or a match on ^equipped.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0025-UC-19.1.32",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (compare VIC adapter firmware to an approved baseline) is sound and the detailed implementation is long, but the SPL reads attributes that do not exist on adaptorUnit and filters firmwareRunning on deployment values UCSM never emits, so running_fw is always empty and every baselined adapter is flagged. The add-on facts (sourcetype, app folder, how class lists are configured) also contradict the Splunk Add-on for Cisco UCS documentation.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.32",
+  "verdict": "incorrect"
+}

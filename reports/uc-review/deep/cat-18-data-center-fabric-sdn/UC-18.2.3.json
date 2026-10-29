@@ -1,0 +1,166 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "93c057f4e2a6d4b285ade99260d896757e67d0313d4526de99c7723ef24ae028",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.3.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' (TA-linux-metrics), not an NSX add-on. NSX integrations on Splunkbase are the VMware-built 'VMware NSX-T Splunk App' (4241) and the community TA-nsx (6805). Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase 4856](https://splunkbase.splunk.com/app/4856)",
+      "severity": "blocker",
+      "suggested_fix": "Name a real NSX integration (Splunkbase 4241 or 6805) or describe the segment feed as a custom Policy API collector with a site-defined sourcetype."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "Splunkbase 1810 is 'Hunk App for MongoDB'; the Splunk Add-on for VMware is Splunkbase 3215, and it has no `vmware:vmware:vsphere:vcenter` sourcetype (VM inventory is `vmware:inv:vm`). Same error in detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware`** ([Splunkbase 1810](https://splunkbase.splunk.com/app/1810)) optional for **`vmware:vmware:vsphere:vcenter`** VM inventory joins",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunk Add-on for VMware (Splunkbase 3215) and sourcetype `vmware:inv:vm`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow/session records (src, dest, bytes, action). Segment admin/oper state, VNI binding and MAC counts are configuration/inventory state, not traffic; the SPL never produces flow fields.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic; keep Inventory (or state that no CIM model applies to the segment-health signal)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_Segment.html",
+      "explanation": "The NSX Policy Segment `replication_mode` enum is only MTEP and SOURCE (head replication is reported as SOURCE). There is no HEAD value, so guidance (and the SPL test `replication_mode=\"HEAD\"`) will never match.",
+      "field": "detailedImplementation",
+      "quote": "force upper-case **replication_mode** enums (**HEAD**, **MTEP**, **SOURCE**)",
+      "severity": "blocker",
+      "suggested_fix": "List the enum as MTEP (hierarchical two-tier) and SOURCE (head replication)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "consistency",
+      "explanation": "dataSources says GET /policy/api/v1/search while detailedImplementation says POST /policy/api/v1/search; the Policy search API is a GET with a `query` parameter.",
+      "field": "cross_field",
+      "quote": "scripted HTTPS collectors emitting **`GET /policy/api/v1/search`** scoped queries",
+      "severity": "minor",
+      "suggested_fix": "Use `GET /policy/api/v1/search?query=resource_type:Segment` consistently."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Neither the `vmware:nsxt:syslog:operational` sourcetype nor an `/api/v1/aggregate-realization-status` endpoint appears in any cited add-on or the NSX API reference; the VNI is exposed as `overlay_id` on Policy segments, not `vni`.",
+      "field": "dataSources",
+      "quote": "**`vmware:nsxt:syslog:operational`** streams ... Aggregation Service **`/api/v1/aggregate-realization-status`** batches",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NSX 4.2 API reference for the realization-status endpoint (e.g. `/policy/api/v1/infra/realized-state/status?intent_path=`) and remove unverified sourcetype splits; map `overlay_id` to `vni`."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "This esxcli namespace is not a documented NSX command; segment/VNI checks on hosts are normally done with `nsxcli` (`get logical-switches`) or `nsxdp-cli`.",
+      "field": "detailedImplementation",
+      "quote": "ESXi CLI **esxcli network nsx segment list** (per installed NSX VIB)",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify against NSX 4.2 CLI reference and replace with the documented host command."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "These reliability figures have no source and cannot be derived from the detection; they read as measured facts. The same numbers repeat in the detailedImplementation runbook.",
+      "field": "implementation",
+      "quote": "median MTBF roughly forty-five days between repeat Policy-realization regressions when hygiene stays tight; median MTTR near seventy-five minutes",
+      "severity": "major",
+      "suggested_fix": "Remove the MTBF/MTTR figures or label them as site-specific targets to be set by the operator."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The expansion sections (VRNI cadence, CMDB transports, escalation etiquette, documentation anchors, 'VMware Operations Reference architectures') are long generic padding that does not help build the search and cites unnamed documents.",
+      "field": "detailedImplementation",
+      "quote": "**Instrumentation cadence & stakeholder hygiene**\nRotate scripted collectors across five-minute offsets per NSX Manager cluster",
+      "severity": "major",
+      "suggested_fix": "Cut the expansion notes to the steps a reader needs: collector, field mapping, lookup, validation, alert routing."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Asterisk (VoIP PBX) is unrelated to NSX segment health.",
+      "field": "equipment",
+      "quote": "\"asterisk\",",
+      "severity": "minor",
+      "suggested_fix": "Remove `asterisk`."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated reviewer (`agent-handcraft-phase3`) despite wrong Splunkbase IDs and a non-functional base search; no SME evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a human validates against a live NSX segment feed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "Mixed metaphors (lanes, cloth, storefronts) obscure what is checked: segments that are switched on but not working, that failed to deploy, or whose learned-address table grows abnormally.",
+      "field": "grandmaExplanation",
+      "quote": "before shoppers notice slow checkout screens, we speak up so networking crews mend the cloth—not the storefront apps",
+      "severity": "minor",
+      "suggested_fix": "Plain version: 'We watch each virtual network segment and warn when it is meant to be up but is down, failed to deploy, keeps flapping, or suddenly learns far more device addresses than usual.'"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The 'Segments Overview' reference points to the Broadcom techdocs home page, not the segments chapter.",
+      "field": "references",
+      "quote": "\"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the NSX 4.2 Administration Guide segments page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The base search contains `(sourcetype=\"vmware:nsxt:syslog\" AND match(lower(_raw),\"...\"))`. `match()` and `lower()` are eval functions and are not valid in the implicit `search` command; the clause will not filter as intended. Move the regex test to a `| where match(_raw, ...)` or `| regex` after the base search.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://developer.broadcom.com/xapis/nsx-t-data-center-rest-api/latest/types_Segment.html",
+      "field": "spl",
+      "issue": "`replication_mode=\"HEAD\"` can never match: NSX emits MTEP or SOURCE, so `bum_mode_probe` is dead code.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`transport_zone_id` is coalesced to \"\" so `isnotnull(transport_zone_id)` is always true; every syslog row without a TZ gets `tz_inventory_miss`, and all syslog rows with empty `segment_id` collapse into one bucket. Also the `pri` case lists `admin_oper_split` (80) after lower-priority branches, so it is shadowed when combined risks exist.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0034-UC-18.2.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The intent (segment admin/oper/realization state, MAC-table growth, replication mode) is sensible, but the add-on IDs and vSphere sourcetype are wrong, the SPL uses an eval function in the base search and tests a replication-mode value NSX never emits, Network_Traffic does not fit segment health, and the implementation invents MTBF/MTTR figures.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.3",
+  "verdict": "incorrect"
+}

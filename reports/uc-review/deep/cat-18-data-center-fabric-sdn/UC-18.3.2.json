@@ -1,0 +1,121 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a87b4e4fe425bffde4a08e7539eb393501b3a7c2f1b8a8f732193f10e6d1ddc5",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/keystonemiddleware/latest/audit.html",
+      "explanation": "OpenStack API auditing is provided by keystonemiddleware's audit filter. It is enabled with a `[filter:audit]` entry (`keystonemiddleware.audit:filter_factory`) in api-paste.ini, plus an api_audit_map.conf, and it emits CADF events. It is optionally routed via an `[audit_middleware_notifications]` section. No `[oslo_middleware_audit]` section exists. The troubleshooting step \"re-enable oslo_middleware_audit\" and the dataSources text \"WSME/Paste audit middleware JSON\" repeat the error.",
+      "field": "detailedImplementation",
+      "quote": "Enable WSME or Paste audit middleware on neutron-server (often **`[oslo_middleware_audit]`** in neutron.conf)",
+      "severity": "blocker",
+      "suggested_fix": "Describe enabling keystonemiddleware audit in neutron's api-paste.ini after authtoken, with audit_map_file, and say that its output is CADF records (initiator/target/action/outcome)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.openstack.org/api-ref/network/v2/index.html#ports",
+      "explanation": "Neutron ports have no `binding:vif_status` or `binding:status` attribute. The port-binding extension exposes binding:host_id, binding:profile, binding:vif_details, binding:vif_type and binding:vnic_type, and a failed bind appears as binding:vif_type=binding_failed. dataSources also lists `binding:vif_status` as a key field.",
+      "field": "detailedImplementation",
+      "quote": "run **`openstack port show <uuid>`** for a flagged port and confirm **`binding:vif_status`** aligns with **`bind_peak`**",
+      "severity": "blocker",
+      "suggested_fix": "Validate binding failures with `binding:vif_type` = `binding_failed` and port `status` (ACTIVE/DOWN/BUILD/ERROR), and remove `binding:vif_status` from dataSources and the steps."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "The signal is control-plane CRUD audit and agent errors. It has no src/dest flow records, so CIM Network_Traffic does not fit. The schema field's justification (\"rule bursts ... imply path shifts\") is speculative.",
+      "field": "cimModels",
+      "quote": "\"Change\",\n    \"Network_Traffic\"",
+      "severity": "blocker",
+      "suggested_fix": "Keep Change only, and drop Network_Traffic from cimModels, schema and dataModelAcceleration."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Neutron notifications go to the configured notification topic (default `notifications`, e.g. `notifications.info`). Their event_type values look like `port.create.end` and carry no `neutron.` prefix, so subscribing to topics that begin with `neutron.` would probably receive nothing.",
+      "field": "detailedImplementation",
+      "quote": "subscribing to topics whose names begin with `neutron.` so `.create.end`, `.update.end`, and `.delete.end` event_type strings arrive",
+      "severity": "needs_verification",
+      "suggested_fix": "Check neutron.conf `[oslo_messaging_notifications] topics` and describe subscribing to that topic and filtering on event_type (network.*, subnet.*, port.*, router.*, security_group.*, floatingip.*)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Keystone's own CADF notifications cover identity operations (users, projects, tokens, roles), not Neutron resource CRUD. Network-typed CADF targets come from keystonemiddleware audit running inside neutron-server, not from Keystone.",
+      "field": "dataSources",
+      "quote": "**`openstack:keystone:audit`** (**CADF** or **pycadf** records filtering **`target.typeURI`** containing **network** endpoints)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm where network-typed CADF events come from in the target deployment, and if they come from neutron's audit filter, relabel the lane accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "HashiCorp Vault plays no part in this detection. The equipment list (hyperv, kafka, hashicorp) is equally unrelated to OpenStack Neutron monitoring.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\n    \"hashicorp_vault\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Remove hashicorp_vault and list only OpenStack-relevant models, or leave the field empty."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Provider attributes such as segmentation ID are admin-only by default, so they appear under Admin → Network → Networks, not in the project view.",
+      "field": "detailedImplementation",
+      "quote": "Horizon UI path Project → Network → Networks: compare the segmentation ID shown",
+      "severity": "minor",
+      "suggested_fix": "Use the Admin → Network → Networks path, or `openstack network show <id> -c provider:segmentation_id` with admin credentials."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "metadata is a generating command and must be written with a leading pipe.",
+      "field": "detailedImplementation",
+      "quote": "run **`metadata type=sourcetype index=openstack`**",
+      "severity": "minor",
+      "suggested_fix": "`| metadata type=sourcetypes index=openstack`"
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an automated agent. There is no SME sign-off, and it contains the factual errors listed above. \"Yoga through Caracal tested patterns\" is also unsupported.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the UC, and remove the claim that it was tested on specific releases."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.openstack.org/newton/admin-guide/telemetry-data-collection.html",
+      "field": "spl",
+      "issue": "`is_crud` matches `match(raw_lc,\"(?i)\\.(create|update|delete)_end\")`, which requires `_end`. Neutron notification event_type values are dotted (`port.create.end`), and notifications have no `action` field, so evt_act is empty. As a result, most RPC notification CRUD events are silently dropped. The regex should be `\\.(create|update|delete)\\.end`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`rsrc` defaults to \"network\" when no resource field exists, so any agent or syslog line matching the CRUD/binding regex is counted as network CRUD. `bind_problem` also treats port status `down`, `build` and `unknown` as problems, although DOWN is normal for unbound ports and BUILD is transient, which will inflate binding_or_vif_fail.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0050-UC-18.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation reads as plausible, but several OpenStack facts are wrong: the audit middleware is described incorrectly, `binding:vif_status` is not a real port attribute, and the SPL regex does not match Neutron notification event types. Network_Traffic does not fit a CRUD audit signal, and equipmentModels is unrelated to the UC.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.2",
+  "verdict": "incorrect"
+}

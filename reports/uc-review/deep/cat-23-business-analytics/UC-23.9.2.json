@@ -1,0 +1,106 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "dfdc77a6295b2be753261c5ee695eb53efa8d764ea6a6eb2fe268899cc63c3b2",
+  "file": "content/cat-23-business-analytics/UC-23.9.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://portfoliomanager.energystar.gov/pdf/reference/Thermal%20Conversions.pdf",
+      "explanation": "1 kBtu/ft² ≈ 3.155 kWh/m², so 64 kBtu/ft² is about 200 kWh/m² per year, not 6.7. Readers benchmarking against this figure would misjudge every site by roughly 30×.",
+      "field": "references",
+      "quote": "illustrative median office site EUI 64 kBtu/ft² (≈6.7 kWh/m² basis varies by gross vs conditioned floor-area conventions)",
+      "severity": "blocker",
+      "suggested_fix": "State ≈200 kWh/m²·yr, cite the current ENERGY STAR national median table for the office value, and note that the SPL's 90-day EUI must be annualised before comparison."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL never normalises by occupancy and has no `unattributed` bucket, because UNATTRIBUTED systems fall into `other`. Weekend and weekday `period_kwh` are also raw totals over about 26 vs 64 days, not per-day intensities, and this predicate disagrees with the 'greater than half of weekday' rule in detailedImplementation Step 2.",
+      "field": "implementation",
+      "quote": "alert when weekend HVAC kilowatt-hours exceed weekday HVAC intensity after occupancy normalization for a site with high `unattributed` share",
+      "severity": "major",
+      "suggested_fix": "Define one alert rule in terms the SPL outputs, e.g. weekend HVAC kWh per weekend day ÷ weekday HVAC kWh per weekday > 0.5 while `occupancy` is below 25% nominal, and refer to `sys_att=other` rather than `unattributed`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The text presents the join as sound, but `baseline_eui` is whole-site kWh/m² over 30 days, while `eui` is per-attribution, per-day-kind kWh/m² over 90 days. Their difference (`yoy_eui_delta`) compares incompatible quantities, and the visualization colour-codes it.",
+      "field": "detailedImplementation",
+      "quote": "here `join type=left site` attaches `baseline_eui` replicated across HVAC versus lighting slices without altering attribution grain",
+      "severity": "major",
+      "suggested_fix": "Explain that the baseline must use the same 90-day window a year earlier and the same sys_att/day_kind split (or compare site totals only), and leave yoy_eui_delta out of dashboards until the SPL is fixed."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "No Cisco, ACI, Microsoft 365 or ServiceNow data is used, and the SNMP path described is polling via Splunk Connect for SNMP, not traps.",
+      "field": "equipment",
+      "quote": "\"cisco\", ... \"m365\", ... \"servicenow\" ... \"equipmentModels\": [\"cisco_aci\", \"snmp_trap\"]",
+      "severity": "major",
+      "suggested_fix": "Keep db_connect, edge_hub, modbus, snmp and snowflake; remove cisco, m365, servicenow, cisco_aci and snmp_trap."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic template text. The real false-positive causes are already listed in detailedImplementation Step 5: degree-day seasonality, demand-response dispatch, meter or CT swaps, DST 23/25-hour days, and hybrid occupancy.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `site`, `system`, `_time`, `sys_att`** — Health checks in `facilities` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 caveats into knownFalsePositives and delete the CMDB, probe and 48h template text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the SPL baseline and cumulative-register defects show it was not validated against meter data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-uc-23.9.2-gold\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a facilities-engineering SME validates the search against BMS totals."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "The sentence is duplicated. Step 3 also contains odd residue ('oceanic locales with diacritics', 'User checklist asks for...').",
+      "field": "detailedImplementation",
+      "quote": "Spot-check that `square_metres` for those sites matches the latest IWMS export used for chargebacks. Spot-check that `square_metres` for those sites matches the latest IWMS export used for chargebacks.",
+      "severity": "minor",
+      "suggested_fix": "Remove the duplicate sentence and the checklist and locale residue."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`kwh_val=tonumber(coalesce(kwh_delta,kwh_total,kwh,kwh_consumed,\"0\"))` falls back to the cumulative register `kwh_total` and then sums it per day, which inflates consumption by orders of magnitude for any meter lacking deltas. detailedImplementation itself says deltas must be computed upstream. Drop `kwh_total` from the coalesce, or derive deltas with `streamstats current=f last(kwh_total) by meter_id`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The baseline subsearch covers 30 days (-365d@d to -335d@d) summed per site, while `eui` covers 90 days per sys_att and day_kind, so `yoy_eui_delta` subtracts incompatible quantities. Use -455d@d to -365d@d with the same sys_att/day_kind grain, or compare per-day site totals.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The IT_load regex `IT|...` matches substrings such as KITCHEN or EXIT, and `EV` in the plug_load regex matches LEVEL. Anchor the tokens (e.g. `\\bIT\\b`, `^EV`) so attribution is not silently skewed.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0053-UC-23.9.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The metering, attribution and caveat sections are strong and specific. However, the SPL sums cumulative kWh registers when deltas are missing and compares a 90-day sliced EUI against a 30-day whole-site baseline, so the YoY delta is meaningless. The ENERGY STAR reference also misconverts kBtu/ft² to kWh/m² by about 30×.",
+  "tier": "deep",
+  "uc_id": "UC-23.9.2",
+  "verdict": "incorrect"
+}

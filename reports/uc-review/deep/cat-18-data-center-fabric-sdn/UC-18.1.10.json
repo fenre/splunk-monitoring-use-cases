@@ -1,0 +1,187 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "708c69a24b56f3215245b6271f1bb1d0ee44ede4e97b774a8a8a83d5f422a024",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.10.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated), and Cisco now points users to Cisco DC Networking (Splunkbase 7777). The same wrong ID appears in dataSources and in the references list.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022))",
+      "severity": "blocker",
+      "suggested_fix": "Name Cisco DC Networking (cisco_dc_networking_app_for_splunk, Splunkbase 7777) as the supported collector, with TA_cisco-ACI (Splunkbase 1897, deprecated) as the legacy option. Remove every '4022' reference from app, dataSources and references."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This reference URL points to the Cisco homepage, not a document. Separately, the 'Splunk Add-on for Cisco ACI (Splunkbase 4022)' entry links to an Nmon add-on.",
+      "field": "references",
+      "quote": "{\"title\": \"Cisco APIC Operations Guide — Monitoring Tenants and fabric (Release 6.0(x))\", \"url\": \"https://www.cisco.com/c/en/us/\"}",
+      "severity": "major",
+      "suggested_fix": "Replace the placeholder with the specific APIC guide URL, or drop it. Point the add-on reference at https://splunkbase.splunk.com/app/7777 (or 1897 for the legacy TA)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide/m_using_the_rest_api.html",
+      "explanation": "APIC has no fvFaultInst class. Active faults are faultInst objects, and they come back as EPG children via rsp-subtree-include=faults. The same invented class is used in the REST query in detailedImplementation Step 1 (target-subtree-class=fvCEp,fvFaultInst,healthInst) and in later paragraphs.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:aci:health`** MO pulls (**fvAEPg**, **healthInst**, **fvFaultInst** descendants)",
+      "severity": "blocker",
+      "suggested_fix": "Replace fvFaultInst with faultInst everywhere. Build the query as GET /api/class/fvAEPg.json?rsp-subtree-include=health,faults (or target-subtree-class=fvCEp,faultInst,healthInst with query-target=subtree)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/dcn/aci/apic/all/apic-rest-api-configuration-guide/cisco-apic-rest-api-configuration-guide-42x-and-later/m_using_the_rest_api.html",
+      "explanation": "rsp-prop-include accepts only all, naming-only or config-only. To get health with an object, use rsp-subtree-include=health.",
+      "field": "detailedImplementation",
+      "quote": "GET /api/node/mo/uni/tn-{tenant}/ap-{app}/epg-{epg}.json?query-target=self&rsp-prop-include=health",
+      "severity": "blocker",
+      "suggested_fix": "Use ?rsp-subtree-include=health (optionally ,no-scoped) on the EPG MO query."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-policy-infrastructure-controller-apic/222056-disable-aci-on-going-atomic-counters-f.html",
+      "explanation": "Only F0467 (invalid-vlan / invalid-path / encap-already-in-use against an EPG) is an EPG deployment fault. F1394 is a leaf-to-spine fabric port going down, and Cisco describes F1545 as a cosmetic atomic-counter packet-drop fault, so neither indicates EPG health.",
+      "field": "dataSources",
+      "quote": "for **F0467**, **F1394**, **F1545**",
+      "severity": "major",
+      "suggested_fix": "Keep F0467 and replace F1394/F1545 with EPG-scoped fault codes looked up in the APIC fault catalogue, or explain that F1394 is a fabric-level corroboration signal."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The NDI endpoint path and an APIC gRPC 'epg-health' sensor look invented. I could not find either in Cisco documentation.",
+      "field": "dataSources",
+      "quote": "Nexus Dashboard Insights **`GET https://<nd-insights>/sedgeapi/v1/site_health`** per-site widgets; optional **gRPC** **epg-health** streaming telemetry from APIC",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Nexus Dashboard Insights API reference for the actual site/EPG health endpoint, and confirm whether APIC supports gRPC telemetry export. Remove both if they cannot be confirmed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://www.skillsdirectory.com/skills/chambear2809-cisco-dc-networking-setup",
+      "explanation": "The shipping Cisco add-ons emit cisco:dc:aci:health / cisco:dc:aci:class / cisco:dc:aci:stats (Cisco DC Networking) or cisco:apic:* (legacy TA), not cisco:aci:*. actrlPermitStats/actrlDropStats are not documented APIC class names; per-rule hit counters are actrlRuleHit5min and similar.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:aci:contract_stats`** (**actrlPermitStats**, **actrlDropStats**, **actrlRule** statistics)",
+      "severity": "needs_verification",
+      "suggested_fix": "Either state clearly that cisco:aci:* sourcetypes come from a custom collector, or switch to the sourcetypes the Splunkbase 7777 app actually produces. Confirm the actrl stats class names in the APIC MIM reference."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "explanation": "The CIM Performance datamodel covers host CPU, memory, storage, network interface, OS and uptime metrics, not ACI EPG health scores or contract counters. The SPL does not use any datamodel.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Inventory\", \"Performance\"]",
+      "severity": "major",
+      "suggested_fix": "Drop Performance (and keep Inventory only if the EPG inventory is actually mapped), or set cimModels to empty and say the UC runs on raw sourcetypes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "implementation, detailedImplementation and the SPL each give different paging thresholds. The SPL uses fds_latest>=9 OR (fds_latest>=6 AND slo_pct<99.9) OR slo_pct<99 OR ep_anomaly, and nothing in it checks health_score<85.",
+      "field": "cross_field",
+      "quote": "implementation: \"fault_density_score≥9 or slo_pct<99\"; detailedImplementation quick win: \"fds_latest≥6 OR slo_pct<99\"; runbook: \"fault_density_score crosses weighted thresholds while health_score<85\"",
+      "severity": "major",
+      "suggested_fix": "State one threshold set that matches the SPL in implementation, in the detailedImplementation quick win, and in the runbook."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "These are divide-by-zero guards and the healthy-slice test, not alert conditions. hs >= 90 is the healthy state, so this reads as the opposite of the detection.",
+      "field": "description",
+      "quote": "alert when `pkt_tot` > 0, `hs` >= 90, `days_seen` > 0, or `ep_floor` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the real alert conditions: slo_pct below 99, an endpoint-count swing beyond +40%/-35%, or a weighted fault density of at least 9 (or at least 6 with SLO below 99.9)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "No crash_band field exists in the SPL or the data sources, and ACI health scores have no 'crash bands' (detailedImplementation also mentions 'Cisco crash bands').",
+      "field": "visualization",
+      "quote": "latest **health_score**/**crash_band** per **fv_dn**",
+      "severity": "minor",
+      "suggested_fix": "Use the health score with a stated colour threshold (for example under 90 amber, under 70 red) instead of crash_band."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated agent, with no SME sign-off, and its SPL does not run as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until a human SME has run the search against APIC data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The trailing paragraphs (stretched-fabric hygiene, capacity planners, documentation packs, RBA adapters) are filler built from undefined terms. They do not help anyone implement this detection, and they repeat the Step 4/6 content.",
+      "field": "detailedImplementation",
+      "quote": "plus CMDB-backed owner attestations referencing DaC label completeness whenever Endpoint-as-Data-Class audits accompany microSeg onboarding waves.",
+      "severity": "major",
+      "suggested_fix": "Delete the free-floating paragraphs after Step 5 and keep the numbered steps tied to the actual SPL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The SPL does not check bridge-domain subnets. It uses health score, endpoint count, fault counts and contract drop ratio.",
+      "field": "grandmaExplanation",
+      "quote": "and whether subnets stayed wired",
+      "severity": "minor",
+      "suggested_fix": "Replace the subnet clause with 'and how many problems the controller has raised against it'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "`eval slo_degraded=isnull(slo_pct) OR slo_pct<99 OR ...` assigns a boolean expression to a field. Splunk rejects this ('The result of an eval expression cannot be a Boolean'), so the search errors out before `where slo_degraded=1`. Wrap it in if(..., 1, 0).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Stats",
+      "field": "spl",
+      "issue": "`slo_pct=round(100*hs_good/days_seen,3)` divides a count of healthy 5-minute slices (up to 288 per day) by the number of days, so values reach about 28,800 instead of a percentage, and slo_pct<99 fires only when almost no slices are healthy. The denominator should be the total interval count (sum of `intervals`).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "field": "spl",
+      "issue": "`rex field=fv_dn \"/uni/tn-(?<tenant_name>...)\"` requires a leading slash, but ACI dn attributes start with 'uni/tn-...' (see the guide's cisco:aci:health sample `\"dn\": \"uni/tn-tenant-retail/health\"`), so tenant/app/EPG names are never extracted. Health dn values also end in '/health' and contract-stat dn values are not EPG paths, so the three sourcetypes never merge on fv_dn.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "endpoint_count and the fault counts coalesce to \"0\" on events that lack them (every health and contract event), so min(ep_cnt) is usually 0, ep_chg_pct is null, and the endpoint-anomaly branch never fires.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1078 (Valid Accounts) has no relationship to an EPG availability/health score detection.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0001-UC-18.1.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The EPG-health idea is sound, but the UC names the wrong Splunkbase add-on, invents APIC classes and query options, and ships SPL that cannot run (it assigns a boolean in eval) and computes a meaningless SLO percentage. Thresholds disagree across the implementation fields, and the CIM mapping does not fit the signal.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.10",
+  "verdict": "incorrect"
+}

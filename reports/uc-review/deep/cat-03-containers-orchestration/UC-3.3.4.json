@@ -1,0 +1,116 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e022e813b7363f326f9fe1c1d326be637be25e1f596eaa4e63a397d09330bbef",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/security_and_compliance/audit-log-policy-config",
+      "explanation": "On OpenShift 4 the kube-apiserver operator owns the audit policy. Administrators choose a profile (Default, WriteRequestBodies, AllRequestBodies, None) and optional per-group customRules on the APIServer 'cluster' resource; there is no supported way to drop in an audit.k8s.io Policy with per-resource rules. The text also names a 'Metadata' profile, which does not exist. A reader would try to apply a policy file that the operator overwrites or rejects.",
+      "field": "detailedImplementation",
+      "quote": "Example audit-policy fragment illustrating SCC and pod focus (tune omitStages and users per estate):\n\n```yaml\napiVersion: audit.k8s.io/v1\nkind: Policy",
+      "severity": "blocker",
+      "suggested_fix": "Replace the Policy YAML with `oc edit apiserver cluster` setting spec.audit.profile: WriteRequestBodies (or a customRules entry for the relevant groups). WriteRequestBodies logs request and response payloads for create, update and patch, which preserves responseObject.metadata.annotations openshift.io/scc and full denial messages."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "In OCP 4, oc adm policy add-scc-to-user and add-scc-to-group create RoleBindings or ClusterRoleBindings (rbac.authorization.k8s.io) to system:openshift:scc:<name> ClusterRoles. The SPL's mutation arm only watches security.openshift.io securitycontextconstraints, and there is no binding arm. So dataSources ('RoleBinding and ClusterRoleBinding mutations that grant use verb'), the Step 3 narrative, and runbook Cases 3 and 4 describe detections the search cannot make. Step 4 even admits this ('extend the SPL with a dedicated binding arm').",
+      "field": "cross_field",
+      "quote": "case() maps privileged-class admissions in restricted namespaces, SCC object broadening mutations, mass group bindings implied by repeated add-scc-to-group patterns",
+      "severity": "major",
+      "suggested_fix": "State plainly that SCC-use grants through RBAC bindings are not detected by this search (point to UC-3.3.21 or UC-3.2.23), and remove the claim that case() maps add-scc-to-group patterns."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The Step 3 block says 'Fenced SPL must match the spl JSON field exactly', but the fenced SPL uses strcat() in two places where the spl field uses the `.` concatenation operator (`verb_tx.\"_\".workload`, `\"admitted_under_\".admitted_scc`). The two copies have drifted.",
+      "field": "detailedImplementation",
+      "quote": "| eval lane_detail=strcat(verb_tx,\"_\",workload)",
+      "severity": "major",
+      "suggested_fix": "Regenerate the fenced block from the spl field so they are byte-identical."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Neither product appears in the Splunkbase catalogue. Its Kubernetes and OpenShift entries are Splunk OpenTelemetry Collector for Kubernetes (6264), App For Kubernetes (8560) and Outcold's Monitoring Kubernetes/OpenShift (3743/3836).",
+      "field": "app",
+      "quote": "Splunk OpenShift Monitoring Add-on or Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`)",
+      "severity": "blocker",
+      "suggested_fix": "Name Splunk OpenTelemetry Collector for Kubernetes (6264) with distribution=openshift for audit-log filelog and k8s_events collection, plus Splunk Enterprise Security for notables. Remove the invented add-on names."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "SCC denials and SCC object changes are admission and authorization or configuration events, not logon attempts. The Authentication data model does not fit. Change, for SCC object mutations, is the only reasonable CIM mapping.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "major",
+      "suggested_fix": "Drop Authentication and keep Change, mapping SCC mutations to All_Changes with object_category=securitycontextconstraints."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Apart from the deterministic hits, the entries are generic and name no real SCC cause. The real ones are listed in Step 5 and the risk briefing.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `cluster`, `namespace`, `actor` — Health checks in `ocp_audit` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Use the documented causes: CI rollouts with broken securityContext producing denial storms, pod recreation during node drains, vendor operators that legitimately run under privileged or anyuid SCCs (lookup exception_expiry_epoch), duplicate audit shipping (dedupe on auditID), and ReplicaSet controller retries inflating deny_burst for a single manifest."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "resp_code 2xx is the filter for the successful-admission lane, not an alert condition. The alerting severities are critical for repeat SCC mutations or privileged admission into a restricted-tier namespace, and high for deny_burst>=5 or any SCC mutation.",
+      "field": "description",
+      "quote": "alerting when `resp_code` >= 200, `resp_code` < 300, `mutation_count_24h` >= 2, or `deny_burst` >= 5",
+      "severity": "minor",
+      "suggested_fix": "Describe the critical and high conditions from the case() block."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Pod creates are usually issued by controllers (for example system:serviceaccount:kube-system:replicaset-controller), so actor=user.username groups denials by controller rather than by the workload service account, and deny_burst mostly reflects controller retry backoff.",
+      "field": "detailedImplementation",
+      "quote": "streamstats detects rapid repeat denials from the same service account for brute-force style attempts",
+      "severity": "minor",
+      "suggested_fix": "Say that deny_burst groups by API caller, which is usually a controller, and that the workload service account comes from the rex'd serviceAccountName."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change subsearch uses `nodename=Change` and Change.action, Change.object and Change.dest, but the Change root dataset is All_Changes (All_Changes.action, All_Changes.object, All_Changes.dest), so it returns nothing. Joining Authentication.src to Change.dest also pairs unrelated entities.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "privileged_admit treats any admitted SCC name containing 'pipelines', 'elastic', 'traces' or 'node-exporter' as privileged. These are substring matches on vendor SCC names, and they flag the pipelines-scc used by OpenShift Pipelines in restricted-tier namespaces as critical selection skew. Use an explicit scc_name to tier lookup, as the tuning paragraph suggests.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1548.001 (Setuid and Setgid) is a host-binary technique. SCC privilege escalation is better represented by T1611 (Escape to Host, already present) and possibly T1078.004 or T1098 for binding grants. Confirm the mapping.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0091-UC-3.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SCC explanation in detailedImplementation is accurate and useful, and the SPL arms are streaming and runnable. However, the implementation tells readers to apply a raw Kubernetes audit Policy that OpenShift 4 does not accept. The search also never sees the main escalation path (oc adm policy add-scc-to-user RoleBindings) that the prose and runbook depend on. The short fields remain template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.4",
+  "verdict": "incorrect"
+}

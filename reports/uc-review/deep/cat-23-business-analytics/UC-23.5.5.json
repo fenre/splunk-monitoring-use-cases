@@ -1,0 +1,138 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "7f1303c243ac65c6cfef70277c80bd17086189fed594259b9566d81805aa65bc",
+  "file": "content/cat-23-business-analytics/UC-23.5.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/connect-relational-databases/deploy-and-use-db-connect/4.3/reference/db_inputs.conf.spec",
+      "explanation": "db_inputs.conf has no `cron_schedule` key. The schedule goes in the required `interval` setting, which accepts seconds or a cron expression. Stanzas are named `[<name>]`, not `[db://...]` or `[oracle://...]`. A reader copying this would get an input with no valid schedule.",
+      "field": "detailedImplementation",
+      "quote": "Provision Splunk DB Connect rising-column polls (`cron_schedule = 0 */4 * * *` typical) writing sourcetypes `dbx:erp_shipments` ... Name identity stanzas `[db://hana/rs_outbound_por]`",
+      "severity": "blocker",
+      "suggested_fix": "Show a real db_inputs.conf stanza, e.g. `[rs_outbound_por]` with `connection = ...`, `mode = rising`, `interval = 0 */4 * * *`, `tail_rising_column_name = ...`, `sourcetype = dbx:erp_shipments`, `index = business`. Fix the Oracle `[oracle://corp/rs_wsh_outbound]` stanza the same way."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation tells the reader to alias the key as `oid` in SQL. The SPL then runs `eval oid=tostring(trim(coalesce(order_id,SALES_ORDER_NO,VBELN,DELIVERY_ID)))`, and if none of those source columns exist the expression returns null and overwrites `oid`, so dedup and both joins collapse. The same text also promises Dynamics `SALESID` coalescing, which the SPL does not do.",
+      "field": "cross_field",
+      "quote": "selecting delivery identifiers (`VBELN AS oid`)",
+      "severity": "major",
+      "suggested_fix": "Have the SQL emit `VBELN` (or `order_id`) unaliased, matching the SPL's coalesce list, or say that the SPL must add `oid` and `SALESID` to its coalesce. Keep the prose and the SPL key fields identical."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "dataSources, implementation and detailedImplementation describe `dbx:erp_orders`, `dbx:erp_invoices`, `hec:wms_ship` and the carrier tracking sourcetypes as inputs to the KPI. The SPL reads only `dbx:erp_shipments`, `dbx:erp_rma` and the survey sourcetypes. On-time status uses ERP POD fields only, and documentation completeness uses an `INVOICE_STATUS` field on the shipment row, not `dbx:erp_invoices`.",
+      "field": "cross_field",
+      "quote": "Blend carrier proof timestamps from fedex:tracking or ups:tracking subsearches keyed on `TRACKING_NUMBER` when ERP clocks stall during customs",
+      "severity": "major",
+      "suggested_fix": "Either label the extra sourcetypes as optional enrichment that the shipped SPL does not use, or state that `dbx:erp_shipments` must already carry `INVOICE_STATUS`, `BATCH_LOT_OK`, `COA_OK_IF_REQ`, POD timestamps, `REGION` and `CUSTOMER_SEGMENT`, pre-joined in SQL."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL ends with `stats ... by REGION CUSTOMER_SEGMENT failure_category` over 90 days. It outputs no `oid`, no time dimension for a nightly trend, no 30-day window, and no source/target pairs that a Sankey needs. Most of the listed panels cannot be built from this search.",
+      "field": "visualization",
+      "quote": "ranked splunk.table exposing worst-performing `oid` tuples with failure badges; radial gauge comparing rolling thirty-day composite Perfect Order Rate ... dual-axis line chart trending nightly composite Perfect Order Rate",
+      "severity": "major",
+      "suggested_fix": "Describe panels that the SPL output supports (heatmap of `por_pct` by REGION × CUSTOMER_SEGMENT, bar chart of orders by `failure_category`). Say that order-level tables and trend lines need separate searches (e.g. `timechart span=1d` or a per-`oid` table before the final stats)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "A CSV file is a lookup, not a macro. The SPL also hardcodes tolerances in a `case()` rather than reading any lookup, so the step does not match the search.",
+      "field": "implementation",
+      "quote": "publish `por_tolerance.csv` macros separating DTC zero slack from enterprise ±3-day negotiated envelopes",
+      "severity": "minor",
+      "suggested_fix": "Say 'publish a `por_tolerance.csv` lookup keyed by CUSTOMER_SEGMENT and TRADE_LANE (optional; the shipped SPL hardcodes 0/2/3/7 days)'."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Much of the guidance is ornate, near-word-salad phrasing ('diary days', 'trophy', 'bruises', 'hero campaigns'). It hides the actual rules (calendar-day tolerance, one count per load, a 14-day RMA window) and the reader cannot act on it.",
+      "field": "detailedImplementation",
+      "quote": "SMB two diary days ... award one trophy per consolidated tractor load ... orphan bruises adjudicated sixteen diary hours beyond Splunk horizons ... CX bridges reopen Medallia hero campaigns",
+      "severity": "major",
+      "suggested_fix": "Rewrite in plain operational terms: 'SMB orders get a 2-calendar-day tolerance'; 'count consolidated loads once per order'; 'RMAs opened more than 14 days after delivery are not counted as damage'."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "overclaiming",
+      "explanation": "The text presents a 90% APQC Perfect Order benchmark as fact without a citation. The listed APQC reference is only the generic PCF overview page.",
+      "field": "detailedImplementation",
+      "quote": "CFO-ready Perfect Order decks referencing APQC ninety-percent benchmarks must align within two percentage points",
+      "severity": "needs_verification",
+      "suggested_fix": "Check APQC's Open Standards Benchmarking for the perfect-order-rate measure and cite the specific figure, or drop the benchmark number and present 90% as an internal guardrail."
+    },
+    {
+      "confidence": 0.45,
+      "dimension": "correctness",
+      "explanation": "`WSH_DELIVERY_DETAILS` and `OE_ORDER_LINES_ALL` are Oracle E-Business Suite tables, but the validation step refers to Oracle Fusion. The column list (`REQUEST_DATE`, `ACTUAL_SHIP_DATE`, `ACTUAL_ARRIVAL_DATE` on the WSH lane) may not match the actual table columns (OE lines use `ACTUAL_SHIPMENT_DATE`).",
+      "field": "detailedImplementation",
+      "quote": "Oracle `WSH_DELIVERY_DETAILS` alongside `OE_ORDER_LINES_ALL` promise clocks ... Oracle validation: Fusion Ship Confirm workbook timestamps",
+      "severity": "needs_verification",
+      "suggested_fix": "Pick EBS or Fusion and check the column names against the Oracle eTRM / Fusion SCM tables reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an authoring agent and there is no evidence of SME sign-off. Given the config and consistency errors above, the status overstates confidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a named SME validates the search against real ERP extracts."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "The evidence text names a saved search and a dashboard, but it does not say what the artefact proves (the POR value, its reconciliation against ERP, data freshness).",
+      "field": "evidence",
+      "quote": "archived monthly into governance-approved evidence folders referenced during ASCM benchmarking reviews",
+      "severity": "minor",
+      "suggested_fix": "State that the evidence is the monthly POR export by REGION/segment plus the ERP reconciliation sample from Step 3."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Orders without a delivery timestamp get `on_time=0`, so in-transit orders whose promised date has not yet passed are counted as late and imperfect. With `earliest=-90d`, the most recent shipments depress POR. Exclude orders where `delivered_epoch` is null and `promised_epoch > now()`, or classify them as PENDING.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The tolerance `case()` tests CUSTOMER_SEGMENT before TRADE_LANE, so the 7-day international tolerance only applies to orders whose segment is not DTC/SMB_B2B/ENT_B2B. A DTC cross-border order gets 0 days. Check whether this precedence is intended.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Join",
+      "field": "spl",
+      "issue": "Both `join` subsearches are subject to the subsearch output limit (default 50,000 rows), regardless of `max=200000`. Over 120 days of RMAs and surveys the joined data can be silently truncated. Consider `stats`-based merging or `lookup` against a summary.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The `failure_category` case() sends any combination involving `docs_complete=0` plus another break, and short+damaged without late, to `OTHER_MIX`, while `MULTI_BREAK` covers only late+short+damaged with docs complete. The taxonomy the dashboards rely on is incomplete.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0033-UC-23.5.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The SPL is a real composite Perfect Order Rate search, but the prose around it drifts. The DB Connect configuration guidance uses keys and stanza formats that do not exist, the implementation tells the reader to alias the key as `oid` (which the SPL then overwrites with null), and the visualization and data-source text describe sourcetypes and per-order or time-series outputs that the SPL never produces.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.5",
+  "verdict": "incorrect"
+}

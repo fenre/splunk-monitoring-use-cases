@@ -1,0 +1,112 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "87d953ece6c52abed9c98023123ed9ae2f9ee5ab5b3df13b49a2fb9584ba47e9",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.4.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1917",
+      "explanation": "Splunkbase 1917 is the 'Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)', built by Cisco, not a Splunk-built 'Splunk_TA_cisco-nexus'. Its page tells users to migrate to the Cisco DC Networking Application (7777). The same claim recurs in dataSources, implementation and detailedImplementation.",
+      "field": "app",
+      "quote": "**`Splunk Add-on for Cisco Nexus`** (**Splunk_TA_cisco-nexus**, [Splunkbase 1917](https://splunkbase.splunk.com/app/1917))",
+      "severity": "blocker",
+      "suggested_fix": "Give 1917 its real name and mark it deprecated, or drop it. Make Cisco DC Networking (7777) the primary collection app, as Cisco directs."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "BGP adjacency changes, NVE peer state and NDI health scores are control-plane and health signals, not flow or traffic records. Network_Traffic (src/dest/bytes per session) does not fit, and the schema text has to invent 'UDP 4789' proxies to justify it.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",",
+      "severity": "major",
+      "suggested_fix": "Drop Network_Traffic. Use Alerts for adjacency-down/NVE-down events and Performance only if gNMI interface counters are actually ingested, or state that no CIM model applies."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs none of route_distinguisher, evi, mac_mobility_count, OSPF or IS-IS state. It never searches cisco:nxos:ospf or cisco:ndfc:fabric, although dataSources lists both. detailedImplementation's eleven macros (rt_auto_leak, type2_dup_mac_surge, ospf_cost_asymm, bgp_bfd_disagree, …) do not exist in the delivered search.",
+      "field": "visualization",
+      "quote": "**Timechart** — **`l2vpn_evpn_routes`** per **`route_distinguisher`** / **`evi`** with **`predict`** overlays. (4) **Timeline** — **`L2RIB-3-EVPN_TYPE2_DUPMAC`** bursts vs **`mac_mobility_count`**. (5) **Dual-axis chart** — **`OSPF`** FULL stability vs **`IS-IS`** UP adjacency counts",
+      "severity": "major",
+      "suggested_fix": "Limit the panels and narrative to the fields the SPL returns (flap_cnt, nve_storm_cnt, rt_leak_cnt, route_drop_cnt, ndi_bad, alert_lane, fabric_story). Move OSPF/IS-IS/dup-MAC ideas into a clearly labelled 'extensions' note."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Steps 2–6 are run-on lists of 9–21 clauses each, mixing real CLI checks with filler ('Run responders calmly', 'golden Saturday snapshots', openVuln CVE pulls). The actionable steps are hard to find.",
+      "field": "detailedImplementation",
+      "quote": "Step 5 — Comprehensive enrichment patterns\nBefore paging escalates—(a) merge **cisco:ndi:health** **fabricSite** posture scores ... (u) optionally chain Enterprise Security risk modifiers",
+      "severity": "major",
+      "suggested_fix": "Cut each step to the 3–5 checks a fabric engineer needs (for example compare with `show bgp l2vpn evpn summary` and `show nve peers`), and drop enrichment ideas unrelated to this search."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "In the NX-API REST (DME) model, NVE objects sit under sys/eps (nvoEps / epId-1), so 'sys/nve' may not resolve.",
+      "field": "dataSources",
+      "quote": "**`cisco:nxos:nve`** (**`/api/mo/sys/nve.json`**)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the NX-API DME model reference (for example the nvoEps / nvoPeer classes) and cite the real DN or class query, for example /api/class/nvoDyPeer.json."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Sibling UC-18.4.9 uses a different NDI site-health endpoint (/api/v1/cisco-nir/api/api/telemetry/v2/nodes/{site}/health). The two UCs cannot both be right, and neither path is cited to Cisco API documentation.",
+      "field": "dataSources",
+      "quote": "**`cisco:ndi:health`** (**`/sedgeapi/v1/site_health`** JSON)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the NDI site-health REST path for the target ND/NDI release, and use the same path in UC-18.4.5 and UC-18.4.9."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "OSPF-5-ADJCHG is the IOS spelling; NX-OS logs OSPF-5-ADJCHANGE. 'IS_IS' and 'NVE-3-PEER_DOWN' also need confirming against the NX-OS message catalogue, because the SPL keys on the NVE string.",
+      "field": "detailedImplementation",
+      "quote": "**OSPF-5-ADJCHG**, **IS_IS-5-ADJCHANGE**, **NVE-3-PEER_DOWN**",
+      "severity": "needs_verification",
+      "suggested_fix": "Take the exact OSPF, IS-IS and NVE peer-state mnemonics from the Cisco Nexus 9000 NX-OS System Message Guide for 10.x."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the SPL drops two of its four signal families. There is no sign the search was run against a live fabric.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been validated on NX-OS 10.x data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats ... by minute_bucket, host, bgp_peer_ip` discards events whose bgp_peer_ip is null. NVE peer events and cisco:ndi:health site scores carry no BGP neighbour, so nve_storm_cnt and ndi_bad never reach the where clause. The later `if(isnull(bgp_peer_ip)...,\"unknown\",...)` shows the author expected these rows to survive. Fill bgp_peer_ip (for example with fillnull or coalesce to nve_peer_ip/site) before stats.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "`match(lower(_raw),\"NVE-3-PEER_DOWN\")` compares lower-cased text with an upper-case literal and no (?i), so it can never match and the NVE syslog path is dead. `evpn_route_baseline` is never created, so route_drop_anomaly is always 0.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0068-UC-18.4.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The BGP/NVE fabric-health intent is relevant and the syslog mnemonics are mostly plausible. However, the cited add-on is a deprecated Cisco Nexus 9k TA under the wrong name, and the SPL silently drops every NVE and NDI row. Network_Traffic is the wrong CIM model for control-plane adjacency, and detailedImplementation describes eleven macros and many fields the search never produces.",
+  "tier": "deep",
+  "uc_id": "UC-18.4.5",
+  "verdict": "incorrect"
+}

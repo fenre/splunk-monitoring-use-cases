@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "087fb2a999e355a861bf3cb19d96f598b6a4d41fee7a120772218018b14d2eb0",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.29.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/container/stats/",
+      "explanation": "docker stats BLOCK I/O and cAdvisor `container_fs_writes_bytes_total` count all bytes the container's cgroup wrote to host block devices, including named volumes and bind mounts. They do not isolate the copy-on-write upper layer, and lifetime bytes written is not the layer's size on disk. Docker reports writable-layer size separately: `docker ps --size` (size column) or `docker inspect --size` (SizeRw). The `description`, `detailedImplementation`, `grandmaExplanation` and `cumulative_writable_mb` / quota logic all rest on this misreading.",
+      "field": "cross_field",
+      "quote": "block-write throughput that lands on overlay2 or devicemapper upper directories rather than on named volumes, cumulative growth of that ephemeral layer since container start",
+      "severity": "blocker",
+      "suggested_fix": "Describe block-write counters as total container block I/O, including volumes. Add a writable-layer size feed (SizeRw from `docker ps --size --format json` or `docker system df -v`) and base quota comparisons on SizeRw, not cumulative bytes written."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/container/stats/",
+      "explanation": "`docker stats --format json` emits a human-readable string such as `\"BlockIO\":\"1.2MB / 3.4GB\"`, not a numeric `block_write_bytes` field. Numeric counters come only from the Engine API stats endpoint (`blkio_stats.io_service_bytes_recursive` entries with op=Write). Step 2 also cites `docker stats --no-trunc --no-stream`, which gives the same string output.",
+      "field": "dataSources",
+      "quote": "sourcetype=docker:stats from docker stats --format json or Engine API equivalents with block_write_bytes",
+      "severity": "blocker",
+      "suggested_fix": "Name the Engine API `/containers/{id}/stats?stream=false` path and its blkio_stats structure (or the cgroup v2 io.stat wbytes) as the source of numeric write bytes. If the CLI is used, document the unit-parsing step that converts BlockIO strings to bytes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "Splunk Add-on for Unix and Linux produces the sourcetype `df` (df.sh), not `linux:df`, and its fields (UsePct, MountedOn and similar) are not `fs_pct_used` / `mount_point`. The `app` statement that the add-on supplies 'linux:df patterns' is therefore wrong.",
+      "field": "dataSources",
+      "quote": "index=oti_containers sourcetype=linux:df for fs_pct_used on /var/lib/docker",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=df` from Splunk Add-on for Unix and Linux and name its actual percent-used and mount fields, or name the custom probe that emits `linux:df`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Splunkbase entry for 'Splunk Add-on for Docker' / Splunk_TA_docker appears in the grounding catalogue, and Step 2's 'modular input patterns' for it appear to be invented.",
+      "field": "app",
+      "quote": "Splunk Add-on for Docker (Splunk_TA_docker) when your standard is the Splunkbase TA for Engine metrics and inspect exporters",
+      "severity": "needs_verification",
+      "suggested_fix": "Look the add-on up in data/splunkbase-catalog.json or on Splunkbase. If it does not exist, remove it and describe only the custom scripted input path."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generator-checklist residue, and it contradicts the sidecar: equipment lists docker, linux and prometheus, and no equipmentModels exist. The trailing 'FinOps / Reliability / Security / Performance / Documentation alignment' one-liners are similar filler.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five Step headers use plain em dash titles exactly as listed in the runbook template; ... equipment is docker; equipmentModels is docker_engine;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the alignment one-liners."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL has no lane preference. It sums write_mb_per_sample from both lanes in each minute bucket, so a host running both collectors reports roughly double the write rate. The prose describes a deduplication that does not exist.",
+      "field": "detailedImplementation",
+      "quote": "Case 3 — cadvisor and docker:stats double-count the same container: deduplicate on a preferred lane macro per host class, typically prefer cadvisor when both exist.",
+      "severity": "major",
+      "suggested_fix": "State that only one write-counter lane should be enabled per host until the SPL selects a preferred lane."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/engine/storage/drivers/select-storage-driver/",
+      "explanation": "The devicemapper storage driver was deprecated and then removed from Docker Engine (v25), so presenting it as a current upper-layer target is outdated.",
+      "field": "detailedImplementation",
+      "quote": "when migrating from devicemapper to overlay2",
+      "severity": "minor",
+      "suggested_fix": "Refer to overlay2 (and the containerd image store snapshotters) only, and mention devicemapper solely as a legacy migration source."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic reviewer handle although its core metric does not measure the writable layer and the enrichment fields never reach the severity logic.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until paths A–D have been run on a lab host."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats sum(write_mb_per_sample) ... BY host_id, container_id, tmin` keeps only the BY fields and the named aggregates, so started_epoch, restart_count, has_volume_mount and image_insp (added earlier by eventstats) are dropped. As a result age_hours is always null, `coalesce(has_volume_mount,0)=0` flags every writer above 100 MB as LOGSPAM_OR_COW_NO_VOLUME, and RESTART_LOOP_WRITE_AMPLIFICATION can never fire.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`cumulative_writable_mb` is lifetime block bytes written, not writable-layer size, so `quota_breach` compares the wrong quantity. Both lanes are summed per minute (double counting). `has_volume_mount` checks only HostConfig.Binds and misses `--mount` entries in HostConfig.Mounts. cAdvisor container IDs (cgroup-path `id` label) are not normalized to Docker IDs before the BY clauses.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "Performance.disk_usage, nodename=Performance.Storage, Performance.host and Inventory.Instances are not CIM names. The Performance Storage dataset is addressed as All_Performance.Storage with fields such as storage_used_percent and dest. The Inventory model has no Instances dataset.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0021-UC-3.1.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The goal is valid: find containers filling the graph root through the writable layer. But the chosen signals are cgroup-wide block I/O counters, not writable-layer size. The UC also names a docker stats JSON field and a df sourcetype that do not exist as described, and the SPL loses its inspect enrichment at the stats step.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.29",
+  "verdict": "incorrect"
+}

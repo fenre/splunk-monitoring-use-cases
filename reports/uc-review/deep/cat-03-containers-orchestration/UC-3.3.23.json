@@ -1,0 +1,153 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "724884a3473291ac11f1d2098c2edb9551b811608fe396c5eb5cb0c62e27b77b",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.23.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/security_and_compliance/audit-log-policy-config",
+      "explanation": "OpenShift exposes audit profiles (Default, WriteRequestBodies, AllRequestBodies, None), not free-form per-resource levels. In every profile, Secret, Route and OAuthClient objects are logged at Metadata level only. The 'Volume controls' paragraph repeats the claim ('keep RequestResponse for secret ... and OAuth client resources'). On an OCP cluster these bodies can never be captured. Even on vanilla Kubernetes, logging secret bodies would push credential material into Splunk.",
+      "field": "detailedImplementation",
+      "quote": "capture RequestResponse or Request on create, update, patch, and delete for secrets, configmaps, rolebindings, clusterrolebindings, serviceaccounts token subresources, pods exec and attach and port-forward subresources, oauthclients",
+      "severity": "blocker",
+      "suggested_fix": "Say that OCP audit is configured through spec.audit.profile (and customRules per group) on the APIServer resource. Secrets, Routes and OAuthClients are always Metadata-only, so the detections must rely on metadata fields (user, verb, objectRef, sourceIPs, userAgent, annotations). Recommend WriteRequestBodies only where its overhead and data-handling terms are accepted."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/",
+      "explanation": "The audit.k8s.io/v1 Event schema records impersonation in the impersonatedUser (UserInfo) field. It does not record HTTP request headers, so there are no Impersonate-User or Impersonate-Group headers to capture. The same claim recurs in detailedImplementation ('pull raw audit JSON for Impersonate-User headers', 'request headers captured in audit storage'), and the SPL's has_imp_hdr string match relies on it.",
+      "field": "dataSources",
+      "quote": "Kubernetes audit v1 events including impersonation headers, impersonatedUser bodies",
+      "severity": "blocker",
+      "suggested_fix": "Describe impersonation detection as events where impersonatedUser.username (and impersonatedUser.groups) is populated, with user.username as the impersonator. Drop references to captured impersonation headers."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About",
+      "explanation": "No 'Splunk OpenShift Monitoring Add-on' exists in the Splunkbase catalog; the only OpenShift entry is Outcold Solutions' 'Monitoring OpenShift - Metrics and Log Forwarding' (3836). The Splunk Add-on for Kubernetes is deprecated. A reader would go looking for a product that does not exist and a TA that is no longer supported.",
+      "field": "app",
+      "quote": "Splunk OpenShift Monitoring Add-on patterns; Splunk Add-on for Kubernetes (`Splunk_TA_kubernetes`) for audit routing",
+      "severity": "blocker",
+      "suggested_fix": "Name the actual collection path: the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) with a filelog receiver on /var/log/kube-apiserver, /var/log/openshift-apiserver and /var/log/oauth-apiserver audit logs, or the OpenShift ClusterLogForwarder to HEC. Optionally mention Outcold 3836 as a third-party alternative."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Most audit policies, including the upstream Kubernetes examples, set omitStages: RequestReceived. OpenShift profiles are believed to do the same, in which case the RequestReceived stage is never emitted and the 'RequestReceived stall' companion search and Case 11 cannot work.",
+      "field": "detailedImplementation",
+      "quote": "Include stage-level timestamps so RequestReceived without a timely ResponseComplete surfaces apiserver stalls.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the generated kube-apiserver audit policy on an OCP 4.x cluster (openshift-kube-apiserver config) for omitStages. If RequestReceived is omitted, remove the stall narrative or base it on apiserver latency metrics instead."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Opening the web console does not issue a GET on the openshift-console 'console' Route through the API. The console backend proxies user API calls with the user's token. It is unverified whether those proxied requests keep the browser's User-Agent or carry the console backend's own User-Agent. If they don't, the console_route_session and browser exec lanes would never match.",
+      "field": "detailedImplementation",
+      "quote": "browser user-agent correlated console route reads",
+      "severity": "needs_verification",
+      "suggested_fix": "Inspect audit events produced by console actions on a lab cluster and document the userAgent value they actually carry. Then adjust the narrative and ask the SPL owner to update the is_browser heuristic."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "UPS SNMP hardware has no relationship to OpenShift console and API audit forensics. The equipment list's 'checkpoint' and 'snmp' slugs are equally unrelated. These tags would surface this UC in the wrong equipment filters.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Keep kubernetes_k8s and kubernetes_openshift only, and drop checkpoint and snmp from equipment."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "kube-apiserver audit rows record authorized API calls, not authentication attempts. Mapping every audit row into Authentication (as dataModelAcceleration suggests) would inflate login counts in ES content. Only OAuth server login events fit that model.",
+      "field": "cimModels",
+      "quote": "\"Authentication\"",
+      "severity": "minor",
+      "suggested_fix": "Map apiserver write verbs to Change (All_Changes) and reserve Authentication for oauth-server login and token events."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified under the generic repository handle, yet its SPL cannot execute, it depends on audit content OpenShift does not emit (secret bodies, impersonation headers), and it names a non-existent add-on.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has run against real OCP audit data and a named SME has signed off."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "clarity",
+      "explanation": "The closing checklist is an authoring-template self-check rather than guidance for operators.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present; Step 3 fenced SPL matches the spl field exactly;",
+      "severity": "minor",
+      "suggested_fix": "Remove the checklist or replace it with operator-facing pre-production checks."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "Pod Security Admission belongs to sibling UC-3.3.22 and supports nothing in this UC. The 'Red Hat Documentation — OpenShift Container Platform' entry is a top-level landing page.",
+      "field": "references",
+      "quote": "Red Hat Blog — Pod Security Admission in OpenShift 4.11",
+      "severity": "minor",
+      "suggested_fix": "Replace these with the OCP audit-log-policy-config page and the Kubernetes audit.k8s.io/v1 Event reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch subsearches must contain only streaming commands, but the velocity and token-reuse arms use sort, streamstats and eventstats, so the search fails at parse time. Use append or union, or restructure the search.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/streamstats",
+      "field": "spl",
+      "issue": "streamstats time_window requires events in ascending or descending _time order. Both arms first run 'sort 0 + cluster identity - _time', which interleaves time across identities, so the five-minute windows (priv_ct, ipdc_5m) are computed on a stream that is not time-ordered. Descending order would also count the next five minutes rather than the previous five.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Rows are never restricted to the latest scheduling interval. The velocity arm returns events from the whole earliest=-7d@d range and the other arms from 24h, yet the alert runs every 15 minutes with only a 45-minute throttle, so the same historical bursts re-page for up to seven days. The priv_ct>=25 'high' branch also fires without any baseline comparison.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The console_plugin flag fires on any verb (including get, list and watch) against consoleplugins. The console operator and console pods continuously read ConsolePlugin objects, so the console lane will emit constant 'high' rows. Restrict it to create, update, patch and delete, and also consider patches to consoles.operator.openshift.io spec.plugins, which is how a plugin is actually enabled.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The token_ip_reuse arm marks 'critical' any identity seen from two or more sourceIPs in five minutes, with no exclusion for system:node:*, system:serviceaccount:openshift-* controllers or HA control-plane components that legitimately call from several masters. Distinct IPs per username also do not identify a single reused bearer token.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "The Change root dataset is All_Changes, not Change, so 'WHERE nodename=Change' and the Change.* field prefixes return no rows from the Change half of the join.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0088-UC-3.3.23",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is a rich forensic narrative over Kubernetes and OpenShift audit events. However, it tells operators to capture request bodies for secrets and OAuth clients, which OpenShift never logs, and it relies on 'impersonation headers' that audit events do not carry. The app names are unverifiable or deprecated, and the SPL cannot run (multisearch with non-streaming commands) and would re-page on rows up to seven days old.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.23",
+  "verdict": "incorrect"
+}

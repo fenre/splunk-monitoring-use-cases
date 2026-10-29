@@ -1,0 +1,146 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "155ad831db6714ae0585217fe5bb94c353156e124e865a0ada38184eca4dad98",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.12.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/auth/rolebinding-metrics.md",
+      "explanation": "kube-state-metrics names these families kube_rolebinding_* and kube_clusterrolebinding_* (for example kube_rolebinding_info with roleref_kind and roleref_name labels), and they are only emitted when the rolebindings/clusterrolebindings resources are enabled. Searching for kube_role_binding never matches.",
+      "field": "dataSources",
+      "quote": "kube-state-metrics families kube_role_binding and kube_clusterrole_binding for RBAC inventory corroboration",
+      "severity": "blocker",
+      "suggested_fix": "Use kube_rolebinding_info and kube_clusterrolebinding_info, note that they are EXPERIMENTAL and must be enabled with --resources=rolebindings,clusterrolebindings, and mention that roleref_name lets you inventory cluster-admin bindings directly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/config-api/apiserver-audit.v1/",
+      "explanation": "In an audit PolicyRule, an empty namespaces list matches every namespace and the empty string \"\" is required to match cluster-scoped resources; wildcards are not documented for this field. With namespaces: [\"*\"], ClusterRoleBinding and ClusterRole requests (cluster-scoped) do not match the RequestResponse rule, so the cluster-admin bindings this UC is built to catch lose their requestObject.",
+      "field": "detailedImplementation",
+      "quote": "resources: [\"roles\", \"clusterroles\", \"rolebindings\", \"clusterrolebindings\"]\n    namespaces: [\"*\"]",
+      "severity": "blocker",
+      "suggested_fix": "Remove the namespaces lines from the sample policy (empty list = all namespaces and cluster-scoped), or list \"\" explicitly for cluster-scoped resources."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/pkg/stanza/docs/types/timestamp.md",
+      "explanation": "The stanza timestamp parser defaults to layout_type strptime, so a Go reference-time layout fails to parse unless layout_type: gotime is set; the repository guide uses a strptime layout for the same receiver.",
+      "field": "detailedImplementation",
+      "quote": "parse_from: attributes.requestReceivedTimestamp\n          layout: '2006-01-02T15:04:05.999999999Z07:00'",
+      "severity": "blocker",
+      "suggested_fix": "Add layout_type: gotime under timestamp, or use the strptime layout shown in docs/guides/kubernetes.md."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL only inspects rolebindings and clusterrolebindings (and only roleRef name cluster-admin); Role/ClusterRole mutations and wildcard verbs or resources in rules are never evaluated, yet the title promises excessive-permission detection and Troubleshooting Case 2 describes wildcard ClusterRole updates as if the search raised them.",
+      "field": "detailedImplementation",
+      "quote": "who can mutate Role, ClusterRole, RoleBinding, and ClusterRole objects, who receives cluster-admin or wildcard-equivalent grants",
+      "severity": "major",
+      "suggested_fix": "Either state plainly that excessive permissions are detected only via cluster-admin bindings, or describe the additional roles/clusterroles arm (rules containing \"*\" verbs, resources or escalate/bind/impersonate verbs) the reader must add. Also fix the typo 'ClusterRole objects' to 'ClusterRoleBinding objects'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "With a 24-hour window and no deduplication, every qualifying event is re-reported on each of the 96 daily runs, and the 45-minute throttle described in Step 3 cannot stop that; latest=@h also delays detection of a cluster-admin grant by up to an hour. The savedsearches.conf sketch sets dispatch.latest_time = now, which the inline latest=@h overrides.",
+      "field": "implementation",
+      "quote": "Save uc_3_2_12_rbac_anomalies on a fifteen-minute cadence over earliest=-24h@h latest=@h",
+      "severity": "major",
+      "suggested_fix": "Alert on a short rolling window (for example earliest=-20m latest=-5m on a 15-minute schedule) and keep the 24-hour window only for the signal_volume_24h context via a separate summary or dashboard search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Generator checklist residue aimed at the authoring pipeline, not the implementer (also 'Fenced SPL for runbooks must match the spl JSON field byte-for-byte').",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers present; Step 3 fenced SPL matches spl; multisearch lists five arms including kube-state-metrics scrape; coalesce appears in each audit arm",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the byte-for-byte note."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by a generic handle, but the SPL fails to parse and the metric names do not exist, so it cannot have been run.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the search has been executed against real audit data."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The URL is the generic access-control index, not the auditing page. The BSI link is also a generic landing page with no Kubernetes content.",
+      "field": "references",
+      "quote": "\"title\": \"Kubernetes — Auditing\",\n      \"url\": \"https://kubernetes.io/docs/reference/access-authn-authz/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/ (as in the repository guide) and drop or replace the BSI landing-page link."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The link text labels the OTel Helm chart as a 'Splunk Add-on for Kubernetes'; the repository guide names only the splunk-otel-collector Helm chart. The linked add-on page may not exist or may describe a different product.",
+      "field": "app",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Link the Helm chart (https://github.com/signalfx/splunk-otel-collector-chart) and confirm whether a separately named Splunk Add-on for Kubernetes is actually required for field extractions."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "The fifth multisearch arm contains stats dc(_raw) ... BY cluster _time; multisearch subsearches may contain only streaming commands, so the whole search fails with a multisearch error. Move the kube-state-metrics arm to an append or compute it after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/auth/rolebinding-metrics.md",
+      "field": "spl",
+      "issue": "The metrics arm filters on match(_raw, \"kube_clusterrole_binding\") OR match(_raw, \"kube_role_binding\"), which never matches the real kube-state-metrics names kube_clusterrolebinding_* / kube_rolebinding_*.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The prod exec arm keeps only resp_code 200-299, but streaming exec/attach/portforward requests are upgraded connections whose audit responseStatus.code is commonly 101 Switching Protocols, so successful production exec may never be reported. Verify the logged code on a test cluster and accept 101.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Missing responseStatus.code defaults to \"201\" (treated as success) in three arms, and the trusted_admin_users join with max=0 duplicates rows when a user has several cluster rows; the Authentication tstats join rarely matches Kubernetes usernames.",
+      "severity": "minor"
+    },
+    {
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "field": "cimSpl",
+      "issue": "The cimSpl counts Authentication events per user and action without any RBAC filter, so it does not express this detection; RBAC binding mutations map to the Change data model (All_Changes with object_category / object and action created/modified), which the repository guide lists for kube:apiserver:audit create/update/patch.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1098 could be narrowed to T1098.006 (Additional Container Cluster Roles), and the production exec lane maps to T1609 (Container Administration Command).",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0032-UC-3.2.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Strong threat framing and useful validation and troubleshooting cases, but the SPL will not run (stats inside multisearch), the kube-state-metrics metric names are wrong, the sample audit policy and OTel config would silently miss cluster-scoped bindings and fail timestamp parsing, and the 'excessive permission' half of the title (wildcard Roles and ClusterRoles) is never searched.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.12",
+  "verdict": "incorrect"
+}

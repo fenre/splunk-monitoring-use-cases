@@ -1,0 +1,135 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "c561c33690700498bf09839069dc2ed22857c7387c4613a54105b7fb4c19c4e2",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.42.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "explanation": "oVirt's AuditLogType has no `SPM_ACQUIRE_FAILED` or `SPM_RELEASE_FAILED`. The real SPM events include `SYSTEM_CHANGE_STORAGE_POOL_STATUS_PROBLEMATIC_SEARCHING_NEW_SPM`, `SYSTEM_CHANGE_STORAGE_POOL_STATUS_NO_HOST_FOR_SPM`, `USER_FORCE_SELECTED_SPM_STOP_FAILED` and `VDS_STATUS_CHANGE_FAILED_DUE_TO_STOP_SPM_FAILURE`. VDSM-side errors appear as `SpmStartError`, `SpmStatusError` and `AcquireHostIdFailure`. A reader grepping for the listed tokens would find nothing.",
+      "field": "dataSources",
+      "quote": "`IrsBrokerCommand`, `IrsManager`, `SPM_ACQUIRE_FAILED`, `SPM_RELEASE_FAILED`, “Failed to acquire SPM lease”, “Spm Status: Free” persistence, `ClusterCommandBase` / SPM watchdog language",
+      "severity": "blocker",
+      "suggested_fix": "Replace the invented tokens with real AuditLogType names and VDSM error names, taken from AuditLogType.java and VdsmErrors.properties. Verify the 'Failed to acquire SPM lease' and 'SPM watchdog' phrases against real logs, or drop them."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "oVirt stores audit and Events data in the engine database `audit_log` table, which the Administration Portal Events view reads. I know of no `/var/log/ovirt-engine/engine_audit.log` file. If it does not exist, the third required sourcetype and its monitor stanza are fictional.",
+      "field": "dataSources",
+      "quote": "`sourcetype=ovirt:audit` (engine_audit SPM transitions) ... UF `monitor://` for engine.log, engine_audit.log, and per-host vdsm.log",
+      "severity": "needs_verification",
+      "suggested_fix": "Run `ls /var/log/ovirt-engine/` on an engine 4.4 or 4.5 host. If there is no such file, get Events from the REST API `/ovirt-engine/api/events` or a DB query of `audit_log`, and remove `engine_audit.log` everywhere, including the `app` field."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "Splunk's inputs.conf spec says not to use `crcSalt = <SOURCE>` with rolling log files: it stops Splunk from recognising a file after a roll or rename and causes re-indexing. It does not help with inode changes.",
+      "field": "detailedImplementation",
+      "quote": "Keep crcSalt = <SOURCE> on each monitor to survive logrotate inode changes.",
+      "severity": "major",
+      "suggested_fix": "Remove `crcSalt = <SOURCE>` from the vdsm.log and engine.log monitors, and rely on default CRC tracking."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://bugzilla.redhat.com/show_bug.cgi?id=1524308",
+      "explanation": "vdsm.log lines carry a numeric offset, for example `2017-12-11 09:16:38,772+0200 ERROR (jsonrpc/0) ...`. Without `%z` the offset is ignored. The engine EXTRACT reused from UC-19.1.41 is anchored at `^` before the timestamp and never matches, although this UC is `_raw`-driven so the impact is limited.",
+      "field": "detailedImplementation",
+      "quote": "[ovirt:vdsm]\nSHOULD_LINEMERGE = false\nLINE_BREAKER = ([\\r\\n]+)(?:\\d{4}-\\d{2}-\\d{2}|\\S+\\s+\\d{4}-\\d{2}-\\d{2})\nTRUNCATE = 10000\nMAX_TIMESTAMP_LOOKAHEAD = 32\nTIME_PREFIX = ^\nTIME_FORMAT = %Y-%m-%d %H:%M:%S,%3N",
+      "severity": "minor",
+      "suggested_fix": "Use `TIME_FORMAT = %Y-%m-%d %H:%M:%S,%3N%z` for vdsm. Fix or drop the copied `EXTRACT-engine_line` so it skips the timestamp prefix."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Every input in the UC is a plain UF `monitor://` stanza with custom props, so Splunk_TA_nix plays no role. dataSources also says 'Collected via Splunk Add-on for Unix and Linux (Splunkbase 833) modular input or scripted poll', which contradicts the file-monitor design.",
+      "field": "app",
+      "quote": "— Splunk Add-on for Unix and Linux (Splunkbase 833)",
+      "severity": "minor",
+      "suggested_fix": "Drop the Splunk_TA_nix attribution, or state it is optional and only for host OS telemetry. Describe collection as UF file monitors."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output. Real benign triggers for this UC are planned SPM moves: putting the SPM host into maintenance, a manual 'Select as SPM', engine restarts, and storage domain activation or deactivation. Each produces SPM and sanlock lines without a real fault.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `sum` on `ovirt:engine`** — Scheduled automation elevates `src_kind` without crossing `n_eng_spm_fail` > 0 ... **Synthetic probe on `_time`**",
+      "severity": "major",
+      "suggested_fix": "List those planned SPM transitions, the VDSM 'contending' phase on engine restart, and normal sanlock `add_lockspace` lines on host activation, with how to tell them apart from a fault."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The detection has nothing to do with Hyper-V or Oracle Database. OLVM is only mentioned as excluded.",
+      "field": "equipmentModels",
+      "quote": "\"equipment\": [\"hyperv\", \"oracle\", \"ovirt\", \"syslog\"], \"equipmentModels\": [\"oracle_oracle_db\"]",
+      "severity": "minor",
+      "suggested_fix": "Keep `ovirt` (and `linux`), and remove `hyperv`, `oracle` and `oracle_oracle_db`."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "OLVM is, as far as I know, on-premises software based on oVirt, not an OCI managed service. Its log paths largely match oVirt's.",
+      "field": "exclusions",
+      "quote": "Excludes Oracle Linux Virtualization Manager (OLVM) running as an Oracle Cloud Infrastructure managed service",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Oracle's OLVM documentation and reword the exclusion, or drop it if OLVM uses the same engine.log and vdsm.log paths."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "spelling",
+      "explanation": "The phrase 'in Events' is duplicated.",
+      "field": "detailedImplementation",
+      "quote": "without a matching Storage Domain activation in Events in Events",
+      "severity": "minor",
+      "suggested_fix": "without a matching Storage Domain activation in Events"
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Upstream sanlock lives at pagure.io/sanlock, not under a github.com/sanlock organisation. The oVirt reference is also only the generic documentation root.",
+      "field": "references",
+      "quote": "\"title\": \"sanlock (host ID and lease project)\",\n      \"url\": \"https://github.com/sanlock/\"",
+      "severity": "minor",
+      "suggested_fix": "Link https://pagure.io/sanlock and a specific oVirt storage or SPM documentation page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/oVirt/ovirt-engine/blob/master/backend/manager/modules/common/src/main/java/org/ovirt/engine/core/common/AuditLogType.java",
+      "field": "spl",
+      "issue": "`is_eng_spm_fail` keys on `SPM_ACQUIRE_FAILED` and `SPM_RELEASE_FAILED`, which do not exist in oVirt AuditLogType, so the strongest critical branch, `has_cross`, rarely fires. Real events such as `SYSTEM_CHANGE_STORAGE_POOL_STATUS_PROBLEMATIC_SEARCHING_NEW_SPM` and VDSM `SpmStartError`/`AcquireHostIdFailure` are not matched.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats ... by _time` has no data-center or host split, so several data centers merge into one row and the alert names no entity. `is_split_hint` (`SPM.+acquire`) and `is_sanlock` match healthy SPM-start and lockspace lines, and any single match raises `warning`. Expect heavy noise; group by data center or host and tighten the regexes.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The search hardcodes `earliest=-1h`, while Step 2 tells operators to schedule with `earliest -65m@m`. The inline value overrides the saved-search time range.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-19.1.42",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC scopes SPM contention against its siblings well, but its headline engine signals are not found in the oVirt sources checked. `SPM_ACQUIRE_FAILED` and `SPM_RELEASE_FAILED` do not appear in AuditLogType, `engine_audit.log` and the 'SPM watchdog' look invented, and the real event types and VDSM errors are never named. The `crcSalt` advice and several metadata tags are also wrong.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.42",
+  "verdict": "incorrect"
+}

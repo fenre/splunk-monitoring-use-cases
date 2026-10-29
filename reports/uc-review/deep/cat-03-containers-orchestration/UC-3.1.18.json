@@ -1,0 +1,139 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "b04c52be6a9d56e5387fdae5baba4f1e73c5b320884bdea1d9ba9795856f99a8",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.18.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file",
+      "explanation": "docker buildx build --metadata-file writes image/result metadata (buildx.build.ref, buildx.build.provenance, containerimage.digest, containerimage.descriptor, config digest, warnings); it contains no step totals, cache-hit counts, durations or cache volume sizes. The buildkit_json arm, Step 2 and validation path D therefore depend on fields BuildKit never produces.",
+      "field": "dataSources",
+      "quote": "sourcetype=buildkit:metadata for BuildKit --metadata-file JSON summaries (total steps, cache hits, durations, cache import intervals, optional cache volume sizes)",
+      "severity": "blocker",
+      "suggested_fix": "Derive cache hits from --progress=rawjson (per-vertex cached flag and started/completed timestamps) or a CI wrapper that counts CACHED steps, and describe buildkit:metadata only as the source of image digest and build ref for correlation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "There is no Splunk-published 'Splunk Add-on for Docker' / Splunk_TA_docker on Splunkbase; Docker-related listings are Splunk Connect for Docker (4496), Docker Simple TA (4468), Docker Monitoring Add-on for Splunk (7227) and Monitoring Docker (3723). Step 2 repeats the invented name.",
+      "field": "app",
+      "quote": "Splunk Add-on for Docker (Splunk_TA_docker) optional where the same index already ingests engine and builder-adjacent context",
+      "severity": "blocker",
+      "suggested_fix": "Remove the reference or name a real listing (for example Splunk Connect for Docker, Splunkbase 4496, for engine logs) and state that build telemetry is custom HEC."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "evidence_ref": "content/cat-03-containers-orchestration/UC-3.1.18.json",
+      "explanation": "description does not match spl: the SPL's alert conditions are avg_cache_hit_pct below cache_pct_floor (default 45), avg_build_total_sec above build_sec_budget (default 600 s), or a >30% drop versus the 7-day average; 'total_steps > 0' and 'avg7d_cache_pct > 1' are guard clauses, and there is no lookup named 'missing;'. A reader would set the wrong thresholds.",
+      "field": "cross_field",
+      "quote": "alert when `total_steps` > 0, `total_steps` > 0, `avg7d_cache_pct` > 1, or `drop_vs_baseline_pct` > 30. Filter chain includes lookup `missing;`.",
+      "severity": "blocker",
+      "suggested_fix": "State the real logic: per repo/branch/pipeline, CACHE-COLLAPSE when cache hit % < cache_pct_floor and total build time > build_sec_budget, CACHE-DEGRADED / SLA-BREACH when only one fails, REGRESSION when cache hit % falls >30% below its 7-day average; budgets come from ci_build_sla.csv (defaults 45% and 600 s)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "CI build cache ratios and queue times are not CIM Performance (host CPU/memory/storage/OS metrics) or Inventory data, the SPL uses no data model, and dataModelAcceleration proposes mapping repo into dest, which corrupts CIM semantics.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Remove cimModels and the acceleration text, or state the detection is raw-sourcetype only."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are template text; the closing checklist in detailedImplementation claims KFPs cover cold-cache base-image refreshes, intentional Dockerfile refactors, monorepo breadth, security cache wipes, runner eviction and matrix inflation, none of which appear here.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `repo`, `branch`, `build_id`, `pipeline_id` — Health checks in `oti_containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the real causes already listed in Step 5 (base-image refresh invalidating layers, intentional Dockerfile refactors, monorepo partial rebuilds, deliberate cache wipes, ephemeral runners with empty caches, runner maintenance inflating queue time, --no-cache release builds) into knownFalsePositives."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Generator checklist residue that is also false: equipment lists seven items and equipmentModels is kubernetes_k8s, not docker_engine.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: monitoringType Performance and Capacity; splunkPillar Observability; equipment docker only; equipmentModels docker_engine; cimModels Performance and Inventory; six authoritative references;",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist; if equipmentModels should be docker_engine, fix that field instead."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "It is unclear that buildkitd exposes Prometheus metrics for cache volume hit ratio; the SPL maps it from a field named le_1, which looks like a histogram bucket label rather than a ratio.",
+      "field": "dataSources",
+      "quote": "buildkit_* metric families including cache volume hit ratio and size",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the BuildKit observability docs for the actual metric names exported by buildkitd (if any) and name them explicitly, or drop the bk_metrics lane."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "clarity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "These are site-defined sourcetype names, not those produced by Splunk Add-on for GitHub (6254), the GitLab add-ons or Splunk App for Jenkins (3332); readers may assume an add-on creates them.",
+      "field": "dataSources",
+      "quote": "sourcetype IN (gha:workflow_job, gitlab:ci:job, jenkins:build:finished, tekton:pipelinerun)",
+      "severity": "minor",
+      "suggested_fix": "Mark them as custom HEC sourcetypes, or map them to the sourcetypes of the specific add-ons the reader is expected to install."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot run as written (stats inside multisearch) and the metadata-file dependency is wrong, so 'verified' with a generic reviewer handle overstates validation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set status to draft until a named SME runs the search against real BuildKit/CI data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "The docker_plain arm of multisearch contains stats (and eval after it); multisearch only accepts purely streaming subsearches, so the search fails with 'Multisearch subsearches may only contain purely streaming operations'. Move the per-build stats after the fan-in or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "streamstats time_window=604800 runs after stats BY repo branch pipeline_id, which drops _time; time_window needs _time-ordered events, so avg7d_cache_pct (and REGRESSION) will not compute as described. Rename last_build_time to _time before streamstats.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "OK rows are never filtered out, so a 'results > 0' alert condition fires every run; and the pipeline_id guard does not drop the 'unknown_pipeline' default because the regex tests for '^unknown$'. Add where severity!=\"OK\" and fix the regex.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.2/evaluation-functions/conversion-functions",
+      "field": "spl",
+      "issue": "toString() (camelCase) is used throughout; the Search Reference documents lowercase tostring() and states eval expressions are case-sensitive. Confirm toString is accepted.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "tstats over Performance renaming Performance.dest to repo and Performance.process to pipeline_hint has no relationship to CI build cache data and returns nothing comparable to the primary search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0010-UC-3.1.18",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The build-cache/CI-throughput idea is sound and the troubleshooting cases are useful, but the UC relies on BuildKit --metadata-file carrying cache-hit and step counts it does not emit, names a non-existent 'Splunk Add-on for Docker', and the SPL uses stats inside multisearch, which Splunk rejects. Description thresholds do not match the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.18",
+  "verdict": "incorrect"
+}

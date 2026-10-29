@@ -1,0 +1,111 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "edd5e3377c04ccbbe202ccb612f60f2ecc5da0d72e077e452cb86f5c30851de0",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The add-on assigns all data the sourcetype `cisco:ucs` and sets the source to `cisco:ucs:<classId>`. firmwareRunning rows arrive as `source=cisco:ucs:firmwareRunning` and blade rows as `source=cisco:ucs:computeBlade`, not under a `cisco:ucs:inventory` sourcetype.",
+      "field": "dataSources",
+      "quote": "`sourcetype=cisco:ucs:inventory` from the Splunk Add-on for Cisco UCS. Each event that participates in the primary SPL carries `classId`",
+      "severity": "blocker",
+      "suggested_fix": "Describe the feed as `sourcetype=cisco:ucs` with `source=cisco:ucs:firmwareRunning` and `source=cisco:ucs:computeBlade`. Note that both class IDs must be included in an add-on Template bound to an Input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/print_page/",
+      "explanation": "The documented install path is `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/` (hyphen), and that is also the Splunkbase package name. The latest release is 4.3.3. 4.3.1 is only listed as compatible with Splunk 9.1 through 9.4, not 10.x.",
+      "field": "app",
+      "quote": "current release 4.3.1, Splunk-supported on 9.x/10.x and Splunk Cloud). Use the on-disk name with an **underscore**; some older downloads still show a **hyphen** in the file name only.",
+      "severity": "blocker",
+      "suggested_fix": "Use `Splunk_TA_cisco-ucs` as the folder and package name, cite 4.3.3 as current, and copy the compatibility range from the release notes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on is configured through Managers (splunk_ta_cisco_ucs_servers.conf), Templates listing class IDs (splunk_ta_cisco_ucs_templates.conf), and Inputs that reference `servers =` and `templates =` with a default `sourcetype = cisco:ucs`. The stanza shown, the 'Settings → Data inputs → Cisco UCS (inventory)' path, and the instruction to keep `cisco:ucs:inventory` do not match the add-on.",
+      "field": "detailedImplementation",
+      "quote": "[cisco_ucs://dc01_prod_ucs_a]\\ndisabled = 0\\nindex = cisco_ucs\\ninterval = 300\\nhost = your_ucsm_fqdn_here\\n# Follow the add-on’s keys for: UCSM URL, credentials, organization scope, and\\n# the inventory class list. Never rename sourcetype away from cisco:ucs:inventory",
+      "severity": "blocker",
+      "suggested_fix": "Replace Step 1(1) with the documented flow: add a Manager, create or extend a Template with `firmwareRunning` and `computeBlade`, then create an Input on the heavy forwarder with interval and index, and validate with `index=cisco_ucs sourcetype=cisco:ucs source=cisco:ucs:firmwareRunning`."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The SPL takes `blade_model` from `computeBlade.model`, which UCSM normally reports as a product ID such as `UCSB-B200-M5` rather than `B200 M5`. Running BIOS images are normally reported as strings like `B200M5.4.2.3c.0...` rather than `4.2(3a)`. If so, every row lands in NoBaseline or Drifted. The package names (`UCS-MS-4-2-3-Infra`, `BCTL-M4-B200-M5`, `16.16.1.-0016`) look invented.",
+      "field": "detailedImplementation",
+      "quote": "blade_model,fru_category,approved_version,package_name,notes\\nB200 M5,BIOS,4.2(3a),UCS-MS-4-2-3-Infra",
+      "severity": "needs_verification",
+      "suggested_fix": "Check real `model` and `version` values from `source=cisco:ucs:computeBlade` and `source=cisco:ucs:firmwareRunning` on one blade. Rebuild the sample CSV from those strings, or label the rows as placeholders."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Boot-loader and runtime images on adapters and CIMC commonly carry different version numbers in steady state. If so, grouping them under one parent flags healthy FRUs as MultipleVersionsActive, which is not evidence of an in-flight upgrade.",
+      "field": "detailedImplementation",
+      "quote": "one hardware FRU (BIOS, mezz, disk, controller) can emit **more than one** `firmwareRunning` child (`fw-boot-loader` and `fw-running`); the parent path groups these so a mid-upgrade “two line” case becomes `MultipleVersionsActive`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against UCSM inventory whether `fw-boot-loader` and `fw-system`/`fw-running` versions normally differ. If they do, compare each child type with its own baseline column, or limit the comparison to the running/system image."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "UCSM board controller firmware usually lives under a `boardController/mgmt/fw-system` DN rather than `boardctrl`. If so, the BoardController branch never matches and the CIMC branch (`%/blade-%/mgmt%`) captures board controller rows instead, so they are misclassified.",
+      "field": "detailedImplementation",
+      "quote": "like(ldn,\"%/board/boardctrl/%\") OR like(ldn,\"%/boardctrl/%\"),\"BoardController\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture real board controller DNs with `| stats count by dn` and correct the DN guidance in Step 5. The SPL change is a firewalled flag."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The URL is the Cisco home path, not the firmwareRunning MIM page the title names.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager Management Information Model, firmwareRunning class (XML API / Model)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Cisco UCS Manager XML API / MIM reference page for firmwareRunning."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by `handcraft-2026-04-25`, yet its input configuration and sourcetype do not match the shipped add-on, so SME validation is not evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set a non-verified status until it has been validated against a live add-on install."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "Both the main search and the join subsearch filter `sourcetype=\"cisco:ucs:inventory\"`, which the Splunk Add-on for Cisco UCS does not emit; all add-on data is `sourcetype=cisco:ucs`, with the class ID in `source` (for example `cisco:ucs:firmwareRunning`, `cisco:ucs:computeBlade`). Rewrite the filters as `sourcetype=cisco:ucs source=\"cisco:ucs:firmwareRunning\"` and `source=\"cisco:ucs:computeBlade\"`. Confirm that a `classId` field exists at all before relying on it.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Grouping `fw-boot-loader` with running/system children under one `fru_parent` and treating any version difference as `MultipleVersionsActive` may produce steady-state false positives. Separately, the `boardctrl` pattern may never match the real board controller DN, so those rows fall through to the CIMC branch. Verify both against real UCSM DNs.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0002-UC-19.1.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The per-FRU firmware logic is well explained, but the UC depends on a `cisco:ucs:inventory` sourcetype and an inputs.conf stanza that the Splunk Add-on for Cisco UCS does not use. It also misstates the add-on's folder name and version, and the sample baseline CSV uses model and version strings that probably will not match the UCSM attributes the SPL reads.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.10",
+  "verdict": "incorrect"
+}

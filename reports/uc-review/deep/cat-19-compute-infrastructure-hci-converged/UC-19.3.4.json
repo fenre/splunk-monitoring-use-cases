@@ -1,0 +1,126 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "c0c291da4c8d1c39b1f13a4205017450230acd83aa9b757e5352ad8b13549807",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Every word in the second half is wrapped in bold code formatting, so the sentence reads as a token list rather than instructions.",
+      "field": "implementation",
+      "quote": "schedule **`spl`** **`savedsearches`** **`with`** **`lookup`** **`suppress_arc_noise`** **`fed`** **`by`** **`CMDB`** **`maintenance`** **`UTC`** **`tags`** **`plus`** **`migration_phase`**",
+      "severity": "major",
+      "suggested_fix": "Rewrite as plain sentences: schedule the saved search daily, suppress rows found in a suppress_arc_noise lookup fed by CMDB maintenance windows, and mute mma_without_ama while migration_phase=parallel_ingest."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The same per-word code formatting makes the panel descriptions hard to read.",
+      "field": "visualization",
+      "quote": "Single-value tiles counting **`heartbeat_gap=1`** **`distinct`** **`machine_key`** **`by`** **`sub_id`**",
+      "severity": "minor",
+      "suggested_fix": "Format only field names as code, for example: single-value count of distinct machine_key where heartbeat_gap=1, split by sub_id."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_microsoft-cloudservices is not known to ship a Resource Graph input or the sourcetypes mscs:resource:graph / azure:hybrid_compute_machines. The Splunk Add-on for Microsoft Azure (3757, TA-MS-AAD) is the add-on that offers an Azure Resource Graph input, and it uses its own sourcetype.",
+      "field": "dataSources",
+      "quote": "**`mscs:resource:graph`** or **`azure:hybrid_compute_machines`** snapshots from **Splunk_TA_microsoft-cloudservices** (**Splunkbase 3110**) Resource Graph modular inputs",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the input list and sourcetypes of both add-ons. If Resource Graph comes from 3757, name that add-on and its real sourcetype; otherwise label azure:hybrid_compute_machines as a custom HEC sourcetype from your own poller."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The mscs: sourcetype prefix belongs to Splunk_TA_microsoft-cloudservices (3110), not TA-MS-AAD (3757), so the add-on attribution looks swapped.",
+      "field": "detailedImplementation",
+      "quote": "Splunk Add-on for Microsoft Azure (**3757**) optional **`mscs:azure:eventhub`** correlates **`Microsoft.HybridCompute`** Activity streams",
+      "severity": "needs_verification",
+      "suggested_fix": "Attribute mscs:azure:eventhub to the Splunk Add-on for Microsoft Cloud Services (3110), or name the 3757 add-on's actual Event Hub sourcetype."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "These publisher.type strings do not match the published Windows Admin Center extension identity, which is believed to be publisher Microsoft.AdminCenter, type AdminCenter. The extensions REST payload also carries publisher and type as separate properties, so the concatenated regexes may never match.",
+      "field": "detailedImplementation",
+      "quote": "**`microsoft.azure.compute.AdminCenter`**, **`microsoft.azure.update.WindowsAdminCenter`**",
+      "severity": "needs_verification",
+      "suggested_fix": "List a real extension inventory (Get-AzConnectedMachineExtension) and record the exact publisher and type values. Build ext_type as publisher.\".\".type if the regexes rely on the combined form."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "Arc-enabled servers have no Microsoft 365 component, so the tag misroutes the UC in equipment filters.",
+      "field": "equipment",
+      "quote": "\"m365\"",
+      "severity": "minor",
+      "suggested_fix": "Remove m365."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "earliest=-24h is a time modifier, not a macro. The text inherits the backtick error from the SPL.",
+      "field": "description",
+      "quote": "Filter chain includes macro `earliest=-24h`.",
+      "severity": "minor",
+      "suggested_fix": "Describe it as a 24-hour search window."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer, yet its SPL fails at parse time.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until a human runs the corrected search."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "Search terms are wrapped in backticks: (`index=azure_arc` OR ...), (`sourcetype=\"azure:hybrid_compute_machines\"` ...) and `earliest=-24h`. Backticks invoke search macros, so Splunk tries to expand macros literally named 'index=azure_arc' and similar, and the search fails. Remove the backticks.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "`eval ordering_risk=guest_missing OR mma_without_ama OR failed_extensions>0 OR ...` assigns a Boolean, which eval rejects. Use if(..., 1, 0).",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "Unquoted dotted field names in eval (properties.status, properties.lastStatusChange) are parsed as the '.' concatenation of fields 'properties' and 'status', not as JSON paths. Field names containing '.' must be single-quoted, for example 'properties.status'.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In extension rows, name is the extension name, not the machine name, so machine_key never joins machine rows with their extensions. The earlier `where heartbeat_gap=1 OR extension_gap=1` also discards healthy Guest Configuration rows before stats. As a result guest_missing=1 for almost every machine and the alert fires fleet-wide. Derive machine_key from the extension resource id (the segment after /machines/) and compute presence before filtering.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "heartbeat_gap is also set by `match(lower(_raw),\"(?i)(token|tls|cert|proxy|403|401|407)\")`. Any himds/azcmagent log line or JSON payload containing these substrings (for example 'certificate' in normal start-up logs) is treated as a heartbeat failure.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0083-UC-19.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The SPL cannot run. Every index, sourcetype and time term is wrapped in backticks (macro syntax), and a Boolean is assigned with eval. The join logic would also mark nearly every machine as missing Guest Configuration. The implementation and visualization prose is bold-per-word word salad, and several sourcetype and add-on attributions look invented.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.4",
+  "verdict": "incorrect"
+}

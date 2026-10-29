@@ -1,0 +1,100 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "d3ea861075abb240bae4c230e5bab23cc15487a6f2de8dfd9c82b9c3e7f3486e",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.46.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The Step 2 SPL block, which the text says is the saved-search body to paste, contains markdown `**` markers inside the SPL. Pasted as is, the eval fails to parse and the SST regex no longer matches `SST request`. It also no longer matches the `spl` field.",
+      "field": "detailedImplementation",
+      "quote": "| eval cluster_status=lower(coalesce(**wsrep_cluster_status**, cluster_status, \"\"))\n...\n| eval cluster_size=tonumber(coalesce(**wsrep_cluster_size**, cluster_size, \"0\"))\n...\"(?i)(**SST** request|requested state transfer",
+      "severity": "major",
+      "suggested_fix": "Remove all `**` markers from the code block so it is byte-identical to the `spl` field."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The poller posts to the HEC event endpoint, which skips the parsing pipeline: index-time `INDEXED_EXTRACTIONS` and `TIMESTAMP_FIELDS` would not apply, and time comes from the top-level `time` key, which is not set. With `KV_MODE = none`, search-time JSON extraction is also off, so `wsrep_cluster_status` and the other fields might not exist at search time. The scripted-input stanza also sets a sourcetype for a script that writes nothing to stdout.",
+      "field": "detailedImplementation",
+      "quote": "body = json.dumps({\"event\": obj, \"sourcetype\": \"mysql:galera:wsrep\"}) ... [mysql:galera:wsrep]\nSHOULD_LINEMERGE = false\nTRUNCATE = 0\nINDEXED_EXTRACTIONS = json\nKV_MODE = none\nTIMESTAMP_FIELDS = _time",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the HEC event-endpoint behaviour. Probably set `\"time\"` at the top level of the HEC payload and `KV_MODE = json`, or have the script print JSON to stdout and let the scripted input index it, dropping HEC."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
+      "explanation": "Splunk advises against `crcSalt = <SOURCE>` for rolling logs because it causes re-indexing after rotation, and MariaDB error logs are rotated. That re-indexing would inflate `partition_events` and `donor_events`. The stray blank line also suggests a copy error.",
+      "field": "detailedImplementation",
+      "quote": "[monitor:///var/log/mysql/error.log]\ndisabled = 0\nindex = openstack\nsourcetype = mysql:error_log\n\ncrcSalt = <SOURCE>",
+      "severity": "major",
+      "suggested_fix": "Remove `crcSalt = <SOURCE>` from both error-log monitors."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "`SHOW GLOBAL STATUS` and `information_schema.GLOBAL_STATUS` need no special privilege in MariaDB, so PROCESS and REPLICATION CLIENT over-grant. The user is also named `monitoring_repl`, which suggests replication rights.",
+      "field": "detailedImplementation",
+      "quote": "A read-only monitoring user on port 3306 (client SQL) with `PROCESS` and `REPLICATION CLIENT` (or a minimal set your security team will approve) so `SHOW STATUS` is permitted",
+      "severity": "minor",
+      "suggested_fix": "State that a plain login with `USAGE` is enough for wsrep status reads, and name the user accordingly."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output and reference a span that the SPL does not have. The real benign causes are already described in Steps 4 and 5 but are missing here: planned SST or Donor/Desynced during node rebuild, rolling restarts, scale-out gcomm reconfiguration, and cold-start bootstrap.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `mysql:galera:wsrep`** — Scheduled automation elevates `host` without crossing `cluster_size` > 0 ... over `span=1h`",
+      "severity": "major",
+      "suggested_fix": "Move those Galera-specific benign states into knownFalsePositives, each with its distinguishing signal, for example `wsrep_local_state_comment=Donor/Desynced` with quorum intact."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "oVirt, Proxmox and RabbitMQ are named only as out-of-scope siblings, not as data sources for this detection.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"mysql\", \"openstack\", \"ovirt\", \"proxmox\", \"rabbitmq\", \"syslog\"]",
+      "severity": "minor",
+      "suggested_fix": "Keep `mysql`/`mariadb`, `openstack` and optionally `syslog`. Remove `ovirt`, `proxmox` and `rabbitmq`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "The SPL hardcodes `earliest=-15m`, which overrides `dispatch.earliest_time`, so the stated alert window is not the effective one. The Step 4 macro sketch `case(expected_size,3,0,5,1,0)` is also not valid `case()` syntax.",
+      "field": "detailedImplementation",
+      "quote": "with `dispatch.earliest_time=-10m`, `dispatch.latest_time=now`",
+      "severity": "minor",
+      "suggested_fix": "Align the alert time range with the inline `earliest`, or remove one of them. Rewrite the sketch as `case(expected_size=3,0, expected_size=5,1, true(),0)`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Error-log events have no `cluster_name`, so they fall into `cluster_name=\"default\"` with `cluster_size=0`. Their `partition_events` never share a row with poll rows, and `expected_size>=3 AND reporting_hosts<expected_size AND partition_events>0` can never be true. Map host to cluster_name with a lookup before `stats`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`in_donor_or_join` matches `joiner`, but `wsrep_local_state_comment` reports `Joining`, `Waiting on SST`, `Joined`, `Synced` and `Donor/Desynced`, so joining nodes are missed. Also, `wsrep_flow_control_paused` is a fraction since the last FLUSH STATUS, not a current rate, so `>0.5` reflects history unless the poller flushes.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-19.1.46",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC is strong on Galera semantics: wsrep variables, bootstrap cautions and validation searches. But the SPL copy in detailedImplementation contains markdown bold markers that break it, the poll-plus-error-log fusion cannot meet its own critical condition because error-log rows fall into a separate `default` cluster, and the HEC poller plus props combination may leave the wsrep fields unextracted.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.46",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,125 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "535306e5debc12b4daca1f073d019be8a04caead5d9f45e51bc37d6a4bf7d4b3",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.47.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5263",
+      "explanation": "Splunkbase app 5263 is 'HappySignals Auditlog Input', not a Dell PowerEdge or iDRAC add-on. The same wrong ID and link appear in `references`, `implementation` and detailedImplementation Option B steps 3–4, which tell the reader to install it and align sourcetypes with its out-of-the-box extractions.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Dell EMC PowerEdge** (Splunkbase 5263) for iDRAC/LCL/SEL field discipline",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 5263 attribution everywhere. Either cite a verified Dell iDRAC/OpenManage Splunkbase app by its correct ID, or state that iDRAC syslog and Redfish parsing is customer-defined props/transforms, which SC4S can partly handle."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://infohub.delltechnologies.com/en-us/p/take-vxrail-automation-to-the-next-level-by-leveraging-apis/",
+      "explanation": "The documented VxRail Manager disk API is `GET /rest/vxm/v1/disks` and `GET /rest/vxm/v1/disks/{disk_sn}`, with node inventory under `/rest/vxm/v1/hosts`, authenticated with vCenter SSO credentials over Basic auth. The `/v2/system/disks` and `/v2/system/nodes` paths are not documented, and `POST` is not a read method for disk inventory. The poller script hardcodes the same wrong URL, so Option A returns 404.",
+      "field": "dataSources",
+      "quote": "typically `GET/POST` families under `/rest/vxm/v2/system/disks` with optional `/rest/vxm/v2/system/nodes` for **node** → **enclosure** mapping",
+      "severity": "blocker",
+      "suggested_fix": "Use `GET /rest/vxm/v1/disks`, plus `/v1/disks/{disk_sn}` for detail and `/v1/hosts` for node mapping, and point readers to the API catalogue at `https://<vxm>/rest/vxm/api-doc.html` for their release. Apply the same fix to the Python script and Step 1 text in detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "props.conf `EXTRACT-` needs named capturing groups `(?<field>...)` to create fields. These regexes use unnamed groups or none at all, so no `slot`, `serial_number` or message field is extracted. iDRAC syslog events then fail `where serial!=\"\"` and drop out of the main search, which makes Option B ineffective.",
+      "field": "detailedImplementation",
+      "quote": "EXTRACT-ids_slot = [Dd]isk\\s+(\\d+|\\S+\\s*slot[: ]\\s*(\\d+))\nEXTRACT-ids_ser  = [Ss]erial(?:\\s+number)?[:\\s]+([A-Z0-9-]{6,32})\nEXTRACT-ids_msg  = (?i)Predictive\\W*[Ff]ailure|Offline|PFA|SMART|re-?allocated|uncorrect",
+      "severity": "major",
+      "suggested_fix": "Rewrite them with named groups, for example `EXTRACT-ids_ser = (?i)serial(?:\\s+number)?[:\\s]+(?<serial_number>[A-Z0-9-]{6,32})`, and add an extraction that sets a predictive or state field from PFA/Offline text so the SPL can see it."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "The Step 2 SPL block, which the text says to paste, contains markdown `**` markers, so the eval fails to parse and the block no longer matches the `spl` field. The prerequisites also contain `**serial_number**` inside backticks.",
+      "field": "detailedImplementation",
+      "quote": "| eval pnum=tonumber(tostring(coalesce(PredictiveFailureCount, **predictive_failure**, \"0\")))",
+      "severity": "major",
+      "suggested_fix": "Remove the `**` markers from code spans and blocks so the Step 2 SPL is byte-identical to `spl`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These scenarios are template output that refers to a `span=1h` the SPL does not have. The real benign causes appear only in Steps 4–5: LCM firmware windows and iDRAC resets, EOL SSDs with a standing PFA awaiting a planned swap, RMA 'ghost' inventory still present in the API, and SMART counter resets after a swap.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `vxrail:disks`** — Scheduled automation elevates `node` without crossing `pnum` > 0 for UC-19.1.47. Compare `_time` minute against the job schedule.",
+      "severity": "major",
+      "suggested_fix": "Replace these entries with the Dell-specific benign states, each with its distinguishing signal and suppression lookup (`vxrail_lcm_windows.csv`, `vxrail_planned_eol.csv`)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Data sent to the HEC `/event` endpoint skips line breaking and structured-data parsing, so `INDEXED_EXTRACTIONS`, `LINE_BREAKER` and `TIMESTAMP_FIELDS` probably do not apply. With `KV_MODE = none`, search-time JSON extraction is also off, so `disk_state` and `serial_number` may not exist at search time. The scripted-input stanza also assigns a sourcetype to a script that writes nothing to stdout.",
+      "field": "detailedImplementation",
+      "quote": "HEC_URL=https://idx01.corp:8088/services/collector/event ... [vxrail:disks]\nSHOULD_LINEMERGE = false\nLINE_BREAKER = ([\\r\\n]+)\nTRUNCATE = 20000\nKV_MODE = none\nINDEXED_EXTRACTIONS = json\nTIMESTAMP_FIELDS = _time",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the HEC event-endpoint behaviour. Probably use `KV_MODE = json` and drop the index-time settings, or have the script print JSON to stdout and let the scripted input index it, without HEC."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "On iDRAC9, remote syslog is usually set under Configuration → System Settings → Alert Configuration → Remote Syslog Settings, and per-category forwarding is enabled in the alert matrix. The stated path also has an unbalanced parenthesis.",
+      "field": "detailedImplementation",
+      "quote": "In iDRAC Settings → iDRAC Settings → Syslog), send OS Log, Lifecycle Controller (LCL), and System Event Log (SEL)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the iDRAC9 user guide for the targeted firmware and state the exact UI path and the alert-matrix 'Remote System Log' column."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "Pointing to an unrelated Cisco Intersight UC 'as a metaphor' confuses a Dell runbook and adds no action.",
+      "field": "detailedImplementation",
+      "quote": "Cross-link your CMDB to Cisco UC-19.1.21-style HCL story only as a metaphor (that UC is Intersight)",
+      "severity": "minor",
+      "suggested_fix": "Remove the Cisco cross-reference and keep the instruction to check Dell's VxRail compatibility matrix."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Option C tells the poller to emit `Status.Health` and `Status.State`, but the SPL's `state` coalesce only reads flat `status`/`Status`/`health`/`Health`. Flattened Redfish drive health is never evaluated, so a Redfish `Critical` drive shows as ok.",
+      "field": "detailedImplementation",
+      "quote": "Emit one HEC line per drive with a flattened object that includes: `SerialNumber`, `Status.Health`, `Status.State`",
+      "severity": "minor",
+      "suggested_fix": "Specify the flattened key names the poller must write, for example `health` and `state`, or note that the SPL coalesce must include `'Status.Health'`."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`node=coalesce(host, ...)` always resolves to `host`, which is always set: the HEC or forwarder host for vxm rows and the iDRAC IP for syslog rows. iDRAC rows also get `cluster=\"default\"` because they carry no cluster_id. The vxm and SEL records for one serial therefore land in different `(cluster, node, serial)` rows, and the documented single merged row with `sources=vxm+sel` cannot occur. Map serial or host to cluster and node through a lookup before `stats`, or group by serial only.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "iDRAC SEL/LCL syslog events carry no `predictive_failure`, `PredictiveFailureCount`, `disk_state` or `smart_alert` fields, and the props EXTRACTs create none. SEL rows therefore always score pred=0, smart=0 and state=\"\", and Option B never changes `severity_bucket`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`match(sourcetype, \"idrac:lcl|idrac:syslog\")>0` compares the boolean result of `match()` with a number. Eval typechecking may reject it, or the branch may never be true. Use `match(sourcetype, \"idrac:lcl|idrac:syslog\")` without the comparison.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0040-UC-19.1.47",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has rich operational guidance, including the LCM, EOL and RMA-ghost discussion, but it rests on two wrong facts. Splunkbase 5263 is not a Dell PowerEdge add-on, and the VxRail disk endpoints `/rest/vxm/v2/system/disks` and `/rest/vxm/v2/system/nodes` do not match the documented `/rest/vxm/v1/disks` API. The iDRAC extractions also cannot populate fields as written, so the claimed cross-source `sources=vxm+sel` merge is overstated.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.47",
+  "verdict": "incorrect"
+}

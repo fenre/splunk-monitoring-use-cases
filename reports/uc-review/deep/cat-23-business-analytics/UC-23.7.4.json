@@ -1,0 +1,101 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "11cc8764120884700fcc23d26d37358fc9b83194b40cc7baf30e50207db4a7f2",
+  "file": "content/cat-23-business-analytics/UC-23.7.4.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/ServiceNow/Configureinputs",
+      "explanation": "Splunk Add-on for ServiceNow table inputs are `[snow://<name>]` stanzas (table, timefield, include, filter_data). There is no `servicenow_record_input` type. detailedImplementation Step 1 repeats it ('inputs.conf servicenow_record_input stanzas').",
+      "field": "app",
+      "quote": "on Heavy Forwarder modular servicenow_record_input collectors",
+      "severity": "blocker",
+      "suggested_fix": "Refer to `snow://` inputs for the incident and task_sla tables, configured under Splunk Add-on for ServiceNow > Inputs or in Splunk_TA_snow/local/inputs.conf."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The description is garbled: it groups by a literal `]` token and by `task`, and it presents `tsla_pct > 0` as a threshold. The SPL actually emits one row per open ticket with pct_of_sla ≥ 60 (WATCH or worse), classified into the 100/90/80/60 ladder.",
+      "field": "description",
+      "quote": "with thresholds `tsla_pct` > 0, `pct_of_sla` >= 100, `pct_of_sla` >= 90, or `pct_of_sla` >= 80. Groups `historical_close_avg` by `task`, `assignment_group`, `priority_n`, `]`",
+      "severity": "major",
+      "suggested_fix": "Say: for each open, non-major incident or request updated in the window, compute the percentage of the SLA consumed (from task_sla when available, otherwise age divided by a priority target). Classify it BREACHED/IMMINENT/AT_RISK/WATCH and flag at_risk when the team's 30-day average close time exceeds the remaining hours."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The add-on names sourcetypes `snow:<table>`. The CSM case table is `sn_customerservice_case`, and there does not appear to be a standard `case` table, so `snow:case` (which the SPL relies on) would match nothing. sc_request also uses `request_state`, not incident-style state values.",
+      "field": "dataSources",
+      "quote": "complement with sourcetype snow:case or snow:sn_customerservice_case",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the table names on the instance. Use `snow:sn_customerservice_case` for CSM, and document the state field/values for sc_request (request_state) and cases."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The template false positives (maintenance windows, synthetic probes, onboarding bursts) are not real causes of a wrong breach forecast. The real ones are already written up in detailedImplementation Step 5: SLA pauses for On Hold/vendor waits, calendar vs wall-clock divergence, priority mislabels, assignment churn, release surges and CAB gates.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'Backlog Age and Breach Risk Forecast' shifts `historical_close_avg` over `span=1h` while `task`, `assignment_group`, `priority_n`, `]` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 caveats into knownFalsePositives, each with its check (task_sla stage=paused, cmn_schedule, sys_audit reassignment)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The final `table` has no sys_id (only number), so a sys_id token is not available. Rows from sc_request or case tables would also open the wrong form under incident.do.",
+      "field": "visualization",
+      "quote": "Drilldown hyperlink template opening ServiceNow incident.do via sys_id token passthrough.",
+      "severity": "minor",
+      "suggested_fix": "Add sys_id and sourcetype to the table, or build the link with `incident.do?sysparm_query=number=$row.number$` and switch the form by source table."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent with no SME sign-off, and the forecast relies on placeholder SLA hours and a heuristic weekend factor that the text itself calls an approximation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until it has been validated against task_sla on a live instance."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`earliest=-24h@h` combined with dedup on snapshot events only sees tickets updated in the last 24 hours. Open tickets untouched for longer, which are the stalest and most likely to breach, drop out of the backlog entirely. Backlog posture needs a window at least as long as the oldest open ticket's last update, or a KV-store/lookup state of open tickets.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The weekend adjustment depends on the weekday of now(), not on the ticket's actual elapsed weekend time. It subtracts an arbitrary 35% of age (capped at 48h) only when the search runs on Saturday or Sunday, so pct_of_sla drops at the weekend and jumps back on Monday. `bh_age_hours` is not business hours.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The task_sla subsearch takes `latest(percentage)` per task over 7 days without filtering stage or SLA definition. Tickets with response plus resolution SLAs (or completed/cancelled SLA rows) get whichever row updated last, so a completed response SLA's percentage can mask a running resolution SLA. Filter stage=\"in_progress\" (or the resolution SLA) and use max().",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The state filter excludes 6/7 and Closed/Resolved/Cancelled labels but not incident state 8 (Canceled). `historical_close_avg` is built only from snow:incident, so case and request rows always fall back to `sla_target_hours*0.45`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0044-UC-23.7.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailed implementation explains the breach-risk ladder well and lists real ServiceNow caveats. However, the add-on input type is wrong, the description is garbled, and the SPL has structural gaps: a 24-hour window drops stale open tickets, the weekend adjustment is arbitrary, and the task_sla join picks an arbitrary SLA. Together these undermine the forecast.",
+  "tier": "deep",
+  "uc_id": "UC-23.7.4",
+  "verdict": "incorrect"
+}

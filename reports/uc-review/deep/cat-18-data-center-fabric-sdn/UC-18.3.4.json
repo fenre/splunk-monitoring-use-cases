@@ -1,0 +1,105 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "115049c8ec24877336073ba300a02b702bc2082e9e797c9e6bc9c7f3f82a859b",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.3.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/1917",
+      "explanation": "Splunkbase 1917 is \"Cisco Nexus 9k Add-on for Splunk Enterprise (deprecated)\", built by Cisco, and its listing tells users to migrate to Cisco DC Networking (7777). It is not Splunk_TA_cisco-nexus. dataSources, detailedImplementation and references repeat the error.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Cisco Nexus** (**Splunk_TA_cisco-nexus**, [Splunkbase 1917](https://splunkbase.splunk.com/app/1917))",
+      "severity": "blocker",
+      "suggested_fix": "Name it correctly and mark it deprecated, or replace it with 7777 plus SC4S for NX-OS syslog."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1918 is \"Arista Networks Telemetry For Splunk\" (aristanetworks app), not a Splunk_TA_arista add-on.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Arista** (**Splunk_TA_arista**, [Splunkbase 1918](https://splunkbase.splunk.com/app/1918))",
+      "severity": "blocker",
+      "suggested_fix": "Use the real listing name, or describe Arista syslog ingest via SC4S without an invented TA name."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/2847",
+      "explanation": "The Splunk Add-on for Juniper (2847) collects Junos and NetScreen syslog. It does not ingest JTI/OpenConfig streaming telemetry or define juniper:junos:jti:openconfig.",
+      "field": "dataSources",
+      "quote": "**`juniper:junos:syslog`** + **`juniper:junos:jti:openconfig`** (**Splunk_TA_junos**, **2847**) streaming **`network-instance`** **`vxlan`** **`vni`** leaves",
+      "severity": "blocker",
+      "suggested_fix": "Attribute JTI/gNMI ingest to the OpenTelemetry Collector or a custom receiver, and keep 2847 for syslog only."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Peer state, EVPN route classes, MTU values and syslog fault strings are not flow or session records, so Network_Traffic does not fit. The schema field's \"UDP 4789 transport\" justification describes the overlay, not what is being ingested.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Inventory\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic, or state that no CIM model applies to the fault/state lanes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "The grounding guide uses `cisco:nexus:syslog` for NX-OS syslog, while this UC uses `cisco:nxos:syslog`. One of them will not match real data.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=cisco:nxos:syslog`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm which sourcetype the chosen ingest path (SC4S or 7777) actually assigns to NX-OS syslog, and use it consistently."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the only reviewer is an automated agent and every add-on ID is misattributed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME validates the UC."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Several troubleshooting bullets end with filler phrases that add no actionable content.",
+      "field": "detailedImplementation",
+      "quote": "refresh CSV governance weekly alongside CMDB reconciliation rituals finance auditors already demand",
+      "severity": "minor",
+      "suggested_fix": "Trim each bullet to the symptom, the cause, and the check to run."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`stats ... by overlay_fault, leaf_hostname, fabric_site, host` drops every event where leaf_hostname or fabric_site is null. That covers raw cisco:nxos:syslog, arista:eos:syslog and juniper:junos:syslog lines unless they are enriched at ingest, so the syslog-based fault classes silently produce no rows.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`evpn_control_plane_flap` matches `l2vpn.?evpn` anywhere in _raw, so any vxlan:evpn:routes snapshot or log line that merely mentions \"l2vpn evpn\" is classed as a control-plane flap. The regexes for `mobility`, `bum` and `all.?active` are similarly broad.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0055-UC-18.3.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The VXLAN and EVPN protocol facts are mostly accurate: UDP 4789, 8472 on Linux, the 1554-byte budget, AFI 25/SAFI 70, and the RFCs. However, all three Splunkbase add-on IDs are mislabelled, Network_Traffic does not fit this signal, and the SPL drops syslog lanes at the stats step and over-matches EVPN 'flaps'.",
+  "tier": "deep",
+  "uc_id": "UC-18.3.4",
+  "verdict": "incorrect"
+}

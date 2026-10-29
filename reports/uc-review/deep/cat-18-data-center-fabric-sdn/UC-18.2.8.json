@@ -1,0 +1,151 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "a105f64689a90023677ae0520b13002a07f03160f91a7d9646ea5114873d1c1f",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.2.8.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4856",
+      "explanation": "Splunkbase 4856 is the community 'Metrics Add-on for Infrastructure' and 1810 is 'Hunk App for MongoDB'. The Splunk Add-on for VMware is 3215; NSX integrations on Splunkbase are 4241 (VMware NSX-T Splunk App) and 6805 (TA-nsx). Repeated in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**`Splunk_TA_vmware-nsxt`** ([Splunkbase **4856**](https://splunkbase.splunk.com/app/4856)) for **`vmware:nsx:*`** parsing; **`Splunk_TA_vmware`** ([Splunkbase **1810**](https://splunkbase.splunk.com/app/1810))",
+      "severity": "blocker",
+      "suggested_fix": "Cite Splunk Add-on for VMware (3215) for vCenter data and either the real NSX Splunkbase listing or a custom REST/SC4S collector for NSX telemetry."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 1546 is the 'REST API Modular Input' (Baboon Bones). SC4S is distributed as a container from GitHub, not as that Splunkbase app. Repeated in dataSources and detailedImplementation.",
+      "field": "app",
+      "quote": "**Splunk Connect for Syslog** ([Splunkbase **1546**](https://splunkbase.splunk.com/app/1546))",
+      "severity": "blocker",
+      "suggested_fix": "Link SC4S to https://github.com/splunk/splunk-connect-for-syslog and drop the 1546 reference."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)', not a Cisco ACI add-on. Repeated in dataSources and detailedImplementation ('Optional ACI strip charts when Splunkbase 4022 feeds exist').",
+      "field": "app",
+      "quote": "Optional **`Splunk_TA_cisco-aci`** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022))",
+      "severity": "blocker",
+      "suggested_fix": "Point ACI ingestion at Cisco DC Networking (7777), which already appears, or the correct ACI add-on listing."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "The Splunk Add-on for VMware emits vmware:events, vmware:tasks, vmware:inv:* and vmware:perf:*; there is no vmware:vsphere:vcenter sourcetype, so the vCenter enrichment lane never returns data. Repeated in app, implementation, schema and detailedImplementation.",
+      "field": "dataSources",
+      "quote": "**`vmware:vsphere:vcenter`** tasks for **Edge VM** motion",
+      "severity": "blocker",
+      "suggested_fix": "Use sourcetype=vmware:tasks OR sourcetype=vmware:events (EnterMaintenanceMode_Task, VmMigratedEvent / DrsVmMigratedEvent) in the text."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic describes flows and sessions (bytes, packets, src/dest connections). Gateway service state and BGP status are not traffic, and forcing a router ID into src/dest pollutes the model. The schema also has an unbalanced bold marker.",
+      "field": "cimModels",
+      "quote": "Map **`lr_latest`** and neighbor-facing fields into **`src`/`dest` placeholders under **CIM** **`Network_Traffic`**",
+      "severity": "blocker",
+      "suggested_fix": "Drop Network_Traffic; keep Inventory, Change and Alerts, and keep the health rows in the raw NSX index."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides (Data Center Fabric & SDN integration guide, sourcetypes list)",
+      "explanation": "The integration guide and sibling UCs use the vmware:nsxt:* prefix (vmware:nsxt:edge, vmware:nsxt:transport_node, vmware:nsxt:syslog). This UC invents a parallel vmware:nsx:* namespace, so sibling dashboards and macros (sourcetype LIKE \"vmware:nsxt:%\") will not see it.",
+      "field": "dataSources",
+      "quote": "five sourcetypes: **`vmware:nsx:gateway_health`** ... **`vmware:nsx:edge_status`** ... **`vmware:nsx:transport_node`** ... **`vmware:nsx:audit`**",
+      "severity": "major",
+      "suggested_fix": "Align on vmware:nsxt:* (e.g. vmware:nsxt:edge, vmware:nsxt:transport_node) or state that these are custom collector sourcetypes distinct from the guide's."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The implementation says MoIDs are mapped through vcenter_edge_host_map.csv, but the SPL's vCenter join sets edge_key from host_mo_id/host_id (an ESXi host MoID) and joins directly to the NSX edge_node_id with no lookup. These keys never match, so vc_ts and vc_mm are always empty and vCenter-maintenance suppression never works. detailedImplementation admits that blank joins are 'expected'.",
+      "field": "cross_field",
+      "quote": "**map** **MoIDs** through **`vcenter_edge_host_map.csv`**",
+      "severity": "major",
+      "suggested_fix": "Describe the lookup step explicitly (lookup vcenter_edge_host_map.csv host_mo_id OUTPUT transport_node_id AS edge_key) and say the join is inert until that lookup exists."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The Tier-0 state endpoint returns a gateway state object (tier0_state with per-edge HA/status details and an enforcement-point path). Flat overall_status/bgp_status/nat_status/lb_status/vpn_status fields are not documented on it; BGP neighbour status lives under locale-services/{id}/bgp/neighbors/status, and NAT, LB and VPN have separate status APIs. The SPL's whole classifier depends on these field names.",
+      "field": "dataSources",
+      "quote": "Policy **`GET /policy/api/v1/infra/tier-0s/{id}/state`** plus Tier-1 mirrors) exposing **`overall_status`**, **`bgp_status`**, **`nat_status`**, **`lb_status`**, **`vpn_status`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the NSX 4.2 Policy API reference and list the real endpoints per service, or say these fields are produced by the site's collector normalisation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The reference titled as a specific API operation links to the techdocs home page.",
+      "field": "references",
+      "quote": "\"title\": \"VMware NSX 4.2 API — GET Tier-0 state\",\n      \"url\": \"https://techdocs.broadcom.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Tier-0 state operation on developer.broadcom.com (NSX-T Data Center REST API)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The validation step defers to the reader's runbook instead of naming the Edge CLI commands. Likewise, 'Tier-1 mirrors your operations guide names' leaves the endpoint undefined.",
+      "field": "detailedImplementation",
+      "quote": "On Edge nodes, `get` style commands your runbook lists for BGP neighbors, NAT tables, LB virtual servers, and IPsec SAs",
+      "severity": "minor",
+      "suggested_fix": "Name the commands (e.g. `get logical-routers`, `vrf <n>`, `get bgp neighbor summary`, `get firewall <uuid> interface stats`, `get ipsecvpn session status`) and the Tier-1 path /policy/api/v1/infra/tier-1s/{id}/state."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "grandma_fidelity",
+      "explanation": "It uses unexplained jargon (North-South, BGP, NAT, VPN), and the final clause is ungrammatical ('before regular folks only notice').",
+      "field": "grandmaExplanation",
+      "quote": "North-South paths cannot pretend to be fine while BGP, NAT, load sharing, or VPN pieces quietly struggle before regular folks only notice dead apps",
+      "severity": "minor",
+      "suggested_fix": "\"We watch the virtual front-door routers that connect our data centre to the outside world, so we hear about a broken piece before people find their apps have stopped working.\""
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by an automated agent while four of five Splunkbase IDs are wrong, the vCenter sourcetype does not exist and the vCenter join is non-functional.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until SME validation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "Suppression `audit_ts>relative_time(last_seen,\"-12m\")` suppresses on any matching audit from 12 minutes before the fault until now (the audit subsearch covers 6h). An operator's remediation change made after the fault therefore hides the alert. The audit edge_key comes from target_transport_node/resource_id, which for Tier-0/Tier-1 publishes is a gateway ID, not an edge node ID. The vCenter join keys a host MoID against the NSX edge ID with no lookup, so vc_mm is always null. `bin _time span=5m` has no effect because _time is not in the stats BY clause.",
+      "severity": "major"
+    },
+    {
+      "field": "difficulty",
+      "issue": "Rated 'beginner', but the UC requires custom HTTPS collectors for several NSX APIs, three left joins, two lookups and MoID mapping. That is at least intermediate.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-18.2.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A well-structured Tier-0/Tier-1 SR health design with useful fault classes, but every cited Splunkbase ID except 7777 points to an unrelated app, the vCenter sourcetype does not exist, Network_Traffic is a CIM misfit, the sourcetype prefix diverges from the rest of the subcategory, and the vCenter maintenance join cannot match NSX edge IDs as written.",
+  "tier": "deep",
+  "uc_id": "UC-18.2.8",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c0eae09dd48a37d075970c59565b022df9bd587c66b430f6f7c1186089986481",
+  "file": "content/cat-23-business-analytics/UC-23.5.1.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/DBX/latest/DeployDBX/Configurationfilereference",
+      "explanation": "DB Connect 3.x db_inputs.conf stanzas are plain `[<input_name>]` with `connection =`, and the schedule goes in `interval` (seconds or a cron string), not `cron_schedule`. The `[db://...]`, `[oracle://...]` and `[mysql://...]` stanza headers are not valid DB Connect syntax.",
+      "field": "dataSources",
+      "quote": "representative stanza `[db://hana/rs_erp_orders]` polling SAP S/4HANA stage histories hourly (`cron_schedule = 0 * * * *`)",
+      "severity": "minor",
+      "suggested_fix": "Show a real db_inputs.conf example: `[rs_erp_orders]` with `connection = hana_s4_ro`, `mode = rising`, `query = ... WHERE CHANGEDATE > ?`, `tail_rising_column_name = CHANGEDATE`, `interval = 0 * * * *`, `index = business`, `sourcetype = dbx:erp_orders`. Make the same change in detailedImplementation Step 1."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "props.conf has no _TIME_PREFIX setting. TIME_PREFIX is a regex, not a field name. For DB Connect inputs, _time comes from the timestamp column chosen in the input (input_timestamp_column_name), not from props timestamp extraction.",
+      "field": "detailedImplementation",
+      "quote": "Props-time alignment: prefer `_TIME_PREFIX = stage_timestamp` mapped with `TIME_FORMAT`",
+      "severity": "minor",
+      "suggested_fix": "Say: set the DB Connect input's timestamp column to stage_timestamp (Timestamp → Choose column) so _time reflects the ERP stage time."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The shipped SPL is a single 90-day report grouped only by stage_canon. It has no warehouse split, no 7-day vs 90-day comparison and no week-over-week threshold, so the alerting and routing described here cannot be built from it. dataSources also promises B2B/B2C segmentation by customer_tier, which the SPL does not do.",
+      "field": "detailedImplementation",
+      "quote": "(b) nightly anomaly detection comparing rolling seven-day median pair-hours versus trailing ninety-day baseline per warehouse (`WERKS`) ... bottleneck deterioration exceeding twenty-five percent week-over-week at pick-pack fires Ops Engineering ticket",
+      "severity": "major",
+      "suggested_fix": "Either describe the SPL as a baseline report and present the anomaly search as a separate companion search with its own SPL in detailedImplementation, or add `warehouse_id`/`customer_tier` splits and say which part is implemented."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The tables the UC uses (OE_ORDER_HEADERS_ALL, WSH_DELIVERY_DETAILS, RA_CUSTOMER_TRX_ALL, AR_PAYMENT_SCHEDULES_ALL) are Oracle E-Business Suite tables, not Oracle Fusion SCM Cloud, which uses DOO_* order tables. Step 3 also mixes in OTBI, which is a Fusion reporting tool, for EBS validation. The SAP reference title promises a VBAK/VBAP table overview but links the S/4HANA Cloud root.",
+      "field": "references",
+      "quote": "\"title\": \"Oracle SCM Cloud — Ship Confirm and OM References\"",
+      "severity": "minor",
+      "suggested_fix": "Label the Oracle path as Oracle EBS Order Management, link the EBS OM/Shipping/Receivables documentation, and validate with EBS forms or reports rather than OTBI. Link a specific SAP SD table document, or drop the table claim from the reference title."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "As far as I know, Dashboard Studio has no native waterfall visualization type, so this may not be buildable as written. DSO is a ratio (receivables ÷ revenue × days), not a median of a distribution.",
+      "field": "visualization",
+      "quote": "Dashboard Studio bundle: waterfall chart sequencing canonical stage dwell aggregates ... single-value median Days Sales Outstanding tile",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Dashboard Studio visualization list. If there is no waterfall, use a stacked bar or column of per-stage median hours. Call the DSO tile 'DSO (from finance extract)' rather than 'median DSO'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The status says verified, but the reviewer is an AI model, not a supply-chain or Splunk SME, and the SPL has a truncation defect that a real run on production volume would expose.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"Claude (anthropic)\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until an SME runs it against a real ERP extract."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Sort",
+      "field": "spl",
+      "issue": "A bare `sort order_id, stage_time` returns at most 10,000 results by default. Across 90 days of order-stage events this silently drops everything after the first 10,000 rows, so dedup, streamstats and the per-stage percentiles run on a truncated sample. Use `sort 0 order_id stage_time`.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Durations are aggregated `by stage_canon` (the arriving stage), and the computed prev_stage is discarded, so the output never shows the stage pair (for example Picked→Packed) that the description and detailedImplementation call the bottleneck. Group by `prev_stage stage_canon` instead, or build a `transition=prev_stage.\"→\".stage_canon` field.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Streamstats",
+      "field": "spl",
+      "issue": "`streamstats current=f latest(stage_time)` picks the value from the previous event with the greatest _time, not the immediately preceding row in sort order. If _time comes from a DB Connect watermark rather than stage_timestamp, prev_time can be wrong. `last()` (or `window=1`) gives true sequence semantics. First-stage rows with null duration are also kept and inflate `transitions` for the first stage.",
+      "severity": "minor"
+    },
+    {
+      "field": "criticality",
+      "issue": "'critical' is high for a 90-day bottleneck report with no alert condition. 'high' or 'medium' fits a planning KPI better.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-23.5.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 3,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "detailedImplementation is strong: SAP, Oracle EBS and NetSuite sources, validation drill-downs and troubleshooting are concrete and mostly accurate. But the SPL silently truncates at 10,000 rows because of a bare `sort`, and it reports durations by destination stage only, while the prose promises stage-pair bottlenecks and a per-warehouse anomaly baseline. Some DB Connect and props configuration snippets use settings that do not exist.",
+  "tier": "deep",
+  "uc_id": "UC-23.5.1",
+  "verdict": "incorrect"
+}

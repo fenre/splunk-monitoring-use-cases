@@ -1,0 +1,121 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "9d6a7eb96674c51d1f2e22a540fd936f1eb9c07f63f084f67143be804dab7603",
+  "file": "content/cat-23-business-analytics/UC-23.4.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "evidence_url": "https://github.com/grnhse/greenhouse-api-docs/blob/master/source/includes/harvest/_jobs.md",
+      "explanation": "A Greenhouse Harvest job object has `opened_at`/`closed_at`, `status` = open|closed|draft, a `departments[]` array, recruiters nested under `hiring_team.recruiters[]`, and `close_reason` nested per `openings[]`. The SPL's coalesce lists (closed_date, department, recruiter, top-level close_reason) do not cover these fields. detailedImplementation Step 5 itself says Greenhouse stamps `closed_at`, which the filled_raw coalesce omits.",
+      "field": "dataSources",
+      "quote": "`greenhouse:job` / `greenhouse:application` from Harvest REST modular inputs … Minimum viable attributes per req row: logical `req_key`, opening timestamps (`opened_*`, `posted_*`), closure timestamps (`filled_*`, `closed_*`), recruiter ownership, department …, lifecycle `status`, structured `close_reason`",
+      "severity": "blocker",
+      "suggested_fix": "Document a flattening step for greenhouse:job (departments{}.name → department, hiring_team.recruiters{}.name → recruiter, closed_at → closed_date, openings{}.close_reason.name → close_reason), or ingest `/openings` as the requisition grain. State which fields the SPL expects after flattening."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "explanation": "`eval(...)` cannot appear as a standalone stats aggregation, and the stats output fields are not yet available to it, so the snippet fails to parse. Greenhouse applications also carry no `dept` field.",
+      "field": "detailedImplementation",
+      "quote": "`index=recruiting sourcetype=\"greenhouse:application\" earliest=-90d | stats dc(application_id) as apps dc(candidate_id) as humans eval(round(apps/humans,2)) as apps_per_human by dept`",
+      "severity": "major",
+      "suggested_fix": "Use `| stats dc(application_id) as apps dc(candidate_id) as humans by <job/department field> | eval apps_per_human=round(apps/humans,2)`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios refer to `host` and maintenance windows, which have no meaning for ATS requisition data. The real false-stale causes are already listed in detailedImplementation Step 5: withdrawn closures counted as hires, ghost reqs after recruiter turnover, acquisition backlog imports, and RaaS timeout truncation.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `host`** — Health checks in `recruiting` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace these with the Step 5 causes plus 'evergreen/pipeline reqs that stay open by design', each with its mitigation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "A BMC/EDAC hardware model has nothing to do with recruiting analytics. The equipment list likewise includes `dell_emc` and `hardware_bmc`.",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_edac\"",
+      "severity": "minor",
+      "suggested_fix": "Remove the hardware entries; keep db_connect/snowflake/mssql only if the warehouse path is intended."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "grandma_fidelity",
+      "explanation": "The main SPL measures days-to-fill, fill rate and stale open reqs by department × recruiter. Hiring-manager bottlenecks come only from an optional stage-history companion search.",
+      "field": "grandmaExplanation",
+      "quote": "count how many weeks until someone accepts, and point out hiring-manager bottlenecks",
+      "severity": "minor",
+      "suggested_fix": "Mention stale open jobs and recruiter/department breakdowns, and say that stage bottlenecks need the optional stage feed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL computes med_dtf over a 180-day window, not ninety days.",
+      "field": "visualization",
+      "quote": "Single-value tiles for ninety-day median days-to-fill",
+      "severity": "minor",
+      "suggested_fix": "Align the tile wording with the 180-day window, or note that the tile needs a separate 90-day search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "The link is the Workday homepage, not a recruiting or RaaS reference.",
+      "field": "references",
+      "quote": "\"title\": \"Workday — Talent Management Recruiting product overview\", \"url\": \"https://www.workday.com/en-us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the Workday Recruiting product page or Workday Web Services Recruiting API documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with an agent as reviewer, yet the SPL does not work against the Greenhouse payload it names.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" … \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been validated against each listed ATS feed."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/grnhse/greenhouse-api-docs/blob/master/source/includes/harvest/_jobs.md",
+      "field": "spl",
+      "issue": "For `greenhouse:job`, `filled_raw` never picks up `closed_at`, `status` is 'closed' (not 'closed - filled'), and `close_reason` is nested in openings. pipeline_status therefore falls to 'Open' for every closed Greenhouse job, so filled=0 and old closed jobs inflate stale_hot. dept and recruiter_field are also empty because the fields are nested arrays.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "There is no `dedup req_key` to the latest snapshot. With hourly polling over 180 days, `stale_hot` counts any req that was open and stale in any historical snapshot, even if it has since been filled or withdrawn, and avg_dtf/med_dtf are weighted by the number of snapshots. Add `dedup req_key sortby -_time` (or a latest() stats) before classification.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Lever's API returns timestamps such as `createdAt` as Unix epoch milliseconds, which none of the strptime branches handle (and `openedAt` is not a Lever field). Lever postings therefore get null opened_epoch and land in 'Unknown'. Add an epoch-ms branch (`tonumber(x)/1000`).",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`crit_priority` is looked up but unused in the stats/table output, so the Critical-role escalation described in implementation needs a separate search.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0023-UC-23.4.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The detailedImplementation is thorough and recruiting-specific, but the SPL's field normalisation does not match the Greenhouse job object it claims to support. Greenhouse closed jobs end up counted as open stale requisitions. The false positives, equipment and a diagnostic SPL snippet are wrong or templated.",
+  "tier": "deep",
+  "uc_id": "UC-23.4.2",
+  "verdict": "incorrect"
+}

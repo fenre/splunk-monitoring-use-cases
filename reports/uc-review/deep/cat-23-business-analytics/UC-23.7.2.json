@@ -1,0 +1,127 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "b6b5b6fad6e5101313df17e362b4527c994855da40eb6bf396f4125480801ff3",
+  "file": "content/cat-23-business-analytics/UC-23.7.2.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/ServiceNow/Configureinputs",
+      "explanation": "Splunk Add-on for ServiceNow inputs are `[snow://<name>]` stanzas (table, timefield, include, filter_data, duration). There is no `servicenow_record_input` input type.",
+      "field": "app",
+      "quote": "on a Heavy Forwarder for `servicenow_record_input` Table API polling",
+      "severity": "blocker",
+      "suggested_fix": "Say the add-on's `snow://` table inputs (configured under Splunk Add-on for ServiceNow > Inputs) poll the `incident` table on a Heavy Forwarder."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The description's alert condition is not in the SPL. `escalated` is computed but never aggregated, and the output is fcr_rate per category/assignment_group. detailedImplementation defines different alerts: a fleet fcr_rate drop of more than 5 points week over week, and category fcr_rate below 50%.",
+      "field": "cross_field",
+      "quote": "alerting when `reassignment_n` >= 2, or `reopen_n` > 0",
+      "severity": "major",
+      "suggested_fix": "Describe the output as FCR % and average resolution time per category and assignment group for resolved incidents. State the detailedImplementation thresholds as the alert logic."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "`work_notes` and `comments` are journal fields stored in sys_journal_field. In the raw Table API they usually come back empty unless display values are requested, so `phrase_escalation` may always be 0 and FCR would be overstated. The text presents them as ordinary extracted fields.",
+      "field": "detailedImplementation",
+      "quote": "| eval wn=coalesce(mvjoin(work_notes,\" \"),work_notes,\"\")",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether Splunk_TA_snow's incident events contain work_notes/comments text in your version. If not, ingest the sys_journal_field table (sourcetype `snow:sys_journal_field`) and join on element_id."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "The add-on names sourcetypes `snow:<table>`, so ingesting sys_journal_field produces `snow:sys_journal_field`, not `snow:incident_work_notes`. Step 1's 'Source Type' and 'Fields' input options likewise do not match the add-on's input form (Included properties, Filter parameters).",
+      "field": "detailedImplementation",
+      "quote": "configuring the TA to ingest **`sys_journal_field`** rows as **`snow:incident_work_notes`** events",
+      "severity": "minor",
+      "suggested_fix": "Use `snow:sys_journal_field` and the add-on's real input labels (Table, Time field, Included properties, Filter parameters, Interval, Index)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Maintenance windows, synthetic probes and onboarding bursts do not distort an FCR rate. The real distortions are already listed in Step 5: NULL reassignment_count on migrated tickets, work-notes regex over-matching, reopens filed as new incidents, and legitimate single routing hops on P1/P2.",
+      "field": "knownFalsePositives",
+      "quote": "Planned work for 'First Contact Resolution Rate and Escalation Patterns' shifts `first_contact`, `avg_aht` over `span=1h` while `category`, `assignment_group` remains in-scope.",
+      "severity": "major",
+      "suggested_fix": "Replace the four template items with those causes, each with its check search."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The primary SPL does not compute priority_label or an escalation rate, so the priority tiles and the table 'sortable by escalation rate' need searches that are not supplied.",
+      "field": "visualization",
+      "quote": "Row of three tiles splitting FCR by **`priority_label`** bands",
+      "severity": "minor",
+      "suggested_fix": "Say these panels use the priority-aware companion search, and add `sum(escalated) as escalations` to the stats if an escalation rate is wanted."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "'AHT' (average handle time) in support operations means agent working time. Here the value is wall-clock time from opened_at to resolved_at, so readers may misread it.",
+      "field": "visualization",
+      "quote": "**`avg_aht`**",
+      "severity": "minor",
+      "suggested_fix": "Call it average resolution time (open-to-resolve minutes), or add a note that it is not agent handle time."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent with no SME sign-off, and the escalation-phrase logic has not been validated against real Table API payloads.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft/community until a support-ops SME has validated it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Check Point firewalls have nothing to do with ServiceNow FCR reporting.",
+      "field": "equipment",
+      "quote": "\"checkpoint\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `checkpoint`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "This UC explicitly never uses task_sla, and the Incident Management link is a marketing page. Neither backs the FCR fields used.",
+      "field": "references",
+      "quote": "ServiceNow product documentation — Task SLA engine",
+      "severity": "minor",
+      "suggested_fix": "Replace them with ServiceNow docs on the incident table fields (reassignment_count, reopen_count) and the Splunk add-on Configure inputs page."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`escalated` is computed but never used in stats, so the 'Escalation Patterns' half of the title produces no output from the primary search. `sort - resolved | head 50` also silently drops low-volume category/group pairs from the heatmap the visualization describes.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`strptime(opened_at/resolved_at/sys_updated_on, \"%Y-%m-%d %H:%M:%S\")` parses ServiceNow UTC timestamps in the search user's timezone because no zone is given, so `_time` and the closure-day buckets are shifted for non-UTC users. Check this and append a \" UTC\"/%Z suffix if needed.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0043-UC-23.7.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The FCR logic and the detailed implementation are thoughtful and specific to this UC. However, the add-on input type is named wrongly, the description's alert thresholds do not exist in the SPL, the work-notes escalation matching depends on journal fields the Table API may not return, and the false-positive section is boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-23.7.2",
+  "verdict": "incorrect"
+}

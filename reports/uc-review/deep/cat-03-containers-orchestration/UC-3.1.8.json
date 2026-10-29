@@ -1,0 +1,157 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0981ff1959e4d8143057302a12c3dab5124cccc551f83fdb9470189bd3d2046a",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.8.json",
+  "findings": [
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/engine/daemon/prometheus/",
+      "explanation": "The dockerd /metrics endpoint exposes engine_daemon_* families such as engine_daemon_engine_info, engine_daemon_engine_cpus_cpus, engine_daemon_health_checks_failed_total and engine_daemon_container_actions_seconds. It does not appear to expose engine_daemon_engine_cpu_percent or an engine_api_request_total counter with HTTP status labels. Without them, the whole 5xx-rate detection has no data source.",
+      "field": "dataSources",
+      "quote": "engine_daemon_engine_cpu_percent (or process_cpu_seconds_total derivative), engine_daemon_health_checks_failed_total, and engine_api_request_total counters labelled with HTTP status codes for 5xx-rate calculation",
+      "severity": "needs_verification",
+      "suggested_fix": "curl 127.0.0.1:9323/metrics on a current Docker Engine and list the real metric names. If there is no API status counter, drop the 5xx-rate tier or source API errors from dockerd journal lines."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/CollecteventsfromJournalD",
+      "explanation": "Splunkbase 833 is the Splunk Add-on for Unix and Linux, not 'Splunk Add-on for Linux', which is a separate product. Journald collection in Splunk is normally the native [journald://] input of the forwarder, not a Splunk_TA_nix scripted input.",
+      "field": "app",
+      "quote": "Splunk Add-on for Linux ([Splunk_TA_nix on Splunkbase 833](https://splunkbase.splunk.com/app/833)) for journald scripted input shipping linux:journald:docker",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the add-on correctly. Describe collection as a [journald://] stanza filtered to _SYSTEMD_UNIT=docker.service and containerd.service with sourcetype overrides, unless Splunk_TA_nix is confirmed to ship a journal input."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "Journal files live under /var/log/journal/<machine-id>/, not the hostname, and there is no systemd-cat-test utility. An operator following the canary step would fail.",
+      "field": "detailedImplementation",
+      "quote": "cat /var/log/journal/$(hostname)/system.journal | systemd-cat-test or the equivalent journalctl --output=json --no-pager command",
+      "severity": "major",
+      "suggested_fix": "Use `journalctl -u docker.service -o json --since -15m --no-pager` as the canary validation command."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/containerd/containerd/blob/main/docs/runtime-v2.md",
+      "explanation": "containerd's runtime v2 shim API and the io.containerd.runc.v2 shim predate 1.5 (around 1.2 and 1.3), and runc.v2 can serve several containers in one pod-level shim, so 'per container' is not always true.",
+      "field": "detailedImplementation",
+      "quote": "The shim-v2 architecture introduced in containerd 1.5 and stabilized in 1.6 runs a containerd-shim-runc-v2 process per container",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the containerd runtime-v2 docs and release notes, then correct the version history and the one-shim-per-container statement."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/cli/dockerd/",
+      "explanation": "systemctl reload sends SIGHUP, and only a documented subset of daemon.json keys can be live-reloaded. metrics-addr is likely not among them, so enabling the endpoint probably needs a restart (with live-restore to protect workloads).",
+      "field": "detailedImplementation",
+      "quote": "reload dockerd via systemctl reload docker",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the dockerd 'configuration reload behavior' list and say restart if metrics-addr is not reloadable."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "explanation": "The CIM Application_State data model is deprecated (its content moved to Endpoint.Services and Endpoint.Processes), and nothing in the primary SPL maps journald error lines to it.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Map daemon unit state to Endpoint.Services if the forwarder normalises systemd unit state. Otherwise mark cimModels as not applicable and remove the Application_State acceleration advice."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "None of these retrospectives or 'case studies' appear in references, and the claim reads as invented provenance. Evidence should list the artefacts the control produces, not unverifiable research claims.",
+      "field": "evidence",
+      "quote": "External research includes Docker Inc engineering documentation on dockerd panic patterns and live-restore tradeoffs, Cloudflare and Datadog production retrospectives on containerd-shim escape, orphan reaping, and SIGKILL-versus-reboot decisions",
+      "severity": "major",
+      "suggested_fix": "Remove the external-research sentence, or add the specific retrospectives with URLs to references after confirming they exist."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The authoring checklist and the run of 'Appendix — FinOps/Security/Performance/Training/Documentation/Review/Escalation/Telemetry/Collector/Governance alignment' paragraphs are generator residue that adds length without implementation value.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five plain-text step headers use em dashes; multisearch lists three arms ... narrative JSON fields contain no asterisk emphasis pairs",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the alignment appendices. Keep only the taxonomy field-contract appendix."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the listed scenarios is a real false positive for dockerd errors. The real ones are already in Step 5: planned live-restore reloads, credential-rotation 'unauthorized' bursts, recovered 'http: panic serving' handler panics, journald rotation gaps and co-resident OOM kills.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `host_id`, `error_class`, `bucket_5min`, `daemon_unit` — Health checks in `oti_containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Rewrite the list from Step 5 Cases 6–9 with the specific journal strings and the suppression approach for each."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The UC reads dockerd and containerd journals and dockerd metrics. Nothing uses BMC or SMART data, and 'github' and 'hardware_bmc' in equipment are similarly unrelated.",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_smartctl\"",
+      "severity": "minor",
+      "suggested_fix": "Limit equipment to docker, linux, opentelemetry and prometheus, with a Docker Engine equipment model."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified, yet the SPL cannot execute (non-streaming commands inside multisearch) and its metric names appear not to exist. No SME sign-off is evident.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until the search runs against real dockerd telemetry."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "The docker:metrics multisearch arm contains 'sort 0' and 'streamstats'. multisearch allows only streaming commands in each subsearch, so the search fails with 'Multisearch subsearches might only contain purely streaming operations'. Use append, or move sort/streamstats after the fan-in.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "cpu_pct_sample accepts process_cpu_seconds_total, a cumulative seconds counter, and compares it with an 85 'percent' threshold, so any dockerd with more than 85 CPU-seconds of uptime is flagged engine_daemon_cpu_saturation. engine_daemon_health_checks_failed_total is also cumulative, so '>0' fires forever after the first container HEALTHCHECK failure. That is a container-level signal owned by UC-3.1.22. Summing cumulative counter values over 5 minutes does not give a rate either; per-scrape deltas are needed.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In the dockerd error_class case ladder, the first branch matches 'panic', which also catches 'http: panic serving' (a recovered per-request handler panic). Those lines become critical_dockerd_panic_or_fatal instead of engine_api_request_error, causing false critical pages.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "engine_daemon_cpu_saturation and engine_healthcheck_failure are both labelled 'high_api_5xx_rate_above_5pct', which misleads responders. Classes libcontainer_runc_error, socket_or_permission_error, image_pull_or_registry_error and live_restore_event get a null severity and are silently dropped, although dataSources presents them as detected classes.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "field": "cimSpl",
+      "issue": "Uses the deprecated Application_State data model with fields (state, info) that no current Splunk TA populates for dockerd, so the CIM search returns nothing in practice.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0027-UC-3.1.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC is well scoped to the engine-process failure axis, with strong operator runbook cases. But the metrics arm cannot run inside multisearch, it relies on dockerd Prometheus metric names that appear not to exist, and it treats cumulative counters as rates or percentages. The text also attributes a journald scripted input to Splunk_TA_nix and pads detailedImplementation with appendix boilerplate.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.8",
+  "verdict": "incorrect"
+}

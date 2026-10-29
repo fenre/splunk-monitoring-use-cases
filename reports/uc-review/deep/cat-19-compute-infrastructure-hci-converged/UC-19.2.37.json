@@ -1,0 +1,173 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c6c49590713d42bcfffe86f4b35d2faf7503b33db9163c2c49c5a72f57f240e3",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.37.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/get-vsanruntimeinfo",
+      "explanation": "Get-VsanRuntimeInfo is a cluster-scoped cmdlet that takes -Cluster. It does not accept VMHost objects from the pipeline and does not return a per-host used-capacity property. The documented way to source 'largest host contribution' therefore does not work, and the safe_to_evacuate_one_host gate has no valid input.",
+      "field": "detailedImplementation",
+      "quote": "Get-VMHost -Cluster $c | ForEach-Object {\n  $b = ($_ | Get-VsanRuntimeInfo).HostUsedCapacityB",
+      "severity": "blocker",
+      "suggested_fix": "Source per-host vSAN used capacity from a supported path, such as per-disk or disk-group capacity summed by host from the vSAN API or Get-VsanDisk with capacity details. Name the exact cmdlet or API and property after checking the PowerCLI reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/AddOns/released/VMW/Sourcetypes",
+      "explanation": "No such add-on exists. Splunkbase 5380, cited for it in references, detailedImplementation and implementation, is 'Mattermost Alerts'. The real add-on is the Splunk Add-on for VMware (Splunkbase 3215, splunk_TA_vmware), and it emits vmware:events and vmware:perf:* sourcetypes, not vmware:vc:event or a bare vmware:perf. The Tertiary and Appendix H drill guidance points at an app and sourcetypes that do not exist.",
+      "field": "app",
+      "quote": "(optional) Splunk Add-on for VMware vSphere Forwarder",
+      "severity": "blocker",
+      "suggested_fix": "Replace with 'Splunk Add-on for VMware (Splunkbase 3215)' and use vmware:events and vmware:perf:datastore or vmware:perf:disk for the drill panels in app, implementation, visualization, references and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/get-vsanspaceusage",
+      "explanation": "Binary and decimal units differ by about 7.4% at GiB versus GB and about 10% at TiB versus TB, not 1–2%. The PowerCLI docs also state that Get-VsanSpaceUsage 'GB' attributes are already GiB. Operators following this text would either accept real discrepancies or misattribute a unit gap.",
+      "field": "detailedImplementation",
+      "quote": "Differences in tebibyte versus gigabyte are expected at one to two percent; log both units in the evidence pack.",
+      "severity": "major",
+      "suggested_fix": "State that PowerCLI '...GB' values are GiB (base 2). Compare against the vSphere client in the same unit, and expect about 7% (GiB vs GB) or about 10% (TiB vs TB) when units differ."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The sample capacity line does not match the search in three ways. It puts the largest-host value on vmware:vsan:capacity as largestHostContributionGB, but the search only reads largest_host_contribution_gb from the separate vmware:vsan:host_runtime join. It emits no host_failures_to_tolerate and no slack field. Its cluster_id is the vCenter MoRef (for example ClusterComputeResource-domain-c8), while the VxRail join expects the VxRail Manager cluster_id. Following the sample yields null storm estimates, an FTT of 0 and failed VxRail joins.",
+      "field": "detailedImplementation",
+      "quote": "cluster_id = $c.Id; ... largestHostContributionGB = $rt; poll_utc = (Get-Date).ToString(\"o\")",
+      "severity": "major",
+      "suggested_fix": "Make the sample emit exactly what the search reads: a host_runtime line with per_host_contribution_gb, an FTT field and a slack field. Define one canonical cluster_id, and say how the VxRail cluster ID maps to the vCenter cluster MoRef, for example via the lookup."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "A host's vSAN used capacity already includes the replica or parity components it stores. A full-data-migration evacuation needs roughly that host's used capacity free elsewhere, not that amount multiplied by FTT+1. The multiplier overstates the requirement by 2–3x, so healthy clusters are reported as 'no' and the gate becomes unusable. Appendix E calls it a 'planning multiplier' but never justifies the factor.",
+      "field": "detailedImplementation",
+      "quote": "The inequality safe_to_evacuate_one_host uses the storm estimate of largest times (ftt+1).",
+      "severity": "major",
+      "suggested_fix": "Base the estimate on the largest host's used capacity plus the operations reserve and slack, or on the vSphere data-migration pre-check result. Document why any extra multiplier exists, with a VMware sizing reference."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "When the policy feed and the capacity-line FTT are missing, coalesce defaults ftt_src to \"0\" and ftt_policy to \"0\". Those values are non-null, so ftt_use becomes 0, not 1, and the '\"1\"' fallback in ftt_use is unreachable. The troubleshooting tip describes the wrong symptom.",
+      "field": "detailedImplementation",
+      "quote": "(9) ftt always 1: storage_policy feed may be empty; add policy export.",
+      "severity": "minor",
+      "suggested_fix": "Say that an empty policy feed shows ftt_use=0, and tell operators to set ftt_required in the lookup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No Dell OpenManage add-on appears in the cached Splunkbase catalogue; the Dell entries are PowerMax, ECS and AIOps only. detailedImplementation also says no Splunkbase app ships the VxRail contract. Calling it PRIMARY without a Splunkbase ID or vendor link is unsupported, and contradicts the custom-HEC framing.",
+      "field": "dataSources",
+      "quote": "PRIMARY: Dell EMC OpenManage Splunk Add-on when deployed for VxRail",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite the Splunkbase ID or Dell download URL for the add-on, or remove it and make the custom VxRail Manager HEC poller the stated primary path."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "Catalogue-authoring meta text has leaked into customer-facing guidance. Appendices D, F and G largely repeat earlier content (the CSV governance, the ftt coalesce caveat, the seven-column contract) and add length without new operational facts.",
+      "field": "detailedImplementation",
+      "quote": "Avoid marketing language in your internal wiki; the forbidden-phrase list in the authoring contract applies. ... This appendix brings the hand-authored portion together with the five steps. If a future schema asks for a shorter detailedImplementation, split appendices to a private runbook",
+      "severity": "major",
+      "suggested_fix": "Delete the authoring-contract sentences. Collapse Appendices D, F and G into one short governance note, or remove them."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "specificity",
+      "evidence_url": "https://knowledge.broadcom.com/external/article/326527/",
+      "explanation": "RVC is deprecated in current vCenter releases, and 'read-only RVC' is not a mode it offers. The vSphere client's vSAN data-migration pre-check is the supported equivalent and is mentioned only in passing.",
+      "field": "detailedImplementation",
+      "quote": "Run RVC on a vCenter with read-only RVC, vsan.whatif_host_failures, capture output for CAB",
+      "severity": "minor",
+      "suggested_fix": "Make the vSphere client data-migration pre-check (Monitor > vSAN) the primary validation step, and note RVC only for legacy vCenter versions where it is still available."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Step 2 says 'Earliest: -6h; latest: @h', while implementation and the search use -6h@h. The PowerCLI export runs every 30 minutes, but Step 1 schedules the VxRail poller 'every five minutes on cron', so the cadence story is inconsistent across fields.",
+      "field": "implementation",
+      "quote": "schedule every 6h with earliest=-6h@h",
+      "severity": "minor",
+      "suggested_fix": "Use one window, earliest=-6h@h latest=@h, in all fields, and one stated cadence per feed."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "VxRail is a Dell-engineered appliance line, not vSAN ReadyNode hardware. Exclusions explicitly send ReadyNode deployments to UC-19.2.2 and UC-19.2.27, so this clause contradicts the scope.",
+      "field": "hardware",
+      "quote": "including vSAN ReadyNode–validated VxRail nodes",
+      "severity": "minor",
+      "suggested_fix": "Remove the ReadyNode phrase; keep the VxRail series and PowerEdge generation list."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Cisco ACI has no role in VxRail vSAN capacity, and the equipment tags 'cisco' and 'hardware_bmc' are likewise unrelated to the REST and PowerCLI data path.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_aci\"",
+      "severity": "minor",
+      "suggested_fix": "Remove cisco_aci, cisco and hardware_bmc; keep vxrail, dell_emc, vmware, vmware_vcenter and vmware_vsphere."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The HEC reference is truncated to the Data manual root. The 5380 reference points to an unrelated app, and there is no reference for Get-VsanSpaceUsage or the VxRail API paths the UC depends on.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHEC, replace 5380 with https://splunkbase.splunk.com/app/3215, and add the Get-VsanSpaceUsage PowerCLI reference page."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic handle, but the core per-host input cmdlet does not work as written, the drill add-on is misidentified, and the sample poller does not feed the search's fields.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"@splunk-monitoring-use-cases\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade to draft until a named reviewer has run the export and search on a real VxRail cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/get-vsanspaceusage",
+      "field": "spl",
+      "issue": "The 'critical' branch requires slack_pct<tmins, but slack_pct is null whenever slack is not exported, because coalesce defaults it to \"0\" and slack_pct is only set when slack>0. Get-VsanSpaceUsage and the documented sample emit no slack field, so 'critical' is unreachable in the documented collection path.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "ftt_src and ftt_policy default to \"0\" through coalesce, so ftt_use falls to 0 rather than the intended \"1\" fallback when the feeds are missing. The evacuation estimate then uses (0+1), which understates the requirement.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "'sort 0 + severity0' sorts alphabetically (critical, high, low, medium, ok), so low ranks above medium. The freeze rewrites even 'critical' to 'info' for severity_bucket. largest_host_contribution_gb is read only from the host_runtime join, not from the capacity line where the documented sample puts it.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0072-UC-19.2.37",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC clearly separates itself from its siblings and is careful about ESA and stretched-cluster exclusions. However, its collection recipe relies on a per-host Get-VsanRuntimeInfo pipe that does not exist, a misidentified Splunkbase 5380 add-on with sourcetypes the real VMware add-on does not emit, and a GiB-versus-GB reconciliation claim the PowerCLI docs contradict. The PowerShell sample also does not produce the fields and join keys the search expects, and the appendices contain authoring-meta filler.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.37",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,137 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "69d76c0da52a590dd2312319767b64825cc47aef9838dd07677ef6630f991a38",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.4.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "explanation": "In the Harbor SCANNING_COMPLETED payload, scan_overview is inside `event_data.resources[]` and keyed by report MIME type (`application/vnd.security.vulnerability.report; version=1.1`). Severity counts are at `...summary.summary.Critical`. Digest is `event_data.resources[].digest`; `repository` has no tag or digest.",
+      "field": "detailedImplementation",
+      "quote": "— **`scan_overview.scan_status`** (Success, Error, Queued)\n— **`scan_overview.summary`** (severity counts: Critical, High, Medium, Low, Unknown)\n— **`repository.repo_full_name`**, **`repository.tag`**, **`repository.digest`**",
+      "severity": "blocker",
+      "suggested_fix": "Document the real paths, for example `event_data.resources{}.scan_overview.application/vnd.security.vulnerability.report; version=1.1.summary.summary.Critical` and `event_data.resources{}.digest`, and recommend `spath` to flatten them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/open-policy-agent/gatekeeper/pull/2813",
+      "explanation": "Admission denials are logged by `gatekeeper-controller-manager` (the webhook) when started with `--log-denies` (Helm `logDenies: true`). The fields are `constraint_name`, `constraint_kind`, `constraint_action`, `resource_namespace` and `msg`. The audit controller only reports violations on existing resources, and the troubleshooting `deployment/gatekeeper-audit-controller` name does not exist (it is `gatekeeper-audit`).",
+      "field": "detailedImplementation",
+      "quote": "for **OPA Gatekeeper**, collect the gatekeeper-audit-controller logs as **`sourcetype=kube:admission`** — denied requests include the **`constraint_template`** name",
+      "severity": "blocker",
+      "suggested_fix": "Tell readers to enable `--log-denies` and collect controller-manager logs. List the actual JSON fields, and replace the troubleshooting command with `kubectl logs -n gatekeeper-system deployment/gatekeeper-controller-manager`."
+    },
+    {
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "explanation": "Harbor webhook policies exist only per project. The system-wide setting is just the 'Webhooks enabled' checkbox under Configuration > System Settings. Step 3(a) also filters on `event_type=\"SCANNING_COMPLETED\"`, but the payload field is `type`.",
+      "field": "detailedImplementation",
+      "quote": "subscribe to **`SCANNING_COMPLETED`** and **`SCANNING_FAILED`** webhook events in Harbor (Administration → Webhooks or per-project under Project → Webhooks)",
+      "severity": "minor",
+      "suggested_fix": "Use Projects → <project> → Webhooks, and change the validation search to `type=\"SCANNING_COMPLETED\"`."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor documents the Default webhook payload as unchanged across versions. The real difference is Default versus CloudEvents format, and the MIME-type key inside scan_overview.",
+      "field": "detailedImplementation",
+      "quote": "Harbor versions before 2.8 use a different scan_overview JSON structure.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the Harbor changelog. If there is no version change, say instead that the scan_overview key is the report MIME type and differs by scanner report version."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Rego in Gatekeeper cannot call external APIs unless the External Data provider feature is enabled and a provider is deployed. As written, this implies a plain ConstraintTemplate can query Harbor.",
+      "field": "detailedImplementation",
+      "quote": "Example: Gatekeeper **`ConstraintTemplate`** that queries the registry API for scan status and denies admission if the image has not passed the vulnerability scan.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Gatekeeper External Data docs and state that a provider (or Harbor's own Deployment Security pull-prevention) is required."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation (Step 2 daily correlation, Step 4 P1 bypass alert, Step 3e) depend on a search comparing BLOCKED digests to running container digests. The `spl` has no such search, and kube:container:status is never queried. The headline PagerDuty P1 alert cannot be built from the UC.",
+      "field": "cross_field",
+      "quote": "Alert when compliance rate drops below 95% or when blocked images appear in running containers.",
+      "severity": "major",
+      "suggested_fix": "Mark bypass detection as not implemented, or ask a human editor to add the correlation search to `spl`. Until then, remove the P1 routing and Step 3(e)."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The fix strips the `sha256:` prefix, so the result no longer matches Harbor's `sha256:` digests, which contradicts the sentence before it. Kubernetes `imageID` values also carry a `repo@` or `docker-pullable://` prefix that this does not handle.",
+      "field": "detailedImplementation",
+      "quote": "**kube:container:status** image digests must use the same format as Harbor digests (sha256:xxx). Normalize with `| eval digest=replace(container_image_digest, \"^sha256:\", \"\")`.",
+      "severity": "minor",
+      "suggested_fix": "Extract the `sha256:<hex>` part on both sides, for example `rex field=imageID \"(?<digest>sha256:[a-f0-9]{64})\"`."
+    },
+    {
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "explanation": "Neither Splunk Connect for Kubernetes nor the Splunk OTel Collector is documented as producing a `kube:container:status` sourcetype or a `container_image_digest` field. Splunk Connect for Kubernetes has reached end of support in favour of the OTel Collector. The category guide lists it under Splunkbase 3743, not 5167.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=kube:container:status`** (running container image digests",
+      "severity": "needs_verification",
+      "suggested_fix": "Look up the actual sourcetype carrying pod `status.containerStatuses[].imageID` from the Splunk OTel Collector k8sobjects receiver (or SCK `kube:objects:pods`), and align the add-on reference with the guide."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The description merges two searches. `ns` and `unique_images_blocked` come from the admission search, and `critical > 0` / `high > 5` are verdict labels inside the compliance search, not alert conditions. The stated alert (compliance_pct < 95%) is not mentioned.",
+      "field": "description",
+      "quote": "grouped by `project`, `image_ref`, `digest`, `ns`. Outputs `unique_images_blocked` each `the scheduled window`; alert when `critical` > 0, or `high` > 5.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-project compliance percentage (alert below 95% for production projects) and, separately, the per-namespace admission denial count."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates. Real causes for this UC: stale clean results before a rescan picks up new CVEs, SCANNING_FAILED on unsupported artifact types (Helm charts, signatures, SBOMs), Gatekeeper dry-run/warn actions logged alongside denies, and exempted namespaces. Some of these already appear in the troubleshooting text.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `project`, `image_ref`, `digest`, `ns`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with those concrete causes, and point suppression to the `scan_policy_exceptions.csv` lookup the UC defines."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer while both searches would return empty or uniformly PASSED results against real Harbor and Gatekeeper output.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has validated against real SCANNING_COMPLETED payloads and Gatekeeper deny logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "field": "spl",
+      "issue": "Severity counts are read from `event_data.scan_overview.summary.Critical/High/Medium`, scan status from `event_data.scan_overview.scan_status`, and digest and tag from `event_data.repository.*`. Harbor puts all of these under `event_data.resources{}` (scan_overview additionally keyed by report MIME type). critical/high/medium therefore default to 0, so every successful scan is PASSED. Digest is empty and tag is \"untagged\", so all images in a repository collapse into one row.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/open-policy-agent/gatekeeper/pull/2813",
+      "field": "spl",
+      "issue": "The admission search filters on `decision`/`response_allowed` and groups by `namespace`/`request_namespace`. Gatekeeper `--log-denies` output uses `constraint_action` (deny/dryrun/warn), `resource_namespace` and `constraint_name`, and has no image field. As written, action is \"unknown\" and every event is dropped.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Two independent searches are concatenated in one field with a blank line between them and cannot be pasted and run as one search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0100-UC-3.4.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The scan-compliance plus admission-enforcement design is a good idea, but the Harbor SCANNING_COMPLETED field paths are wrong. Severity counts sit under event_data.resources[].scan_overview.<report MIME type>.summary.summary, so every image reads as zero critical and PASSED. The Gatekeeper collection guidance points at the audit controller instead of the controller-manager deny log, and the bypass-detection search the alerting depends on does not exist.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.4",
+  "verdict": "incorrect"
+}

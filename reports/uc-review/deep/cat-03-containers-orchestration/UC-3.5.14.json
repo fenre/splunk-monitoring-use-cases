@@ -1,0 +1,119 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f6b32129912584e12599532c490c64627fdd1a771bdb93229098a94d0690ccdf",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/cilium/tetragon/blob/main/install/kubernetes/tetragon/values.yaml",
+      "explanation": "The Tetragon Helm chart's default export directory is `/var/log/tetragon` with file `tetragon.log` (older releases used `/var/run/cilium/tetragon`); `/var/run/tetragon/` is not a default path, so a filelog receiver pointed there collects nothing.",
+      "field": "detailedImplementation",
+      "quote": "Tetragon exports events as JSON via its **export API** (`/var/run/tetragon/tetragon.log` by default).",
+      "severity": "blocker",
+      "suggested_fix": "Point the filelog receiver at the chart's `exportDirectory`/`exportFilename` (default `/var/log/tetragon/tetragon.log`) and tell readers to confirm the value for their Tetragon version."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024; the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264 in the cached catalogue), already named for the filelog path, also covers k8s events and objects.",
+      "field": "app",
+      "quote": "**Splunk Connect for Kubernetes** for event and pod status collection. — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name only the Splunk OpenTelemetry Collector for Kubernetes (Splunkbase 6264) with filelog, k8s_events and k8sobjects receivers."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The SPL's MEDIUM regex is `/(apt|yum|apk|pip|npm)$`, which does not match `/usr/bin/apt-get`, so this validation step fails against the shipped search.",
+      "field": "detailedImplementation",
+      "quote": "Test suspicious binary detection: `kubectl exec <test-pod> -- apt-get update`. Verify a MEDIUM event for apt-get appears.",
+      "severity": "major",
+      "suggested_fix": "Either test with a binary the regex matches (e.g. `apk`, `pip`) or note that the regex must be extended to `apt-get|apt|dnf|...` for Debian images."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The new-binary SPL computes `earliest(_time)` only within the search's own time range and keeps rows first seen in the last hour; run hourly over -1h, every binary qualifies. Step 2 then says 'never been seen before in the namespace within the last hour', contradicting the history claim.",
+      "field": "detailedImplementation",
+      "quote": "finds process executions where the binary has never appeared in the namespace's history",
+      "severity": "major",
+      "suggested_fix": "Describe a baseline: run over a long window (e.g. 30 days) or maintain a binary-per-namespace lookup, and flag binaries absent from that baseline."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Custom resources such as TracingPolicy are pulled by the k8sobjects receiver, not k8s_cluster; also 'requiring five distinct sourcetypes' is overstated since only `tetragon:events` drives the detections, and `kube:pod:status`/`kube:container:logs` are not default sourcetypes.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=tetragon:policy`** (TracingPolicy and TracingPolicyNamespaced Kubernetes custom resources ... collected via the k8s_cluster receiver",
+      "severity": "major",
+      "suggested_fix": "Use the k8sobjects receiver for TracingPolicy objects, list `tetragon:events` as the required source and the rest as optional context with the sourcetypes actually assigned."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://tetragon.io/docs/concepts/tracing-policy/hooks/",
+      "explanation": "Tetragon's hook documentation marks syscall hooks with `syscall: true`; without it `sys_ptrace` is treated as a kernel function name that may not resolve. The file policy's `Prefix` value `/home/*/.ssh` is not a glob and will not match, and 'Tetragon ships with default policies' should be checked (by default only process_exec/exit are emitted).",
+      "field": "detailedImplementation",
+      "quote": "  kprobes:\n  - call: sys_ptrace\n  - call: sys_mount\n  - call: sys_unshare\n  - call: sys_setuid",
+      "severity": "needs_verification",
+      "suggested_fix": "Add `syscall: true` to each syscall hook, replace the wildcard prefix with a postfix/regex-capable operator or explicit paths, and verify the default-policy claim against tetragon.io docs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "grandma_fidelity",
+      "explanation": "Tetragon runs one agent per node in the kernel, not inside each container, and the UC alerts on several severities rather than 'immediately' on everything.",
+      "field": "grandmaExplanation",
+      "quote": "We place invisible sensors inside each program container",
+      "severity": "minor",
+      "suggested_fix": "Say a guard on each machine watches what every program does and raises the most serious findings straight away."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Reviewer is an automated agent and the collection path and SPL field paths are wrong, so there is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until a human SME validates."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://tetragon.io/docs/concepts/events/",
+      "field": "spl",
+      "issue": "Tetragon process_exec JSON nests details under `process_exec.process` (e.g. `process_exec.process.binary`, `process_exec.process.arguments`), and kprobe file args are an array (`process_kprobe.args{}.file_arg.path`); `process_exec.binary`, `process_exec.arguments` and `process_kprobe.args.path` do not exist, and kprobe events never get a namespace/pod because only process_exec paths are coalesced.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "Dotted JSON field names in eval (`process_exec.process.pod.namespace`, `metadata.name`, etc.) are unquoted, so `.` is parsed as the concatenation operator; they must be single-quoted (or renamed via spath) to be read as fields.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort -severity` sorts the strings alphabetically (MEDIUM, HIGH, CRITICAL), putting CRITICAL last; the TracingPolicy search measures CR snapshot freshness, not node coverage as its comment claims.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0109-UC-3.5.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Tetragon policy and severity narrative is concrete, but the export path is wrong, the SPL reads Tetragon JSON paths that do not exist (and unquoted dotted names), the 'never seen before' binary search only looks back over its own window, and the validation step for package managers would not trigger the SPL.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.14",
+  "verdict": "incorrect"
+}

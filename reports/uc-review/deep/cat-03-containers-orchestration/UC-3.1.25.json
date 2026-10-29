@@ -1,0 +1,152 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e4430f8ae8b075a8371950de599f603eaf4cad79492ff26f208b54e2b15fa425",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.25.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "explanation": "In Splunk Add-on for Unix and Linux, `linux_secure` is /var/log/secure (auth and sudo), not auditd. auditd records are `linux_audit` (or `auditd` via rlog.sh), and the add-on defines no `audit:json` sourcetype. The `app` field and Step 2 of `detailedImplementation` repeat the error, and `unix_filemonitor` is not an add-on sourcetype either (the add-on's FIM sourcetype is `fs_notification`).",
+      "field": "dataSources",
+      "quote": "index=os sourcetype=linux_secure or sourcetype=audit:json from Splunk Add-on for Unix and Linux capturing auditd execve lines for dockerd",
+      "severity": "blocker",
+      "suggested_fix": "Name `sourcetype=linux_audit` (Splunk Add-on for Unix and Linux, Splunkbase 833) for auditd execve and file-watch records on dockerd and /etc/docker/daemon.json, and `fs_notification` for FIM. Remove `audit:json` and `unix_filemonitor` unless a specific add-on that produces them is named."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://falco.org/docs/reference/rules/default-rules/",
+      "explanation": "Falco has no rule named 'Detect docker socket access from container'. 'Container with sensitive mount started' is the output text of the rule 'Launch Sensitive Mount Container', which ships in the sandbox ruleset and is not loaded by default (only stable rules are). The Falco arm therefore sees nothing unless sandbox rules are enabled.",
+      "field": "dataSources",
+      "quote": "rules such as Container with sensitive mount and Detect docker socket access from container",
+      "severity": "blocker",
+      "suggested_fix": "Name the real rule 'Launch Sensitive Mount Container' (its sensitive_mount macro includes /var/run/docker.sock). State that the falcosecurity sandbox rules file must be loaded for it, and remove the invented socket-access rule name from `dataSources` and `detailedImplementation`."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://www.wired.com/story/cryptojacking-tesla-amazon-cloud/",
+      "explanation": "RedLock's 2018 Tesla finding was an unauthenticated Kubernetes administration console whose pod exposed AWS credentials. It was not an exposed Docker daemon.",
+      "field": "evidence",
+      "quote": "the 2018 Tesla cloud incident where an exposed administrative Docker daemon was abused for cryptomining",
+      "severity": "blocker",
+      "suggested_fix": "Either describe the Tesla case accurately (unauthenticated Kubernetes console) or cite a documented exposed-Docker-API campaign instead, such as published TeamTNT or Kinsing research on port 2375."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/splunk/docker-logging-plugin",
+      "explanation": "Splunk Connect for Docker is a logging-driver plugin that forwards container stdout/stderr. It has no Docker Events modular input. The `app` field repeats the claim.",
+      "field": "detailedImplementation",
+      "quote": "complement with docker:events streams from Splunk Connect for Docker or an equivalent modular input reading unix:///var/run/docker.sock",
+      "severity": "blocker",
+      "suggested_fix": "Point to a `docker events --format '{{json .}}'` writer tailed by the Universal Forwarder (the pattern in the subcategory guide). Keep Splunk Connect for Docker only for log collection."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Docker emits volume `mount` events for named volumes. A host bind mount of /var/run/docker.sock may produce no event carrying the source path, so the events arm may never match.",
+      "field": "dataSources",
+      "quote": "docker:events ... that preserves create, mount, and attribute payloads referencing /var/run/docker.sock",
+      "severity": "needs_verification",
+      "suggested_fix": "Run `docker run -v /var/run/docker.sock:/var/run/docker.sock` against `docker events --format '{{json .}}'` and record which events, if any, contain the path. If none do, describe docker:inspect as the only mount source."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "An auditd execve record exists only when dockerd starts, and file-watch records do not contain daemon.json contents (so the `\"hosts\"` match cannot fire). A daemon that has listened on 2375 since before the 4-hour window is never detected. `description` and `grandmaExplanation` imply the open front door is always caught.",
+      "field": "cross_field",
+      "quote": "The audit arm surfaces daemon-level misconfiguration that no container introspection will ever see.",
+      "severity": "major",
+      "suggested_fix": "Say that daemon exposure is caught only at restart or config-edit time. Recommend a periodic listening-port feed (Splunk Add-on for Unix and Linux `Unix:ListeningPorts` / openPortsEnhanced.sh) or a `ss -ltnp` scripted input as the authoritative 2375/2376 signal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is an authoring-template checklist addressed to the generator, not implementation guidance. It also miscounts: the final table projects fourteen columns, not thirteen.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five plain-text step headers present; multisearch lists four arms; coalesce appears in every arm; ... narrative JSON fields avoid asterisk emphasis; knownFalsePositives stay security-themed",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The inspect arm reads `Name` from docker inspect, which carries a leading slash (for example `/portainer`). Docker events report `name` without the slash. Allowlist rows written as the plain name will not join to inspect rows, so every approved Portainer or Traefik mount is reported as critical_socket_mount_unapproved.",
+      "field": "detailedImplementation",
+      "quote": "container_name (exact docker name including Compose prefixes if that is how events name the task)",
+      "severity": "major",
+      "suggested_fix": "Document the leading-slash behaviour and tell publishers to strip it (or store both forms) in docker_socket_allowlist and container_owner.csv."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The exclusion is correct, but the SPL labels every 2376 hit `high_2376_no_tls_verify` and the visualization and response text treat it as confirmed missing verification. Readers will read the label as fact.",
+      "field": "exclusions",
+      "quote": "Does not prove TLS certificate validity on 2376, only surfaces argv and audit hints that warrant review.",
+      "severity": "minor",
+      "suggested_fix": "Have the prose describe 2376 rows as 'TLS port open, verification not confirmed' until the label can be changed."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 6652 is not in the cached catalogue. Sysmon for Linux writes its own syslog events, so it adds a separate sourcetype rather than enriching linux_secure.",
+      "field": "app",
+      "quote": "optional Splunk Add-on for Sysmon for Linux ([Splunkbase 6652](https://splunkbase.splunk.com/app/6652)) when linux_secure alone lacks argv fidelity",
+      "severity": "minor",
+      "suggested_fix": "Confirm the Splunkbase ID and describe Sysmon for Linux as a separate process-creation feed with its own sourcetype."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic reviewer handle despite wrong sourcetypes, invented Falco rules and a misattributed breach example.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until an SME has run positive tests A–C on a lab host."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-unix-and-linux/Sourcetypes/",
+      "field": "spl",
+      "issue": "The audit arm searches `sourcetype=\"linux_secure\" OR sourcetype=\"audit:json\"`. Neither carries auditd execve records from Splunk Add-on for Unix and Linux (the auditd sourcetype is `linux_audit`), so the daemon_exposure_audit lane and both critical_2375/high_2376 tiers are effectively dead.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The third case branch assigns `high_2376_no_tls_verify` to any 2376 hit regardless of TLS flags, making the preceding branch redundant and the label wrong. The inspect arm keeps the leading slash on `Name`, which breaks allowlist joins. A persistent pre-window 2375 listener is never re-detected.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats",
+      "field": "cimSpl",
+      "issue": "`Processes.process` is the full command line, so `Processes.process=\"dockerd\"` will not match `/usr/bin/dockerd -H fd://`. `earliest=-24h latest=now` sits after the BY clause instead of in WHERE. `nodename=Endpoint.Processes` should be checked. Even when it runs, the search only lists dockerd processes and detects neither socket mounts nor TCP listeners.",
+      "severity": "major"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "No mitreAttack field is set, although `evidence` and `detailedImplementation` frame the UC around T1611 Escape to Host. Consider T1611, and T1610 Deploy Container for socket-driven container creation.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0018-UC-3.1.25",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The threat model (socket bind mounts plus TCP 2375/2376 listeners) is sound and the grandma text fits it. The host-audit sourcetypes, the Falco rule names, the Splunk Connect for Docker events claim and the Tesla breach example are wrong, and the closing checklist is authoring-template residue.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.25",
+  "verdict": "incorrect"
+}

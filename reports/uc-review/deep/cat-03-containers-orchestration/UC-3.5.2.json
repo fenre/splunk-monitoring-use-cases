@@ -1,0 +1,130 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "b2d4ba46bf6c8200b4d74d83f8139c64ab5a2bb8beb60c2de8075f8b48308df6",
+  "file": "content/cat-03-containers-orchestration/UC-3.5.2.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://raw.githubusercontent.com/splunk/splunk-connect-for-kubernetes/main/README.md",
+      "explanation": "Splunk Connect for Kubernetes reached End of Support on 1 January 2024 and is superseded by the Splunk OpenTelemetry Collector for Kubernetes. Splunkbase 5167 is not present in the cached Splunkbase catalogue; the OTel Collector for Kubernetes is Splunkbase 6264.",
+      "field": "app",
+      "quote": "Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Drop Splunk Connect for Kubernetes and collect Kubernetes events through the Splunk OTel Collector chart's k8sobjects/k8s_events receiver (Splunkbase 6264)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The Application_State data model has been deprecated since CIM 4.12, so mapping new content to it is incorrect.",
+      "field": "cimModels",
+      "quote": "Application_State",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Keep Performance only if the fields are actually normalised, or leave cimModels empty and note that no CIM model fits."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://istio.io/latest/docs/ops/integrations/prometheus/",
+      "explanation": "With Istio's default metrics merging, the injected annotations are prometheus.io/port: 15020 and path /stats/prometheus, served by pilot-agent. Port 15090 is the raw Envoy port, exposed as the *-envoy-prom container port, and the annotation does not point to it. An annotation-based scrape configured as written would find nothing.",
+      "field": "detailedImplementation",
+      "quote": "the default chart discovers sidecars via **pod annotations** `prometheus.io/port: \"15090\"`",
+      "severity": "blocker",
+      "suggested_fix": "State that the sidecars are scraped through the merged endpoint :15020/stats/prometheus using the injected prometheus.io annotations, or scrape the 15090 envoy-prom port explicitly with a pod-port rule."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/container-platforms-docker-openshift.md",
+      "evidence_url": "https://github.com/signalfx/splunk-otel-collector-chart/blob/main/helm-charts/splunk-otel-collector/values.yaml",
+      "explanation": "The Splunk OTel Collector chart sends metrics to splunkPlatform.metricsIndex, which must be a metric-type index, with the default sourcetype httpevent. It does not write otel:metrics events into an event index. The grounding guide also places mesh telemetry in index=mesh (sourcetype=istio:envoy:access) rather than index=containers. Requiring five sourcetypes, two of them overlapping (otel:metrics and prometheus:istio), overstates the prerequisites.",
+      "field": "dataSources",
+      "quote": "`index=containers` requiring five distinct sourcetypes: **`sourcetype=otel:metrics`**",
+      "severity": "major",
+      "suggested_fix": "Describe a metrics index fed by the OTel chart (queried with mstats), Kubernetes events from k8sobjects, and optionally Envoy access logs, using the index and sourcetype names from the container-platforms guide."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The restart search in the SPL reads Kubernetes events (involvedObject, reason) and never references kube_pod_container_status_restarts_total or kube_pod_container_status_ready. The stated dependency is false, so readers will deploy kube-state-metrics for a search that does not use it.",
+      "field": "detailedImplementation",
+      "quote": "the sidecar restart search in Step 2 depends on these counters.",
+      "severity": "major",
+      "suggested_fix": "Either say that the restart search uses Kubernetes events, or rewrite the description of the restart search around the kube-state-metrics counters it claims to use."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "A sidecar whose last_seen falls within a five-minute search window can never have staleness_min > 10. The STALE branch the text describes as the key detection for sidecars that stop reporting therefore never fires; a sidecar that has gone silent simply drops out of the results.",
+      "field": "detailedImplementation",
+      "quote": "edule the sidecar health search every **5 minutes** over **`-5m@m`**",
+      "severity": "major",
+      "suggested_fix": "Search a longer window (for example -30m) and compute last_seen per pod, or detect absence against a lookup or inventory of expected sidecars."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "Envoy's server.uptime is a gauge (current uptime in seconds), not a counter.",
+      "field": "detailedImplementation",
+      "quote": "**`envoy_server_uptime`** (counter: seconds since Envoy process started",
+      "severity": "minor",
+      "suggested_fix": "Call envoy_server_uptime a gauge."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "specificity",
+      "explanation": "Recent distroless istio-proxy images may not ship curl. The supported way to query the admin endpoint is `pilot-agent request GET stats` (or `istioctl proxy-config`).",
+      "field": "detailedImplementation",
+      "quote": "kubectl exec <pod> -c istio-proxy -- curl -s localhost:15000/stats | grep server.live",
+      "severity": "needs_verification",
+      "suggested_fix": "Use `kubectl exec <pod> -c istio-proxy -- pilot-agent request GET stats | grep server.live`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified while its ingest path (the end-of-life Splunk Connect for Kubernetes, the 15090 annotation, and an event search over a metrics index) and its staleness logic cannot work as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade the status to draft or community until the ingest path and SPL have been tested end to end."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mstats",
+      "field": "spl",
+      "issue": "The search reads OTel/Prometheus metrics as events (sourcetype=otel:metrics | where match(metric_name, ...)). Data in a metrics index can only be queried with mstats or mcatalog, so the health search returns nothing against the chart's metrics index.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "coalesce(namespace, object_namespace, involvedObject.namespace) and the similar involvedObject.name and involvedObject.fieldPath references use unquoted dotted field names in eval. Eval treats '.' as the concatenation operator, so these terms do not read the JSON fields; they must be wrapped in single quotes ('involvedObject.namespace').",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "is_healthy requires uptime_sec > 60, so a freshly restarted LIVE sidecar is classified as UNHEALTHY before the RECENTLY_RESTARTED (uptime_hours < 0.5) branch is reached. The restart reason list also includes 'Created', a normal lifecycle event, and the response_flags case mapping ignores combined comma-separated flags.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0112-UC-3.5.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The Envoy server-state concepts are right: the LIVE/DRAINING/PRE_INITIALIZING/INITIALIZING mapping and the one-hour event TTL. The ingest path is wrong in several places, though. It relies on the end-of-life Splunk Connect for Kubernetes and the deprecated Application_State model, a 15090 scrape annotation that the Istio metrics-merging integration does not use, and an event search over what the chart writes to a metrics index. It also has internal contradictions: kube-state-metrics is said to feed the restart search, and a -5m window is paired with a 10-minute STALE rule.",
+  "tier": "deep",
+  "uc_id": "UC-3.5.2",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,103 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "c89adb80594c1056a74a98a86f8f78cf0c4a369c86b47d2db7684fd217d4629a",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/troubleshoot-live-migration-issues",
+      "explanation": "Microsoft's live-migration troubleshooting guide uses Hyper-V-VMMS-Admin events: 20413 (migration initiated), 20417 (completed with long blackout), 21502 (migration failed), 21024 and 21125, plus the 20415 completion and 22038 send-failure pair. 21024 is documented as a post-migration network loss, not a destination start fault. The 221xx lifecycle IDs and the Operational channel do not appear in that guide, so a reader would collect the wrong channel and match IDs that never fire.",
+      "field": "dataSources",
+      "quote": "**`Microsoft-Windows-Hyper-V-VMMS-Operational`** (**22106** live migration started, **22112** completed, **22113** failed, **22114** cancelled, **22117** storage live migration completed, **22125** saved-state migrated, **21024** destination start fault post-move",
+      "severity": "blocker",
+      "suggested_fix": "Rebuild the event catalogue from Microsoft-Windows-Hyper-V-VMMS-Admin (20413 initiated, 20415 completed, 20417 long blackout, 21502/21024/22038/21018 failures) and Hyper-V-High-Availability-Admin (21502). Confirm each ID in Event Viewer on a lab migration before publishing."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The classic cluster fault events 1069, 1146 and 5142 are written to the System log by the FailoverClustering provider, not to the FailoverClustering/Operational channel. The meanings given for 1244 and 5115 are also unconfirmed.",
+      "field": "dataSources",
+      "quote": "**`Microsoft-Windows-FailoverClustering/Operational`** (**1069** resource fault, **1146** RHS fault against **`vmclusres.dll`** backed roles, **1244** failover failure, **5115** CSV manual remount, **5142** CSV offline)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check on a cluster node which channel logs 1069/1146/5142 (expect the System log, provider Microsoft-Windows-FailoverClustering) and look up the documented meanings of 1244 and 5115. Then add a WinEventLog://System input or correct the channel name."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "The FailoverClusters module exposes possible owners through Get-ClusterOwnerNode / Set-ClusterOwnerNode. A Get-ClusterPossibleOwner cmdlet does not appear to exist, and Set-ClusterPreferredOwner is also suspect.",
+      "field": "app",
+      "quote": "**`Get-ClusterPossibleOwner`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the FailoverClusters module cmdlet list and keep only cmdlets that exist (Get-ClusterOwnerNode, Set-ClusterOwnerNode, Get-ClusterAffinityRule, Set-ClusterAffinityRule, Move-ClusterVirtualMachineRole)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "spelling",
+      "explanation": "The parameter is -MaximumVirtualMachineMigrations (plural), as Step 4 of the same text spells it.",
+      "field": "detailedImplementation",
+      "quote": "**Set-VMHost -MaximumVirtualMachineMigration** overrides",
+      "severity": "minor",
+      "suggested_fix": "Use -MaximumVirtualMachineMigrations consistently."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The search runs over 24h and outputs only multivalue state lists and a raw event count. It never computes lm_ok or lm_fail counts or a ratio, so this panel and the 'failure rate' framing cannot be built from the search output.",
+      "field": "visualization",
+      "quote": "(5) Single-value lm_ok versus lm_fail ratio across rolling 7d slices.",
+      "severity": "major",
+      "suggested_fix": "Either describe the panels the search does support (posture, seq_count, vmms_mix), or document a companion search that counts successes and failures per cluster and computes failures / (successes + failures)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified but was reviewed by an automated agent. Its event IDs and sourcetype filters would return no rows on a current TA, so no human ran it.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME validates it against a real live-migration test."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-microsoft-windows/UpgradeLegacy/",
+      "field": "spl",
+      "issue": "Filters such as sourcetype=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Operational\" and sourcetype=\"WinEventLog:Microsoft-Windows-FailoverClustering/Operational\" will not match. Since Splunk_TA_windows 5.0, every event log is indexed as sourcetype WinEventLog (or XmlWinEventLog) and the channel is carried in source. Use sourcetype=WinEventLog source=\"WinEventLog:Microsoft-Windows-Hyper-V-VMMS-Admin\" and similar. The integration guide's Storport and FailoverClustering examples have the same problem.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/virtualization/troubleshoot-live-migration-issues",
+      "field": "spl",
+      "issue": "The vmms_state case() keys on 22106/22112/22113/22114/22117/22125/21024/25030. Microsoft documents live migration as 20413/20415/20417/21502/22038/21024 in Hyper-V-VMMS-Admin, so lm_fail and lm_cancel would rarely or never populate and placement_hot would not fire.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`eval mig_bytes_sent='Migration Bytes Sent'` assumes perfmon writes one field per counter name. Standard Splunk perfmon events carry counter=\"...\" and Value=..., so this field is null unless mode=multikv or a custom extraction is used. Check the indexed perfmon shape and the Hyper-V counter-set name.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`dc(host) as nodes_seen by cluster_key host` is always 1 because host is a group-by key. The title promises a failure rate, but the search computes no rate (there is no ratio of failures to starts).",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0082-UC-19.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "This is a detailed Hyper-V mobility UC, but its core event-ID catalogue (22106/22112/22113/22114) and channel choice do not match Microsoft's documented live-migration events, which are logged in Hyper-V-VMMS-Admin as 20413, 20415, 20417, 21502, 21024 and 22038. The per-channel sourcetype filters also will not match data from current Splunk_TA_windows versions. Despite the title, the search computes no failure rate.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.3",
+  "verdict": "incorrect"
+}

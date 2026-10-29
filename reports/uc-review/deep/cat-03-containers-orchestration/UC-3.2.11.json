@@ -1,0 +1,149 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "1f57bb9d35292317fc784cc5aec68e34a5c7aada75e4780988a2d65442c8ac6b",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.11.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "evidence_url": "https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/k8seventsreceiver/README.md",
+      "explanation": "The OpenTelemetry k8s_events receiver has no `mode` setting (its options are auth_type, namespaces, kube_api_qps/burst, k8s_leader_elector, storage and dedup_interval), so the collector rejects this config. The receiver also emits k8s.event.reason / k8s.object.kind attributes rather than the reason / involvedObject.kind fields the SPL reads. The grounding guide uses the k8sobjects receiver (mode: watch, group events.k8s.io) for kube:events.",
+      "field": "detailedImplementation",
+      "quote": "  k8s_events:\n    auth_type: serviceAccount\n    mode: watch",
+      "severity": "blocker",
+      "suggested_fix": "Replace the sketch with the guide's clusterReceiver k8sObjects events stanza (`name: events, mode: watch, group: events.k8s.io`). Alternatively, drop `mode: watch` and document that k8s_events emits k8s.event.reason and k8s.object.kind, then align the SPL field names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The SPL immediately discards perf_lane_ticks with `fields -`, so the join proves nothing and contributes nothing to the detection. Presenting it as audit evidence of acceleration health overclaims.",
+      "field": "detailedImplementation",
+      "quote": "join with tstats against Performance provides a CIM-aligned tick count that proves Performance acceleration is warm for correlation overlays during audits",
+      "severity": "major",
+      "suggested_fix": "Remove the claim, or describe the tstats join as optional scaffolding that a human maintainer should delete from the SPL."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "explanation": "HPA replica transitions and SuccessfulRescale events do not map to Performance CPU/Memory or to Application_State, which is a deprecated CIM model. The grounding guide's Kubernetes CIM mapping does not use Application_State. The detection runs entirely on raw kube-state-metrics and kube:events.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "major",
+      "suggested_fix": "Drop Application_State. Either drop Performance too and mark the UC as non-CIM raw-metric detection, or keep Performance only as an explicitly optional node-saturation overlay."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The detection does not use the Performance datamodel; it reads kube-state-metrics HPA series and kube:events. The description therefore tells readers the wrong data source, beyond the templating issues already recorded.",
+      "field": "description",
+      "quote": "using datamodel `Performance`, grouped by `cluster`, `namespace`, `hpa`, `_time`",
+      "severity": "major",
+      "suggested_fix": "State that it counts 5-minute current/desired replica transitions per HPA from kube-state-metrics in k8s_metrics, corroborated by SuccessfulRescale kube:events, and flags at least 6 transitions in 1h or at least 30 in 24h."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The grounding guide says kube:events comes from the k8sobjects receiver and that the collector stamps k8s.cluster.name. The SPL's cluster coalesce omits k8s.cluster.name, so on guide-standard data cluster resolves to empty. The later merge_key rex `^(?<cluster>[^|]+)` then fails, and every row loses cluster/namespace/hpa.",
+      "field": "dataSources",
+      "quote": "Splunk OpenTelemetry Collector prometheus and kubernetes events receivers",
+      "severity": "minor",
+      "suggested_fix": "Name the k8sobjects receiver and list k8s.cluster.name as the cluster field. Ask the SPL owner to add 'k8s.cluster.name' to the coalesce."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "A UPS SNMP model and the snmp equipment tag are unrelated to Kubernetes HPA scaling, and they pollute equipment-picker results.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp_ups from equipmentModels and snmp from equipment; keep kubernetes, opentelemetry and prometheus."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The KFP entries are generic templates that name no real HPA cause. The genuine false positives (KEDA event-driven bursts, Deployment rollouts changing replicas, intentionally bursty batch ingress) appear only in Step 5 cases 7 and 11 and in Step 2.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `hpa`, `_time`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List KEDA ScaledObject bursts (check cooldownPeriod/idleReplicaCount), rollout-driven replica churn (correlate kube_deployment_status_condition, UC-3.2.6) and documented aggressive scale-up tiers, each with its discriminating signal."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "The ServiceMonitor, OTel Collector and CSV samples are unfenced, so indentation-sensitive YAML is hard to copy reliably.",
+      "field": "detailedImplementation",
+      "quote": "ServiceMonitor-style reference:\n\napiVersion: monitoring.coreos.com/v1",
+      "severity": "minor",
+      "suggested_fix": "Wrap the YAML samples in ```yaml fences and the CSV in a ```csv fence."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "implementation and detailedImplementation Step 3 dispatch with latest=now, while the SPL subsearches pin latest=@m, and the inline subsearch latest values override the dispatch window.",
+      "field": "cross_field",
+      "quote": "earliest=-24h@h latest=now",
+      "severity": "minor",
+      "suggested_fix": "Use one window consistently (earliest=-24h@h latest=@m) in implementation, Step 3 and the SPL comment."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot execute as written (misplaced multisearch, an undefined macro), so it cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community until the SPL runs and the Step 4 lab flap produces the expected row."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/9.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command that must start the search, but here it follows `| eval` and a join. Its subsearches also contain non-streaming commands (bin+stats, sort, streamstats, stats), which multisearch rejects. The `multisearch [ [ search ... ] [ search ... ] ]` double-bracket nesting is also not the documented syntax. The search fails at parse time. Restructure as `| multisearch [search ...] [search ...]` with only streaming commands inside and the stats/streamstats after it, or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en?resourceId=Splunk_SearchReference_Eval&version=splunk-9_4",
+      "field": "spl",
+      "issue": "In the kube:events arm, `coalesce(involvedObject.kind, `involvedObject.kind`, \"\")` wraps a field name in backticks, which Splunk expands as a search macro named involvedObject.kind. Unless such a macro exists, the search errors. The unquoted involvedObject.kind, involvedObject.name and metadata.namespace are also parsed as `.` concatenation instead of field references, because eval needs single quotes around dotted field names. Use 'involvedObject.kind', 'involvedObject.name' and 'metadata.namespace'.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md",
+      "field": "spl",
+      "issue": "kube_horizontalpodautoscaler_status_condition is emitted once per condition for each status label value (true, false and unknown), with the sample value marking which one is active. The SPL collects every condition=status pair without checking the sample value, so cond_blob contains 'scalingactive=false' for essentially every HPA and scaling_active_false is always 1. Filter to series whose value equals 1 before building cond_pair.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/horizontalpodautoscaler-metrics.md",
+      "field": "spl",
+      "issue": "kube_horizontalpodautoscaler_spec_target_metric carries a Prometheus label named metric_name. Because `mn` coalesces metric_name before __name__, an auto-extracted metric_name label (for example 'cpu') can replace the series name, and the spec_target_metric like() filter then misses those lines. Prefer __name__, or rename the label at scrape time.",
+      "severity": "minor"
+    },
+    {
+      "field": "cimSpl",
+      "issue": "The cimSpl reports Application_State state plus host CPU/memory and has no HPA, replica or scaling-event logic, so it is not an accelerated equivalent of the detection. It also puts like() inside the tstats WHERE clause; check whether tstats accepts eval-style functions there (it normally accepts only field comparisons with wildcards).",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0031-UC-3.2.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The HPA scaling-activity narrative is well scoped and differentiated from its siblings. However, the SPL cannot run: multisearch sits mid-pipeline with non-streaming subsearches, and a backticked field name expands as a macro. The condition logic misreads kube-state-metrics' true/false/unknown series, the OTel sample has an invalid receiver key, and the CIM, equipment and status fields are boilerplate or overclaimed.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.11",
+  "verdict": "incorrect"
+}

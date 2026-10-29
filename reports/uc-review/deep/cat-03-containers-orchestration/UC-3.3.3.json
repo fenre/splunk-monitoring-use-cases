@@ -1,0 +1,125 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "fc3f069e2f6067f841965c43c047f916aac911f07a593178b06b6f98231fabb7",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.3.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://tekton.dev/docs/pipelines/pipelineruns/",
+      "explanation": "Tekton documents the PipelineRun Succeeded reasons as Started, Running, Cancelled, Succeeded, Completed, Failed, PipelineRunTimeout and CreateRunFailed, plus validation error strings. TasksFailed, GitResolverFailed, FailedToResolveTaskRefs and PipelineRunStopping are not documented reasons. The same invented tokens drive the detailedImplementation runbook cases and the page conditions.",
+      "field": "dataSources",
+      "quote": "status.conditions Succeeded True False Unknown with reason TasksFailed PipelineRunCancelled PipelineRunStopping CreateRunFailed ResolutionFailed FailedToResolveTaskRefs GitResolverFailed",
+      "severity": "blocker",
+      "suggested_fix": "List the documented reasons: Failed, Cancelled, PipelineRunTimeout, CreateRunFailed, PipelineValidationFailed and InvalidParamValue. Treat resolver failures as condition messages (or the reasons your Tekton minor actually emits, checked with oc describe) rather than as GitResolverFailed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://tekton.dev/docs/pipelines/taskruns/",
+      "explanation": "The Tekton TaskRun status table documents Failed, TaskRunCancelled, TaskRunTimeout, TaskRunImagePullFailed and FailureIgnored. TaskRunStopping, FailedToCreate and InjectedSidecarsTerminating are not in that table, and the plain 'Failed' reason (a step failed) is omitted.",
+      "field": "dataSources",
+      "quote": "TaskRunImagePullFailed TaskRunValidationFailed TaskRunResolutionFailed TaskRunTimeout TaskRunCancelled TaskRunStopping FailedToCreate InjectedSidecarsTerminating",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the reason constants in tektoncd/pipeline for the deployed OpenShift Pipelines version. Add 'Failed' and drop the tokens that do not exist."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "The Application State CIM data model has been deprecated since CIM 4.12.0 in favour of Endpoint. It models host processes, services and ports, not CI pipeline controllers, so it does not fit Tekton PipelineRun state.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State. Keep Change only for audited tekton.dev create and patch actions, and treat run reliability as non-CIM."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These entries are generic template text (there is no span=1h, and synthetic probes do not create PipelineRuns). The real false-positive causes sit unused in the risk briefing.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `sum` on `ocp_pipelinerun` — Scheduled automation elevates `namespace` without crossing `step_exit` > 0",
+      "severity": "major",
+      "suggested_fix": "List the real causes: intentional cancellations (reason Cancelled) during canary drills, Unknown or Running dwell during large fan-out reconciles, corporate Git maintenance windows, Sigstore OIDC identity outages, and scanner probes against public EventListener routes."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "On OpenShift Pipelines the operand and resolver workloads run in openshift-pipelines, and the cluster resolver's default namespace there is not upstream tekton-pipelines. The text also names an 'openshift-pipelines-resolvers namespace' that may not exist.",
+      "field": "detailedImplementation",
+      "quote": "reproduce cluster resolver lookups with oc get tasks -n tekton-pipelines",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the TektonConfig and resolver ConfigMaps (cluster-resolver-config) on the deployed OpenShift Pipelines version and name the real namespaces."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "data/splunkbase-catalog.json has no 'Splunk OpenShift App'. Its only OpenShift entry is the Outcold 'Monitoring OpenShift' app (3836), and the sourcetypes used here (ocp_pipelinerun, ocp_taskrun) come from custom exporters that no app's dashboards ship. The evidence field's 'Splunk OpenShift App dashboard drilldowns' depend on the same claim.",
+      "field": "app",
+      "quote": "\"app\": \"Splunk OpenShift App\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Name the actual collection path: Splunk OpenTelemetry Collector for Kubernetes (6264) with k8sobjects for tekton.dev resources plus custom oc exporters. Otherwise cite the Splunkbase ID of the intended app."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "These are intermediate guards, not the alert conditions. The SPL pages on pr_fail_cnt>=5 with resolver reasons, tr_fail_cnt>=10, chains_miss>=5, resv_fail>=8 or webhook_err_pct>=15, and warns at webhook_err_pct>=8 or on an SLO breach.",
+      "field": "description",
+      "quote": "alert when `step_exit` > 0, `sc` >= 400, `pr_fail_cnt` > 0, or `prev_pr_fail` > 0",
+      "severity": "minor",
+      "suggested_fix": "State the page and warn thresholds from the case() block."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/splunk-enterprise/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Each of the four multisearch subsearches ends in `| stats ... BY ...`. multisearch allows only streaming commands in its subsearches, and stats is transforming, so the search fails with 'Multisearch subsearches may only contain purely streaming operations'. Use union or append, or move the per-lane stats after fan-in.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The TaskRun lane sets pipeline_key from labels tekton.dev/pipelineRun (a run name), while the PipelineRun lane uses the pipeline name. TaskRun failures therefore never merge with their pipeline's row or match expected_pipelines.csv. Use the tekton.dev/pipeline label, which TaskRuns also carry.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "After stats there is exactly one row per cluster/namespace/pipeline_key, so `streamstats current=t last(pr_fail_cnt) AS prev_pr_fail` just copies the current value. pr_fail_streak is then 1 or 0 and can never be >=2, so the streak logic described in the implementation does nothing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "chains_miss counts any chains-controller line containing 'signed', 'attestation' or 'upload', which includes successful signing messages. It overstates signing gaps and can page on healthy signing activity.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "EventListener detection relies on URI paths containing 'eventlistener', 'tekton/triggers', '/live' or '/ready'. Webhook deliveries normally POST to '/' on the el-<name> route host, so real deliveries are missed while liveness and readiness probes are counted. Key on the route or host (el-*) instead.",
+      "severity": "needs_verification"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/change",
+      "field": "cimSpl",
+      "issue": "It uses `nodename=Change` with Change.action, Change.object and Change.dest, but the Change root dataset is All_Changes (All_Changes.action, ...). It also queries Application_State.state and Application_State.info, but that deprecated model's root is All_Application_State and it has no state or info fields. Both tstats calls return nothing.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0090-UC-3.3.3",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The detailedImplementation gives a rich Tekton runbook, but it keys detection on PipelineRun and TaskRun reason strings that Tekton does not emit. The SPL cannot run because every multisearch branch ends in stats, and the CIM mapping uses a deprecated data model with non-existent fields.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.3",
+  "verdict": "incorrect"
+}

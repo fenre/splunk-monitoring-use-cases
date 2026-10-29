@@ -1,0 +1,115 @@
+{
+  "confidence": 0.78,
+  "content_sha256": "301709291917011f0e5972d3f750ff310e33a6c844d5c432bddce0142c577c90",
+  "file": "content/cat-23-business-analytics/UC-23.2.5.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The Splunk Add-on for Salesforce is Splunkbase app 3549; 1567 does not resolve to it in the cached catalogue. The matching entry in `references` also points at the Splunkbase home page, not an app page.",
+      "field": "app",
+      "quote": "Splunk Add-on for Salesforce ([Splunkbase 1567](https://splunkbase.splunk.com/app/1567)) (`Splunk_TA_salesforce`)",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunkbase 3549 (https://splunkbase.splunk.com/app/3549) in both `app` and `references`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/InheritedDeployment/Ports",
+      "explanation": "8089 is the splunkd management/REST port. Forwarder-to-indexer traffic uses the receiving port (conventionally 9997) and HEC uses 8088, so a firewall opened only for 8089 would block ingestion.",
+      "field": "detailedImplementation",
+      "quote": "outbound TLS to Splunk indexers on `8089/tcp` or Cloud ingest endpoints",
+      "severity": "blocker",
+      "suggested_fix": "Specify 9997/tcp (or your configured receiving port) for forwarding, and 8088 or 443 for HEC / Splunk Cloud."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "`stats count` and `avg()` do not deduplicate. The Step 1 SQL LEFT JOINs Opportunity to OpportunityLineItem, so a five-line deal is counted as five deals, and its header Amount is averaged five times. Win rate and average deal size are then weighted by line count, not by deal.",
+      "field": "detailedImplementation",
+      "quote": "Aggregation collapses repeated line-ingest explosions into discount strata using `stats`, preserving weighted averages through Splunk’s implicit handling per band.",
+      "severity": "major",
+      "suggested_fix": "Explain that rows must be rolled up to one row per opportunity first (for example `stats sum(list_ext) sum(TotalPrice) values(StageName) by OppKey`) before banding, or ingest at opportunity grain."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The described path is DB Connect against a warehouse replica, so Salesforce API limits do not apply to it. The 50,000-row limit is an Apex SOQL governor limit, not a Bulk API limit, and Salesforce signals API limit exhaustion with REQUEST_LIMIT_EXCEEDED (HTTP 403), not 429.",
+      "field": "detailedImplementation",
+      "quote": "throttle Bulk extracts under Salesforce fifty-thousand-row aggregation limits ... Salesforce Bulk API 429 responses appear during busy extracts",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Salesforce API limits documentation. Either remove the Salesforce limit discussion from this warehouse-based UC or restate it accurately for the replication job that feeds the warehouse."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Conga CPQ (formerly Apttus) objects normally use the `Apttus_Proposal__` / `Apttus_Config2__` / `Apttus_Approval__` namespaces (for example `Apttus_Proposal__Proposal_Line_Item__c`, `Apttus_Approval__Approval_Request__c`). The `Conga_*__c` and `Apttus_QPApprov__Approval__c` names look invented.",
+      "field": "dataSources",
+      "quote": "**Apttus** approval-chain rows such as `Apttus_QPApprov__Approval__c` ... **Conga CPQ** line adjustments via `Conga_Quote_Pricing_Adj__c` and `Conga_QuoteLine__c`",
+      "severity": "needs_verification",
+      "suggested_fix": "Verify the object API names against the Conga CPQ object reference and replace or remove the unverified names."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL outputs no `theater` field, Dashboard Studio has no heatmap type, and a scatter with bubble sizing is the `splunk.bubble` visualization.",
+      "field": "visualization",
+      "quote": "heatmap of `verdict` by `discount_band` and theater; scatter of `avg_dollar_concession` vs `win_rate` with bubble size `p95_deal_size`",
+      "severity": "minor",
+      "suggested_fix": "Drop theater or add it to the stats BY clause, use `splunk.punchcard` or a colored table for the matrix, and call the chart `splunk.bubble`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The Step 1 SQL uses no rising column (it filters `closedate >= CURRENT_DATE - 540`), and detailedImplementation says CRM snapshots should arrive 'at least hourly'. The 540-day extract also does not match the SPL's 180-day window.",
+      "field": "implementation",
+      "quote": "schedule DB Connect pulls every four hours with rising keys on `LastModifiedDate`",
+      "severity": "minor",
+      "suggested_fix": "Give one cadence and one watermark strategy, and align the extract window with the SPL lookback."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "These benchmark figures have no cited source.",
+      "field": "detailedImplementation",
+      "quote": "cross-industry B2B win-rate roughly twenty-one percent; SaaS cohorts often twenty-eight to thirty-four percent",
+      "severity": "minor",
+      "suggested_fix": "Cite a source or remove the numbers."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`discount_pct` is computed as (ListPrice − Amount) / ListPrice, where ListPrice is the per-unit OpportunityLineItem list price and Amount falls back to the opportunity total. Without multiplying ListPrice by Quantity (or using line TotalPrice against ListPrice×Quantity), header rows yield large negative discounts, which land in 'No Discount', and the bands are wrong.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`count as deals` counts ingested rows, not distinct opportunities, so deals with many lines dominate win_rate. Rows from `dbx:quote_line_item` / `salesforce:opportunity_lineitem` usually lack StageName and are dropped by the stage filter, so those sourcetypes add nothing.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The verdict logic labels any band with win_rate < 30 'Ineffective — discount not winning', including the 'No Discount' band. 'Margin erosion — high discount low effectiveness' can only fire when win_rate ≥ 30, which contradicts its label. `appendcols` attaches distinct_closed_rep_rows only to the first row.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-23.2.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The pricing-band concept and its caveats are well written, but the UC cites a wrong Splunkbase ID for the Salesforce add-on, gives the wrong forwarding port, and falsely claims that `stats` collapses line-item explosions. The SPL compares opportunity totals against unit list prices, so the derived discount percentages are not trustworthy.",
+  "tier": "deep",
+  "uc_id": "UC-23.2.5",
+  "verdict": "incorrect"
+}

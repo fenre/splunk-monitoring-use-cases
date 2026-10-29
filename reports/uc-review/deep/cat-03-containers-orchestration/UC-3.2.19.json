@@ -1,0 +1,135 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "e9b7dd36ea355819ee69e187fe6c5a2eab0f4e77bcbdd0fdd88b5bfb7467e5e8",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.19.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "explanation": "apiserver_request_duration_seconds and apiserver_request_total carry verb, group, version, resource, subresource, scope, component (and code / dry_run) labels; there is no user-agent or client label on kube-apiserver Prometheus series. Client identity is only available from audit logs (userAgent, user.username), so client_sig is always the default and the per-client latency, the client heatmap and the allowlist budget join cannot work. The same claim appears in implementation ('user-agent labels'), visualization and grandmaExplanation ('who is asking the loudest').",
+      "field": "detailedImplementation",
+      "quote": "a synthesized client signature derived from user-agent or client labels on scraped series",
+      "severity": "blocker",
+      "suggested_fix": "State that per-client attribution requires kube:apiserver:audit (userAgent, user.username, latency from requestReceivedTimestamp to stageTimestamp) or APF metrics keyed by flow_schema/priority_level, and drop the useragent label requirement from the metrics path."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/tasks/run-application/access-api-from-pod/",
+      "explanation": "The kube-apiserver is fronted by the 'kubernetes' Service in the default namespace (kubernetes.default.svc), labelled component=apiserver; a ServiceMonitor restricted to kube-system will not discover it, so no apiserver metrics are scraped.",
+      "field": "detailedImplementation",
+      "quote": "selector:\n    matchLabels:\n      component: apiserver\n  namespaceSelector:\n    matchNames:\n      - kube-system",
+      "severity": "blocker",
+      "suggested_fix": "Set namespaceSelector.matchNames to default (as kube-prometheus-stack does) and keep the component: apiserver / provider: kubernetes selector."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "This contradicts the same field's OTel Collector path: Splunk Connect for Kubernetes is the deprecated Fluentd-based Helm project, not a modular input, and the repository guide directs users to migrate off it. The app field repeats it.",
+      "field": "dataSources",
+      "quote": "Collected via Splunk Connect for Kubernetes (Splunkbase 5167) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the SCK sentence from dataSources and app; keep the Splunk OpenTelemetry Collector for Kubernetes Helm chart as the only collection path."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "API server request latency by verb and resource has no natural home in Application_State (service/process state) and only a loose fit to Performance; the SPL joins to them merely 'to prove CIM summaries resolve', which is not part of the detection.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "major",
+      "suggested_fix": "Drop Application_State (and the CIM joins described in Step 3), or state that the UC runs on raw Prometheus metrics with no CIM mapping; also remove the dataModelAcceleration advice for those models."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "Apart from the non-existent user-agent label, preserving le on every apiserver_request_duration_seconds_bucket series by resource is a well-known cardinality hazard; the UC mentions it only in passing and gives no guidance on dropping buckets or resources.",
+      "field": "implementation",
+      "quote": "Stand up index=k8s_metrics with kube-apiserver scrape lines preserving verb, resource, scope, code, le, and user-agent labels",
+      "severity": "major",
+      "suggested_fix": "Remove user-agent, and add concrete guidance on relabel rules that drop unneeded le buckets or high-cardinality resource/subresource combinations before HEC export."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Generator checklist residue aimed at the authoring pipeline rather than the implementer.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present exactly; Step 3 contains a fenced spl block matching the spl field; multisearch includes latency and saturation arms",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist and the 'Paste-and-run SPL must match the spl JSON field exactly' note."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by a generic handle although the SPL fails to parse and relies on a label that does not exist.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the search is executed against real apiserver metrics."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The data-quality probe counts a cluster field it never computes (the main search derives cluster via coalesce), so clusters is 0 wherever only k8s_cluster_name exists and the probe filters everything out.",
+      "field": "detailedImplementation",
+      "quote": "| stats dc(mn) AS families dc(cluster) AS clusters BY k8s_cluster_name",
+      "severity": "minor",
+      "suggested_fix": "Add the same eval cluster=coalesce(...) used in the main search, or count dc(k8s_cluster_name)."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Both multisearch arms contain stats, eventstats and sort; multisearch accepts only streaming commands in its subsearches, so the search errors out before producing results.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "Quantiles are built from max() of cumulative histogram bucket counters per 5m window, i.e. the distribution since apiserver start, not the last five minutes; p50/p95/p99 therefore barely move during an incident. Bucket deltas between windows (rate) are needed. err_5xx_pct likewise sums lifetime counters across every scrape in the window.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Arms default client_sig to \"unknown_client\" vs \"ALL\" and verb/resource to \"\"/\"core\" vs \"ALL\", and gauges such as apiserver_current_inflight_requests have request_kind rather than verb labels, so latency and saturation rows never merge in the final stats BY; streamstats BY cluster on rows sorted by window, verb, resource computes apf_reject_d5m between unrelated rows, not consecutive windows.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "spl",
+      "issue": "The Performance tstats join uses nodename=Performance; the CIM Performance root dataset is All_Performance, so the join returns nothing.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "nodename=Performance.CPU, Performance.cpu_load_percent and Performance.host are not valid CIM Performance paths (All_Performance.CPU.cpu_load_percent, All_Performance.dest), and CPU of hosts mapped to 'cluster' via Application_State.dest is unrelated to apiserver request latency.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "field": "title",
+      "issue": "'by ... Client' promises a dimension kube-apiserver request metrics do not expose; either scope the title to verb and resource or add an audit-log arm for client attribution.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0038-UC-3.2.19",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "Well-scoped against siblings with good APF and LIST-storm troubleshooting, but the per-client axis rests on a label kube-apiserver metrics do not have, the SPL cannot run (non-streaming commands inside multisearch) and computes lifetime rather than windowed percentiles, the sample ServiceMonitor targets the wrong namespace, and the CIM overlays use invalid dataset paths that add nothing to the detection.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.19",
+  "verdict": "incorrect"
+}

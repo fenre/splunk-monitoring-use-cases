@@ -1,0 +1,120 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "652327a4493a1b99a42a304613d76d4315c0ff1de285c867a6566b6566a75676",
+  "file": "content/cat-23-business-analytics/UC-23.9.4.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL computes volume from `coalesce(gallons_increment, gal_delta, volume_gal, makeup_volume_gal)` only, so the fields named here for the primary BACnet and Modbus sources (cum_volume_gal, instantaneous_gpm, gal_pulse) are never read and those meters contribute 0 gallons.",
+      "field": "dataSources",
+      "quote": "sourcetype bacnet:water_meter (bacnet_object_instance, instantaneous_gpm, cum_volume_gal, facility_id) ... sourcetype modbus:water_meter (gal_pulse, meter_id)",
+      "severity": "major",
+      "suggested_fix": "Require BACnet and Modbus collectors to emit an interval delta field the SPL reads (e.g. `gal_delta`), or document the delta derivation from `cum_volume_gal`. Ask for the SPL coalesce to include it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.awwa.org/Resources-Tools/Resource-Topics/Water-Loss-Control",
+      "explanation": "In the AWWA/IWA water balance, apparent losses (meter inaccuracy, data handling, unauthorised use) are estimated and real losses are the residual of water losses minus apparent losses. Labelling the remainder 'apparent loss' inverts the M36 decomposition and misattributes leakage as metering error.",
+      "field": "detailedImplementation",
+      "quote": "apparent_loss_gal enforces AWWA M36 non-negative remainder after subtracting authorised and tagged real metres",
+      "severity": "major",
+      "suggested_fix": "Call the remainder 'water losses' (or 'unaccounted volume'). If both components are needed, estimate apparent losses separately and derive real losses as the residual, as M36 does."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The weekly NFPA 25 test is a no-flow (churn) run that discharges only small casing-relief or cooling water. Large discharges through test headers occur during the annual flow test.",
+      "field": "detailedImplementation",
+      "quote": "Weekly NFPA 25 diesel fire-pump churn tests discharge hundreds of gallons through test headers resembling catastrophic bursts",
+      "severity": "minor",
+      "suggested_fix": "Attribute large test-header discharges to the annual NFPA 25 flow test, and note that weekly churn tests add only minor cooling or relief flow."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "The repository catalog lists Splunkbase 5234 as 'Splunk Add-on for Stream Wire Data', not an OT Security add-on, and 4347 is not in the catalog. The 4347 reference also points to the Splunkbase home page. The same IDs are repeated in detailedImplementation Step 1, separately from the already-recorded app-field check.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk OT Security Add-on (Splunkbase 5234)\" ... \"title\": \"Splunk Industrial Asset Intelligence (Splunkbase 4347)\", \"url\": \"https://splunkbase.splunk.com/\"",
+      "severity": "major",
+      "suggested_fix": "Remove or correct both references and the Step 1 mentions, and confirm on Splunkbase whether Industrial Asset Intelligence is still available before recommending it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL bins to days and then weeks, so it cannot produce an hour-of-day heatmap.",
+      "field": "visualization",
+      "quote": "heatmap of average gallons by hour-of-day versus day-of-week for idle-flow diagnostics",
+      "severity": "minor",
+      "suggested_fix": "State that this panel needs a companion search on raw interval reads (e.g. `bin _time span=1h` with `date_hour`/`date_wday`)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is generic template text. The real false-positive causes are listed in detailedImplementation Step 5: cooling-tower blowdown, register rollover, fire-pump tests, irrigation variances, reclaimed-water double counting, and AMI LTE gaps.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `facility_id`, `tenant_id`, `_time`** — Health checks in `facilities` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 causes into knownFalsePositives and drop the CMDB, probe and 48h text."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The reviewer is an automated agent, and the field-name mismatch means the SPL could not have been validated on BACnet or Modbus data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-28\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a facilities or water-management SME validates the search against meter exports."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "The search also counts cooling-tower makeup, irrigation and process water, not only drinking water.",
+      "field": "grandmaExplanation",
+      "quote": "We tally drinking-water gallons moving through meters",
+      "severity": "minor",
+      "suggested_fix": "Say 'water gallons' or 'drinking, cooling and irrigation water'."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`stats sum(gal) as daily_gal` adds master or district-feed meters, submeters and loss tags together, so every gallon passing a master meter and a submeter is counted twice. `weekly_gal`, `suspect_idle_leak` (daily_gal>500) and `drought_violation` are inflated as a result. Compute consumption from one tier (production_gal, or the authorised submeter sum), not the sum of all roles.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`gal=tonumber(coalesce(gallons_increment, gal_delta, volume_gal, makeup_volume_gal, \"0\"))` omits `gal_pulse` (Modbus) and any delta derived from `cum_volume_gal` (BACnet), so the primary sourcetypes evaluate to 0.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`max(apparent_loss_gal) as wk_apparent` and `max(real_loss_gal) as wk_real_loss` take the single worst day rather than the weekly total, so the weekly loss columns are not comparable to `weekly_gal`. Use sum() for weekly volumes.",
+      "severity": "minor"
+    },
+    {
+      "field": "monitoringType",
+      "issue": "`Performance` and `Reliability` do not fit a water-consumption and conservation KPI; `Business` and/or `Compliance` (drought ordinance tiers, GRI 303/CDP water) match the signal and the sibling UCs.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0055-UC-23.9.4",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The meter-ingest paths and troubleshooting are rich and domain-specific, but the SPL's volume coalesce ignores the BACnet and Modbus fields that dataSources defines and sums master meters together with submeters. The 'apparent loss' remainder inverts AWWA M36 practice, and the template KFPs, status and an NFPA churn-test claim need correction.",
+  "tier": "deep",
+  "uc_id": "UC-23.9.4",
+  "verdict": "rewrite"
+}

@@ -1,0 +1,102 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "12097e0d56c2aeb3fb02b61831b99af78d3b3aa4cf886fe36ef9da41ac136c0b",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagejob",
+      "explanation": "MSFT_StorageJob, the object Get-StorageJob returns, has no EtaSecondsRemaining property. It exposes PercentComplete, ElapsedTime, StartTime, JobState and similar fields, and BytesProcessed/BytesTotal appear on the PowerShell output. A collector following this text cannot emit the ETA that the optimize_slow logic depends on.",
+      "field": "detailedImplementation",
+      "quote": "Collect-S2dStorageJob.ps1 captures **Get-StorageJob** rows whose **Name** references Optimize, Rebuild, Repair, Regeneration, or Reallocation including **PercentComplete** and **EtaSecondsRemaining** inside s2d:storagejob.",
+      "severity": "blocker",
+      "suggested_fix": "Collect PercentComplete, ElapsedTime, StartTime, JobState, BytesProcessed and BytesTotal. Derive an estimated remaining time in the collector or in SPL (for example ElapsedTime * (100 - PercentComplete) / PercentComplete), and update the field rationale to match."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Cisco ACI is a data-centre network fabric and has nothing to do with Storage Spaces Direct pool capacity. The hardware field lists S2D-capable server nodes, not ACI.",
+      "field": "equipmentModels",
+      "quote": "\"cisco_aci\"",
+      "severity": "major",
+      "suggested_fix": "Remove cisco_aci. If server models are wanted, use the catalogue's slugs for the S2D node platforms the hardware field lists, or leave the field empty."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "grandma_fidelity",
+      "explanation": "The SPL groups by cluster_key only and never measures per-node distribution. It also raises a long-running Optimize job as a 'tier_ops_review' finding; it does not filter such jobs out as harmless. The plain-language text says the opposite of what the search does.",
+      "field": "grandmaExplanation",
+      "quote": "whether the space is spread fairly across tiers and nodes ... We also catch long rebalance jobs that look like imbalance but are simply the cluster moving slabs to a safer layout.",
+      "severity": "major",
+      "suggested_fix": "Say that the check warns when the shared pool passes 70% or 80% full, when a storage tier passes 85%, and when a rebalance job is taking a long time. Drop the claim about nodes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Splunk_TA_windows does not ship an enabled input for Microsoft-Windows-Health/Operational, so you have to add a custom WinEventLog stanza. S2D also grows capacity by adding drives or nodes, not 'shelves'.",
+      "field": "implementation",
+      "quote": "Install Splunk_TA_windows Health channel inputs ... versus adding capacity shelves",
+      "severity": "minor",
+      "suggested_fix": "Say to add a [WinEventLog://Microsoft-Windows-Health/Operational] stanza in a local inputs.conf, and replace 'adding capacity shelves' with 'adding drives or nodes'."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The title names the performance-history article, but the URL points to the generic Azure Stack HCI landing page.",
+      "field": "references",
+      "quote": "\"title\": \"Performance history for Storage Spaces Direct (Microsoft Learn)\", \"url\": \"https://learn.microsoft.com/en-us/azure-stack/hci/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific Microsoft Learn 'Performance history for Storage Spaces Direct' article."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "consistency",
+      "explanation": "The custom s2d:* sourcetypes are not CIM-tagged anywhere in the UC, and there is no cimSpl. Neither datamodel would receive these events unless someone writes eventtypes and tags.",
+      "field": "cimModels",
+      "quote": "\"Performance\", \"Inventory\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Either document the tags/eventtypes that map s2d:pool into Performance.Storage, or leave cimModels empty for this custom-telemetry UC."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the reviewer is an automated agent. The SPL also cannot parse because of the Boolean evals, so it cannot have been run.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until a human SME runs the search against real S2D telemetry."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/spl-search-reference/10.4.2604/search-commands/eval",
+      "field": "spl",
+      "issue": "Statements such as `eval pool_warn=st=\"s2d:pool\" AND pool_usage_pct>=70 ...` (and pool_crit, map_footprint, parity_heavy, optimize_slow, tier_hot) assign Boolean results to fields. eval rejects this with 'Fields cannot be assigned a boolean result', so the search fails before it returns any rows. Wrap each one in if(<cond>,1,0) and test with `where pool_warn=1 OR ...`. `max(case(pool_crit OR ...,1,0))` also passes case() an unpaired argument; use if() there too.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/storage/msft-storagejob",
+      "field": "spl",
+      "issue": "optimize_eta_sec reads EtaSecondsRemaining/eta_seconds. Get-StorageJob (MSFT_StorageJob) has no such property, so optimize_slow can never be true. Derive the ETA from ElapsedTime and PercentComplete instead.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0081-UC-19.3.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detailed implementation is technically rich, but the SPL cannot run as written because it assigns Boolean results to fields with eval, and it relies on a Get-StorageJob property (EtaSecondsRemaining) that does not exist. The equipment model and verified status are also misleading.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.2",
+  "verdict": "incorrect"
+}

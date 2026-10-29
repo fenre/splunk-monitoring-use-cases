@@ -1,0 +1,121 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ddb38a5bb98401af3b1444406dd62c1010865367a75b09de272ee946b6aea5cd",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/mgmt/MgmtBackupPolicy.html",
+      "explanation": "In the UCSM object model, `mgmtBackup` is the on-demand backup operation object under topSystem (`sys/backup-<hostname>`). It has `type`, `hostname`, `remoteFile`, `adminState` and FSM fields, but no `lastBackup`, `nextBackup` or `schedule`. Scheduled backups are `mgmtBackupPolicy` (`org-root/db-backup-policy-default`, Full State) and `mgmtCfgExportPolicy` (`org-root/cfg-exp-policy-default`, All Configuration), which carry `lastBackup`, `schedule`, `host` and `remoteFile`. `firmwareBackup` is not the policy container.",
+      "field": "dataSources",
+      "quote": "custom** scripted input that performs HTTPS XML to UCSM’s `/nuova` interface and emits JSON to **HEC** with **`sourcetype=cisco:ucs:mgmtbackup`** (one event per `mgmtBackup` managed object) and, on a second lightweight poll, **`sourcetype=cisco:ucs:backuppolicy`** (parent `firmwareBackup` / policy container rows when you need `adminState` and `schedule` context)",
+      "severity": "blocker",
+      "suggested_fix": "Have the poller resolve `mgmtBackupPolicy` and `mgmtCfgExportPolicy`, taking `lastBackup`, `schedule`, `adminState`, `host` and `remoteFile` from those, and use `mgmtBackup` only for on-demand job FSM status. Update the field list, the hardware note (`org-root/backup-policy-*`) and the props examples to match."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/mgmt/MgmtBackup.html",
+      "explanation": "The mgmtBackup class has no `lastBackup`, `nextBackup`, `userId` or `lifecycle` attributes; its user field is `user`. A poller built to this spec emits rows without the timestamp the whole age calculation depends on, so `miss_ratio` is always null.",
+      "field": "detailedImplementation",
+      "quote": "for every MO emit one JSON line with at least: `sourcetype` fixed string `cisco:ucs:mgmtbackup`, `ucsm_fqdn`, `name`, `type`, `lastBackup`, `nextBackup`, `remoteFile`, `hostname`, `proto`, `userId` (or a redacted `userId` if you must), `adminState`, `lifecycle`, `dn`",
+      "severity": "blocker",
+      "suggested_fix": "List the real attributes: from mgmtBackup `type`, `hostname`, `remoteFile`, `proto`, `user`, `adminState`, `fsmStatus`, `fsmRmtInvErrDescr`; from the policy classes `lastBackup`, `schedule`, `host`, `remoteFile`, `adminState`."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS collects fault, inventory and performance data through the UCS API only, all under sourcetype `cisco:ucs`. It does not ship or parse a `cisco:ucs:syslog` sourcetype, and the dataSources claim that it 'ships the standard modular inputs for inventory, stats, and cisco:ucs:syslog' is also incorrect. The app is also installed as `Splunk_TA_cisco-ucs`.",
+      "field": "app",
+      "quote": "for **`cisco:ucs:syslog`** and the rest of the managed-object feeds you already use",
+      "severity": "major",
+      "suggested_fix": "Say UCSM syslog arrives via SC4S or a syslog receiver with a site-defined sourcetype, and that the add-on (`Splunk_TA_cisco-ucs`) is only needed if you also poll API classes."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Backup job status for custom sourcetypes does not fit the CIM Inventory model, which describes computer and network inventory, and nothing in the UC tags or aliases these events into Change either. The Step 1 justification ('a backup object is, in effect, a documented asset') stretches the model.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Change\",\n    \"Inventory\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Set cimModels to [] for these custom sourcetypes, or document the exact Change tags and field aliases you would add."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "These syslog mnemonics are given as facts with no reference. UCSM syslog mnemonics follow fault and event names, and a generic `FSM_FAILED` token may not exist.",
+      "field": "detailedImplementation",
+      "quote": "Cisco emits `%UCSM-6-AUDIT` for policy DN changes ... you should read `%UCSM-3-FSM_FAILED` or an `FSM:FAIL` in `cisco:ucs:syslog`",
+      "severity": "needs_verification",
+      "suggested_fix": "Capture a real backup failure syslog line from UCSM (or the Cisco syslog messages reference) and quote that mnemonic instead."
+    },
+    {
+      "dimension": "clarity",
+      "explanation": "The validation step deliberately mixes a typo into the instruction, which makes it hard to read. The closing line 'KVM and KVM password' is also garbled.",
+      "field": "detailedImplementation",
+      "quote": "confirm `cisco:ucs:mgmtbackup` and `cico:ucs:backup:filesystem` (typo) should **not** appear: you want `cisco:ucs:backup:filesystem`",
+      "severity": "minor",
+      "suggested_fix": "State simply: confirm both `cisco:ucs:mgmtbackup` and `cisco:ucs:backup:filesystem` appear in `| metadata type=sourcetypes index=cisco_ucs`."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL marks any file under 100,000 bytes as CRITICAL regardless of backup type, while the text notes System configuration exports are small, so legitimate config-system exports could page. Missing filesystem rows are also zero-filled into CRITICAL.",
+      "field": "detailedImplementation",
+      "quote": "**System configuration** is usually **under one megabyte**",
+      "severity": "minor",
+      "suggested_fix": "Make the minimum size a per-policy lookup column, and treat a missing filesystem row as its own 'no file evidence' state."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The XML API reference is the Cisco home path.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the UCSM XML API programmer's guide and the UCSM backup/restore configuration guide."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified while the reviewer tag says draft, and it relies on attributes that are not on the polled class.",
+      "field": "status",
+      "quote": "\"status\": \"verified\",\n  \"lastReviewed\": \"2026-04-25\",\n  ...\n  \"reviewer\": \"handcraft-uc-19-1-14-draft\"",
+      "severity": "minor",
+      "suggested_fix": "Set a draft or unverified status until the poller is validated against a real UCSM."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Search/Comments",
+      "field": "spl",
+      "issue": "The search begins with a `// UC-19.1.14 — ...` line. SPL has no `//` comment syntax (comments use triple backticks or the `comment` macro), so that text becomes literal search terms ANDed with `index=cisco_ucs ...`. Combined with the parentheses in it, the search returns nothing or fails to parse. Replace the line with a ```...``` comment or remove it.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://ciscoucs.github.io/ucsmsdk_docs/_modules/ucsmsdk/mometa/mgmt/MgmtBackup.html",
+      "field": "spl",
+      "issue": "`last_str` is read from `lastBackup` on `cisco:ucs:mgmtbackup` rows described as mgmtBackup MOs, but mgmtBackup has no lastBackup attribute (it lives on mgmtBackupPolicy / mgmtCfgExportPolicy). `miss_ratio` is then always null and only the size branch can fire.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort 0 severity_bucket` sorts alphabetically (CRITICAL, INFO, WARNING), placing WARNING below INFO. `fillnull value=0 file_size_bytes` turns a missing filesystem join into a CRITICAL under-100KB result.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0006-UC-19.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The design (pair UCSM last-backup time with an off-box file size check, as custom sourcetypes) is sound and honestly labelled as a custom extension, but its central fact is wrong. `lastBackup` and `schedule` live on the backup and export policy objects (mgmtBackupPolicy / mgmtCfgExportPolicy under org-root), not on `mgmtBackup`. The SPL also opens with a `//` line that Splunk does not treat as a comment.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.14",
+  "verdict": "incorrect"
+}

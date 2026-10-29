@@ -1,0 +1,152 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "f622e60a1a2221c04c1af8d0ff756d191b5ca61b0e4edee72b2cd442c775ff3f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.13.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://dl.dell.com/content/docu96731",
+      "explanation": "`POST /rest/vxm/v1/system/initialize` is the Day-1 cluster bring-up API, not an authentication step; the VxRail API authenticates with HTTP Basic using vCenter/PSC SSO credentials. Following this text on a production cluster could trigger a first-run deployment call.",
+      "field": "detailedImplementation",
+      "quote": "others expect an initialization POST to `POST /rest/vxm/v1/system/initialize` followed by a Bearer or session-cookie model",
+      "severity": "blocker",
+      "suggested_fix": "State that VxRail Manager REST uses HTTP Basic authentication with a vCenter SSO account (read-only role is sufficient for GET calls) and remove the reference to /system/initialize."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://dl.dell.com/content/docu96731",
+      "explanation": "Dell documents `GET /rest/vxm/v1/system/cluster-hosts` as returning `id`, `host_name`, `appliance_id`, `health`, `operational_status`, `power_status` (value `on`), `missing`, `bios_uuid`; there is no `host_uuid`, `host_health` or `connection_state` field, and power status is not the vSphere `poweredOn` enum. The same wrong contract is repeated in detailedImplementation Step 1B.",
+      "field": "dataSources",
+      "quote": "`host_uuid`/`host_name`, `host_health`, `power_status`, `connection_state`, `appliance_id` ... `power_status` {`poweredOn`, `poweredOff`, `standby`}, `connection_state` {`connected`, `disconnected`, `notResponding`}",
+      "severity": "blocker",
+      "suggested_fix": "Document the real cluster-hosts fields (`health`, `operational_status`, `power_status`=`on`/..., `missing`, `bios_uuid`) or explicitly say the poller renames them, and give the true value sets; drop `connection_state` or source it from vCenter."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://dl.dell.com/content/docu96731",
+      "explanation": "Dell's documented cluster endpoint is `GET /rest/vxm/v1/cluster`, returning `cluster_id`, `health`, `operational_status`, `vc_connected`, `chassises[]` — no `cluster_name`, `vcenter_name` or version fields (versions come from `GET /rest/vxm/v1/system`). The health value set includes `Critical`, which the UC omits.",
+      "field": "dataSources",
+      "quote": "`sourcetype=vxrail:vxm:cluster` (JSON from `GET /rest/vxm/v2/cluster` — `cluster_id`, `cluster_name`, `health` in {`Healthy`, `Warning`, `Error`, `Unknown`}, `vcenter_name`, `vcenter_version`, `vxrail_version`, `bundle_version`",
+      "severity": "blocker",
+      "suggested_fix": "Cite `GET /rest/vxm/v1/cluster` (and `/v1/system` for version strings), list health as Healthy/Warning/Error/Critical, and say which fields the poller adds (e.g. cluster_name from vCenter)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Dell's API guide tracks LCM via `POST /v1/lcm/upgrade` and `GET /v1/requests/{id}` with states such as IN_PROGRESS / FAILED / COMPLETED; no `cluster-update-status` endpoint or this state enum appears there.",
+      "field": "dataSources",
+      "quote": "`sourcetype=vxrail:vxm:lcm` (from `GET /rest/vxm/v1/lcm/cluster-update-status` — `state` in {`Idle`, `Downloading`, `Compatibility-Check`, `Pre-Update`, `Updating`, `Post-Update`, `Failed`, `Completed`}",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the VxRail API reference for your release; if no such endpoint exists, describe polling `GET /rest/vxm/v1/requests/{id}` (owner=LCM) and its real state values."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is authoring-history commentary, not an exclusion of a detection scope; it tells the reader nothing about what the alert deliberately ignores.",
+      "field": "exclusions",
+      "quote": "Boilerplate that names sourcetype=vxrail:cluster (without the vxm segment) is a fictional name some templates invented",
+      "severity": "major",
+      "suggested_fix": "Remove the boilerplate sentence and keep only the real scope exclusions (disk predictive failure, vSAN object health, SRS connectivity, capacity)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "description says only host_risk_count>=1 pages and only names vxrail:vxm:cluster, but the spl reads three sourcetypes and also pages on cluster Error/Warning/Unknown and LCM Failed/in-progress states.",
+      "field": "cross_field",
+      "quote": "Rolls up `_time`, `host_risk_count` by `cluster_id`, `cluster_name` across `the scheduled window` and pages when `host_risk_count` >= 1.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual severity ladder: critical for cluster Error or any at-risk host, high for LCM Failed or cluster Warning, medium for LCM in progress on a non-healthy cluster, low for Unknown."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The API contract does not match Dell's published API, and the reviewer is a generic project handle, so there is no evidence of SME validation against a live VxRail cluster.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until the field contract is checked against a real VxRail Manager response."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The lookup is required in implementation and cited in evidence, but the spl never calls it, so change-freeze suppression does not happen.",
+      "field": "implementation",
+      "quote": "Add lookups/vxrail_cluster_owner.csv with change_freeze_until.",
+      "severity": "minor",
+      "suggested_fix": "Mark the lookup as an optional enrichment and show the exact `| lookup` line, or drop it from the required steps."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "The subcategory guide lists `vxrail:event`, `vxrail:alert`, `vxrail:health` (and a vxrail:health health search); this UC uses a different custom family without acknowledging the guide.",
+      "field": "dataSources",
+      "quote": "There is no stock Splunkbase TA that ships `vxrail:vxm:*` — names are a deployment contract after HEC.",
+      "severity": "minor",
+      "suggested_fix": "Align the sourcetype names with docs/guides/compute-hci.md or note that the guide's vxrail:health maps to vxrail:vxm:cluster."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The HEC reference is a truncated directory URL, and the 'vSphere Events reference (com.dell.vxrail context)' link points to the generic vSphere Automation events API, not VxRail content. No reference points to the VxRail API guide the UC depends on.",
+      "field": "references",
+      "quote": "\"url\": \"https://docs.splunk.com/Documentation/Splunk/latest/Data/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the HEC page (Data/UsetheHTTPEventCollector) and the Dell VxRail API user guide / developer.dell.com VxRail API reference."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "The detection uses only VxRail Manager REST; iDRAC data is explicitly excluded (handled in UC-19.1.47).",
+      "field": "equipmentModels",
+      "quote": "\"hardware_bmc_idrac\"",
+      "severity": "minor",
+      "suggested_fix": "Remove hardware_bmc_idrac or add a vxrail-specific model id."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://dl.dell.com/content/docu96731",
+      "field": "spl",
+      "issue": "The severity case has no branch for cluster health `Critical`, a documented VxRail health value; a Critical cluster with no flagged hosts falls through to `1=1, \"ok\"` and is filtered out by `where sev!=\"ok\"`.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://dl.dell.com/content/docu96731",
+      "field": "spl",
+      "issue": "`host_risk` fires when `pwr!=\"poweredon\"` or `host_health!=\"Healthy\"`; cluster-hosts returns `power_status=\"on\"` and the health field is `health` (not in the coalesce list), so every host row scores as at risk and every cluster pages critical unless the poller renames fields and values.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "`sum(host_risk)` over a 4h window counts unhealthy poll events, not distinct hosts, and keeps a host that was unhealthy hours ago in the critical result; host and LCM rows that lack cluster_name/cluster_id coalesce to \"\" and land in separate `by cluster_id, cluster_name` groups from the cluster row. Use latest-per-host then dc(), and key on cluster_id only.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The comment macro text ('Placeholder name vxrail:cluster is not a real feed') is authoring residue rather than operational context.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0049-UC-19.2.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Detailed and well structured, but the VxRail Manager API contract it describes (endpoints, auth flow, field names and enums) does not match Dell's published VxRail API, so the SPL as written would either page on every host or silently miss Critical clusters.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.13",
+  "verdict": "incorrect"
+}

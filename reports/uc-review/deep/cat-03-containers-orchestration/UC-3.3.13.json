@@ -1,0 +1,180 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "52fc4fa8db63d3b44ff0c43a0b5aa70738a3ce4102ada89edc4e3ea7e77d59ee",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.13.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/image/v1/types.go",
+      "explanation": "ImageStream TagEventCondition has only one type, ImportSuccess; a failed import is ImportSuccess with status False. No ImportFailed condition exists. The same claim recurs in detailedImplementation ('Failures surface as ImportFailed conditions', 'map conditions[].type ImportSuccess or ImportFailed', Case 1, and the streamstats narrative).",
+      "field": "dataSources",
+      "quote": "status.tags[].conditions where type ImportSuccess or ImportFailed",
+      "severity": "blocker",
+      "suggested_fix": "Describe failures as status.tags[].conditions[type=ImportSuccess,status=False] with reason and message. Remove ImportFailed throughout."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/image/v1/types.go",
+      "explanation": "ImageStreamImport is a create-only virtual resource (genclient onlyVerbs=create). It is not persisted, so it cannot be listed or watched, and the ocp_imagestreamimport snapshot lane, the oc get imagestreamimport validation steps and the matching dataSources text cannot work. ImageStreamTag also has no watch verb (get, list, create, update, delete only), so 'watch ... ImageStreamTag objects' is not possible either.",
+      "field": "detailedImplementation",
+      "quote": "The utility should run oc get imagestream -A -o json and oc get imagestreamimport -A -o json, iterate items[], flatten tag conditions and import status arrays",
+      "severity": "blocker",
+      "suggested_fix": "Get import failure detail from ImageStream status.tags[].conditions, from API audit records of imagestreamimports create requests (responseObject status.images[].status), or from oc import-image output. Poll ImageStreamTags with list instead of watch."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.21/html/registry/accessing-the-registry",
+      "explanation": "The integrated registry Deployment is image-registry; cluster-image-registry-operator is the operator. Case 7 ('cluster-image-registry Deployment restart storm') and the 'oc logs deployment cluster-image-registry' action in Step 3 repeat the wrong name, so the logs command would fail.",
+      "field": "detailedImplementation",
+      "quote": "kube_pod_container_status_restarts_total limited to namespace openshift-image-registry and deployments named cluster-image-registry or equivalent",
+      "severity": "major",
+      "suggested_fix": "Use deployment/image-registry for the registry operand (oc logs deployments/image-registry -n openshift-image-registry). Name cluster-image-registry-operator separately where operator logs are meant."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12. It does not model ImageStream import conditions or registry operator conditions, so mapping this signal to it gives readers a model to accelerate that no longer has a supported future. dataModelAcceleration repeats the advice.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State from cimModels and dataModelAcceleration. Keep the UC as raw-event analytics, or use only Inventory for cluster version enrichment."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "ImageStreamImportFailed and PullImageError do not appear in the image.openshift.io API types, and import failures normally show up as ImageStreamTag conditions, not Kubernetes Events. These Event reasons look invented. The event lane and the reason=ImageStreamImportFailed anchor may never match.",
+      "field": "dataSources",
+      "quote": "reasons ImageStreamImportFailed PullImageError Unauthorized Forbidden tied to ImageStream ImageStreamImport or registry Deployments",
+      "severity": "needs_verification",
+      "suggested_fix": "Run oc get events -A --field-selector involvedObject.kind=ImageStream after a failed oc import-image on OCP 4.16 or 4.17, and list only the reasons that actually appear."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "The registry exposes imageregistry_* series (for example imageregistry_http_request_duration_seconds), and the openshift-apiserver exposes image import counters. Neither the image_registry_operator_ prefix nor a metric named imagestreams_imported_total is confirmed. The metrics lane filters on these names.",
+      "field": "dataSources",
+      "quote": "image_registry_operator_* gauges and counters such as imagestreams_imported_total",
+      "severity": "needs_verification",
+      "suggested_fix": "Query the in-cluster Prometheus for {namespace=\"openshift-image-registry\"} and for openshift_imagestreams_* series on a 4.16 or 4.17 cluster, then cite the exact names."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "After the final stats there is one row per cluster, namespace and is_key. A streamstats BY the same keys with current=t therefore reads back the same row, so imp_streak always equals import_fail_any. As a result, any single import failure pages through the 'import_hint==1 AND imp_streak==1' branch, which contradicts the streak narrative and the 'pair with dwell thresholds' risk guidance.",
+      "field": "detailedImplementation",
+      "quote": "streamstats ordered by is_key measures short-term repeated ImportFailed streaks",
+      "severity": "major",
+      "suggested_fix": "Describe the actual behaviour (a single failure pages), or say that a streak needs per-window history, such as a bin _time split or a summary index, before paging."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "fleet_stale_p90 is computed BY cluster, so it is a per-cluster percentile, not a fleet one. Elsewhere the text calls it 'ninetieth percentile staleness hours', but the value is in seconds and the SPL compares it to 3600.",
+      "field": "detailedImplementation",
+      "quote": "eventstats adds fleet staleness context",
+      "severity": "minor",
+      "suggested_fix": "Call it per-cluster p90 staleness in seconds, or describe an actual fleet-wide computation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The closing table lists 23 columns, including cluster_tier, owner_team and environment, and the checklist itself names 20 without counting those.",
+      "field": "detailedImplementation",
+      "quote": "and last_imp_t for twenty analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Say 23 columns, or list all of them."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "ImageContentSourcePolicy is deprecated in favour of ImageDigestMirrorSet and ImageTagMirrorSet since OCP 4.13. The guide targets 4.16 and 4.17.",
+      "field": "detailedImplementation",
+      "quote": "validate global pull secret, ImageContentSourcePolicy mirrors, and HTTP proxy rules",
+      "severity": "minor",
+      "suggested_fix": "Reference ImageDigestMirrorSet and ImageTagMirrorSet, and mention ICSP only for legacy clusters."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "CLI plugin management has nothing to do with ImageStream imports or the registry operator. A second reference is titled 'Configuring the registry for OpenShift on a public cloud', but its URL is the generic registry-operator page.",
+      "field": "references",
+      "quote": "OpenShift Documentation — Managing CLI plugins",
+      "severity": "minor",
+      "suggested_fix": "Replace these with the Image Registry Operator and image pruner documentation (imagepruners.imageregistry.operator.openshift.io) and the ImageStream import policy documentation."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The SPL and data sources are OpenShift-only. Azure appears only as one possible storage backend, and Docker not at all, so these tags make the UC show up in unrelated equipment filters.",
+      "field": "equipment",
+      "quote": "\"azure\",\n    \"docker\",",
+      "severity": "minor",
+      "suggested_fix": "Keep openshift, kubernetes and prometheus, and drop azure and docker."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC claims verified status, but its central API facts (ImportFailed, listable ImageStreamImport, the registry Deployment name) are wrong and the SPL cannot run. Nothing shows SME or lab sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until the search has been run against a live 4.x cluster and a reviewer has signed off."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch accepts only streaming commands in its subsearches. Every arm here ends in stats (a transforming command), so Splunk rejects the search before it runs. Use append or union, or move stats after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the reg_metrics arm, the where clause tests match(met_name,\"kube_pod_container_status_restarts_total\"), but met_name is created only by the later stats (the local field is mn). The restart filter therefore never matches, and the restart severity and recommended_action branches are dead. Even if it were fixed, sum(mv) adds cumulative restart counters across every scrape in six hours, so met_sum>=8 measures scrape count rather than restarts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "In the reg_op arm, reg_deg_flag uses match(lower(reg_msg),...) before reg_msg is evaluated, so the message-based degraded fallback only works when the raw event already has a reg_msg field.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "The ist_stale arm groups BY ist_name but never carries is_key into stats, so its rows reach the final stats with a null is_key that is coalesced to unknown_resource. All ImageStreamTag staleness rows in a namespace collapse into one, and they never join the is_import rows for the same tag.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/openshift/api/blob/master/image/v1/types.go",
+      "field": "spl",
+      "issue": "streamstats after a stats BY cluster namespace is_key, using the same BY keys and current=t, reads back the row's own value, so imp_streak always equals import_fail_any. Also, cond_t and cond_s match 'importfailed' and 'true|1', and that condition type does not exist in the image.openshift.io API.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The tstats calls address FROM datamodel=Inventory WHERE nodename=Inventory and datamodel=Application_State, but the root datasets are All_Inventory and All_Application_State. Application_State is also deprecated and has no state or info fields, so the joined columns would always be null.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0077-UC-3.3.13",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The scope boundaries and runbook cases are useful, but the collection design relies on API behaviour that does not exist: an ImportFailed tag condition, and listable ImageStreamImport objects. It also names the wrong registry Deployment. The SPL cannot run because every multisearch arm uses stats, and the CIM mapping relies on the deprecated Application_State model.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.13",
+  "verdict": "incorrect"
+}

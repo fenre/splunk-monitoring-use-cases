@@ -1,0 +1,120 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "157bc90edcb1cb9ca21d27fff5badbe8b4d0c57d0235df9321b847571668e89c",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.2.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detection is sourced from kube-state-metrics, kube-scheduler metrics and kube:events FailedScheduling, not the Performance data model (which only feeds a cosmetic appendcols column); 'macro involvedObject.kind' is a field, not a macro, and the alert gate in the SPL is pending_soak_min >= 8, not 25.",
+      "field": "description",
+      "quote": "sourced from datamodel `Performance`. Threshold bundle: `mv` > 0, `pend` > 0, `mv` > 0, or `pending_soak_min` >= 25",
+      "severity": "major",
+      "suggested_fix": "Describe the actual signal: Pods Pending for at least 8 minutes with PodScheduled=false and/or FailedScheduling events, classified by scheduler message (insufficient CPU/memory, taints, affinity, topology spread, GPU), with severity rising at 15, 20 and 25 minutes."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Pod scheduling failures are Kubernetes object state and events; neither Application_State (service/process inventory) nor Performance represents them, and the detection does not depend on either model.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Remove the CIM mapping (state that the UC runs on raw kube-state-metrics and kube:events) and drop the matching dataModelAcceleration advice."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Twenty 'Platform scheduling note N' paragraphs repeat the same template sentence with one topic swapped in, followed by generic 'X alignment' paragraphs and a generator closing checklist; they add length without implementation guidance.",
+      "field": "detailedImplementation",
+      "quote": "Platform scheduling note 1: watch for topology spread on single-zone lab clusters; extend coalesce ladders after migrations and document compensating kubectl procedures when metrics are unavailable.",
+      "severity": "major",
+      "suggested_fix": "Collapse the twenty notes into a short list of the few that change behaviour (priority/preemption, GPU device plugins, maxPods/ENI limits, init-container request sums), and delete the alignment paragraphs and the closing checklist."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL never filters or escalates on workload_tier, so gold and sandbox namespaces page identically; the critical_namespaces.csv join is on namespace only, so identically named namespaces in different clusters share a tier.",
+      "field": "implementation",
+      "quote": "page gold namespaces when pending_soak_min crosses eight minutes with FailedScheduling text or elevated scheduler_unschedulable_pods",
+      "severity": "major",
+      "suggested_fix": "Either describe tier-based routing as an alert-action step the operator adds (for example where workload_tier=\"gold\" for paging) or note that the base search does not apply it; key the lookup on cluster plus namespace."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified by a generic handle although the SPL fails to parse.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the search runs on real data."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The repository guide names only the splunk-otel-collector Helm chart; a 'Splunk Add-on for Kubernetes' documentation page may not exist or may not apply. The EKS best-practices link has also moved to docs.aws.amazon.com/eks/latest/best-practices/.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for Kubernetes — About\"",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the add-on page resolves and is relevant, otherwise link the Helm chart repository; update the EKS best-practices URL."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Multisearch",
+      "field": "spl",
+      "issue": "Every multisearch arm contains stats (and the first also sort and streamstats); multisearch subsearches must be purely streaming, so the search errors out.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Knowledge/Usesearchmacros",
+      "field": "spl",
+      "issue": "`involvedObject.name` and `involvedObject.kind` are wrapped in backticks, which SPL treats as macro invocations, so the search fails with an unknown-macro error; dotted field names in eval need single quotes ('involvedObject.name').",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "pending_soak_min is now() minus the first Pending bucket in the 45-minute window, with no check that the Pod is still Pending, so a Pod that scheduled 30 minutes ago keeps scoring as a long soak. Use the last Pending bucket time and require it to be recent.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "sort - severity orders tier strings lexicographically (medium, low, high, critical), putting medium rows first; latest() on scheduler_pending_pods picks an arbitrary queue label (active/backoff/unschedulable/gated) instead of the unschedulable queue.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "spl",
+      "issue": "The appendcols tstats uses nodename=Performance.Memory and Performance.mem_used_percent, which are not valid CIM paths (All_Performance.Memory), and appendcols attaches the value to the first result row only.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/Performance",
+      "field": "cimSpl",
+      "issue": "nodename=Performance.CPU, Performance.cpu_load_percent and Performance.host are not valid CIM Performance paths (root is All_Performance; host is All_Performance.dest), and host CPU joined to Application_State does not express a scheduling-failure detection.",
+      "severity": "blocker"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "The array contains the free-text value 'N/A (operational reliability monitoring)' instead of being empty.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0039-UC-3.2.2",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The detection design (kube-state-metrics Pending soak, PodScheduled=false, FailedScheduling message taxonomy, scheduler gauges) and the troubleshooting cases are genuinely useful, but the SPL cannot run (non-streaming commands inside multisearch, field names wrapped in macro backticks), soak timing ignores whether the Pod is still Pending, the CIM mapping and cimSpl are invalid, and Step 1 is padded with twenty near-identical template notes.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.2",
+  "verdict": "incorrect"
+}

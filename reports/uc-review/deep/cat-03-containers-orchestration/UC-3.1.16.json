@@ -1,0 +1,150 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "72593ad171c3c4e801343ac0f6016dbf39e1ae5c0c59d07fd8383eaebe90b8a1",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.16.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "explanation": "Splunk_TA_nix `df.sh` emits sourcetype `df`, not `linux:df`. Its fields are Filesystem, Type, Size, Used, Avail, UsePct and MountedOn, with sizes in KB, not the fs_pct_used/fs_avail_bytes/mount names assumed here. The app field ('supplies linux:df and host scripted measurement patterns for du-friendly probes') and Step 2 ('Use Splunk_TA_nix scripted input with df -B1') repeat the claim. The TA ships no du probe and no df -B1 option.",
+      "field": "dataSources",
+      "quote": "sourcetype=linux:df from Splunk Add-on for Unix and Linux (Splunkbase 833) df scripted input",
+      "severity": "major",
+      "suggested_fix": "Name sourcetype=df and its real fields (UsePct, Avail in KB, MountedOn), converting KB to bytes, or document the props aliases needed. Remove the du and df -B1 attributions to Splunk_TA_nix."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.docker.com/reference/api/engine/",
+      "explanation": "`docker volume inspect` does not return UsageData (Size or RefCount). The Engine API fills that object only for GET /system/df (`docker system df -v`) and omits it elsewhere. ref_count is therefore absent for every volume, and the dangling tier misfires on all named volumes. Step 2 notes the risk ('leave null so dangling heuristics do not misfire'), but the SPL treats null as dangling.",
+      "field": "dataSources",
+      "quote": "preserving camelCase and snake_case aliases for Name, Driver, Mountpoint, Labels, RefCount or usage metadata",
+      "severity": "major",
+      "suggested_fix": "Collect volume size and reference counts from `docker system df -v --format json` (or the /system/df API), which returns Size and RefCount per volume. Keep `docker volume inspect` for Driver, Mountpoint and Labels only."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "explanation": "The regression is `streamstats window=24` over samples, and the final `stats latest()` keeps only the last window. At the stated 5–15 minute cadence, the slope covers 2–6 hours, not a business day. The 48-hour range only feeds earlier windows that are discarded. Step 4 path B and the overlay tier likewise treat growth_pct_24h as a 24-hour change, but it is first-to-last over those 24 samples.",
+      "field": "detailedImplementation",
+      "quote": "time range earliest=-48h@h latest=now so the regression window captures at least one full business-day cycle",
+      "severity": "major",
+      "suggested_fix": "State the real look-back (24 samples ≈ 2–6 h). If a daily cycle is intended, describe a time-based window (for example `streamstats time_window=24h`) or an hourly rollup before the regression."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The fenced copy builds the overlay key with `strcat(\"overlay2_rw:\",substr(container_id,1,12))`, while the spl field uses `\"overlay2_rw:\".substr(container_id,1,12)`. The copy is not byte-for-byte identical, and duplicating about 100 lines of SPL in prose invites more drift.",
+      "field": "detailedImplementation",
+      "quote": "Fenced SPL for runbooks must match the spl JSON field byte-for-byte",
+      "severity": "major",
+      "suggested_fix": "Remove the duplicated block and refer to the spl field."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This is authoring-pipeline residue, and it is wrong in places. The sidecar has no equipmentModels field (the checklist claims docker_engine_overlay2 and linux_ext4), equipment also lists opentelemetry, and the fenced SPL does not match exactly. The same residue appears in 'case emits only the six mandated severity strings', 'sixteen analyst columns including mandated ...' (the table has 17), and the long 'Supplemental engineering notes' and '... alignment' paragraphs.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five plain-text step headers with em dashes are present; Step 3 fenced SPL matches the spl JSON field exactly",
+      "severity": "major",
+      "suggested_fix": "Delete the closing checklist, the mandate language, the column count and the supplemental and alignment paragraphs. Keep the collection, validation and troubleshooting cases."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The SPL gate is `growth_bytes_per_hour>1024`, that is 1 KiB per hour, which is 3,600 times smaller than 1 KB/s. Step 3 also claims the comment macro records 'the explicit differentiation from crash-loop, cgroup, CPU ... siblings', but the macro text contains no such list.",
+      "field": "detailedImplementation",
+      "quote": "require growth_bytes_per_hour greater than one kilobyte per second equivalent in the macro before computing projections",
+      "severity": "minor",
+      "suggested_fix": "Describe the gate as 1 KiB/hour (or change the stated intent), and drop the claim about the macro's contents."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Performance fits only the df arm (Splunk_TA_nix df maps to Performance Storage). Inventory is not used by any source or by cimSpl. dataModelAcceleration still asks to accelerate both.",
+      "field": "cimModels",
+      "quote": "\"Performance\", \"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Performance (Storage) and drop Inventory from cimModels and dataModelAcceleration."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Neither the Spotify rollout article nor the Lantern article (Docker logs via OpenTelemetry) covers Docker volume or graph-root capacity. The evidence field also lists these write-ups and 'public GitHub discussions' as evidence, but they are not artefacts of the control running.",
+      "field": "references",
+      "quote": "Spotify Engineering — improving critical infrastructure rollouts",
+      "severity": "minor",
+      "suggested_fix": "Replace them with `docker system df` and Engine API /system/df references, plus the Splunk_TA_nix df input documentation. Limit evidence to the saved search, lookup commits and exports."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Nothing in the UC collects or evaluates inode usage (for example df IUsedPct), so this promises coverage the detection does not provide.",
+      "field": "hardware",
+      "quote": "must be monitored for inode and capacity pressure simultaneously",
+      "severity": "minor",
+      "suggested_fix": "Drop the inode claim, or add IUsedPct from the df sourcetype as an explicit signal."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The df join resolves no fields against Splunk_TA_nix output, and the dangling tier fires on every volume whose inspect output lacks RefCount, so verification against real data is not credible.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been run against real df and Docker volume data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_ref": "docs/guides/linux-servers.md",
+      "field": "spl",
+      "issue": "The linux:df subsearch reads sourcetype=\"linux:df\" and coalesces fs_pct_used/pct_used/USE_PCT/..., mount_point/mount/MOUNT/.... Splunk_TA_nix produces sourcetype=df with UsePct, Avail (KB) and MountedOn, so the join returns nothing. fs_pct_used and fs_avail_bytes stay null, which disables the critical ENOSPC tier and projected_full_hours.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`stats latest(fs_pct_used) ... BY host_id` collapses /, /var/lib/docker and every /var/lib/docker/overlay2/*/merged mount into whichever row arrived last. On hosts with a split docker-root, the value flips between the root and docker filesystems. Group by mount and keep the mount backing the graph root.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "ref_count defaults to \"0\" through coalesce, and dangling_flag also treats isnull(ref_count) as dangling. Without /system/df usage data, every named volume is flagged, and any volume holding 10% or more of the host total raises high_dangling_volumes_consuming_above_10pct.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The first case branch, `fs_pct_used>=90`, applies to every volume and overlay row on the host, so one full filesystem emits N critical rows (one per volume or container). Separately, when win_n<6, `coalesce(slope_bps,0)` sets growth to 0, so any volume over 10 GiB with too few samples is labelled low_underutilized_volume_long_idle.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The OLS terms use raw epoch seconds (Σt² ≈ 24×2.9e18). The denominator subtracts two values near 1e21 in double precision, which loses about 5 significant digits. Centre _time on the window start before squaring. growth_pct_24h is first-to-last over 24 samples, not 24 hours.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "cimSpl",
+      "issue": "The query is invalid for CIM Performance. The root is All_Performance, storage fields are `All_Performance.Storage.storage_used_percent` (and related fields), and host identity is `dest`. `Performance.disk_usage`, `nodename=Performance.Storage` and `Performance.host` do not exist.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0008-UC-3.1.16",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The capacity-trending design is sound: named volumes, overlay2 R/W layers, a host df join and an OLS slope, with useful lab validation paths. However, the df source is described with the wrong sourcetype and field names for Splunk_TA_nix. RefCount is assumed to come from `docker volume inspect`, which makes almost every volume look dangling. The '24h' and 'full business-day' claims do not match a 24-sample window. detailedImplementation ends with a long authoring checklist that contradicts the sidecar.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.16",
+  "verdict": "incorrect"
+}

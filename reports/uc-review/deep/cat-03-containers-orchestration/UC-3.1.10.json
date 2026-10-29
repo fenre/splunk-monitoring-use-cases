@@ -1,0 +1,126 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "3cd0c7916a80434da01c6db975f3310b51b238c0fd15b27a873602b8adebb824",
+  "file": "content/cat-03-containers-orchestration/UC-3.1.10.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/collect-http-event-data/use-hec-in-splunk-cloud-platform/format-events-for-http-event-collector",
+      "explanation": "The /services/collector/event endpoint requires a JSON envelope with an \"event\" key. Posting a bare Trivy report there is rejected, so the documented ingest step fails.",
+      "field": "dataSources",
+      "quote": "curl -k -H \"Authorization: Splunk <token>\" -d @trivy-report.json https://splunk:8088/services/collector/event",
+      "severity": "blocker",
+      "suggested_fix": "Either wrap each finding as {\"event\": {...}, \"sourcetype\": \"trivy:image:json\"} for /services/collector/event, or post to /services/collector/raw?sourcetype=trivy:image:json with appropriate line breaking. The same fix applies to the curl line in detailedImplementation Step 2."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Every other field says scanner JSON is pushed from CI to HEC. A Universal Forwarder modular input or scripted poll is a different, unexplained path. The Universal Forwarder is also not a Splunkbase app, and 617 is not in the cached catalog.",
+      "field": "dataSources",
+      "quote": "Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
+      "severity": "major",
+      "suggested_fix": "Remove the Universal Forwarder clause, or describe a concrete UF file-monitor path (CI writes JSON to disk and a UF monitors it) without a Splunkbase ID."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "No 'Splunk Add-on for Container Security' exists in the Splunkbase catalog. The text also reads as a list of fragments rather than a statement of which components are required.",
+      "field": "app",
+      "quote": "Splunk Add-on for Container Security patterns with custom inputs.conf for HEC tokens",
+      "severity": "major",
+      "suggested_fix": "State plainly: HEC token(s) on Splunk Enterprise/Cloud, a custom props/transforms wrapper for the three sourcetypes, and a scheduled job that refreshes cisa_kev_catalog.csv and epss_scores.csv. Optionally mention Snyk TA for Splunk (Splunkbase 7297) if Snyk API ingest is preferred."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_url": "https://trivy.dev/latest/docs/configuration/reporting/",
+      "explanation": "Native `trivy image --format json` nests findings under Results[].Vulnerabilities[], and Grype nests them under matches[].vulnerability. One posted report becomes one event with multivalue fields such as Results{}.Vulnerabilities{}.VulnerabilityID. The SPL's coalesce on VulnerabilityID/Severity/FixedVersion then pairs severities and CVEs incorrectly.",
+      "field": "detailedImplementation",
+      "quote": "This SPL tolerates single-event-per-CVE rows or manifests that repeat Target and ArtifactName fields alongside VulnerabilityID style keys.",
+      "severity": "major",
+      "suggested_fix": "Make one-event-per-CVE flattening a required pre-processing step (jq in CI or a ingest-time transform) and show the expected flat field names. Alternatively add spath/mvexpand handling and say which one the SPL assumes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are background publications, not artefacts that show the control operated. An auditor needs saved-search run history, exported result tables, and lookup refresh records.",
+      "field": "evidence",
+      "quote": "Evidence includes CISA Known Exploited Vulnerabilities catalog publications, the FIRST EPSS peer-reviewed methodology, Aqua Security Trivy adoption guidance, Snyk annual container vulnerability reports",
+      "severity": "major",
+      "suggested_fix": "List the saved search container_uc_3_1_10_image_vuln_scan_governance run history, weekly CSV export of the result table, lookup mtime/refresh events for KEV and EPSS, and scanner version records."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The UC is about container image scanners. An SNMP UPS model, and 'snmp' in equipment, have no relationship to the detection.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Remove snmp/snmp_ups. Use docker (and container registry slugs if they exist) as equipment, and leave equipmentModels empty if no scanner model slug exists."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "Nothing in the SPL, cimSpl or implementation maps scanner output to the Inventory model. Only Vulnerabilities fits.",
+      "field": "cimModels",
+      "quote": "\"Inventory\"",
+      "severity": "minor",
+      "suggested_fix": "Keep Vulnerabilities only, unless an Inventory mapping for image assets is described."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "This sentence reflects authoring-template rules, not a reason an operator would care about. Similar residue: 'for twelve or more columns total'.",
+      "field": "detailedImplementation",
+      "quote": "satisfying the requirement that both lookups appear as join-wrapped inputlookup operations rather than bare lookup commands",
+      "severity": "minor",
+      "suggested_fix": "Explain the operational reason for the join (or switch to `lookup`) and drop template-compliance commentary."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The documented ingest example fails at HEC and the add-on named in app does not exist, so the content cannot have been validated end to end.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the ingest path is corrected and tested with real Trivy/Grype output."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "After `sort 0 + ... _time`, streamstats yields a running max per key. `dedup` then keeps the first (oldest) event per key, whose sla_aging_trend_days equals only its own days_unpatched, so sla_aging_trend_peak duplicates oldest_unpatched_days and adds nothing.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "KEV-driven critical tiers require is_crit=1, so a KEV-listed High CVE (common in the CISA catalog) falls through to the EPSS or SLA tiers. Consider treating any KEV listing as top tier.",
+      "severity": "minor"
+    },
+    {
+      "field": "mitreAttack",
+      "issue": "T1204 (User Execution) does not follow from a build-time image CVE inventory. T1195 alone (or T1195.002) is the defensible mapping.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0002-UC-3.1.10",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The KEV/EPSS/SLA logic is coherent and the step-by-step is detailed. The collection path, though, contradicts itself (HEC from CI versus a Universal Forwarder 'modular input'), names an add-on that does not exist, and gives a curl example HEC would reject. The SPL also assumes flat per-CVE rows that native Trivy/Grype JSON does not produce.",
+  "tier": "deep",
+  "uc_id": "UC-3.1.10",
+  "verdict": "incorrect"
+}

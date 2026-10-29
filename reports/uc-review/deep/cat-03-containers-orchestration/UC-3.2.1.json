@@ -1,0 +1,107 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "c0e91c1064b25f1aea64128d2b94bb4ecf9ef849c27b73a4686da3af81d334af",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The median runs over every container and every 5-minute row in the same 6-hour window, including the spike itself. In a normal fleet most containers never restart, so the median is about 0 and baseline_per_hour falls below 0.05. deviation_factor is then hard-coded to 99 for any restart, so the 'multiplicative deviation' and lying_low_churn logic described here never behave as written.",
+      "field": "detailedImplementation",
+      "quote": "Baselines use eventstats median calculations per cluster on the hourly rate field so a fleet that historically hovered near half a restart per hour can surface a multiplicative deviation",
+      "severity": "major",
+      "suggested_fix": "Describe the baseline as it really behaves, or document that a per-workload historical baseline (for example a summary index of 7-day restart rates) is needed for deviation_factor to mean anything."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "OOMKilled is a container termination reason (status.lastState.terminated.reason, exported by kube-state-metrics as kube_pod_container_status_last_terminated_reason), not a standard Kubernetes Event reason. The event join will rarely label OOM restarts.",
+      "field": "dataSources",
+      "quote": "index=k8s sourcetype=kube:events for Reason and message text including BackOff restarting failed container, OOMKilled, Killing, Failed, Unhealthy, Preempted, and Evicted classes",
+      "severity": "needs_verification",
+      "suggested_fix": "Source the termination cause from kube_pod_container_status_last_terminated_reason, as the Kubernetes guide lists, and keep events for BackOff, Unhealthy, Killing and Evicted."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "There is no 'kubernetes_events' receiver in the OTel Collector. The chart uses k8s_events and k8sobjects for cluster events.",
+      "field": "dataSources",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes with prometheus receiver against kube-state-metrics and kubernetes_events or k8s_events receiver",
+      "severity": "minor",
+      "suggested_fix": "Say 'k8s_events or k8sobjects receiver'."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "explanation": "Application_State is a deprecated CIM model with no Kubernetes TA mapping, and container restart counters do not map to any CIM dataset. The cimSpl/acceleration advice therefore leads readers to accelerate models that will be empty.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Mark cimModels as not applicable (kube-native metrics). Mention Performance only as optional node-CPU context if a TA populates it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "None of the four scenarios names a real restart-churn false positive. Step 5 already lists the real ones: approved rollouts restarting each pod once, batch namespaces with intentional churn, Spot or preemptible pool preemption, and node drains with evictions.",
+      "field": "knownFalsePositives",
+      "quote": "Synthetic probe on `_time`, `cluster`, `namespace`, `pod` — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Replace the list with Step 5 Cases 5, 6, 8 and 9 and their suppression approach (change-window lookup, restart_budget_per_hour, preemption-notice correlation)."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified, yet the tstats/indexed-field prerequisite, the cluster label source and the event field names are all unconfirmed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to draft until run against a real splunk-otel-collector-chart deployment."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Tstats",
+      "field": "spl",
+      "issue": "tstats groups 'BY ... cluster namespace pod container', and tstats/stats drop events whose BY field is null. kube-state-metrics emits no 'cluster' label, and the OTel chart adds k8s.cluster.name, so without custom relabeling every row is discarded. The later coalesce(cluster, cluster_name, ...) never runs. tstats also only aggregates indexed fields, so latest(Value) and namespace/pod labels must be index-time fields; if k8s_metrics is a metrics index, mstats with _value is required instead.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en?resourceId=Splunk_SearchReference_Eval&version=splunk-9_4",
+      "field": "spl",
+      "issue": "In the kube:events join, coalesce(involvedObject.name, ...) and coalesce(metadata.namespace, ...) are unquoted, so eval reads them as the '.' concatenation of fields involvedObject and name (null), not as the dotted field names. Single quotes ('involvedObject.name') are required. Without them the join usually misses and last_restart_reason stays null.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "eventstats median(restarts_per_hour) BY cluster runs over all container/time rows, so it is about 0 in healthy fleets. deviation_factor then becomes 99 for any restart, making 'deviation_factor>=16 AND restarts_per_hour>=4' fire as critical on 4 restarts per hour, and lying_low_churn (which needs deviation_factor<8) is effectively unreachable.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/ApplicationState",
+      "field": "cimSpl",
+      "issue": "Queries the deprecated Application_State model (state, app) and Performance.CPU joined on dest/host. Neither carries kube-state-metrics restart data, so the CIM variant does not detect restart churn.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0029-UC-3.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "The UC is well scoped, with a sound restart-delta approach and practical lab validation and troubleshooting cases. But the SPL groups tstats by a 'cluster' field that kube-state-metrics and the OTel chart do not emit, which drops every row before the coalesce fallbacks run. It also reads dotted event fields without quoting, and the fleet-median 'baseline' collapses to zero in practice, so the anomaly maths described in the prose does not hold.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.1",
+  "verdict": "incorrect"
+}

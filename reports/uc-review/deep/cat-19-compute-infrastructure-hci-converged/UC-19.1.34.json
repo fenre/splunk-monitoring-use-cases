@@ -1,0 +1,125 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "513cdfa0402a040baf12d1e98909886c4ce9c1ccb8c4cb82ce4dfc8e9fde302f",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.34.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/equipment/EquipmentChassisStats.py",
+      "explanation": "In the UCSM object model equipmentChassisStats carries only inputPower/outputPower (plus min/max/avg) and no ambient or inlet temperature, so it cannot be the inlet thermal path. Temperatures live on equipmentIOCardStats (ambientTemp, temp), equipmentFanModuleStats (ambientTemp), processorEnvStats (temperature) and computeMbTempStats (fmTempSen* attributes).",
+      "field": "dataSources",
+      "quote": "**`equipmentChassisStats`** (ambient/inlet class chassis thermal path, plus `inputPower` when you extend the math)",
+      "severity": "blocker",
+      "suggested_fix": "Take the chassis inlet/ambient proxy from equipmentFanModuleStats.ambientTemp or equipmentIOCardStats.ambientTemp, and list the real attribute names for each class."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS assigns every event sourcetype `cisco:ucs` and sets source to `cisco:ucs:<classID>`; there is no default `cisco:ucs:stats` sourcetype. detailedImplementation repeats this ('the canonical thermal statistics sourcetype is cisco:ucs:stats', 'so events remain cisco:ucs:stats').",
+      "field": "dataSources",
+      "quote": "with sourcetype **`cisco:ucs:stats`** from the Splunk Add-on for Cisco UCS",
+      "severity": "blocker",
+      "suggested_fix": "Document `sourcetype=cisco:ucs` with `source=cisco:ucs:equipmentFanModuleStats`, `cisco:ucs:processorEnvStats`, etc., or state that `cisco:ucs:stats` is a local sourcetype override set on the input."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on's own documentation places configuration under `$SPLUNK_HOME/etc/apps/Splunk_TA_cisco-ucs/local/`, and the Splunkbase app id is `Splunk_TA_cisco-ucs`; following this text (and the `Splunk_TA_cisco_ucs/local/inputs.conf` path in detailedImplementation) writes overrides into a directory Splunk does not load for this add-on.",
+      "field": "app",
+      "quote": "The on-disk directory name is underscore-delimited; package filenames with hyphens are packaging only.",
+      "severity": "major",
+      "suggested_fix": "State the app directory as `Splunk_TA_cisco-ucs`."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on is configured on its own pages: Configuration > Managers (UCSM host and credentials), Configuration > Templates (the class IDs to collect), then Inputs (managers + templates + interval + index). There is no separate 'statistics input' with a class list in Settings > Data inputs, and no `cisco_ucs://` statistics stanza.",
+      "field": "detailedImplementation",
+      "quote": "In **Settings** → **Data inputs** → the Cisco UCS statistics input (wording varies slightly by add-on build), set host, port 443, index",
+      "severity": "major",
+      "suggested_fix": "Rewrite Step 1 as: add the UCSM manager, create a template containing equipmentFanStats, equipmentFanModuleStats, processorEnvStats, computeMbTempStats, equipmentIOCardStats (and equipmentFan for operState), and attach it to an input writing to cisco_ucs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL's tiers are critical (rate >=5 °C/h AND fan failed or fan drop >=20% AND mins_to_crit <=30), warning (rate >=3, fan drop >=15%, or mins_to_crit <=60) and watch (rate >=1.5); `rate_c_per_hour > 0` is only a precondition for extrapolation, not an alert.",
+      "field": "description",
+      "quote": "alert when `rate_c_per_hour` > 0, `fan_drop_pct` >= 20, `fan_drop_pct` >= 15, or `rate_c_per_hour` >= 5",
+      "severity": "minor",
+      "suggested_fix": "State the three tiers and their thresholds as written in the SPL."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The scenarios are generic template text with no real thermal causes; this detector's real false positives are CRAC/CRAH handovers, setpoint changes, fan-policy retargeting after load changes, sparse polls producing large bin-to-bin jumps, and blade insertion or boot storms.",
+      "field": "knownFalsePositives",
+      "quote": "Scheduled automation elevates `chassis_num` without crossing `rate_c_per_hour` > 0",
+      "severity": "major",
+      "suggested_fix": "List those concrete causes (several already appear in the detailedImplementation design note) and how to recognise each."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The 5108 installation/airflow reference points at the Cisco home page, not the cited document.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the actual Cisco UCS 5108 Server Chassis Installation Guide page, or remove the entry."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified although the primary temperature input cannot be populated from the class it reads and the controlTest is template text, so the critical tier has evidently never been exercised.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until tested against real UCSM statistics events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/equipment/EquipmentChassisStats.py",
+      "field": "spl",
+      "issue": "temp_inlet is taken only from equipmentchassisstats rows (ambientTemp/frontTemp/rearTemp/...), but equipmentChassisStats has no temperature attributes (only inputPower/outputPower). bin_temp is therefore always null, so rate_c_per_hour and mins_to_crit are null and the 'critical' tier can never fire; only fan_drop_pct can raise a 'warning'.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/CiscoUcs/ucsmsdk/blob/master/ucsmsdk/mometa/equipment/EquipmentFanStats.py",
+      "field": "spl",
+      "issue": "fan_oper reads operState from equipmentFanStats/equipmentFanModuleStats, but those stats classes carry speed (fan) or ambientTemp (module) only; operState lives on the equipmentFan inventory class. fan_failed is always 0, so cooling_status never becomes fan_failed. computeMbTempStats fields are fmTempSenIo/fmTempSenRear/etc., not tmrFront/tmrRear/tmrIO, so temp_mb is also always null.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "Base search uses sourcetype=\"cisco:ucs:stats\", while the add-on assigns sourcetype cisco:ucs (class in source=cisco:ucs:<classID>); on a default install the search returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "bin_fan_rpm averages every fan in the chassis, so a single failed fan in an 8-fan chassis only moves the average about 12%, below the 15%/20% thresholds; per-fan min/drop would capture single-fan loss.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0027-UC-19.1.34",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The predictive rate-of-rise idea and the boundary against UC-19.1.6 are explained well, but the central inlet temperature is read from equipmentChassisStats, which only carries power attributes, and the fan-failure flag reads operState from stats classes that do not have it, so the critical tier can never fire. The add-on facts (cisco:ucs:stats sourcetype, underscore app folder, Settings > Data inputs workflow) contradict the Splunk Add-on for Cisco UCS documentation.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.34",
+  "verdict": "incorrect"
+}

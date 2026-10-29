@@ -1,0 +1,124 @@
+{
+  "confidence": 0.82,
+  "content_sha256": "797ec6f90a4d54da2e0e791b470feed50a4c20168ed110a43538e276a7a42c89",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.48.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/4748",
+      "explanation": "Splunkbase 4748 is 'Splunk Essentials for Cloud and Enterprise 8.0', 6692 is 'Add-on for Checkpoint Harmony', and 4844 returns 404. None is a VMware add-on, and there is no Splunk-built 'Splunk Add-on for VMware vRealize Operations Manager'. The same wrong IDs recur in dataSources ('Splunkbase 4748 shapes') and detailedImplementation sections C and D.",
+      "field": "app",
+      "quote": "Splunk Add-on for VMware vRealize Operations Manager (Splunkbase 4748) optional; Splunk Add-on for VMware vSphere (6692) or ESXi Logs (4844) optional for vsan-health files.",
+      "severity": "blocker",
+      "suggested_fix": "Use the cached catalogue entries: Splunk Add-on for VMware (3215), Splunk Add-on for vCenter Logs (5601), Splunk Add-on for VMware ESXi Logs (5603). For vROps either name a real add-on (for example community 'vRealize Operations Metrics', 7102) or describe it as a customer-built export without an ID. Apply the same correction in dataSources and detailedImplementation."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://developer.broadcom.com/powercli/latest/vmware.vimautomation.storage/commands/test-vsanclusterhealth",
+      "explanation": "PowerCLI has no Get-VsanClusterHealth or Get-VsanResyncComponent cmdlet and no VMware.VimAutomation.vSan module; the vSAN cmdlets are Test-VsanClusterHealth, Get-VsanResyncingComponent and Get-VsanResyncingOverview in VMware.VimAutomation.Storage. The script as written fails at Import-Module. The Troubleshooting step (2) repeats the non-existent Get-VsanClusterHealth.",
+      "field": "detailedImplementation",
+      "quote": "`Get-VsanClusterHealth` per vSAN cluster; `Get-VsanResyncComponent` piped to `Measure-Object -Property BytesToSync -Sum` ... Import-Module VMware.VimAutomation.Core, VMware.VimAutomation.vSan",
+      "severity": "blocker",
+      "suggested_fix": "Import VMware.VimAutomation.Core and VMware.VimAutomation.Storage; use Test-VsanClusterHealth -Cluster $cl -UseCache for overall health and Get-VsanResyncingOverview (or Get-VsanResyncingComponent) for bytes remaining; confirm the exact output property names against the PowerCLI reference before mapping them to resync_bytes_remaining."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "consistency",
+      "explanation": "Markdown bold markers leaked into the Python dict keys, so the poller emits JSON keys literally named **inaccessible_objects** and **resync_bytes_remaining**. The SPL coalesces inaccessible_objects and resync_bytes_remaining, so a reader copying the script gets inacc=0 and resync_bytes=0 for every cluster and the core detection never fires.",
+      "field": "detailedImplementation",
+      "quote": "\"**inaccessible_objects**\": (H.get(\"inaccessible_objects\") ... \"**resync_bytes_remaining**\": (H.get(\"resync_bytes_remaining\")",
+      "severity": "blocker",
+      "suggested_fix": "Remove the asterisks so the keys are \"inaccessible_objects\" and \"resync_bytes_remaining\"."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The PowerCLI path, offered as an equal alternative to REST, hard-codes inaccessible_objects to 0 and architecture to osa, so it can never raise the inaccessible-object tiers or the ESA branch that the description, Step 4 and exclusions rely on.",
+      "field": "detailedImplementation",
+      "quote": "inaccessible_objects = 0\n    resync_bytes_remaining = [long]$sum\n    resync_unit = \"bytes\"\n    vsan_architecture = \"osa\"",
+      "severity": "major",
+      "suggested_fix": "Populate inaccessible objects from a real source (for example the object-health section of Test-VsanClusterHealth or Get-VsanObject health state) and derive ESA/OSA from the cluster configuration, or state plainly that option B only covers resync volume and overall health."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "vSAN cluster health is documented in the vSAN Management API (SOAP, VsanVcClusterHealthSystem.VsanQueryVcClusterHealthSummary), not in the vSphere Automation REST reference; this REST path could not be found in the vSphere Automation API documentation. The poller also calls h.json().get(\"value\") on POST /api/session, which returns a bare JSON string (the {\"value\":...} wrapper is the older /rest/com/vmware/cis/session shape).",
+      "field": "detailedImplementation",
+      "quote": "`GET /api/vcenter/vsan/clusters/{cluster}/health` (vSphere 8+ path; 7.x may differ",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the vSphere Automation API explorer for vCenter 8.x; if no vSAN health REST resource exists, switch the poller to pyVmomi plus the vSAN Management SDK (vsanapiutils) and document that. Fix the session-token handling to match the /api/session response shape."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "A Splunk Universal Forwarder cannot be installed on ESXi, and /var/log/vmware/vsan-health/ is the vSAN health service log directory on the vCenter Server Appliance, not on ESXi hosts. Labelling this 'ESXi vsan-health logs' sends readers to the wrong system.",
+      "field": "detailedImplementation",
+      "quote": "# Universal Forwarder on a supported ESXi file tail path only where VMware allows local UF\n[monitor:///var/log/vmware/vsan-health/*.log]",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the log location in VMware's vCenter log-location KB; describe option D as vCenter (VCSA) vsan-health service logs forwarded by syslog, and drop the ESXi UF monitor stanza."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are word salad built from SPL tokens and name no real vSAN cause; 'c' is the subsearch alias and cannot be elevated. Real false positives for this signal (host entering maintenance mode with Ensure Accessibility, storage-policy changes, rebalance, LCM upgrades, witness reboots) are only in Step 5, not here.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `values` on `vmware:vsan:health`** — Scheduled automation elevates `c` without crossing `inacc` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace with concrete vSAN causes: planned maintenance-mode evacuation, SPBM policy change or FTT change triggering resync, proactive/reactive rebalance, VxRail LCM rolling upgrade, stretched-cluster witness restart; say how each is recognised (change window lookup, rebuild flag)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The validation search reads raw events, where the fields are vsan_health and cluster_id; health and cluster exist only after the main search's eval steps, so this sanity check returns empty results.",
+      "field": "detailedImplementation",
+      "quote": "| stats latest(health) as h, max(inaccessible_objects) as inacc by cluster",
+      "severity": "minor",
+      "suggested_fix": "Use latest(vsan_health) as h ... by cluster_id, or prepend the same eval lines as the main search."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "clarity",
+      "explanation": "The description never states what triggers a row: inaccessible objects (critical after 5 minutes), resync backlog above 1 TiB / 100 GiB / 10 GiB, inaccessible VMs, or a red/yellow overall vSAN health.",
+      "field": "description",
+      "quote": "before applying `inacc` > 0, `inacc` > 0, `inacc` > 0, or `inacc` > 0.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-cluster grain and the actual tiers: critical when health is red, any VM is inaccessible, objects stay inaccessible for 5+ minutes, or resync exceeds the cluster's critical_bytes (default 1 TiB); warning and watch at the lower byte thresholds."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified while it carries non-working collector code, wrong Splunkbase IDs and templated description/KFP/controlTest text, which does not suggest SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade to draft/community until the collector paths and add-on references are verified."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`sort 0 - fleet_sev_critical - resync_gb` sorts first by a fleet-wide constant (eventstats gives every row the same fleet_sev_critical), so critical clusters are not ranked above warning/watch ones; sort on a severity rank instead. The PFA regex `(?i)true|1|yes|pfa|predict` is unanchored and matches any value containing '1' (for example '10', '0.1').",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0041-UC-19.1.48",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 2
+  },
+  "summary": "The SPL and tuning narrative are thoughtful, but the app/data-source text cites Splunkbase IDs that belong to unrelated apps, the PowerCLI collector uses cmdlets and a module that do not exist and hard-codes inaccessible_objects=0, and the Python poller emits markdown-mangled field names the SPL never reads. Description, value, KFP and controlTest are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.48",
+  "verdict": "incorrect"
+}

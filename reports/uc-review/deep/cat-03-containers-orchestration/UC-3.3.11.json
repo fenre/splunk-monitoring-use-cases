@@ -1,0 +1,128 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "e6c9f99bd3da5602b99332a2ff1bb0c10db97162a6f33fda17efa899fc3b3e22",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.11.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/operator-framework/api/blob/master/pkg/operators/v1alpha1/clusterserviceversion_types.go",
+      "explanation": "OLM has no ClusterServiceVersion reason called InstallFailed. Install failures surface as InstallComponentFailed, InstallComponentFailedNoRetry, InstallCheckFailed, APIServiceInstallFailed or RequirementsNotMet. Filtering on 'installfailed' misses the real failure events.",
+      "field": "detailedImplementation",
+      "quote": "retain InstallSucceeded, InstallFailed, ResolutionFailed, NeedsReinstall, and BundleUnpackFailed class reasons for this UC",
+      "severity": "blocker",
+      "suggested_fix": "List the real CSV failure reasons (InstallComponentFailed, InstallCheckFailed, RequirementsNotMet, APIServiceInstallFailed, NeedsReinstall) in dataSources, the events lane and Case 3. Also flag the SPL regex for the human owner."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "The Application State data model has been deprecated since CIM 4.12.0. It covers port, process and service inventory, with no state or info fields, so it does not represent OLM Subscription or CSV lifecycle. Inventory also does not fit operator reconcile conditions.",
+      "field": "cimModels",
+      "quote": "\"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Remove Application_State. Either declare the UC not CIM-mapped, or map only the audit lane (mutations of operators.coreos.com objects) to Change."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The streamstats uses window=3 current=t last(_time), which is the current event's own time, so sub_state_dwell_m is about 0. The 360-minute UpgradePending tier described in Risk briefing and Case 6 therefore never fires.",
+      "field": "detailedImplementation",
+      "quote": "streamstats measures dwell for repeated bad phases per package key.",
+      "severity": "major",
+      "suggested_fix": "Describe dwell as now() minus the lastTransitionTime of the relevant Subscription condition (or the InstallPlan creationTimestamp). Note that the current SPL does not measure it."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The prose promises graded approval-age tiers at 24 and 72 hours, but the Subscription lane already treats condition InstallPlanPending=True as bad. Every Manual-approval Subscription is therefore warned or paged right away, before the age tiers apply.",
+      "field": "detailedImplementation",
+      "quote": "RequiresApproval InstallPlans may wait for ticketed approvals longer than engineering comfort but still within governance policy.",
+      "severity": "major",
+      "suggested_fix": "State that InstallPlanPending is expected under Manual approval and is graded only through ip_approval_age_h. Flag the cond_bad regex for the SPL owner."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The lanes are merged BY cluster olm_ns pkg_key, but pkg_key means something different in each lane. Subscriptions use spec.name (the package), CSVs use displayName or the CSV name such as foo.v1.2.3, InstallPlans have no packageName (only spec.clusterServiceVersionNames), events use involvedObject.name, and the CatalogSource and restart lanes have no package at all. Rows for one operator never correlate.",
+      "field": "dataSources",
+      "quote": "periodic oc get subscription, oc get installplan, oc get clusterserviceversion, oc get catalogsource JSON snapshots flattened",
+      "severity": "major",
+      "suggested_fix": "Document one join key, such as namespace plus the CSV name from Subscription status.installedCSV/currentCSV and InstallPlan spec.clusterServiceVersionNames. Require exporters to emit it on every lane."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the search cannot execute and its event filter targets a reason OLM never emits.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME runs it against a live OLM install."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The checklist lists 22 columns, and the table command emits 25, including cluster_tier, owner_team and environment.",
+      "field": "detailedImplementation",
+      "quote": "for twenty-one analyst-visible columns",
+      "severity": "minor",
+      "suggested_fix": "Remove the count, or match it to the final table command."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The list leaves out InstallPlanFailed, the Subscription condition raised when the referenced InstallPlan fails. That is one of the most direct signals for this UC.",
+      "field": "dataSources",
+      "quote": "Subscription.status.conditions types ResolutionFailed, InstallPlanMissing, InstallPlanPending, CatalogSourcesUnhealthy, BundleUnpackFailed",
+      "severity": "minor",
+      "suggested_fix": "Add InstallPlanFailed to the listed Subscription condition types."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Every multisearch subsearch contains stats, and the first also contains sort and streamstats. multisearch allows only purely streaming subsearches, so Splunk rejects the search. Use append or union, or move the aggregation after the multisearch.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/operator-framework/api/blob/master/pkg/operators/v1alpha1/clusterserviceversion_types.go",
+      "field": "spl",
+      "issue": "The events lane matches 'installfailed', which is not an OLM CSV reason. The real failure reasons are InstallComponentFailed, InstallCheckFailed and similar, so real CSV install failures in events are missed.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "olm_restarts = sum(mv) over every raw sample of kube_pod_container_status_restarts_total in 6 hours adds a cumulative counter to itself once per scrape. A pod with a single historic restart scraped 72 times reads as 72 restarts and pages. Use max minus min per pod, or the latest value's increase.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "cond_bad treats InstallPlanPending=True as a failure, which preempts the ip_approval_age_h 24/72-hour tiers for every Manual-approval Subscription. The streamstats dwell (window=3, last(_time) with current=t) is about 0, so the UpgradePending >=360 minute tier is unreachable.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The Inventory and Application_State root datasets are All_Inventory and All_Application_State, so nodename=Inventory/Application_State and Inventory.dest/Application_State.state return no results. Application_State is deprecated and has no state or info fields.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0075-UC-3.3.11",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The OLM object model (Subscription states, InstallPlan phases, CatalogSource gRPC states, OLM metrics) is mostly right and well explained. However, the SPL cannot run inside multisearch, the lanes key on incompatible package identifiers, the event filter uses a CSV reason that does not exist, and the CIM mapping is deprecated and malformed.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.11",
+  "verdict": "incorrect"
+}

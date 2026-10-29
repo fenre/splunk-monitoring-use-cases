@@ -1,0 +1,191 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "635e38686d9d0fb9c986d7ed98a795e9f9fa91c3afa1d80582bc17c47793533a",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.42.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/auth/certificatesigningrequest-metrics.md",
+      "explanation": "kube_certificatesigningrequest_condition carries only certificatesigningrequest, signer_name and condition (approved|denied|failed) labels with a 0/1 value; there is no status label, and the 'v2.7+' floor is not supported by the upstream table. A pending CSR is one with approved=0 and denied=0, and issuance is visible via kube_certificatesigningrequest_cert_length>0.",
+      "field": "dataSources",
+      "quote": "kube-state-metrics kube_certificatesigningrequest_condition (v2.7+)",
+      "severity": "blocker",
+      "suggested_fix": "Describe the metric with its real labels (certificatesigningrequest, signer_name, condition) and define 'pending' as approved==0 AND denied==0 AND cert_length==0, filtered to signer_name kubernetes.io/kube-apiserver-client-kubelet or kubernetes.io/kubelet-serving; drop the version claim unless confirmed in the KSM changelog."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/prometheus/node_exporter/blob/master/README.md",
+      "explanation": "node_exporter has no SSL/x509 certificate collector, so these series do not exist; certificate file expiry needs a dedicated exporter (for example x509-certificate-exporter or ssl_exporter file probes) or a textfile-collector script. implementation and Step 2 repeat the claim ('node_exporter ssl paths', 'ensure the ssl certificate collector exposes paths').",
+      "field": "dataSources",
+      "quote": "node_exporter ssl_cert_not_after_seconds or ssl_certificate_expiry_seconds lines whose labels or filepath include /var/lib/kubelet/pki",
+      "severity": "major",
+      "suggested_fix": "Name a real source for kubelet PEM expiry (x509 certificate exporter DaemonSet watching /var/lib/kubelet/pki, or a node_exporter textfile script running openssl x509 -enddate) and use that exporter's actual metric name throughout dataSources, implementation and Step 2."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/client-go/blob/master/util/certificate/certificate_manager.go",
+      "explanation": "The kubelet uses the client-go certificate manager, which logs 'Rotating certificates', 'Certificate rotation deadline determined' and 'Waiting for next certificate rotation' at verbosity 2, and reports failures as 'Failed while requesting a signed certificate from the control plane'; 'Rotating kubelet client certificate' and 'failed to rotate certificate' are not emitted, so the log lane will rarely match.",
+      "field": "dataSources",
+      "quote": "with phrases Rotating kubelet client certificate and error strings about rotation or x509 expiry",
+      "severity": "major",
+      "suggested_fix": "List the actual client-go messages, note that the informational ones require kubelet --v=2 or higher, and keep the x509 'certificate has expired or is not yet valid' string as the failure signal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/client-go/blob/master/util/certificate/certificate_manager.go",
+      "explanation": "The client-go certificate manager sets the rotation deadline at a jittered 70–90% of the certificate's lifetime, not a fixed thirty days before expiry; for short-lived certificates renewal happens days or hours before expiry, for one-year certificates months before.",
+      "field": "detailedImplementation",
+      "quote": "Those two PEM chains normally renew automatically through the CertificateSigningRequest API roughly thirty days before Not After",
+      "severity": "major",
+      "suggested_fix": "Say the kubelet requests a new certificate at a random point between 70% and 90% of the current certificate's validity period, and size the days_to_expiry thresholds relative to the configured certificate lifetime."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "evidence_url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+      "explanation": "detailedImplementation recommends Metadata-level auditing for CSRs, but the spl derives the node from requestObject.spec.username, which is only recorded at Request level or higher; at Metadata level the node falls back to the generated CSR name (csr-xxxxx), so audit rows never line up with kubelet or certificate rows for the same node. The requesting node identity is available at Metadata level in user.username (system:node:<name>).",
+      "field": "cross_field",
+      "quote": "prefer Metadata level for CSR create when counsel requires, while retaining enough objectRef.name signal to correlate pending requests with nodes",
+      "severity": "major",
+      "suggested_fix": "State that node attribution uses user.username = system:node:<nodeName> from Metadata-level audit events, and drop the reliance on requestObject.spec.username."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation Step 4 does not match the spl: denying a CSR sets condition=denied, which is not 'pending', and the spl's pending test (condition=approved with a non-existent status=false label) can never be true, so this positive test cannot pass. A synthetic CSR also has a generated name and no kubelet signer, so it would not map to a node.",
+      "field": "cross_field",
+      "quote": "create a synthetic CSR using kubeadm or openssl in lab, deny approval intentionally, and confirm ksm_csr_pending_max stays positive with severity medium_csr_signing_backlog until you approve.",
+      "severity": "major",
+      "suggested_fix": "Leave the lab CSR unapproved (not denied), use signer kubernetes.io/kube-apiserver-client-kubelet with a system:node:<name> subject, and describe the expected row in terms of the corrected pending definition."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "Approval is recorded in audit as verb=update on the certificatesigningrequests/approval subresource; 'approve' is an RBAC verb on signers and never appears as an audit verb.",
+      "field": "detailedImplementation",
+      "quote": "Validate verbs include create, update, and approve for certificatesigningrequests.",
+      "severity": "minor",
+      "suggested_fix": "Validate create, update (objectRef.subresource=approval) and update on the status subresource for signing."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "explanation": "The serving certificate is the kubelet's own server certificate that the apiserver verifies when it connects; the apiserver authenticates with its separate kubelet client certificate.",
+      "field": "detailedImplementation",
+      "quote": "the serving credential the apiserver uses when it calls back into the kubelet for exec, logs, and port-forward",
+      "severity": "minor",
+      "suggested_fix": "Say 'the serving certificate the kubelet presents when the apiserver connects to it for exec, logs and port-forward'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "explanation": "Kubelet CSR approval, issuance and on-disk certificate expiry do not normalize into CIM Inventory or Change, and Inventory.dest is a host, not a Kubernetes cluster name; the description also claims the detection runs 'over datamodel `Inventory`' when the primary search is raw audit, metrics and logs.",
+      "field": "cimModels",
+      "quote": "\"Inventory\",\n    \"Change\"",
+      "severity": "major",
+      "suggested_fix": "Remove Inventory and Change (or keep Change only if CSR audit events are actually tagged into All_Changes) and describe the detection as raw kube-apiserver audit plus kube-state-metrics plus kubelet logs."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "The guide names the Splunk OpenTelemetry Collector for Kubernetes Helm chart as the collection plane and does not list a 'Splunk Add-on for Kubernetes'; the linked docs page may not exist.",
+      "field": "app",
+      "quote": "([Splunk Add-on for Kubernetes](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About))",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the add-on exists; otherwise drop the parenthetical and link the splunk-otel-collector-chart repository."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Beyond the recorded template checks, the entries describe no real benign cause of a kubelet CSR alert; the genuine ones are buried in Step 5.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `node`, `_time`, `Inventory.dest`** — Health checks in `k8s_audit` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List concrete benign cases: external signers (Vault, AWS Private CA) that add approval latency, serverTLSBootstrap disabled so no serving CSRs appear, managed node pools (GKE/EKS/AKS) that hide /var/lib/kubelet/pki, kube-controller-manager garbage-collecting old CSRs, and lab clusters with deliberately short certificate lifetimes."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "Authoring-contract residue that is also inaccurate (the closing table has seventeen columns).",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers present, Step 3 fence mirrors spl JSON, streamstats and multisearch participate, inputlookup and tstats enrich rows, case() governs severity, final table includes fourteen analyst-facing columns",
+      "severity": "minor",
+      "suggested_fix": "Delete the closing checklist paragraph."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The search depends on a non-existent KSM label, non-existent node_exporter metrics and log phrases the kubelet does not emit, so it cannot have been validated as written.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/community until the corrected search is run against a lab cluster with a forced kubelet rotation."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/auth/certificatesigningrequest-metrics.md",
+      "field": "spl",
+      "issue": "KSM lane extracts a status label that kube_certificatesigningrequest_condition does not have and ignores the metric value, so ksm_csr_pending is always 0; it also sets node to the CSR name (csr-xxxxx), which never matches a node from other lanes.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/client-go/blob/master/util/certificate/certificate_manager.go",
+      "field": "spl",
+      "issue": "Kubelet log lane matches 'rotating kubelet client/server certificate' and 'failed to rotate certificate', which client-go does not emit (actual: 'Rotating certificates', 'Failed while requesting a signed certificate from the control plane'), so kubelet_rotation_any and most kubelet_rotation_fault signals stay 0.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://github.com/prometheus/node_exporter/blob/master/README.md",
+      "field": "spl",
+      "issue": "Certificate lane searches for node_exporter ssl_cert* series that node_exporter does not produce, and derives node from the instance label (exporter IP:port), which will not equal the kubelet node name used by the log lane.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/",
+      "field": "spl",
+      "issue": "Audit lane takes node from requestObject.spec.username, which is absent at the Metadata audit level the UC recommends; it should use user.username (system:node:<name>). Without a common node key, renewal_gap_risk's 'no CSR audit and no rotation log' test is evaluated against unrelated rows.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=3 max(renewal_gap_risk) followed by stats max() makes renewal_gap_run_max identical to renewal_gap_risk_max, so the claimed 'runs that persist across quarters of a day' dwell logic is not implemented; tonumber(...,10) also returns null for exposition values written in exponent form (e.g. 1.7e+09).",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "spl",
+      "issue": "Inventory enrichment uses nodename=Inventory and Inventory.dest (root dataset is All_Inventory) and joins host names onto the cluster field, so inventory_fresh_ts is always empty.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/8.6/data-models/inventory",
+      "field": "cimSpl",
+      "issue": "Uses nodename=Inventory/Inventory.dest and nodename=Change/Change.object_category instead of the All_Inventory and All_Changes root datasets, and joins on cluster_inventory_key against a subsearch that never returns that field; the query says nothing about kubelet CSR renewal.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0064-UC-3.2.42",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The kubelet CSR troubleshooting narrative is rich, but every telemetry lane rests on a wrong product fact: kube_certificatesigningrequest_condition has no status label, node_exporter has no SSL certificate collector, the kubelet log phrases are not what client-go emits, and the audit lane needs request bodies the UC tells you not to log. The rotation timing claim (thirty days before expiry) is also wrong, so the detection cannot work as described.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.42",
+  "verdict": "incorrect"
+}

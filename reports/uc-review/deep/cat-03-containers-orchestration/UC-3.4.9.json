@@ -1,0 +1,118 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "324fffd8d8dfcb6ba7ecf54bace0742c08a002beb6fb236e7ad074f941af38b3",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.9.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/FormateventsforHTTPEventCollector",
+      "explanation": "The /services/collector/event endpoint needs each payload wrapped in an envelope with an \"event\" key, so posting the raw Trivy report is rejected. Even when wrapped, the whole report lands as one event with Results{}.Vulnerabilities{} arrays, so top-level fields such as VulnerabilityID, Severity and PublishedDate never exist for the SPL's coalesce() calls.",
+      "field": "detailedImplementation",
+      "quote": "curl -k https://<splunk-hec>:8088/services/collector/event \\\n  -H \"Authorization: Splunk $HEC_TOKEN\" \\\n  -d @trivy-results.json",
+      "severity": "blocker",
+      "suggested_fix": "Show a jq step that emits one HEC event per vulnerability, e.g. {\"sourcetype\":\"trivy:scan\",\"event\":{ArtifactName, Target, VulnerabilityID, Severity, PkgName, InstalledVersion, FixedVersion, PublishedDate}}. Alternatively, document spath plus mvexpand on Results{}.Vulnerabilities{} at search time."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://trivy.dev/latest/docs/configuration/reporting/",
+      "explanation": "In Trivy JSON the image reference is ArtifactName. Results[].Target carries an OS suffix such as \"alpine:latest (alpine 3.20.3)\" for OS packages, or a file path for language packages. Using Target as image_ref breaks the join with running-pod image names.",
+      "field": "detailedImplementation",
+      "quote": "**`Target`** (the image reference: `registry/repo:tag`)",
+      "severity": "blocker",
+      "suggested_fix": "Use ArtifactName (or Metadata.RepoDigests for digest matching) as the image reference, and keep Target only as the package-scope context."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase app 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes. Splunk Connect for Kubernetes is a GitHub Helm project, now superseded by the Splunk OpenTelemetry Collector for Kubernetes. The same wrong ID is repeated in dataSources.",
+      "field": "app",
+      "quote": "— Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Drop the Splunkbase 5167 reference from app and dataSources. Name the Splunk OpenTelemetry Collector for Kubernetes (Helm chart splunk-otel-collector-chart) and HEC, which the app field already lists."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "detailedImplementation describes KEV-driven 3-day SLAs, Medium and Low SLAs, and thresholds kept in vuln_sla_thresholds.csv and cisa_kev.csv. The SPL hardcodes Critical 7/3 and High 30/14 days, ignores Medium and Low, and never reads either lookup, so the SPL's 3-day threshold is a warning for every Critical CVE, not a KEV SLA. The alerting section's 'CISA KEV match → PagerDuty P2' also has no supporting search.",
+      "field": "cross_field",
+      "quote": "Critical**: remediate within **7 days** of CVE publication (or 3 days for actively exploited CVEs with CISA KEV listing) ... Store SLA thresholds in a **lookup** (`vuln_sla_thresholds.csv`)",
+      "severity": "major",
+      "suggested_fix": "Describe the thresholds the SPL actually uses. Present KEV and lookup-driven SLAs as an optional extension that needs an added lookup step, not as current behaviour."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "kube:pod:status is not a sourcetype that Splunk Connect for Kubernetes or the Splunk OTel Collector emits by default. SCK objects use kube:objects:pods, and the OTel k8s_cluster receiver emits metrics with container.image.name resource attributes, not pod status events with a container_image field.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=kube:pod:status`** (running pod container image references including the image digest, tag, and namespace",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the sourcetype and field names your collector produces, for example the k8sobjects receiver for pods or SCK kube:objects:pods with spec.containers{}.image. Document that sourcetype, or state that kube:pod:status is a custom scripted export."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Grype JSON nests data as matches[].vulnerability.id, .severity, .fix.versions and matches[].artifact.name and .version. It carries no CVE published date. As written, the SPL's coalesce() ladder (vulnerability_id, package, published_date) does not match Grype output, so Grype rows get no age and drop out.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=grype:scan`** (Grype vulnerability scan results providing vulnerability ID, severity, package, version, fix versions",
+      "severity": "needs_verification",
+      "suggested_fix": "Check Grype's JSON schema. Document the flattening or field aliases needed, and state that the CVE age for Grype findings must come from an NVD or first-seen lookup."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer ('agent-handcraft-2026-04-30'), yet its ingestion recipe would not yield the fields the SPL reads. There is no evidence of SME validation against live scan data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until a human validates the search end to end on real Trivy output."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The example disables TLS verification in a CI pipeline that ships security findings.",
+      "field": "detailedImplementation",
+      "quote": "curl -k https://<splunk-hec>:8088",
+      "severity": "minor",
+      "suggested_fix": "Drop -k and show --cacert pointing at the HEC CA bundle."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Table",
+      "field": "spl",
+      "issue": "The spl field joins two independent searches in one string. After `| table image_ref ... cve_list`, the comment macro expands to nothing, so `index=containers sourcetype=\"kube:pod:status\"` becomes arguments to the table command instead of starting a new search. The cross-reference variant never runs and the first search's output is corrupted. Split the two variants into separate saved searches.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "`coalesce(namespace, metadata.namespace)` and `coalesce(pod_name, metadata.name)` leave the dotted field names unquoted. In eval, `.` is the concatenation operator, so these read the fields metadata, namespace and name rather than the JSON paths. Field names containing dots must be wrapped in single quotes, e.g. 'metadata.namespace'.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The join subsearch counts dc(VulnerabilityID) instead of the normalised cve_id, so Grype rows contribute 0 aged_cves. Its image_ref also comes from Trivy Target (which carries the OS suffix) while the pod side uses the raw container image, so the left join rarely matches.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0104-UC-3.4.9",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The SLA-age idea and the runbook are useful, but the ingestion steps would not produce the fields the SPL reads. Raw Trivy JSON posted to the HEC event endpoint is rejected, nested Vulnerabilities[] fields are never expanded, and Target is not a plain image reference. The app names an unrelated Splunkbase ID, and the SPL field joins two separate searches into one string that cannot run as written.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.9",
+  "verdict": "incorrect"
+}

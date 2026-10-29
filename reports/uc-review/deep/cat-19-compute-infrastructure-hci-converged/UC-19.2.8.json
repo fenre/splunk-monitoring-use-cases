@@ -1,0 +1,143 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "0c54c6c9dad7f380a37467f694ac5d2996d982c7e6ae300041453057d620a33a",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.8.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/api/v1/app/5380/",
+      "explanation": "Splunkbase 5380 is 'Mattermost Alerts' and 5076 is 'Fix hostnames on UFs'. Neither is a VMware or Nutanix add-on, and no product is named 'Splunk Add-on for VMware vSphere Forwarder'. This confirms the unknown-ID flag, and the wrong names also appear in app and detailedImplementation.",
+      "field": "references",
+      "quote": "\"title\": \"Splunk Add-on for VMware vSphere Forwarder (Splunkbase 5380)\"",
+      "severity": "blocker",
+      "suggested_fix": "Use Splunk Add-on for VMware (Splunkbase 3215) and TA for Nutanix Prism (Splunkbase 3103) or TA for Nutanix Prism Central (8349) in app, references and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "There is no Splunkbase add-on for Cisco HyperFlex. The repository guide lists 'HyperFlex no Splunkbase TA' as a known limitation and recommends a custom collector or the Intersight TA. dataSources and Step 1 still tell readers to 'prefer Splunk Add-on for Cisco HyperFlex when available'.",
+      "field": "app",
+      "quote": "Splunk Add-on for Cisco HyperFlex (or custom HEC)",
+      "severity": "blocker",
+      "suggested_fix": "Say that HyperFlex node stats come from a custom HX Connect REST poller (or Splunk_TA_Cisco_Intersight, Splunkbase 5953, for Intersight-managed clusters), and remove the non-existent add-on."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "explanation": "The Splunk Add-on for VMware writes performance data to per-group sourcetypes such as vmware:perf:cpu and vmware:perf:mem, not a bare 'vmware:perf'. A search on sourcetype=\"vmware:perf\" returns nothing.",
+      "field": "dataSources",
+      "quote": "with sourcetype vmware:perf for host-level mem.usage.average, cpu.usage.average, disk.maxTotalLatency.latest",
+      "severity": "blocker",
+      "suggested_fix": "Use vmware:perf:cpu / vmware:perf:mem (or the metrics-index equivalents in the Splunk Add-on for VMware Metrics) and the field names those sourcetypes actually carry."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "The guide lists HX Connect paths /rest/clusters, /rest/nodes, /rest/health, /rest/datastores and /rest/alarms, but not /rest/clusters/{cid}/nodes/stats. The field names look made up. The Nutanix path /v2.0/hosts/{uuid}/stats also needs checking, because the v2 host entity embeds stats while /stats is a v1 pattern.",
+      "field": "dataSources",
+      "quote": "custom HEC to HX Connect REST /rest/clusters/{cid}/nodes/stats mapping node_iops, node_throughput_mbps, cpu_pct_used, mem_pct_used, vm_count",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the HX Connect REST API reference and the Prism v2 API explorer, and replace the paths and fields with the documented ones."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "These are Nutanix unit-conversion guards inside one SPL arm, not alert conditions. The real alert is the count of storage, IOPS and VM-count skew breaches against lookup targets (default 25/35/30%): one breach is warning, two high, three critical. controlTest repeats the same wrong conditions.",
+      "field": "description",
+      "quote": "alert when `hcpu` > 0, `hmem` > 0, `capb` > 1000000, or `usedb` > 1000000",
+      "severity": "major",
+      "suggested_fix": "Describe the per-node skew percentages against the cluster mean, the hci_cluster_balance_owner targets, and the 1/2/3-breach severity ladder."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are template filler. The real false-positive causes (maintenance-mode draining, affinity-pinned licensed workloads, post-rebuild IOPS bursts, mixed-generation nodes) are buried in detailedImplementation Step 5 instead.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster_id`, `node_id`, `vendor`, `]`** — Health checks in `hci` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 cases (hosts in maintenance mode, deliberate affinity, disk-rebuild IOPS spikes, asymmetric stretched sites) into knownFalsePositives."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Supplements A–T are generic padding (ServiceNow mapping, locale, training, field quotas) that do not help implement skew detection.",
+      "field": "detailedImplementation",
+      "quote": "supplement R — Data protection: do not log VM display names if policy forbids guest identity in metrics. supplement S — Multi-tenant:",
+      "severity": "major",
+      "suggested_fix": "Remove the supplements and keep the per-vendor mapping, validation and troubleshooting."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "consistency",
+      "explanation": "The search collapses each node to one latest row, so there is no time series to chart, and rolling_combined_skew_mean is not in the output table.",
+      "field": "visualization",
+      "quote": "timechart of rolling skew mean",
+      "severity": "minor",
+      "suggested_fix": "Chart from a summary index that stores the per-run skew values, or drop the timechart."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "consistency",
+      "explanation": "UC-19.1.1 is Cisco UCS server health, which this multi-vendor skew search does not depend on.",
+      "field": "prerequisiteUseCases",
+      "quote": "\"UC-19.1.1\"",
+      "severity": "minor",
+      "suggested_fix": "Remove it, or replace it with the UC that establishes the HCI host-metric feeds."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "overclaiming",
+      "explanation": "The SPL fails at parse time, and two of the named add-ons do not exist, so the UC was not verified.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search has been rebuilt and tested."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/search/search-reference/10.4.2604/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Each of the four multisearch arms ends with `stats latest(...) BY cluster_id node_id vendor`. multisearch allows only streaming commands in its subsearches, so the search errors with 'Multisearch subsearches might only contain purely streaming operations'. Move the stats outside, or use append.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_ref": "docs/guides/vmware-vsphere.md",
+      "field": "spl",
+      "issue": "The VMware arm searches sourcetype=\"vmware:perf\", which the Splunk Add-on for VMware does not emit; it uses vmware:perf:cpu, vmware:perf:mem and so on.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In the VMware arm every metric is coalesced to \"0\" on every event, so stats latest(cpu_pct_used) returns 0 whenever the most recent event is a mem or inventory line. capacity_max_gb also falls back to MemoryTotalGB, so storage_util_pct can divide vSAN used GB by host RAM.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=288 runs after rows have been collapsed to one per node, so it averages across nodes rather than over 24 hours of samples. balance_score_24h is therefore not a 24-hour measure. cpu_skew_pct is computed but never affects severity.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0077-UC-19.2.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Detecting per-node skew against cluster siblings is a sound goal, and the per-vendor mapping table helps. But the SPL cannot run (stats inside multisearch subsearches), cites add-ons that do not exist, and uses a VMware sourcetype the add-on does not emit. The '24h balance score' is computed over one row per node rather than over time.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.8",
+  "verdict": "incorrect"
+}

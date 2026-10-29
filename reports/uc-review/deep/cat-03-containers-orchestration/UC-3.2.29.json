@@ -1,0 +1,146 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "71347a229289c2fd9ad42ceac851095132fa0dd127a588ab1f3f08bdafaf3307",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.29.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/cronjob-metrics.md",
+      "explanation": "kube-state-metrics has no kube_cronjob_spec_schedule metric; the schedule, concurrency_policy and timezone values are labels on kube_cronjob_info. The same wrong metric name is repeated in detailedImplementation Step 1.",
+      "field": "dataSources",
+      "quote": "kube_cronjob_spec_schedule, kube_cronjob_spec_starting_deadline_seconds",
+      "severity": "blocker",
+      "suggested_fix": "Replace kube_cronjob_spec_schedule with kube_cronjob_info (labels schedule, concurrency_policy, timezone) and consider adding kube_cronjob_next_schedule_time, which directly supports lateness math."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/pkg/controller/cronjob/cronjob_controllerv2.go",
+      "explanation": "The CronJob v2 controller emits the Warning reason \"MissSchedule\" (not \"MissedSchedule\") and has no \"FailedNeedsStart\" event; that reason belonged to the removed v1 controller. Searches keyed on these strings will return nothing on current clusters. The same names drive detailedImplementation, visualization, validation steps and troubleshooting cases.",
+      "field": "dataSources",
+      "quote": "Warning reasons MissedSchedule and FailedNeedsStart",
+      "severity": "blocker",
+      "suggested_fix": "Use the reasons the controller actually emits: MissSchedule, plus UnparseableSchedule, InvalidSchedule, UnknownTimeZone, FailedCreate and Normal JobAlreadyActive; update all prose that names MissedSchedule/FailedNeedsStart."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/pkg/controller/cronjob/cronjob_controllerv2.go",
+      "explanation": "When concurrencyPolicy is Forbid and a prior Job is still active, the controller records a Normal event with reason JobAlreadyActive, not a missed-schedule Warning, so this validation step (and the forbid_stall narrative in Step 3 and Case 3) would not produce the expected signal.",
+      "field": "detailedImplementation",
+      "quote": "simulate Forbid concurrency with a long-running Job Pod so the next window skips, confirm kube:events emit MissedSchedule",
+      "severity": "blocker",
+      "suggested_fix": "State that a Forbid skip emits Normal JobAlreadyActive and validate the Forbid stall against that reason plus kube_cronjob_status_active >= 1."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0 and describes host service/process inventory, not Kubernetes CronJob schedule state; Performance is only used as a throwaway join whose fields are dropped. Neither model represents this signal, and the detailedImplementation rationale ('correlation tick ... exercise the same datamodel path during audits') is not a real reason.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Set cimModels to an empty list (no CIM model fits kube-state-metrics CronJob gauges) and remove the CIM rationale paragraph; if a model is kept, justify it with fields the SPL actually uses."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "The list that follows, and the SPL table command, contain nineteen columns.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists seventeen analyst columns",
+      "severity": "minor",
+      "suggested_fix": "Say nineteen columns, or drop the count."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "Everywhere else the UC and the Kubernetes guide use sourcetype kube:apiserver:audit for index=k8s_audit; the audit drill switches to kube:audit without explanation.",
+      "field": "detailedImplementation",
+      "quote": "index=k8s_audit sourcetype=kube:audit objectRef.resource=cronjobs",
+      "severity": "minor",
+      "suggested_fix": "Use sourcetype=kube:apiserver:audit (or both, explicitly) to match dataSources and the guide."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "Several references point at directory or landing pages rather than the cited content (sig-apps KEP folder, generic working-with-objects page, generic AKS docs root), and the scheduler-design link is about pod scheduling, not CronJob scheduling. The KEP number for CronJob time zones looks wrong.",
+      "field": "references",
+      "quote": "\"title\": \"KEP-4367 — Support TimeZone field for CronJobs\",\n      \"url\": \"https://github.com/kubernetes/enhancements/tree/master/keps/sig-apps/\"",
+      "severity": "major",
+      "suggested_fix": "Link the specific CronJob time-zone KEP (verify the number; KEP-3140 is the likely one), the Kubernetes Events reference, and an AKS CronJob page; drop the kube-scheduler reference."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "clarity",
+      "explanation": "The validation instruction is hard to parse and does not say what result row is expected.",
+      "field": "implementation",
+      "quote": "validate with a lab CronJob that stops scheduling while suspended jobs remain absent from failure metrics",
+      "severity": "minor",
+      "suggested_fix": "Say: suspend a governed lab CronJob whose lookup row has should_be_running=1 and confirm a bad_suspend row appears, then let a CronJob exceed stale_mult x expected_cadence_minutes and confirm schedule_sla_breach=1."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by a generic reviewer handle, yet the SPL cannot execute and keys on event reasons that the controller does not emit, so no lab run could have validated it.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft or community until the SPL is fixed and run against a real cluster, and record the SME reviewer."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command that must be the first command, and its subsearches may contain only streaming commands. Here it follows eval/join/fields, is wrapped in an extra bracket level, and each arm ends with stats, so the search fails to parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kube-state-metrics/main/docs/metrics/workload/cronjob-metrics.md",
+      "field": "spl",
+      "issue": "The rex for schedule= and concurrency_policy= runs only on rows filtered to kube_cronjob_status_*/spec_*/metadata_* metrics, but those labels exist only on kube_cronjob_info, which the where clause excludes. spec_schedule_token and concurrency_policy are therefore always empty, so concurrency_drift and forbid_stall can never fire as designed.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/kubernetes/kubernetes/master/pkg/controller/cronjob/cronjob_controllerv2.go",
+      "field": "spl",
+      "issue": "The kube:events arm filters rs IN (\"MissedSchedule\",\"FailedNeedsStart\"); the controller emits MissSchedule and no FailedNeedsStart, so missed_schedule_evt_cnt and failed_needs_start_evt_cnt stay 0.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "In eval, unquoted involvedObject.name and metadata.namespace are parsed with '.' as the concatenation operator, and `involvedObject.kind` in backticks is expanded as an undefined macro. Dotted field names need single quotes ('involvedObject.kind').",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats current=f last(...) BY cluster namespace cronjob runs after a stats that leaves one row per CronJob, so prev_resource_version is always null and resource_version_changed / schedule_age_jump_min are dead logic. The leading tstats Performance join is dropped by 'fields -' and does nothing.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/8.5/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "cimSpl queries the deprecated Application_State model and host CPU/memory from Performance. Neither expresses CronJob lateness, so the CIM variant is not an equivalent detection.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0049-UC-3.2.29",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The CronJob lateness idea is sound and the detailed implementation is rich, but the detection rests on wrong product facts: there is no kube_cronjob_spec_schedule metric, the controller event reason is MissSchedule (not MissedSchedule), FailedNeedsStart is not emitted by the current CronJob controller, and a Forbid skip emits a Normal JobAlreadyActive event. The SPL cannot run as written (multisearch placement and non-streaming stats inside it), and the CIM mapping to deprecated Application_State plus a discarded Performance join does not fit the signal.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.29",
+  "verdict": "incorrect"
+}

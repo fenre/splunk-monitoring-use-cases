@@ -1,0 +1,115 @@
+{
+  "confidence": 0.75,
+  "content_sha256": "254c98095e4b10424b30280ab03324e17afb92402ff49c9296b94d34482bd618",
+  "file": "content/cat-23-business-analytics/UC-23.6.1.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.sap.com/saphelp_aii710/helpdata/en/3b/eac53976b78867e10000000a11402f/content.htm?no_cache=true",
+      "explanation": "BSID-ZFBDT is the baseline date for due-date calculation, not the due date. The net due date is ZFBDT + ZBD3T (or ZBD1T/ZBD2T when only discount terms apply), exposed as NETDT in SAP's AR extractors. Using ZFBDT as the due date overstates days overdue by the full payment-term length. detailedImplementation Step 1 projects ZFBDT the same way.",
+      "field": "dataSources",
+      "quote": "due clock inputs `due_date`, SAP baseline `ZFBDT`, Oracle `due_date`, NetSuite `duedate`",
+      "severity": "blocker",
+      "suggested_fix": "Have the SQL view compute the net due date (ZFBDT + ZBD3T/ZBD2T/ZBD1T, or call DETERMINE_DUE_DATE / use the NETDT field of 0FI_AR_4-style extractors) and emit it as `due_date`. Describe ZFBDT only as the baseline."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/connect-relational-databases/deploy-and-use-db-connect/4.3/reference/db_inputs.conf.spec",
+      "explanation": "The `?` checkpoint placeholder and rising column apply to `mode = rising`. Batch mode re-imports the full result set on every run and keeps no checkpoint. DB Connect inputs are configured in db_inputs.conf, not inputs.conf, and 'Splunk lookahead macros' is not a DB Connect concept.",
+      "field": "detailedImplementation",
+      "quote": "Emit hourly batch pulls matching representative inputs.conf semantics: `interval = 3600`, `mode = batch`, query predicates such as `WHERE last_updated > ?` using Splunk lookahead macros.",
+      "severity": "blocker",
+      "suggested_fix": "Either use `mode = rising` with `tail_rising_column_name = last_updated` and `WHERE last_updated > ?`, or use `mode = batch` as an explicit full open-item snapshot with a `snapshot_timestamp` column. Then say the SPL must take only the latest snapshot (see SPL flag)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The SPL contains no mixed-currency warning. `eventstats sum(total_outstanding)` adds balances across `curr` values, so `pct_of_total` and `dso_days` become meaningless for multi-currency portfolios.",
+      "field": "detailedImplementation",
+      "quote": "emits rolled balances suitable for mixed-currency portfolios only after upstream SQL translates into functional currency; Splunk warns when raw rows carry mixed currencies without normalization.",
+      "severity": "minor",
+      "suggested_fix": "Remove the claim that Splunk warns. State that the SQL must emit a single reporting currency, or that `pct_of_total` and DSO must be computed per `curr`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "BSID `DMBTR`/`WRBTR` are unsigned amounts; direction comes from `SHKZG`. Payments on account and credit memos in BSID would be added as positive receivables unless the SQL applies the sign. BSID is also already open-items-only, so the AUGDT filter is redundant, and on S/4HANA it is a compatibility view over ACDOCA/BSEG.",
+      "field": "detailedImplementation",
+      "quote": "exposing open FI-AR analogues to **BSID** (`BUKRS`, `KUNNR`, `UMSKS`, `DMBTR`, `WRBTR`, `WAERS`, `ZFBDT`, `BUDAT`) filtered `AUGDT IS NULL`",
+      "severity": "minor",
+      "suggested_fix": "Add `SHKZG` to the projection and emit a signed amount (e.g. `CASE SHKZG WHEN 'H' THEN -DMBTR ELSE DMBTR END`). Note that S/4HANA customers may prefer the ACDOCA-based CDS views."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "consistency",
+      "explanation": "The SPL rolls up to aging_bucket × cust_segment × curr, so `cust_key`, per-invoice `days_overdue` and `ecl_amt` are not in its output. The grandmaExplanation's 'highlight who owes the most' also needs a per-customer view the search does not produce.",
+      "field": "visualization",
+      "quote": "detail drill table (`cust_key`, `curr`, oldest `days_overdue`, `ecl_amt`)",
+      "severity": "minor",
+      "suggested_fix": "State that the drill table is a separate search (same evals, then `stats max(days_overdue) sum(amt_fc) sum(ecl_amt) by cust_key curr`)."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "specificity",
+      "explanation": "Asterisk (a VoIP PBX) and Microsoft 365 have nothing to do with AR aging from ERP subledgers, so they pollute equipment-based discovery.",
+      "field": "equipment",
+      "quote": "\"asterisk\", \"db_connect\", \"m365\", \"oracle\", \"sap\"",
+      "severity": "minor",
+      "suggested_fix": "Keep `db_connect`, `sap`, `oracle` (and add NetSuite/Dynamics if mapped). Remove `asterisk` and `m365`."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an authoring agent with no SME sign-off, and the due-date and ingestion errors above would not survive a finance SME review.",
+      "field": "status",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-27\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until a controller/treasury SME validates the SQL view and the totals against FBL5N."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "specificity",
+      "explanation": "The reference title names a specific ASU, but the URL is the FASB home page.",
+      "field": "references",
+      "quote": "\"title\": \"FASB Accounting Standards Update ASU 2016-13 — Measurement of Credit Losses on Financial Instruments (CECL)\", \"url\": \"https://www.fasb.org/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the ASU 2016-13 / Topic 326 page on fasb.org directly."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "The search sums `amt_fc` over `earliest=-90d@d` of `dbx:ar_invoices` without keeping only the latest snapshot per invoice. With the documented hourly pulls of open items, each invoice is counted up to ~2,000 times, inflating `total_outstanding`, `portfolio_total` and `dso_days`. Restrict to the latest snapshot (e.g. `dedup invoice_key sortby -_time` or `where _time=latest_snapshot`) before `stats`.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`eventstats sum(total_outstanding) as portfolio_total` sums across all `curr` values, so `pct_of_total` and `dso_days` mix currencies whenever more than one currency is present. Compute these per `curr` or after FX normalization.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`coalesce(amount,amount_due_remaining,...)` prefers `amount` (often the original invoice amount) over `amount_due_remaining`, which overstates partially paid invoices. The enterprise ×1.15 / SMB ×0.85 ECL multipliers are also counter-intuitive and undocumented.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0036-UC-23.6.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 4,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "This is one of the better-grounded UCs in the subcategory: the aging, ECL and DSO logic is explained clearly and the troubleshooting is practical. However, it treats SAP `ZFBDT` (the baseline date) as the due date, describes an hourly batch input with a rising-mode `?` checkpoint, and aggregates 90 days of repeated open-item snapshots without deduplication, so balances will be badly inflated.",
+  "tier": "deep",
+  "uc_id": "UC-23.6.1",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,104 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "23dff4aab3184483f49220b2d5671ca3e2a9ee63e54a8ed78a5ecbc0e0e792a9",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.5.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS documents a single Cisco UCS input type driven by collection templates (lists of classIds) and assigns all data the sourcetype cisco:ucs, with source cisco:ucs:<classId> (for example cisco:ucs:fabricEthLanPc). There is no 'statistics' modular input and no cisco:ucs:stats sourcetype. The detailedImplementation reinforces the error ('the statistics feed for MO classes like fabricEthLanPc is carried under cisco:ucs:stats') and its Step 1 tells readers to enable a non-existent input.",
+      "field": "dataSources",
+      "quote": "sourcetype `cisco:ucs:stats` from `Splunk_TA_cisco_ucs` (Splunkbase 2731, v4.3.1). The add-on's **Cisco UCS statistics** modular input",
+      "severity": "blocker",
+      "suggested_fix": "Say: create a collection template in Splunk_TA_cisco_ucs (Configuration > Templates) containing fabricEthLanPc and fabricEthLanPcEp, attach it to a Cisco UCS input, and search sourcetype=cisco:ucs source=cisco:ucs:fabricEthLanPc* (or whatever custom sourcetype your input sets). Align implementation and detailedImplementation Step 1 to the template/input workflow."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/ucs-manager/GUI-User-Guides/Network-Mgmt/4-1/b_UCSM_Network_Mgmt_Guide_4_1/b_UCSM_Network_Mgmt_Guide_4_1_chapter_0100.html",
+      "explanation": "Uplink Ethernet port channels are under the LAN tab: LAN > LAN Cloud > Fabric A|B > Port Channels (or the LAN Uplinks Manager), not under Equipment > Fabric Interconnects > module. An operator following Step 3 will not find the pc-N object.",
+      "field": "detailedImplementation",
+      "quote": "In UCSM, navigate **Equipment → Fabric Interconnects →** pick Fabric A or Fabric B to match the second path segment, then the correct Fixed Module or Expansion Module ... and open the Port-Channels list for that module scope.",
+      "severity": "blocker",
+      "suggested_fix": "Navigate: Navigation pane > LAN > LAN Cloud > Fabric A or B > Port Channels > Port-Channel N; the General tab lists member ports and their state. Mention LAN Uplinks Manager as the alternative view."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "fabricEthLanPc and fabricEthLanPcEp are configuration/operational managed objects, not statistics classes (the statistics classes are etherRxStats, etherTxStats, etherErrStats and similar). Calling them statistics objects misleads readers about which template category and poll interval to use.",
+      "field": "dataSources",
+      "quote": "polls the UCSM XML/HTTPS API for managed statistics object classes — including the Ethernet LAN port-channel aggregate `fabricEthLanPc`, the per-member `fabricEthLanPcEp` endpoints",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the UCS Manager XML API object model for fabricEthLanPc/fabricEthLanPcEp and describe them as operational-state objects; keep the ether*Stats classes as the separate counter feed."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ReleaseHistory/",
+      "explanation": "The add-on documentation lists 4.3.2 as the current version and 4.3.0 as compatible with Splunk 9.1–9.3; a 9.1–10.2 support range is not shown there.",
+      "field": "app",
+      "quote": "current release 4.3.1, Splunk-supported on 9.1–10.2 and Splunk Cloud",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm version and compatibility on Splunkbase 2731 / the add-on release history and quote them exactly, or drop the range."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference title names a specific guide but the URL is the cisco.com home page.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager Network Management Guide, Release 4.2 (port-channels, LAN fabric)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the LAN Ports and Port Channels chapter of the UCS Manager Network Management Guide for the release in scope."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The listed scenarios are token salad and name no real cause, while the genuine benign causes (Nexus-side admin-down in a change, STP reconvergence after a Nexus reload, vPC ISSU, LACP renegotiation on member add/remove, FI firmware activation) are only in Step 5 of detailedImplementation.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `cisco:ucs:stats`** — Scheduled automation elevates `fi_fabric` without crossing `configured_members` > 0",
+      "severity": "major",
+      "suggested_fix": "Move the Step 5 benign causes into knownFalsePositives, each with how to recognise it (change ticket, Nexus syslog, two-poll confirmation)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "overclaiming",
+      "explanation": "Marked verified while the sourcetype and input type it depends on do not match the add-on's documentation.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Set to draft until the search is validated against real Splunk_TA_cisco_ucs data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The search filters sourcetype=\"cisco:ucs:stats\", but the add-on assigns sourcetype cisco:ucs (class identified by source cisco:ucs:<classId>), so on a default install the search returns nothing. Use sourcetype=cisco:ucs (source=cisco:ucs:fabricEthLanPc OR source=cisco:ucs:fabricEthLanPcEp) or document the custom sourcetype.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "configured_members=sum(is_ep) and active_members=sum(member_up) over 30 minutes count poll rows, not members: a 2-member LAG polled every 5 minutes shows configured_members≈12, and one down poll for any member in the window keeps active_pct<100 after recovery. Take latest state per member dn first (stats latest(oper) by dn, parent_pc) and then dc()/count members per parent_pc.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0043-UC-19.1.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 3,
+    "correctness": 2,
+    "grandma_fidelity": 5,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "Exclusions, prerequisites and troubleshooting are concrete and specific to UCS uplink LAGs, but the UC insists on a 'cisco:ucs:stats' sourcetype and a 'Cisco UCS statistics modular input' that the Splunk Add-on for Cisco UCS does not have (it assigns sourcetype cisco:ucs and sets source to cisco:ucs:<classId>), the UCSM GUI path to port channels is wrong, and the SPL counts poll rows as members. Description, value, KFP and controlTest are template residue.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.5",
+  "verdict": "incorrect"
+}

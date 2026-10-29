@@ -1,0 +1,143 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "cd48dbb86b94780e1b28b057ca45b5bd6e383a1405ee7c3677ae72fce0bdcc79",
+  "file": "content/cat-23-business-analytics/UC-23.4.7.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/4538",
+      "explanation": "Splunkbase 4538 is the 'OPNsense Add-on for Splunk', not an ADP add-on, and the ID is absent from the cached Splunkbase catalogue. The same wrong citation appears in dataSources, references and detailedImplementation.",
+      "field": "app",
+      "quote": "Splunk Add-on for ADP Workforce Now ([Splunkbase 4538](https://splunkbase.splunk.com/app/4538))",
+      "severity": "blocker",
+      "suggested_fix": "Remove the 4538 citation everywhere. Describe ADP ingestion as a custom modular input or HEC bridge against the ADP Workforce Now APIs, unless a real Splunkbase ADP app is identified and checked."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Transformsconf",
+      "explanation": "This transform does no hashing. It copies the plaintext associate_oid into an indexed field named employee_id_hash, so the raw identifier is persisted in the tsidx under a misleading name. 'MetaData:Employee_Hash' is not a valid DEST_KEY: the MetaData keys cover host, source, sourcetype and index, and WRITE_META expects no custom DEST_KEY. A reader copying this would leak PII while believing it is pseudonymised.",
+      "field": "detailedImplementation",
+      "quote": "[hash_associate_oid_to_sha256]\nREGEX = \"associate_oid\":\"(?<associate_oid>[^\"]+)\nFORMAT = employee_id_hash::$1\nDEST_KEY = MetaData:Employee_Hash\nWRITE_META = true",
+      "severity": "blocker",
+      "suggested_fix": "Use an INGEST_EVAL transform such as `INGEST_EVAL = employee_id_hash=sha256(replace(_raw, \".*\\\"associate_oid\\\":\\\"([^\\\"]+)\\\".*\", \"\\1\"))`, or hash upstream in the collector. Then SEDCMD-mask the raw associate_oid in props.conf."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "SAP SuccessFactors Employee Central and Oracle Fusion Cloud HCM are SaaS and do not normally allow customer JDBC connections to their databases. Extraction usually goes through OData, BICC or BI Publisher into a customer warehouse. The table name PER_TIME_CARDS_F and the OData entity /odata/v2/EmpTimesheet (SF documents EmployeeTimeSheet) also look guessed.",
+      "field": "dataSources",
+      "quote": "via Splunk DB Connect ([Splunkbase 2686](https://splunkbase.splunk.com/app/2686)) JDBC reads against EC HANA tables (`EmpTimesheet`, approved quantities) ... `oracle:otl_cards` — Fusion OTL extracts sourced through DB Connect JDBC on `HR.PER_TIME_CARDS_F`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check against the SAP SuccessFactors Time Tracking OData reference and Oracle Fusion HCM extraction options (BICC/HCM Extracts). Say that JDBC runs against a customer-owned warehouse replica, not the vendor database, and correct the entity and table names."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "detailedImplementation names the ADP time-card endpoint /events/time-v1/workers/time-cards, while sibling UC-23.4.5 uses /time/v2/workers/{aoid}/time-cards for the same API. At most one of them is right.",
+      "field": "cross_field",
+      "quote": "polling Workforce Now Time and Attendance `/events/time-v1/workers/time-cards`",
+      "severity": "minor",
+      "suggested_fix": "Check against the ADP Workforce Now API Explorer (Time Cards) and use one documented path across both UCs."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.fairwork.gov.au/employment-conditions/awards",
+      "explanation": "Modern Awards are Australian Fair Work instruments, not a UK concept. UK overtime rules come from the Working Time Regulations 1998 and employment contracts.",
+      "field": "detailedImplementation",
+      "quote": "EU Working Time Directive forty-eight-hour ceilings, UK Modern Award stacking premiums, Australian hospitality penalties",
+      "severity": "minor",
+      "suggested_fix": "Change it to 'Australian Modern Award penalty and overtime stacking', and use 'UK Working Time Regulations 48-hour opt-out' for the UK."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "Setting both INDEXED_EXTRACTIONS=json and KV_MODE=json extracts every field twice, so Splunk advises KV_MODE=none with indexed extractions. With INDEXED_EXTRACTIONS, timestamps come from TIMESTAMP_FIELDS rather than TIME_PREFIX.",
+      "field": "detailedImplementation",
+      "quote": "`KV_MODE=json`, `INDEXED_EXTRACTIONS=json`, `LINE_BREAKER = ([\\r\\n]+)`, `TIME_PREFIX = \"punch_timestamp\":\"`",
+      "severity": "minor",
+      "suggested_fix": "Pick one approach: either INDEXED_EXTRACTIONS=json + KV_MODE=none + TIMESTAMP_FIELDS=punch_timestamp, or search-time KV_MODE=json with TIME_PREFIX/TIME_FORMAT."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The SPL thresholds (10h/8h average OT, 60-point score, 24h PTO) are not derived from these statistics, and none of the figures has a citation to a specific report. Steps 2 and 3(H–J) are a run of name-dropped benchmarks that do not help the implementer.",
+      "field": "detailedImplementation",
+      "quote": "burnout scoring translates empirical thresholds referencing Gallup forty-four percent burnout prevalence (literature cited off-platform), Mercer twenty-eight percent burnout-driven attrition estimates, Workforce Institute sixty-percent overtime-fatigue linkage surveys",
+      "severity": "major",
+      "suggested_fix": "Say the signal weights and thresholds are organisation-tunable defaults. Move any external statistics to a short sourced note with exact report URLs, or delete them."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "consistency",
+      "explanation": "The SPL has no two-consecutive-period condition. It alerts on any single week where a cost-center row passes the OR filter. It also averages burnout_risk_score per cost center, not per worker.",
+      "field": "detailedImplementation",
+      "quote": "alerts trigger when burnout_risk_score exceeds sixty across two trailing pay periods per hashed worker cohort",
+      "severity": "minor",
+      "suggested_fix": "Describe what the SPL actually does (weekly cost-center rows where any member passes the OR filter, with emp_sample_count>=5), or note the two-period persistence as a separate alert-throttling step."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "Microsoft 365, Nutanix, SNMP and UPS devices have nothing to do with timecard overtime analytics. Oracle here is Fusion HCM SaaS, not an Oracle Database equipment model.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\"db_connect\", \"m365\", \"nutanix\", \"oracle\", \"snmp\"], \"equipmentModels\": [\"oracle_oracle_db\", \"snmp_ups\"]",
+      "severity": "major",
+      "suggested_fix": "Keep db_connect and drop the unrelated equipment tags and models."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The status says verified, but the reviewer is an agent, the Splunkbase ID is wrong and the hashing sample leaks plaintext IDs, so SME verification is not credible.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft or community pending review by a workforce-analytics and privacy SME."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "`streamstats window=14 sum(eval(if(worked_hours>0,1,0))) as days_worked_in_14` runs after weekly `stats ... by employee_id_hash _time`, so each row is a week. The value is 'weeks worked in the last 14 weeks', and `days_worked_in_14>10` fires streak_signal (+20) for almost every regular employee. Daily streaks need daily rows, or a per-day count computed before the weekly stats.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Overtime falls back to `computed_ot=max(0,worked_hours-scheduled_hours)` with scheduled_hours defaulting to 40 per event. A Workday time block such as the dataSources sample (Quantity=10, Time_Type_Reference=OVERTIME) has no overtime_hours field, so it scores 0 overtime. Classify overtime from the time type or pay code (for example, canonical_code from pay_rule_codes) before falling back to worked-minus-scheduled.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`lookup pay_rule_codes vendor_pay_code OUTPUT canonical_code jurisdiction_hint multiplier` keys on vendor_pay_code, which the search never creates, so the lookup never matches. Its `multiplier` output is ignored anyway: ot_premium_cost hard-codes 1.5, which undercounts double-time (DT2X). It also computes total overtime pay, not the premium, which would be 0.5× when base hours are already costed.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "`sha256(coalesce(worker_ref,associate_oid,userId,user_id,\"MISSING\"))` runs after `fields - ... associate_oid ...`, so ADP rows without employee_id_hash or worker_ref collapse into one hid (sha256(\"MISSING\")). `pto_balance_hours` also defaults to \"128\", which hides missing PTO data instead of leaving it null.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`bucket _time span=1w@w` (snap suffix in a bin span) and the separately computed `weekly_marker=strftime(_time,\"%Y-%W\")` (Monday-based weeks) may disagree on week boundaries, which would split one week into two rows. Check that bin accepts the @w snap, or use a single week key.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0028-UC-23.4.7",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC has a solid burnout-scoring concept (sustained overtime, streaks, low PTO, nights and weekends, aggregated to cost centers with a cohort floor of 5) and a rich list of tuning pitfalls. But it cites a Splunkbase ID that belongs to an OPNsense TA, and its 'pseudonymization' transform sample writes the plaintext ID into an indexed field. Several SPL defects (weekly rows treated as days, Workday OVERTIME blocks not counted, an unused pay-code multiplier) undermine the score and the cost figures.",
+  "tier": "deep",
+  "uc_id": "UC-23.4.7",
+  "verdict": "incorrect"
+}

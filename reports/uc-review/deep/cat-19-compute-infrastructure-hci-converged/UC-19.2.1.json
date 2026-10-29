@@ -1,0 +1,113 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "0a34482561a7af17b6825dfe5d57038d70147d587af67f3b497bad6c7dc965e5",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.1.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/products/collateral/hyperconverged-infrastructure/hyperflex-hx-series/hyperflex-data-platform-eol.html",
+      "explanation": "Cisco's EoL bulletin for HX Data Platform software gives End-of-Sale 11 Sep 2024, End of SW Maintenance 11 Sep 2025 and Last Date of Support 28 Feb 2029, not 2034-09-30. The 'Runbook to 2034-09-30' in Step 4 and the decade-long planning advice rest on the wrong date.",
+      "field": "detailedImplementation",
+      "quote": "Cisco’s HyperFlex sales tail ended with a 2024 last-order date while the published software support end date of 2034-09-30",
+      "severity": "blocker",
+      "suggested_fix": "Use the bulletin dates (EoS 2024-09-11, end of maintenance releases 2025-09-11, LDoS 2029-02-28), say that no bug-fix releases ship after September 2025, and rename the runbook section to the 2029 LDoS; cite the bulletin in references instead of the cisco.com home page."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "consistency",
+      "explanation": "Step 5 troubleshoots fields and lookup columns that do not exist in this UC's SPL (cluster_reachable, bad_rf, last_event_age, pe_drift, expected_node_count, a Nutanix lookup name, a redundancy_factor coalesce). Item (d) says freeze leaves rows at 'low', but the SPL demotes to 'ok'; item (e) blames last_event_age>1800 while the SPL's stale flag is 900 s and only produces 'low'. It reads as text pasted from a different UC.",
+      "field": "detailedImplementation",
+      "quote": "confirm your `inputlookup nutanix_hyperflex_owner` (sic — for HX, `hyperflex_cluster_owner.csv`) ... `cluster_reachable=0` ... `bad_rf=1` ... `last_event_age > 1800` ... `pe_drift` ... `expected_node_count`",
+      "severity": "major",
+      "suggested_fix": "Rewrite Step 5 around the real outputs: stale (900 s), rf_breach vs exp_rf, acc_risk/ds_unmount, node_risk_count, mixed_ver, freeze_active demoting non-critical rows to ok."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Propsconf",
+      "explanation": "Enabling both index-time JSON extraction and search-time KV_MODE=json extracts every field twice, producing multivalue fields; the SPL's coalesce/IN comparisons (for example acc_sum IN (\"FullyAccessible\",\"Online\")) then misbehave. The TIME_PREFIX regex `^{\\\"time\\\"|\\\"_time\\\"` is also malformed, and timestamp props do not apply to HEC /event posts anyway.",
+      "field": "detailedImplementation",
+      "quote": "INDEXED_EXTRACTIONS = json\nKV_MODE = json",
+      "severity": "major",
+      "suggested_fix": "Use INDEXED_EXTRACTIONS=json with KV_MODE=none (or KV_MODE=json without INDEXED_EXTRACTIONS), and drop TIME_PREFIX when _time comes from the HEC 'time' key."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "explanation": "The published HyperFlex REST API is commonly documented with token issue at /aaa/v1/auth (grant_type=password with client_id/client_secret) and resources under /coreapi/v1/clusters/{cuuid}/... (health per cluster). The /rest/aaa/login and flat /rest/health paths here (also in the compute-hci guide) could not be confirmed, and the poller posts each list response as one event, so per-cluster fields would land under '{}.' prefixes rather than as top-level healthState/name.",
+      "field": "detailedImplementation",
+      "quote": "one poll cycle performs `POST /rest/aaa/login` with Basic credentials, captures `accessToken` ... `GET /rest/clusters`, `GET /rest/health`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Cisco HyperFlex REST API reference (HX Connect > REST API explorer) for the auth and cluster/health paths of the deployed HXDP release; split list responses into one event per cluster/node/datastore in the poller."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC asserts it is the verified reference implementation ('the only HyperFlex-verified file in the repository') while its API paths, field names and EoL dates are unverified or wrong. Catalogue self-promotion is not implementation guidance.",
+      "field": "detailedImplementation",
+      "quote": "This is the first cat-19.2 use case in this catalogue to treat Cisco HyperFlex (HX) as a verified, first-class data contract, and it is the bar every future HyperFlex UC in cat-19.2 must extend.",
+      "severity": "major",
+      "suggested_fix": "Delete the 'first/only verified' claims and the repository-meta sentences; keep the comparison to sibling UCs in one short line."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The index is hyperflex, not 'if', and the listed conditions are not the paging logic: ver_dc>1 only yields 'low', cluster_rf>0 is a guard, and critical comes from health text, RF below expected, datastore/accessibility risk or two or more bad nodes.",
+      "field": "description",
+      "quote": "from `index=if` sourcetype `cisco:hyperflex:cluster`. ... pages when `ver_dc` > 1, `cluster_rf` > 0, `node_risk_count` >= 2, or `hlv_m` >= 2.",
+      "severity": "major",
+      "suggested_fix": "Describe the per-cluster rollup over four cisco:hyperflex:* sourcetypes in index=hyperflex and the tiers: critical for unhealthy/RF-not-met health, RF below expected_replication_factor, datastore unmounted/inaccessible or ≥2 bad nodes; high for degraded/warning or one bad node; low for stale polls or mixed HXDP versions; CAB freeze demotes non-critical rows."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "snmp_ups has nothing to do with HyperFlex cluster health, and the equipment list adds azure, cassandra, nutanix, pagerduty, snmp and vxrail, which are only mentioned as out-of-scope siblings or alert targets. These tags will surface the UC in unrelated equipment pickers.",
+      "field": "equipmentModels",
+      "quote": "\"equipmentModels\": [\n    \"cisco_intersight\",\n    \"cisco_ucs\",\n    \"snmp_ups\",\n    \"vmware_esxi\"\n  ]",
+      "severity": "major",
+      "suggested_fix": "Keep cisco/cisco_ucs/cisco_intersight (and vmware_esxi if wanted); remove snmp_ups and the azure, cassandra, nutanix, pagerduty, snmp, vxrail equipment tags."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "Reference titles point at specific documents but the URLs are site home pages (cisco.com, developer.cisco.com, docs.splunk.com/Documentation/Splunk/latest/Data/).",
+      "field": "references",
+      "quote": "\"title\": \"Cisco — HyperFlex end-of-new-sale and software support (EOL)\",\n      \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the HXDP EoL bulletin, the HyperFlex REST API guide and the Splunk HEC documentation page directly."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/ConditionalFunctions",
+      "field": "spl",
+      "issue": "nbad tests the healthy regex `(?i)up|online|healthy|ok|normal|active|connected|ready` first and unanchored, so 'unhealthy', 'disconnected', 'inactive' and similar statuses match 'healthy'/'connected'/'active' and are scored as good nodes; node_risk_count undercounts. Anchor the patterns (for example `^(up|online|healthy|...)$`) or test the bad list first.",
+      "severity": "major"
+    },
+    {
+      "evidence_ref": "docs/guides/compute-hci.md",
+      "field": "spl",
+      "issue": "hpart=tonumber(healthLevel) but HX returns healthLevel as a string (the guide's sample event shows \"healthLevel\": \"GREEN\"), so hlv_m is always 0 after fillnull and the rebuild tiers that require hlv_m>=2 or hlv_m=1 never fire. Map GREEN/YELLOW/RED to numbers first.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0045-UC-19.2.1",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "A long, mostly HyperFlex-specific implementation with a sensible tiering idea, but it misstates the HyperFlex support end date by five years, its troubleshooting section describes fields and lookups that the SPL does not have, the SPL's node-status regex classifies 'unhealthy'/'disconnected'/'inactive' nodes as healthy and its health-level parsing cannot work on the string values HX returns, and it overclaims 'verified, first-class' status. Description, value, KFP and controlTest are template residue and the equipment tags are unrelated.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.1",
+  "verdict": "incorrect"
+}

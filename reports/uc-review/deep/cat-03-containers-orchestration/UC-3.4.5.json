@@ -1,0 +1,135 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "ebd14732c3706c3c76ac772c21967ea7df67f33bb792b3749fd55d2be5f75a2e",
+  "file": "content/cat-03-containers-orchestration/UC-3.4.5.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://goharbor.io/docs/2.10.0/working-with-projects/project-configuration/configure-webhooks/",
+      "explanation": "Harbor webhooks are outbound notifications sent after events occur. Harbor has no inbound validation hook that can reject registry requests, so this lockout design cannot be built.",
+      "field": "detailedImplementation",
+      "quote": "automatically adds them to a **blocked_actors** lookup that a Harbor webhook validation script uses to reject all subsequent requests from that actor",
+      "severity": "blocker",
+      "suggested_fix": "Replace with mechanisms that exist: disable the user or robot account through the Harbor API, or block the source IP at a load balancer or WAF in front of Harbor."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL sets `request_uri=coalesce(request, uri, resource, \"\")`, which overwrites an extracted `request_uri` and ignores it. If readers follow Step 1(2) and do not also extract `request`, every action becomes \"other\" and project is blank. The same step then names `request` and `remote_addr` as the key fields, which contradicts its own list.",
+      "field": "cross_field",
+      "quote": "create **`props.conf`** extractions for the Harbor access log format to produce fields: `client_ip`, `remote_user`, `request_uri`, `http_status`, `user_agent`",
+      "severity": "major",
+      "suggested_fix": "Name one set of extracted fields that matches the SPL coalesce chains (for example `request`, `status`, `remote_user`, `remote_addr`, `http_user_agent`)."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor's `/api/v2.0/audit-logs` records successful resource operations (create, delete, pull) with username, resource and op_time. It has no HTTP status field. The SPL filters harbor:audit on status 401/403, so those events can never match.",
+      "field": "dataSources",
+      "quote": "**`sourcetype=harbor:audit`** (Harbor audit API entries capturing login failures, project-level permission denials, and robot account authentication errors)",
+      "severity": "needs_verification",
+      "suggested_fix": "Check whether the target Harbor version logs failed logins or denials in audit logs. If it does not, drop harbor:audit from this UC or describe it only as a success-side context source."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Harbor's rsyslog container writes one file per component under `/var/log/harbor/`, and the nginx proxy file is normally `proxy.log`. I found no `nginx/access.log` subpath in Harbor's documentation.",
+      "field": "detailedImplementation",
+      "quote": "monitor stanza** targeting `/var/log/harbor/nginx/access.log`",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm the proxy log filename on a Harbor host and use it in the prerequisites, Step 1 and troubleshooting."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Docker Distribution notifications are emitted for manifest and blob push/pull events. The documentation does not describe events for rejected authentication, so this fallback probably yields no failure signal.",
+      "field": "detailedImplementation",
+      "quote": "Failed authentication appears as events with an empty `actor.name` field or missing authorization headers.",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Distribution notifications spec. If failed requests are not notified, use the registry's access log (or the reverse proxy log) for non-Harbor registries instead."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "The SPL uses two AND conditions, (failure_count > 20 AND session_min < 30) for brute force and (projects_targeted > 5 AND action_diversity > 2) for enumeration, not four OR'd thresholds. `ns` and `registry` belong to the separate ImagePullBackOff search.",
+      "field": "description",
+      "quote": "Threshold bundle: `failure_count` > 20, `session_min` < 30, `projects_targeted` > 5, or `action_diversity` > 2; aggregation grain: `actor`, `failure_type`, `ns`, `registry`",
+      "severity": "major",
+      "suggested_fix": "State the two rules as the SPL defines them, with the auth search grouped by actor and failure_type, and the pod-impact search described separately."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "implementation alerts on any ImagePullBackOff in production, while detailedImplementation alerts only when `affected_pods > 3`. The auth search runs over -15m, so the '30 minutes' window in the brute-force rule can never be observed in full.",
+      "field": "cross_field",
+      "quote": "Alert on brute-force patterns (>20 failures in 30 minutes) and on any ImagePullBackOff affecting production namespaces.",
+      "severity": "minor",
+      "suggested_fix": "Use one pod threshold everywhere, and align the schedule window (for example -30m every 15 minutes) with the 30-minute brute-force definition."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "The scenarios are field-name templates. The real benign causes are known and partly listed in troubleshooting: the Docker token-auth 401 challenge on `/v2/`, robot-account credential rotation or expiry, CI jobs with stale imagePullSecrets, and scanners probing private projects.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `actor`, `failure_type`, `ns`, `registry`** — Health checks in `containers` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those causes and give each a concrete exclusion (the `/v2/` challenge with remote_user \"-\", the `known_service_accounts.csv` lookup, rotation windows)."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Denied registry requests are not configuration changes. Authentication fits the 401/login portion. Neither search uses a datamodel.",
+      "field": "cimModels",
+      "quote": "\"Change\"",
+      "severity": "minor",
+      "suggested_fix": "Drop Change and document an Authentication mapping (action=failure, user, src, app=harbor) if CIM is intended."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified by an automated reviewer while the main search would flag every busy registry's anonymous challenge traffic as brute force.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until an SME has tuned the search against real Harbor proxy logs."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://distribution.github.io/distribution/spec/auth/token/",
+      "field": "spl",
+      "issue": "Docker and OCI clients first call `/v2/` without credentials and receive a 401 with a WWW-Authenticate challenge before fetching a token, so every normal pull or push produces a 401. Nothing excludes these: with nginx `remote_user` \"-\" they aggregate into one actor whose failure_count easily exceeds 20 in 30 minutes, making is_brute_force=LIKELY on any active registry. Exclude the bare `/v2/` challenge, or require the 401 on `/service/token` or with a non-empty user.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "In the ImagePullBackOff search, `involvedObject.namespace` and `involvedObject.name` are unquoted in eval, so `.` acts as string concatenation instead of a field reference. `image=coalesce(involvedObject.fieldPath, ...)` uses fieldPath, which holds a container path such as `spec.containers{app}`, not an image, so `registry` is garbage. Quote the field names and take the image from the event message.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The base search mixes implied AND with OR without parentheses. Splunk evaluates OR before AND, so the filter becomes reason=\"Failed\" AND (message matches OR reason=\"ErrImagePull\" OR reason=\"ImagePullBackOff\"), and the ErrImagePull/ImagePullBackOff alternatives can never match. Those are also container waiting reasons; the matching Kubernetes event reasons are Failed and BackOff. Add explicit parentheses and use the real event reasons.",
+      "severity": "minor"
+    },
+    {
+      "field": "spl",
+      "issue": "`/api/v2.0/users/login` is used to classify login attempts. Harbor's portal login posts to a different endpoint (commonly `/c/login`). Check the actual login URI so that `login` failures are classified.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "Two independent searches are concatenated in one field and cannot be pasted and run as a single search.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0101-UC-3.4.5",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The brute-force and enumeration framing suits registry 401/403 analysis. However, the main search does not exclude the normal Docker token-challenge 401 that every client receives. The prose field names do not match the SPL's coalesce chains, and Harbor's audit log and webhooks are credited with failure-tracking and request-blocking abilities they do not have.",
+  "tier": "deep",
+  "uc_id": "UC-3.4.5",
+  "verdict": "incorrect"
+}

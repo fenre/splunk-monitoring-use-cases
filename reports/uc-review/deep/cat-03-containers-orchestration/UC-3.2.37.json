@@ -1,0 +1,153 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "cb1940d2ce46445acdcd9fcf4c09f8966189c4d81a1da4c1058a9cdc72d9cc03",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.37.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/poddisruptionbudget-metrics.md",
+      "explanation": "kube-state-metrics exports only status_current_healthy, status_desired_healthy, status_pod_disruptions_allowed, status_expected_pods, status_observed_generation, created, labels, annotations and deletion_timestamp for PDBs. There is no status_disruptions_allowed alias and no spec_min_available or spec_max_unavailable series, so the weak-policy (fake_policy_flag) logic has no input.",
+      "field": "dataSources",
+      "quote": "kube_poddisruptionbudget_status_pod_disruptions_allowed or kube_poddisruptionbudget_status_disruptions_allowed, kube_poddisruptionbudget_spec_min_available, kube_poddisruptionbudget_spec_max_unavailable",
+      "severity": "blocker",
+      "suggested_fix": "List only the real kube_poddisruptionbudget_* series. Remove the weak-policy claim, or state that minAvailable/maxUnavailable must come from another source, such as kube:objects PDB manifests or audit requestObject."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/tasks/run-application/configure-pdb/",
+      "explanation": "A PodDisruptionBudget may specify only one of minAvailable and maxUnavailable, so the API rejects this manifest and the validation step cannot be done.",
+      "field": "detailedImplementation",
+      "quote": "Synthetic weak policy: apply a budget with spec minAvailable zero and maxUnavailable one hundred percent in lab only",
+      "severity": "blocker",
+      "suggested_fix": "Use two separate lab PDBs, one with minAvailable: 0 and one with maxUnavailable: 100%, and note that the detector needs a spec source other than kube-state-metrics to see them."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/concepts/scheduling-eviction/api-eviction/",
+      "explanation": "Upstream Kubernetes answers a PDB-blocked eviction with HTTP 429 on the eviction subresource; the docs do not describe a core Event with reason EvictionDenied. The signal may exist only from specific tools (for example some node-lifecycle controllers), or not at all.",
+      "field": "dataSources",
+      "quote": "index=k8s sourcetype=kube:events for reason EvictionDenied during voluntary eviction attempts",
+      "severity": "needs_verification",
+      "suggested_fix": "Check which component emits reason=EvictionDenied in your estate. Otherwise, detect blocked evictions from kube:apiserver:audit with objectRef.subresource=eviction and responseStatus.code=429."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12 and models process, service and port inventory, not Kubernetes PDB gauges. Performance (CPU and memory) is used only as a discarded correlation tick. Neither model fits this signal, and the cimModels field, dataModelAcceleration and the Step 1 rationale all repeat the mismatch.",
+      "field": "cimModels",
+      "quote": "CIM mapping uses Application_State because a protected workload is an application-level availability object",
+      "severity": "blocker",
+      "suggested_fix": "Drop Application_State and Performance from cimModels and remove the rationale paragraph. State that the detection is metrics-native, with no CIM model."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "clarity",
+      "explanation": "One paragraph runs more than fifty 'verify ...' clauses, most unrelated to PDBs (webhooks, certificate rotation, Unicode normalisation, product-management digests). Similar filler notes ('Operator wellbeing note', 'Executive storytelling note') hide the actionable steps.",
+      "field": "detailedImplementation",
+      "quote": "Platform onboarding checklist for new clusters: verify kube-state-metrics version, verify Splunk OTel chart version, verify HEC endpoint health, ... verify synthetic monitoring uptime checks complement but do not replace kube-state-metrics truth.",
+      "severity": "major",
+      "suggested_fix": "Replace the run-on checklist with five to eight PDB-specific prerequisites, and delete the generic 'note' paragraphs from Step 5."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "PDBs select pods by label regardless of the controller. 'Partition' is a StatefulSet rolling-update setting, not a kind of budget. The real limitation is that the governance join maps budgets only to Deployments.",
+      "field": "exclusions",
+      "quote": "Does not fully cover StatefulSet-specific partition budgets",
+      "severity": "minor",
+      "suggested_fix": "Say that the replica join covers Deployments only, and that StatefulSet-owned pods need an extra kube_statefulset_replicas arm."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/poddisruptionbudget-metrics.md",
+      "explanation": "The PDB metrics page is under docs/metrics/policy/, not docs/metrics/workload/. The GKE link is a generic how-to index rather than a PDB page.",
+      "field": "references",
+      "quote": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/",
+      "severity": "minor",
+      "suggested_fix": "Link https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/poddisruptionbudget-metrics.md, and either replace the GKE link with a PDB-specific page or remove it."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The entries are template filler; none names a real PDB false-positive cause.",
+      "field": "knownFalsePositives",
+      "quote": "**Synthetic probe on `cluster`, `namespace`, `pdb`, `]`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List real causes: a rolling update temporarily lowering current_healthy; single-replica workloads where minAvailable=1 always yields zero disruptions allowed; intentional zero-disruption budgets on singleton databases; a scrape gap making a PDB look missing; selector overlap where several PDBs match one pod (eviction returns 500)."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP equipment, and the 'snmp' equipment tag, have nothing to do with Kubernetes PodDisruptionBudget compliance.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "major",
+      "suggested_fix": "Keep kubernetes_k8s only, and remove snmp from equipment."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the SPL cannot run, it depends on non-existent metrics, and one validation step uses an invalid manifest. There is no evidence of SME sign-off.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL and the metric names have been lab-tested."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The table command projects 18 columns.",
+      "field": "detailedImplementation",
+      "quote": "The closing table lists sixteen analyst columns exactly as named in the implementation contract.",
+      "severity": "minor",
+      "suggested_fix": "Say the table has 18 columns, or drop the count."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/9.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch is a generating command that must come first. Here it follows the comment macro, eval, join and fields; it wraps its subsearches in an extra pair of brackets; and each subsearch ends in stats, which multisearch does not allow because it accepts only streaming subsearches. The search will not parse.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/policy/poddisruptionbudget-metrics.md",
+      "field": "spl",
+      "issue": "The arms for kube_poddisruptionbudget_spec_min_available, kube_poddisruptionbudget_spec_max_unavailable and status_disruptions_allowed query series that kube-state-metrics does not export. spec_min_available is defaulted to -1 and spec_max_unavailable_pct to 0, so fake_policy_flag can never fire.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "streamstats window=3 BY cluster namespace pdb runs after stats has already collapsed each PDB to one row, so ch_first always equals ch_last and churny_deficit is always 0. Cluster is lower()-cased in the append governance lane but not in the main lane, so the two lanes can disagree. The Performance tstats join result is discarded.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/common-information-model/6.2/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "Application_State is deprecated, and its root dataset is All_Application_State. Performance's root is All_Performance, so 'nodename=Application_State' and 'nodename=Performance.CPU' and the Application_State.* and Performance.* field prefixes are invalid. The models also do not represent PDB state.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0058-UC-3.2.37",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The PDB headroom idea is sound, but the UC depends on kube-state-metrics series that do not exist (PDB spec min/max metrics and a disruptions_allowed alias). It also prescribes an impossible PDB in validation, uses a CIM mapping that does not fit, and buries the guidance in a very long run-on checklist. The SPL cannot run as written.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.37",
+  "verdict": "incorrect"
+}

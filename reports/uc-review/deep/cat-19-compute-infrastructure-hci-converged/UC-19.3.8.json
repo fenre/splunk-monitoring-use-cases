@@ -1,0 +1,101 @@
+{
+  "confidence": 0.7,
+  "content_sha256": "458f045bffb4ff479b229aa11e29c2577dd4b5d24f107d37e8b0a90aa8472b19",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.3.8.json",
+  "findings": [
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_url": "https://pve.proxmox.com/wiki/Proxmox_Cluster_File_System_(pmxcfs)",
+      "explanation": "pmxcfs is mounted at /etc/pve and stores all PVE configuration, including user.cfg and domains.cfg, on every host. A node can run 'in local mode' outside a cluster. Standalone nodes also run pveproxy on 8006 and are equally exposed to login sprays, so excluding them has no technical basis.",
+      "field": "exclusions",
+      "quote": "standalone hypervisor nodes not joined to a cluster (no /etc/pve corosync filesystem)",
+      "severity": "major",
+      "suggested_fix": "Remove the standalone-node exclusion. If scope must be narrowed, base it on something real, such as nodes whose 8006 port is not reachable from untrusted networks."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "pveproxy is Proxmox's own Perl HTTP daemon, not Apache httpd. Exchange and Hyper-V are unrelated, and CI tools named in an allow-list example are not monitored equipment. These tags misroute the UC in equipment filters.",
+      "field": "equipment",
+      "quote": "\"ansible\", \"apache\", \"exchange\", \"gitlab\", \"hashicorp\", \"hyperv\", \"jenkins\", ... \"equipmentModels\": [\"apache_httpd\", \"hashicorp_terraform\", \"hashicorp_vault\"]",
+      "severity": "major",
+      "suggested_fix": "Keep proxmox, linux and optionally syslog. Remove apache, exchange, hyperv, ansible, gitlab, hashicorp, jenkins and the apache_httpd/hashicorp_* models."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "Failed PVE logins are normally written to the journal/syslog by pvedaemon as 'authentication failure; rhost=... user=... msg=...', not by pveproxy to auth.log. In access.log, failed POST /access/ticket rows carry '-' as the user, so per-user grouping in the main search mostly collapses to '-'.",
+      "field": "dataSources",
+      "quote": "**`linux_secure`** **`/var/log/auth.log`** lines referencing **`pveproxy`** PAM failures",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm on PVE 8 where 'authentication failure' lines are logged (journalctl -u pvedaemon). Document that channel as the source of the attempted username, and say that access.log alone gives client IP and status, not the attempted principal."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 833 is titled 'Splunk Add-on for Unix and Linux'. The detailedImplementation's mention of a 'Splunk_TA_unix' rename history is also unexplained.",
+      "field": "app",
+      "quote": "**Splunk Add-on for Linux** (**Splunk_TA_nix**, [Splunkbase 833](https://splunkbase.splunk.com/app/833))",
+      "severity": "minor",
+      "suggested_fix": "Use the exact name 'Splunk Add-on for Unix and Linux (Splunk_TA_nix)' and drop the Splunk_TA_unix remark."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "Proxmox VE 6.x reached end of life in mid-2022. Mid-2024 is when Debian 10 LTS ended, so the two dates are conflated.",
+      "field": "exclusions",
+      "quote": "legacy PVE 6.x (Debian 10 Buster, end-of-life mid-2024)",
+      "severity": "minor",
+      "suggested_fix": "Check the Proxmox VE roadmap/EOL table and state the PVE 6.4 EOL date correctly."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "Proxmox uses 596 mainly when pveproxy cannot reach another cluster node while proxying a request (connection timed out or refused), not specifically for the local pvedaemon socket.",
+      "field": "detailedImplementation",
+      "quote": "Persistent HTTP **596** codes indicate **pvedaemon** outages or exhausted UNIX sockets",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the 596 semantics in Proxmox forum or staff documentation and reword to 'proxy-to-node or backend connection failure'."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the reviewer is an automated agent with no SME sign-off.",
+      "field": "cross_field",
+      "quote": "\"status\": \"verified\" ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft until a Proxmox SME validates the search against real access.log samples."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "field": "spl",
+      "issue": "realm_suffix and automation_lane are derived from http_user, which in pveproxy access.log is '-' for unauthenticated (failed) ticket requests. Most failure rows therefore land in 'missing_identity_token' / 'pre_ticket_probe_or_cookie_rotation', and per-principal grouping adds little. Correlate with pvedaemon 'authentication failure' syslog lines to get the attempted user.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort client_ip_nat http_user burst_bin` without a count keeps only 10,000 rows by default, so the streamstats baseline silently truncates during large sprays. Use `sort 0`.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:46Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0087-UC-19.3.8",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 3,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The pveproxy access-log detection is plausible and the SPL is syntactically sound. However, the UC excludes standalone nodes on a false premise, attaches many unrelated equipment tags (Exchange, Hyper-V, Vault, Apache), and leans on http_user in access.log, which is '-' for failed ticket requests. Several Proxmox facts (the 596 meaning, the PVE 6 EOL date, where auth failures are logged) need correcting or checking.",
+  "tier": "deep",
+  "uc_id": "UC-19.3.8",
+  "verdict": "rewrite"
+}

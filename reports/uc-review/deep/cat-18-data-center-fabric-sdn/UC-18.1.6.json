@@ -1,0 +1,145 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d3cb53c7346f84a8b637005d35ded222aebb0bc716d85b66dbdc1f4f771a20c2",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.6.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is the Metricator Nmon HEC add-on. The Cisco ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated), and its successor is Cisco DC Networking (Splunkbase 7777). The wrong ID is repeated in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**)",
+      "severity": "blocker",
+      "suggested_fix": "Reference Cisco DC Networking (Splunkbase 7777), with TA_cisco-ACI 1897 noted as legacy, and remove the 4022 links."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://attack.mitre.org/techniques/T1499/001/",
+      "explanation": "T1499.001 is 'Endpoint Denial of Service: OS Exhaustion Flood', which exhausts host OS resources. Link-level traffic floods on fabric interfaces map to T1498 (Network Denial of Service), for example T1498.001 Direct Network Flood.",
+      "field": "detailedImplementation",
+      "quote": "MITRE ATT&CK **T1499.001** (endpoint denial of service—flooding): annotate hunts where `drop_forwarding_pkts` spikes correlate with asymmetric `bytes_ingress_5min` storms",
+      "severity": "blocker",
+      "suggested_fix": "Describe the technique correctly. If the mapping is kept, align it with T1498.001 (the mitreAttack field change is for a human editor)."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The /api/node/class/ endpoint takes a class name, not a DN, so a DN-shaped path will not resolve. A DN must go through /api/node/mo/. 'HCounters5min' is also not a recognisable APIC stats class; historical interface stats are HDeqptIngrTotal5min-style objects under the interface DN.",
+      "field": "dataSources",
+      "quote": "**`/api/node/class/topology/pod-{id}/node-{id}/sys/phys-[eth1/X]/HCounters5min.json`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Use /api/node/mo/topology/pod-{id}/node-{id}/sys/phys-[eth1/X].json?rsp-subtree-include=stats with the confirmed class names, or class queries such as /api/node/class/eqptIngrTotal5min.json."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "These do not match known ACI MIM classes. Optical DOM readings normally come from ethpmFcot / ethpmDOM*Stats (rx/tx power, temperature), vPC state from vpcIf/vpcDom, and link state from l1PhysIf/ethpmPhysIf. The drop attributes 'bufferPkts / forwardingPkts / errorPkts / afdWredPkts' also differ from the documented *Cum / *Last attribute naming on eqptIngrDropPkts5min.",
+      "field": "dataSources",
+      "quote": "**`vpcMbrEpg`**, **`eqptDdiPDp`**, **`l1RtdConfig`**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each class and attribute in the APIC Management Information Model reference, and replace any that do not exist."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "ETHPORT-5-IF_* are NX-OS standalone mnemonics. ACI-mode switches send syslog in the APIC %LOG_LOCAL<n>-<sev>-SYSTEM_MSG format with fault and event codes. INTERFACE-3-IF_INPUT_DROP and OPTICS-3-OPTICAL_RX_LOW look invented. Step 6's link-flap paging relies on them.",
+      "field": "dataSources",
+      "quote": "**ETHPORT-5-IF_DOWN**, **ETHPORT-5-IF_UP**, **INTERFACE-3-IF_INPUT_DROP**, **OPTICS-3-OPTICAL_RX_LOW**",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace these with the ACI fault and event codes for port down/up and DOM thresholds (check the ACI System Messages Reference)."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "ACI port-channel and LACP members are peers (bundled or hot-standby) with no primary/secondary role, and pcRsMbrIfs is a relation object that carries no role attribute. Two-member primary/secondary skew also does not generalise to channels with 4 or 8 members.",
+      "field": "detailedImplementation",
+      "quote": "`pcRsMbrIfs` exposes `**member_role**` (primary, secondary) enabling imbalance ratios",
+      "severity": "needs_verification",
+      "suggested_fix": "Compute imbalance from per-member bytes, for example (max - min) / avg across all members sharing a pc_id, and drop the primary/secondary notion."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "Healthy short-reach multimode optics commonly receive between about -1 and -8 dBm per lane, and vendor low-RX warning thresholds are usually around -9 to -12 dBm. A fixed -7 dBm floor would flag many healthy links. The transceiver's own DOM warning and alarm thresholds are the authoritative limits.",
+      "field": "detailedImplementation",
+      "quote": "flag `optical_rx_power_dbm < -7` dBm warning heuristic",
+      "severity": "needs_verification",
+      "suggested_fix": "Compare rx power against the DOM low-warning threshold reported per transceiver (or a per-SKU lookup) instead of a global -7 dBm."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/datacenter-fabric-sdn.md",
+      "explanation": "Five-minute interface counters are not flow records with src/dest/transport, so Network_Traffic does not fit. The guide reserves Network_Traffic for flow sources. Performance (Network dataset) is the right home for interface throughput.",
+      "field": "cimModels",
+      "quote": "\"Network_Traffic\",\n    \"Performance\"",
+      "severity": "major",
+      "suggested_fix": "Keep Performance only and update the schema text."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "overclaiming",
+      "explanation": "These are invented artifacts presented as evidence, and 'uc1816' does not match this UC's ID.",
+      "field": "evidence",
+      "quote": "Saved search **`aci_uc1816_phys_iface_saturation`** ... Dashboard Studio workbook **`ds_aci_phys_iface_health.json`**",
+      "severity": "major",
+      "suggested_fix": "Describe what is retained, for example alert results with node_id, phys_if_id, util_pct, drop_rate and rx power per window."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "These invented service targets are not supported by the detection and add nothing an implementer can act on.",
+      "field": "detailedImplementation",
+      "quote": "MTBF target ≥720 hours between actionable fabric-interface saturation pages ... **MTTR** target ≤45 minutes",
+      "severity": "major",
+      "suggested_fix": "Remove the MTBF/MTTR figures."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "APIC built-in roles include read-all, ops, fabric-admin and tenant-admin. There is no 'network-admin' role. The text also mentions a 'Splunk Add-on for SNMP' and an NDI '/sedgeapi/v1/site_health' endpoint, which I could not confirm.",
+      "field": "detailedImplementation",
+      "quote": "RBAC scopes covering `network-admin` read paths without `aaa` mutation privileges",
+      "severity": "needs_verification",
+      "suggested_fix": "Name an existing APIC role (for example read-all on the fabric/infra security domain), and verify the SNMP collector and the NDI API path."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Eval",
+      "field": "spl",
+      "issue": "'| eval risk_iface=util_pct>=75 OR drop_rate>=0.5 OR ...' assigns a boolean expression to a field. Splunk eval rejects this ('Fields cannot be assigned a boolean result'), so the search errors before producing results. Use if(<cond>,1,0).",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The hard-coded optical_rx_power_dbm<-7 threshold and the primary/secondary member_role skew logic depend on assumptions that are probably wrong (see findings). The syslog lane is filtered in and then immediately dropped by 'where layer!=\"syslog\"', so the syslog clauses are dead code.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://attack.mitre.org/techniques/T1499/001/",
+      "field": "mitreAttack",
+      "issue": "T1499.001 is OS Exhaustion Flood (host resource exhaustion). Interface-level traffic floods correspond to T1498 / T1498.001.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0019-UC-18.1.6",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The utilization and drop-rate logic is reasonable, but the SPL will not run as written (eval assigns a boolean), the add-on ID is wrong, and several APIC classes, API paths and syslog mnemonics look invented. The port-channel 'primary/secondary member' model and the -7 dBm optics threshold do not match how ACI port-channels and optics behave.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.6",
+  "verdict": "incorrect"
+}

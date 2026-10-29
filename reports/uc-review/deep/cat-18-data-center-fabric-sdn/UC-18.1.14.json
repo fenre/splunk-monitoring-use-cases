@@ -1,0 +1,146 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "d882873da9eb1c1fff7852d114047288301f151405b10df59f8bb47342f66006",
+  "file": "content/cat-18-data-center-fabric-sdn/UC-18.1.14.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "Splunkbase 4022 is 'Technical Addon for the Metricator application for Nmon (HEC)'. The ACI add-on is TA_cisco-ACI (Splunkbase 1897, deprecated in favour of Cisco DC Networking, Splunkbase 7777). The ID repeats in dataSources, implementation, detailedImplementation and references.",
+      "field": "app",
+      "quote": "**Splunk_TA_cisco-aci** ([Splunkbase **4022**](https://splunkbase.splunk.com/app/4022), package **`Splunk_TA_cisco-aci`**)",
+      "severity": "blocker",
+      "suggested_fix": "Cite Cisco DC Networking (7777) as the supported collector, with TA_cisco-ACI (1897, deprecated) as legacy, and remove every 4022 reference."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-centric-infrastructure-simulator/222919-troubleshoot-and-verify-the-fabric-with.html",
+      "explanation": "APIC's bgpPeerEntry exposes operSt, addr, holdIntvl and kaIntvl, not state, peerAddr, holdTime or keepalive. Prefix counters live on the bgpPeerAfEntry child, not bgpPeerEntry. detailedImplementation Step 1(2) repeats the invented names.",
+      "field": "dataSources",
+      "quote": "**`bgpPeerEntry`** JSON (**peerAddr**, **peerAsn**, **state**, **prefixesReceived**, **prefixesSent**, **holdTime**, **keepalive**, **localAsn**)",
+      "severity": "blocker",
+      "suggested_fix": "List the real attributes (operSt, addr, holdIntvl, kaIntvl, plus the bgpPeerAfEntry prefix counters after checking the MIM), and state that the session-state field is operSt."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "evidence_url": "https://www.cisco.com/c/en/us/td/docs/switches/datacenter/aci/apic/sw/all/syslog/guide/b_ACI_System_Messages_Guide/m-aci-f0x-messages.html",
+      "explanation": "Those are IOS/NX-OS-style mnemonics, while ACI syslog carries APIC fault and event records. The documented 'BGP peer not established' fault is F0299 (fltBgpPeerEntryFailed). I could not confirm F0608 or F1126 as BGP or vrfdomain faults.",
+      "field": "dataSources",
+      "quote": "capturing **BGP-5-ADJCHANGE**, **BGP-3-NOTIFICATION**, **OSPF-5-ADJCHG**, faults **F0608**, **F1126**",
+      "severity": "needs_verification",
+      "suggested_fix": "Replace F0608 with F0299 for BGP peer state, look F1126 up in the ACI System Messages Reference, and say which syslog format ACI actually emits for adjacency changes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/CIM/latest/User/NetworkTraffic",
+      "explanation": "Network_Traffic models flow and firewall traffic records (src, dest, bytes, action). BGP/OSPF session state and prefix counts are control-plane status, which the rubric explicitly treats as a poor fit for Network_Traffic. The schema field repeats the mapping.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\"Network_Traffic\", \"Alerts\"]",
+      "severity": "blocker",
+      "suggested_fix": "Remove Network_Traffic and keep only Alerts if faults are actually mapped there, or leave cimModels empty and say the search runs on raw sourcetypes."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL pages unconditionally on hp<95 and wd_peak>=400; 250-399 withdrawals page only when not suppressed, and health 95-99 never pages. The description, the controlTest and the 'Correlation cues' paragraph all say <100 and >=250.",
+      "field": "cross_field",
+      "quote": "description: \"alerting when `health_pct` < 100, `withdrawn_burst` >= 250 ...\"; SPL final filter: \"hp<95 OR wd_peak>=400 OR ... (suppress_hold=0 AND (mw=1 OR ml=1))\"",
+      "severity": "major",
+      "suggested_fix": "Describe the two tiers the SPL implements: health below 95 or 400+ withdrawals always, and 250+ withdrawals or same-prefix flaps only outside maintenance lanes."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "withdrawn_burst, flap_same_pfx and prefix_gap_pct, which the detection keys on, come from a bespoke script whose algorithm, inputs and baseline are never defined, so nobody could reproduce the fields. The gap baseline is said to come from l3out_expected_prefixes, yet the SPL reads gap_pct from the event and takes only maint_lane/upstream_note from that lookup.",
+      "field": "detailedImplementation",
+      "quote": "Author scripted `sourcetype=cisco:aci:l3out_prefix` polls merging `bgpRoute`, `ospfDb`, `rtctrlSubjP` permit tallies into learned versus advertised counters",
+      "severity": "major",
+      "suggested_fix": "Specify how each derived field is computed (which MO, which delta, over what window), and either compute gap_pct in SPL against the lookup or say where the script gets its baseline."
+    },
+    {
+      "confidence": 0.55,
+      "dimension": "correctness",
+      "explanation": "staticRoute, vpcRsLifP and l3ifInst do not match APIC class names I know of. Static routes are ipRouteP/ipNexthopP, and L3Out path attachments are l3extRsPathL3OutAtt.",
+      "field": "implementation",
+      "quote": "**staticRoute**, **vpcRsLifP**, **pcAggrIf**, **l3ifInst**",
+      "severity": "needs_verification",
+      "suggested_fix": "Check each class in the APIC MIM and replace or remove the ones that do not exist."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "vsh_lc is the line-card shell used for hardware programming. BGP neighbour state is shown from the leaf supervisor CLI (show bgp ipv4 unicast neighbors <peer> vrf <tenant>:<vrf>).",
+      "field": "detailedImplementation",
+      "quote": "Leaf CLI `vsh_lc -c \"show bgp ipv4 unicast neighbor <peer>\"`",
+      "severity": "minor",
+      "suggested_fix": "Use the leaf CLI form with the vrf argument and drop vsh_lc."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "explanation": "This link points to the Cisco homepage, and the 4022 reference links to an Nmon add-on.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco APIC Layer 3 Networking Configuration Guide (Release 6.0(x))\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "major",
+      "suggested_fix": "Link the actual APIC Layer 3 Networking Configuration Guide 6.0(x) page, and replace the 4022 link with app 7777 or 1897."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "grandma_fidelity",
+      "explanation": "This is a data-centre fabric border, not a campus, and 'upstream caretaker churn' is unclear.",
+      "field": "grandmaExplanation",
+      "quote": "the paths packets take when traffic leaves campus",
+      "severity": "minor",
+      "suggested_fix": "Say: 'We watch the routes the data centre exchanges with outside networks and warn when those connections drop or many routes disappear at once.'"
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "overclaiming",
+      "explanation": "An automated agent marked the UC verified, with no SME sign-off, while the attribute names it depends on are wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\", ... \"reviewer\": \"agent-handcraft-2026-04-29\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft/unverified until an SME confirms the fields against live bgpPeerEntry/ospfAdjEp output."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://www.cisco.com/c/en/us/support/docs/cloud-systems-management/application-centric-infrastructure-simulator/222919-troubleshoot-and-verify-the-fabric-with.html",
+      "field": "spl",
+      "issue": "`bgp_state_lc=coalesce(state,bgp_state,session_state)` and `peer_ip=coalesce(peerAddr,peer_ip,nbr_ip)` omit the real bgpPeerEntry attributes operSt and addr. On a native bgpPeerEntry feed, bgp_state_lc and peer_ip are null, so risk_bgp_down never fires and rows lose their peer key. The same applies to ospf_adj_lc, which lacks ospfAdjEp operSt.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The OSPF down regex uses '2way' and 'init'. APIC ospfAdjEp states are spelled out (for example two-way, initializing), so '2way' never matches. Verify the enumeration.",
+      "severity": "needs_verification"
+    },
+    {
+      "field": "spl",
+      "issue": "The syslog filter keys on IOS-style mnemonics (BGP-5-ADJCHANGE, OSPF-5-ADJCHG) and F0608/F1126 rather than the documented BGP peer fault F0299.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:11:53Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0005-UC-18.1.14",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 3,
+    "specificity": 3
+  },
+  "summary": "L3Out border-routing coverage is a good idea, but the UC gives invented bgpPeerEntry attribute names that the SPL then depends on, names the wrong Splunkbase add-on, and maps BGP/OSPF session state to CIM Network_Traffic. Thresholds also disagree between the prose and the final filter.",
+  "tier": "deep",
+  "uc_id": "UC-18.1.14",
+  "verdict": "incorrect"
+}

@@ -1,0 +1,134 @@
+{
+  "confidence": 0.8,
+  "content_sha256": "12d9b00d9ea20ed5255fa55242284215158ab478df79cbd7b42fbd5d7f682855",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.20.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "explanation": "The Cisco Intersight Add-on for Splunk publishes a fixed set of sourcetypes: alarms, auditrecords, compute, fabric, network, networkelements, profiles, pools, targets, contracts, advisories, licenses, metrics, custom:inventory and custom:metrics. There is no `firmwarerunningfirmware`, `computephysicalsummary`, `hclstatus`, `firmwaredistributable` or `firmwarepolicy` sourcetype.",
+      "field": "dataSources",
+      "quote": "each Intersight class maps to a lowercased sourcetype prefix `cisco:intersight` plus the MO name without dots",
+      "severity": "blocker",
+      "suggested_fix": "Explain that running-firmware data comes from a custom inventory input (sourcetype `cisco:intersight:custom:inventory`, filtered on `ObjectType=\"firmware.RunningFirmware\"`) or from whichever add-on sourcetype carries it. Use `cisco:intersight:compute` for model and serial."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://www.rubydoc.info/gems/intersight_client/IntersightClient/FirmwareRunningFirmware",
+      "explanation": "firmware.RunningFirmware exposes Component, PackageVersion, Type and Version, plus relationships to BiosUnit, ManagementController, StorageController, StoragePhysicalDisk, NetworkElements, PciSwitch, GraphicsCard and RegisteredDevice. It has no `Server` relationship and no `Mode` property. The server join key described here does not exist.",
+      "field": "detailedImplementation",
+      "quote": "The FirmwareRunningFirmware stream carries nested relationship objects: Server.Moid, Server.Name, and Component, Version, Mode, and PackageVersion matter for joins.",
+      "severity": "blocker",
+      "suggested_fix": "Derive the owning server from `Ancestors`/`Parent` or `RegisteredDevice.Moid`, after confirming the shape in a raw event."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The stanza scheme and the `mo_class_filter`/`sourcetype_prefix` keys are presented as reference config but are not documented add-on settings. The passwords.conf example (`[credential::...]` with `api_key_id`/`secret_key`) is not valid passwords.conf syntax either. Readers will copy these.",
+      "field": "detailedImplementation",
+      "quote": "[intersight://intersight_prod_account]\\naccount = intersight_prod_account\\nendpoint = https://intersight.com/api/v1\\nmo_class_filter = ... sourcetype_prefix = cisco:intersight",
+      "severity": "major",
+      "suggested_fix": "Remove the invented stanzas and point readers to the add-on's Configuration and Inputs pages (account plus inventory/custom inventory input), as described in the Cisco Intersight Add-on user guide."
+    },
+    {
+      "dimension": "correctness",
+      "evidence_url": "https://www.rubydoc.info/gems/intersight_client/IntersightClient/FirmwareRunningFirmware",
+      "explanation": "`Component` describes the image kind (boot-loader, system, kernel), and the hardware class is in `Type`. The sample CSV keys BIOS and BMC rows on `component`, so those rows never match the lookup.",
+      "field": "detailedImplementation",
+      "quote": "normalise component labels to match the Component or Type you see in firmwarerunningfirmware (examples: system, BIOS, BMC, IOM, adapter, storage-controller, disk)",
+      "severity": "major",
+      "suggested_fix": "Key the baseline on `Type` (hardware class) plus `Component` (image kind), using values taken from real events."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "`_indextime` is not a valid timestamp source field. Overriding the add-on's own sourcetype parsing with INDEXED_EXTRACTIONS and TRUNCATE=0 is risky, and it is presented without reference to how the add-on already parses its data.",
+      "field": "detailedImplementation",
+      "quote": "TIMESTAMP_FIELDS = ModTime,ModifiedTime,_indextime\\n...\\nINDEXED_EXTRACTIONS = json\\nKV_MODE = none\\n...\\nTRUNCATE = 0",
+      "severity": "minor",
+      "suggested_fix": "Drop the props override and rely on the add-on's shipped parsing. Add search-time FIELDALIAS only where needed."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "The detection compares a running-firmware snapshot with a lookup. It is not a Change event, and it never uses the Inventory data model. No cimSpl backs either claim.",
+      "field": "cimModels",
+      "quote": "\"Change\", \"Inventory\"",
+      "severity": "major",
+      "suggested_fix": "Leave cimModels empty unless a CIM-mapped search path is actually provided."
+    },
+    {
+      "dimension": "consistency",
+      "explanation": "Sibling UC-19.1.19 states 1000 requests per hour for the same API. Neither figure is sourced.",
+      "field": "detailedImplementation",
+      "quote": "plan for roughly 100 requests per minute per account as a design guardrail",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite Cisco's published Intersight API rate limits and use the same value in both UCs."
+    },
+    {
+      "dimension": "correctness",
+      "explanation": "Cisco's B-Series blade line appears to end at B200 M6, with X-Series succeeding it. The CSV row `UCSB-B200-M7` and the FI 6332 version string `9.3(5)I43(7c)` also look invented.",
+      "field": "hardware",
+      "quote": "Cisco UCS B200 M5 through M7 blades",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the B-Series model list and the FI firmware version strings against Cisco data sheets and release notes, and remove any model or version that does not exist."
+    },
+    {
+      "dimension": "specificity",
+      "explanation": "Redis has nothing to do with Intersight firmware compliance.",
+      "field": "equipment",
+      "quote": "\"redis\"",
+      "severity": "minor",
+      "suggested_fix": "Remove `redis` from equipment."
+    },
+    {
+      "dimension": "overclaiming",
+      "explanation": "The sourcetype and join key do not exist in the product, so the search cannot have been verified against real data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the search is validated against live add-on data."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/get-data-in/get-started-with-getting-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "field": "spl",
+      "issue": "`sourcetype=\"cisco:intersight:firmwarerunningfirmware\"` and `cisco:intersight:computephysicalsummary` are not sourcetypes published by the Cisco Intersight Add-on for Splunk, so the base search and the join subsearch both return nothing.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://www.rubydoc.info/gems/intersight_client/IntersightClient/FirmwareRunningFirmware",
+      "field": "spl",
+      "issue": "`server_moid = coalesce('Server.Moid', server_moid, ServerMoid, parent_moid)` reads fields that firmware.RunningFirmware does not have. `server_moid` is therefore null, and `stats ... by server_moid, server_name, component` drops every event.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "`sort +severity_bucket` sorts alphabetically (critical, high, low, medium), not by severity. `hcl_outdated` is computed from the lookup's end_of_support_date, not from HCL status, so the name is misleading.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://www.intersight.com/an/operate/server/<moid",
+      "field": "spl",
+      "issue": "Check that the drilldown pattern `https://www.intersight.com/an/operate/server/<moid>/inventory/system` is a valid Intersight UI deep link.",
+      "severity": "needs_verification"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0013-UC-19.1.20",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "A long, confident implementation built on invented plumbing. The Cisco Intersight add-on does not publish per-class sourcetypes such as `cisco:intersight:firmwarerunningfirmware`. firmware.RunningFirmware has no `Server` relationship, so the `server_moid` key the SPL groups on is always null. The inputs.conf, props.conf and passwords.conf examples use made-up keys.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.20",
+  "verdict": "incorrect"
+}

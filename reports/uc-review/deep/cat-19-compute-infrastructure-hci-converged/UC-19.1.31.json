@@ -1,0 +1,168 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "26a8621e3ebdc416e7bf0f55072ab6c5126e430678ca7420c5d8ba89070eb043",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.1.31.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://raw.githubusercontent.com/cisco/cisco-mibs/main/ucs-mibs/CISCO-UNIFIED-COMPUTING-MGMT-MIB.my",
+      "explanation": "mgmt:If is the FI management interface (IP, mask, gateway, MAC, ifRole as a network port role). It has no primary/subordinate attribute. HA leadership is exposed by mgmt:Entity at sys/mgmt-entity-A and sys/mgmt-entity-B, through the attributes leadership, haReady, haReadiness, haFailureReason and state. Because of this, every role-based branch of the UC's logic is built on a field that UCSM does not emit.",
+      "field": "dataSources",
+      "quote": "`mgmtIf` (per-Fabric Interconnect `role` primary/subordinate on `sys/switch-A|B/mgmt/…` DNs)",
+      "severity": "blocker",
+      "suggested_fix": "Use classId=mgmtEntity (dn sys/mgmt-entity-A|B) with leadership (primary/subordinate), haReady and haFailureReason as the authoritative HA source. Keep mgmtIf only for vIP/management-IP context."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://metacpan.org/pod/Cisco::UCS::MgmtEntity",
+      "explanation": "This prerequisite repeats the incorrect mgmtIf role claim as an authoritative 'not object_type=fi_cluster' correction. The Step 5 advice to widen the sys/switch-b/mgmt/ match when roles show 'absent' will not fix the problem, because the attribute does not exist on that class.",
+      "field": "detailedImplementation",
+      "quote": "The `role` field on those mgmtIf rows is the operational primary versus subordinate pair you compare in this UC.",
+      "severity": "blocker",
+      "suggested_fix": "Rewrite the prerequisite around mgmtEntity: sys/mgmt-entity-A|B with leadership, haReady and haFailureReason. Replace the Step 5 'roles stick at absent' bullet with a check that mgmtEntity is included in the add-on template."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "explanation": "The Splunk Add-on for Cisco UCS writes all polled classes, including faultInst, with sourcetype cisco:ucs and source cisco:ucs:<classId>. cisco:ucs:inventory and cisco:ucs:faults are not emitted, so searches keyed on them return nothing. The detailedImplementation also mentions cisco:ucs:stats, which is likewise not a real sourcetype.",
+      "field": "dataSources",
+      "quote": "The **Cisco UCS** modular **inputs** in `Splunk_TA_cisco_ucs` (HTTPS to UCSM) pull `cisco:ucs:inventory` and `cisco:ucs:faults`",
+      "severity": "blocker",
+      "suggested_fix": "Use `sourcetype=cisco:ucs source=\"cisco:ucs:mgmtEntity\" OR source=\"cisco:ucs:topSystem\"` and `source=\"cisco:ucs:faultInst\"` throughout dataSources, description, value, implementation, knownFalsePositives, controlTest and detailedImplementation."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "This is backwards. The add-on's app directory is Splunk_TA_cisco-ucs (hyphen). The statement will push administrators to look for, or create, a non-existent folder.",
+      "field": "app",
+      "quote": "The on-disk app id uses an underscore; hyphenated old bundles are filenames only.",
+      "severity": "blocker",
+      "suggested_fix": "Change it to: app directory `Splunk_TA_cisco-ucs` (Splunkbase 2731). Remove the sentence about underscores and filenames."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/ConfigureInputs/",
+      "explanation": "The add-on does not ship a cisco_ucs:// stanza. Collection is configured as Managers (UCSM hosts), Templates (class-ID lists) and Inputs (manager + template + interval + index + sourcetype). It is not configured as 'inventory-style' and 'faults' modular inputs under Settings → Data inputs.",
+      "field": "detailedImplementation",
+      "quote": "# Example: copy a real cisco_ucs:// stanza from Splunk_TA_cisco_ucs default/inputs.conf",
+      "severity": "major",
+      "suggested_fix": "Describe the add-on's Configuration → Managers / Templates / Inputs flow, with a template containing topSystem and mgmtEntity (plus faultInst if wanted), and remove the inputs.conf stanza example."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "No source is given for an 'E4196xxx' HA-transition code family or for a cisco:ucs:syslog sourcetype. The add-on's documented sourcetype is cisco:ucs. UCSM HA problems usually surface as mgmtEntity-related faults (F-codes), not as an E419 prefix. The UC hedges with 'sample to confirm' but builds its election counter on this family anyway.",
+      "field": "dataSources",
+      "quote": "`cisco:ucs:syslog` for HA transition lines with `code` values in the E4196xxx–class family (sample five real events in your build to lock the exact prefix)",
+      "severity": "needs_verification",
+      "suggested_fix": "Cite a Cisco faults/events reference for the exact HA fault or event codes (for example, management-entity faults whose affectedDN is sys/mgmt-entity-*), or remove the code filter and count leadership changes from mgmtEntity polls instead."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL has no by-clause at all, so there is no entity grouping. Every UCSM domain in the index collapses into one row. Implementation also says to throttle on 'the UCSM FQDN', but no host field survives the final table.",
+      "field": "description",
+      "quote": "using `index=cisco_ucs` sourcetype `cisco:ucs:inventory`, grouped by `entity`.",
+      "severity": "major",
+      "suggested_fix": "Describe the actual output, or say that the search must be split by UCSM host or domain for multi-domain estates (and that the throttle key must be present in the output)."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "Apart from the deterministic template findings, the scenarios are meaningless for FI HA: 'elevating ldn', a lower-cased DN, is not a false-positive mechanism. The real benign causes are already described in detailedImplementation but are missing here: planned FI firmware activation or failover, an FI RMA, a partial poll during a UCSM vIP move, and NTP skew.",
+      "field": "knownFalsePositives",
+      "quote": "**Batch `max` on `cisco:ucs:inventory`** — Scheduled automation elevates `ldn` without crossing `recent_election_count` > 3",
+      "severity": "major",
+      "suggested_fix": "List HA-specific benign causes, each with a suppression key such as UCSM domain plus change ticket: a planned cluster lead/force failover, firmware auto-install reboots, an FI replacement leaving one entity absent, and a poll racing the vIP failover."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "'N-in-1 FI firmware' and 'KV-store _indextime plots' do not correspond to anything in UCS or Splunk. The Sev1 sentence is filler. There are also typos ('Cisco U CSM') and the closing 'Additional operational depth' paragraph is generic padding. These lines lower trust in the otherwise useful troubleshooting section.",
+      "field": "detailedImplementation",
+      "quote": "A brief `split_brain` label in Splunk right after a Cisco N-in-1 FI firmware change ... Fix NTP and KV-store _indextime plots for that cluster ... Evidence integrity is still a Sev1 class problem even when the FIs are healthy on the bench.",
+      "severity": "major",
+      "suggested_fix": "Remove the nonsensical phrases. Say 'after FI firmware activation (auto-install)', and 'compare _time with _indextime to detect clock skew'. Fix 'U CSM' to 'UCSM', and remove the padding paragraph."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "The URL is the Cisco.com homepage, not the XML API reference named in the title. The Splunk Enterprise Documentation root is equally non-specific, and the add-on Sources page is not referenced at all.",
+      "field": "references",
+      "quote": "\"title\": \"Cisco UCS Manager XML API Reference, Release 4.2 (managed object classes, including topSystem and mgmtIf)\", \"url\": \"https://www.cisco.com/c/en/us/\"",
+      "severity": "minor",
+      "suggested_fix": "Link to the UCSM XML API Programmer's Guide (https://www.cisco.com/c/en/us/td/docs/unified_computing/ucs/sw/api/UCSM_API_Guide.pdf) and to https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "clarity",
+      "explanation": "'Hyperflex edge S-series' is not a Cisco product designation, and the exclusion is keyed to the wrong class (mgmtIf rather than mgmtEntity). 'FIs in fabric-only mode' is also not a recognised UCSM operating mode.",
+      "field": "exclusions",
+      "quote": "Cisco Hyperflex edge S-series nodes and small-form-factor topologies that do not expose the sys/switch-A|B/mgmt mgmtIf DNs",
+      "severity": "minor",
+      "suggested_fix": "Say 'HyperFlex Edge deployments without Fabric Interconnects', and key the exclusion to domains that have no sys/mgmt-entity-B (single-FI). Remove 'fabric-only mode' unless a Cisco source defines it."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "overclaiming",
+      "explanation": "The search depends on sourcetypes the add-on does not emit and on an attribute (mgmtIf role) that does not exist, so it cannot have been verified against live UCSM data.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "minor",
+      "suggested_fix": "Downgrade the status until the search is validated against real cisco:ucs mgmtEntity events."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://splunk.github.io/splunk-add-on-for-cisco-ucs/Sources/",
+      "field": "spl",
+      "issue": "The base search uses sourcetype cisco:ucs:inventory, and the subsearch uses cisco:ucs:syslog / cisco:ucs:faults. The add-on emits sourcetype cisco:ucs with source cisco:ucs:<classId>, so the main leg returns no events.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://raw.githubusercontent.com/cisco/cisco-mibs/main/ucs-mibs/CISCO-UNIFIED-COMPUTING-MGMT-MIB.my",
+      "field": "spl",
+      "issue": "Leadership is read from mgmtIf `role`, which does not exist on mgmt:If (the class only has ifRole, a port role). fi_a_role and fi_b_role are therefore always 'absent', and a healthy dual-FI domain falls through to 'leadership_drift' (warning) on every run. The search should read mgmtEntity.leadership on sys/mgmt-entity-A|B instead.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Search",
+      "field": "spl",
+      "issue": "The appendcols subsearch puts eval functions (like(code, ...), match(_raw, ...), match(lower(coalesce(...)))) inside the `search` command. `search` does not evaluate eval functions, so these are not applied as intended and the election/fault counters will not work. These conditions belong in a `| where` clause.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "stats has no by-clause (for example by host), so multiple UCSM domains are merged into one row and latest() roles can come from different clusters. appendcols then glues on estate-wide syslog counts.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The fault regex includes the bare tokens 'ha' and 'mgmt', which match a very large share of UCS fault text (for example 'chassis', 'mgmt-if'). recent_cluster_fault_hint>0 will therefore be almost always true and force a warning.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0024-UC-19.1.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC separates management-plane HA from the UC-19.1.5 data-plane LAG clearly, but its core data model is wrong. FI leadership (primary/subordinate) lives on mgmtEntity (sys/mgmt-entity-A|B, attribute leadership), not on mgmtIf. The UC also relies on add-on sourcetypes and an app directory that do not exist, and the prose contains garbled filler.",
+  "tier": "deep",
+  "uc_id": "UC-19.1.31",
+  "verdict": "incorrect"
+}

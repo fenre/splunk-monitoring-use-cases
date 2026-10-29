@@ -1,0 +1,131 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "8ca7c2af51d2bc279030a347532bab6caf46f08e6197c0a08f1819d0f060c130",
+  "file": "content/cat-19-compute-infrastructure-hci-converged/UC-19.2.31.json",
+  "findings": [
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "evidence_ref": "data/splunkbase-catalog.json",
+      "evidence_url": "https://splunkbase.splunk.com/app/5076",
+      "explanation": "Splunkbase 5076 is 'Fix hostnames on UFs' (rectify_hostname), not a Nutanix add-on. The Nutanix-published Prism add-on is 'TA for Nutanix Prism' (TA-nutanix, Splunkbase 3103), with a separate Prism Central TA (TA-nutanix-PC, 8349). The grounding guide lists Nutanix Prism as a custom REST modular input. The same wrong name and ID appear in dataSources, detailedImplementation and references.",
+      "field": "app",
+      "quote": "Install Splunk_TA_nutanix from Splunkbase app 5076",
+      "severity": "blocker",
+      "suggested_fix": "Replace 'Splunk_TA_nutanix (Splunkbase 5076)' with 'TA for Nutanix Prism (TA-nutanix, Splunkbase 3103)' and, for PC alerts, 'TA for Nutanix Prism Central (Splunkbase 8349)'. Then confirm the sourcetype names those add-ons actually emit, or label nutanix:protection_domain and nutanix:remote_site as custom poller sourcetypes."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "There is no evidence that the Nutanix Prism TA ships nutanix:protection_domain, nutanix:remote_site, nutanix:cluster:metrics or nutanix:prism_central:alerts with the listed fields (latency_ms_p95, bandwidth_kbps_avg, replication_transmitted_bandwidth_kBps). The grounding guide says Nutanix is collected by a custom REST modular input.",
+      "field": "dataSources",
+      "quote": "Splunk_TA_nutanix (Splunkbase 5076) pulls Prism Element and Prism Central REST: `sourcetype=nutanix:protection_domain`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Nutanix Splunk user guide (portal.nutanix.com NTNX-splunk-user-guide) for the TA's real input and sourcetype names. If these are customer-defined, say so and show the poller that creates them."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Savedsearchesconf",
+      "explanation": "With alert.suppress.fields = cluster_name, pd_name, remote_site_name, Splunk suppresses any result whose values for those fields match a recent trigger, for the whole suppress period. A change in severity_bucket does not lift the throttle, so a high row that escalates to critical stays silent for up to 20 minutes.",
+      "field": "detailedImplementation",
+      "quote": "the keys reset immediately if the `severity_bucket` escalates to `critical` in a new run, because Splunk re-evaluates the whole search",
+      "severity": "blocker",
+      "suggested_fix": "State that escalations are suppressed during the 20-minute window, or add severity_bucket to alert.suppress.fields so each severity throttles separately."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The rpo_status event the sample poller emits has no remote_site_name. The SPL groups by cluster_name and remote_site_name, so these events, the only source of rpo_seconds_observed, are dropped and rpo_breach_ratio is always null. The poller also hard-codes rpo_seconds_configured=900 and a HyperFlex-style cluster name, 'HFX-PE-01'.",
+      "field": "detailedImplementation",
+      "quote": "\"nutanix:protection_domain:rpo_status\",\n                {\n                    \"pd_name\": name,\n                    \"cluster_name\": \"HFX-PE-01\",",
+      "severity": "major",
+      "suggested_fix": "Have the poller emit remote_site_name for each PD and remote-site pair (taken from the replication or remote-site link), read the cluster name from the Prism response, and drop the hard-coded RPO in favour of the lookup."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "explanation": "This endpoint and token header do not appear in the Prism v1, v2 or v3 API references that I know of. The sample base URL 'https://192.0.2.10:9440/api/nutanix/prism/' joined with '/PrismGateway/...' paths would also produce invalid URLs.",
+      "field": "detailedImplementation",
+      "quote": "a session `X-Nutanix-Token` from `POST /PrismGateway/services/rest/v1.0/utils/generate_credential_preview`",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the Prism Element API reference on nutanix.dev. Use basic auth against https://<pe>:9440/PrismGateway/services/rest/v2.0/ and remove the unverified token endpoint."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Mvexpand",
+      "explanation": "mvexpand has no mvexpand_max option. It takes limit=<int>, and memory is governed by max_mem_usage_mb in limits.conf. The same paragraph calls eval case() a 'macro', and the savedsearches.conf sample uses 'disable = 0' where the setting is 'disabled'.",
+      "field": "detailedImplementation",
+      "quote": "set `mvexpand_max` in the search string",
+      "severity": "minor",
+      "suggested_fix": "Use 'mvexpand pd_names limit=<n>', call case() an eval function, and change the stanza key to 'disabled = 0'."
+    },
+    {
+      "confidence": 0.5,
+      "dimension": "correctness",
+      "explanation": "HEC 429 responses come from full ingest queues. I cannot find a limits.conf setting called max_global_raw_size that controls HEC throughput.",
+      "field": "detailedImplementation",
+      "quote": "adjust `max_global_raw_size` in `limits.conf` on the indexers",
+      "severity": "needs_verification",
+      "suggested_fix": "Check the HEC troubleshooting docs and refer to the real controls: the inputs.conf [http] settings, queue sizing, or adding HEC receivers."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "UPS SNMP models, together with the m365 and snmp equipment tags, have nothing to do with Nutanix protection-domain replication.",
+      "field": "equipmentModels",
+      "quote": "\"snmp_ups\"",
+      "severity": "minor",
+      "suggested_fix": "Keep nutanix_prism_element and nutanix_prism_central. Remove snmp_ups and the m365 and snmp equipment tags."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified with a generic team reviewer, yet it carries a wrong Splunkbase ID, unconfirmed TA sourcetypes, and SPL that drops its own RPO feed.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status to draft until an SME validates the data path and SPL against a live Prism cluster."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "specificity",
+      "explanation": "The portal and developer links are site roots, not the protection-domain or Prism v2 API pages their titles describe.",
+      "field": "references",
+      "quote": "\"url\": \"https://portal.nutanix.com/\"",
+      "severity": "minor",
+      "suggested_fix": "Link the specific Prism Web Console Data Protection guide page and the Prism v2.0 protection_domains API reference."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://docs.splunk.com/Documentation/Splunk/latest/SearchReference/Stats",
+      "field": "spl",
+      "issue": "stats ... by cluster_name, remote_site_name drops every event whose remote_site_name is null. The search explicitly sets remote_site_name to null for the nutanix:cluster:metrics and Prism Central alert branches, and the documented rpo_status feed never carries it. As a result pca_lag, pca_rsunreach and rpo_seconds_observed never reach the output, and cluster_repl_out_kbps (computed by the earlier eventstats) is not carried through stats either. The same stats also collapses every PD that shares a remote site into one row: values(pd_name) is then mvexpanded, so every PD inherits the same latest() RPO and replication state, and per-PD RPO compliance is not actually measured. Finally, coalesce(..., \"0\") turns a missing rpo_seconds_observed into 0, so a PD that has never replicated successfully scores ok.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "max(replication_state) takes the lexicographic maximum of strings such as COMPLETED, FAILED and RUNNING, which is not a meaningful worst-state rollup.",
+      "severity": "minor"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-28T08:31:45Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0066-UC-19.2.31",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The DR and RPO narrative is thoughtful, but the UC rests on a Nutanix add-on name and Splunkbase ID that are wrong (5076 is an unrelated hostname-fix app). Its SPL groups by a field that most of the feeds leave null, so the RPO, cluster-metric and Prism Central alert inputs never reach the output. The throttling explanation also misstates how Splunk alert suppression works.",
+  "tier": "deep",
+  "uc_id": "UC-19.2.31",
+  "verdict": "incorrect"
+}

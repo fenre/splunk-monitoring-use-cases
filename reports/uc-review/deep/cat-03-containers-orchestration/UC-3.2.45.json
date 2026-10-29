@@ -1,0 +1,147 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "9524b81ad86d468cc2bf5e51b1be3e87bc9b5766cdc2ea4338d3969d8ea21b36",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.45.json",
+  "findings": [
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "explanation": "The Kubernetes metrics reference lists apiserver_admission_webhook_admission_duration_seconds (labels name, operation, rejected, type) and apiserver_admission_step_admission_duration_seconds, but no `apiserver_admission_step_conversion_duration_seconds` metric. The whole conversion lane in implementation, detailedImplementation and Step 4 rests on an invented series.",
+      "field": "dataSources",
+      "quote": "apiserver_admission_webhook_admission_duration_seconds_bucket{name,operation,type,le} and apiserver_admission_step_conversion_duration_seconds_bucket",
+      "severity": "blocker",
+      "suggested_fix": "Remove the conversion-step series, or replace it with the real CRD conversion webhook metric exposed by apiextensions-apiserver after checking its name and labels against a live /metrics scrape. Add the `rejected` label to the admission histogram description."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://prometheus.io/docs/practices/histograms/",
+      "explanation": "Prometheus bucket series are cumulative counters since process start. histogram_quantile is applied to rate() or increase() over a window, but the maximum of the raw counter in a 5-minute bin gives the lifetime distribution since the apiserver restarted, so a new tail spike barely moves the quantiles.",
+      "field": "detailedImplementation",
+      "quote": "takes the per-window maximum cumulative count per le label, derives histo_total from the positive infinity bucket, then computes p50_ms, p95_ms, p99_ms, and p999_ms via inclusive cumulative mass thresholds analogous to histogram_quantile in Prometheus",
+      "severity": "blocker",
+      "suggested_fix": "Explain that the per-window quantile needs per-le deltas (last minus first, or streamstats delta per series, reset-aware) summed across rejected and instance before interpolating, and describe that method."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "correctness",
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "explanation": "The metric's `type` label values are `validate` and `admit`, not validating and mutating.",
+      "field": "detailedImplementation",
+      "quote": "sliced by webhook name, admission operation such as CREATE or UPDATE, and hook type validating versus mutating",
+      "severity": "minor",
+      "suggested_fix": "Say the type label distinguishes validate (validating) from admit (mutating) hooks."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://splunkbase.splunk.com/app/5167",
+      "explanation": "Splunkbase 5167 is 'Upgrade Universal Forwarder (Windows)', not Splunk Connect for Kubernetes. The OTel collector is also linked to an unrelated 'Add-on for Kubernetes' doc page. `dataSources` repeats the 5167 claim along with a 'modular input or scripted poll' path that does not apply to the OTel/HEC pipeline.",
+      "field": "cross_field",
+      "quote": "Splunk OpenTelemetry Collector for Kubernetes ([Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)) ... — Splunk Connect for Kubernetes (Splunkbase 5167)",
+      "severity": "blocker",
+      "suggested_fix": "Name the splunk-otel-collector Helm chart with its GitHub or Splunk docs link and the HEC delivery path. Remove Splunkbase 5167 and the 'modular input' wording."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "explanation": "Application State has been deprecated since CIM 4.12.0 and describes host process, service and port inventory. Neither it nor Performance models apiserver admission histograms, and both appear only as decorative joins.",
+      "field": "cimModels",
+      "quote": "\"Performance\",\n    \"Application_State\"",
+      "severity": "blocker",
+      "suggested_fix": "Mark the UC as non-CIM (raw Prometheus scrape), and remove the Application_State and Performance acceleration guidance from implementation and dataModelAcceleration."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "`description` and `controlTest` present data-quality guards as alert conditions. The SPL alerts on severity_tier: slack at or below 75 ms or P999 at or above 95% of the timeout for critical, P99 at or above 80% of the timeout or a tail ratio of 9 or more for high, and so on.",
+      "field": "cross_field",
+      "quote": "alert when `histo_total` > 0, `histo_total` > 0, `p50_ms` > 0.01, or `slack_ms_to_deadline` <= 75",
+      "severity": "major",
+      "suggested_fix": "State the real tiers: critical when slack ≤75 ms or P999 ≥95% of timeoutSeconds, high when P99 ≥80% of the timeout or P99/P50 ≥9, medium when P99 ≥60% of the timeout, P99/P50 ≥6 or P99 is over the p99 budget, and low otherwise."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "This is generator-contract residue, and the generic 'alignment' and 'training drills' paragraphs add length without implementation value. The savedsearches sketch also calls an undefined `uc_3_2_45_webhook_tail_profile_base` search.",
+      "field": "detailedImplementation",
+      "quote": "Closing checklist: five em-dash step headers are present exactly; Step 3 contains a fenced spl block matching the spl field; multisearch includes admission and conversion histogram arms",
+      "severity": "major",
+      "suggested_fix": "Remove the checklist and the generic alignment paragraphs. Make the savedsearches.conf stanza contain the real search, or define the base search it references."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "specificity",
+      "explanation": "The scenarios are templated field lists. The real benign tail causes (policy cold-compile after deploy, webhook pod scale-out cold caches, GitOps apply bursts, cert-manager renewal storms) appear only in Step 5.",
+      "field": "knownFalsePositives",
+      "quote": "Batch `max` on `prometheus:scrape:metrics`** — Scheduled automation elevates `hook_name` without crossing `histo_total` > 0",
+      "severity": "major",
+      "suggested_fix": "Replace them with those concrete causes and explain how to tell each one apart, for example by correlating with rollout timestamps."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified even though its SPL cannot run as written and one of its two metric families does not appear in the reference. There is no SME evidence.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set the status to draft until the search has been run against real apiserver scrapes."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both multisearch subsearches contain `stats`, `eventstats` and `sort`, but multisearch allows only streaming commands in each subsearch, so the search fails.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://prometheus.io/docs/practices/histograms/",
+      "field": "spl",
+      "issue": "`stats max(mv) AS cum_at_bucket ... BY ... le_raw` takes the maximum of a cumulative counter per 5-minute bin (the lifetime count) instead of the window increase. Because `rejected` and instance are not in the BY clause, it also keeps only one of several series. The resulting quantiles do not describe the window.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://kubernetes.io/docs/reference/instrumentation/metrics/",
+      "field": "spl",
+      "issue": "The conversion arm filters on `apiserver_admission_step_conversion_duration_seconds_bucket`, which the Kubernetes metrics reference does not list, so that arm returns nothing.",
+      "severity": "blocker"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/?resourceId=Splunk_SearchReference_Eval",
+      "field": "spl",
+      "issue": "`coalesce(objectRef.namespace, \"\")` in eval uses a dotted field name without single quotes. `.` is the concatenation operator, so the audit namespace witnesses do not resolve.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The Application_State tstats join (deprecated model, nonexistent `info`/`app` fields) and the Performance count join keyed on win_time are template residue that adds cost and no signal.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.4/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "References `Application_State.state`, `.info` and `.app` with `nodename=Application_State`. The deprecated model's root is All_Application_State and it has no such fields. The Performance CPU overlay keyed on host is unrelated to webhook latency.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0067-UC-3.2.45",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 2,
+    "consistency": 2,
+    "correctness": 1,
+    "grandma_fidelity": 5,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "Per-webhook tail profiling is a sound idea, but half the detection rests on a conversion histogram that is not in the Kubernetes metrics reference. The quantile math uses lifetime cumulative bucket maxima rather than per-window increases, and the SPL places non-streaming commands inside multisearch. The Splunkbase ID and CIM models are also wrong.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.45",
+  "verdict": "incorrect"
+}

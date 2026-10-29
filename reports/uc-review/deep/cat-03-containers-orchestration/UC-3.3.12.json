@@ -1,0 +1,138 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "cc58c506a7aeacbd8069a1c31f5e6d8cc32ea811bf09ca1d3498f60a4b6ae871",
+  "file": "content/cat-03-containers-orchestration/UC-3.3.12.json",
+  "findings": [
+    {
+      "confidence": 0.9,
+      "dimension": "correctness",
+      "evidence_url": "https://docs.redhat.com/en/documentation/openshift_container_platform/4.14/html/networking/ovn-kubernetes-network-plugin",
+      "explanation": "Since OCP 4.14, OVN-Kubernetes uses the interconnect architecture. The ovnkube-master DaemonSet is gone, replaced by the ovnkube-control-plane Deployment, whose ovnkube-cluster-manager is a container, not a DaemonSet. nbdb, sbdb and northd now run per node inside ovnkube-node. The leader-election, central-database and ovnkube_master_* metric guidance (Step 1, Prometheus lane, Cases 1 and 10) does not apply to the 4.16/4.17 clusters the guide targets.",
+      "field": "detailedImplementation",
+      "quote": "workloads in openshift-ovn-kubernetes including DaemonSets ovnkube-master, ovnkube-node, and ovnkube-cluster-manager on supported layouts, their container restart counts, leader election labels on ovnkube-master",
+      "severity": "blocker",
+      "suggested_fix": "Describe ovnkube-control-plane (Deployment, 2 replicas, a single leader) and ovnkube-node (DaemonSet with ovnkube-controller, nbdb, sbdb, northd and ovn-controller containers). Treat database problems as per-node, and note ovnkube-master only for 4.13 and earlier."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/openshift/api/blob/master/config/v1/types_cluster_operator.go",
+      "explanation": "ClusterOperator objects belong to config.openshift.io/v1, not operator.openshift.io. operator.openshift.io holds the Network operator configuration CR. The audit lane's 'operator.openshift.io clusteroperators named network' filter and the 'watch operator.openshift.io clusteroperators' instruction would therefore match nothing.",
+      "field": "detailedImplementation",
+      "quote": "the network ClusterOperator in group operator.openshift.io: the ClusterOperator object named network",
+      "severity": "blocker",
+      "suggested_fix": "Use clusteroperators.config.openshift.io/network for status, and operator.openshift.io Network 'cluster' for operator spec and migration settings."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://network-policy-api.sigs.k8s.io/api-overview/",
+      "explanation": "The AdminNetworkPolicy and BaselineAdminNetworkPolicy API group is policy.networking.k8s.io (v1alpha1). An RBAC rule written for policies.networking.k8s.io would give the collector no access.",
+      "field": "detailedImplementation",
+      "quote": "AdminNetworkPolicy requires read on policies.networking.k8s.io",
+      "severity": "blocker",
+      "suggested_fix": "Write 'get/list on adminnetworkpolicies and baselineadminnetworkpolicies in API group policy.networking.k8s.io'."
+    },
+    {
+      "confidence": 0.65,
+      "dimension": "correctness",
+      "explanation": "FailedCreatePodSandBox and NetworkNotReady are real kubelet event reasons. CNIPluginNotInitialized, IPAMFailure, EgressIPNotAssigned, NodeIPAMNotReady and PathMTUDiscoveryError are not documented kubelet or OVN-Kubernetes reasons and look invented.",
+      "field": "detailedImplementation",
+      "quote": "reasons FailedCreatePodSandBox, NetworkNotReady, CNIPluginNotInitialized, IPAMFailure, EgressIPNotAssigned, NodeIPAMNotReady, and user-facing hints such as PathMTUDiscoveryError",
+      "severity": "needs_verification",
+      "suggested_fix": "Run 'oc get events -A -o json | jq -r .items[].reason | sort -u' on an OVN-K lab cluster during sandbox, IPAM and EgressIP failures, then list only the reasons observed. Uninitialized CNI typically appears as NetworkNotReady with a 'cni config uninitialized' message."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0, and it covers process and service inventory. Network_Traffic is for flow and firewall records, and the rubric says control-plane condition telemetry does not fit it. Neither model represents ClusterOperator conditions, CNI events or OVN-K pod restarts.",
+      "field": "cimModels",
+      "quote": "\"Application_State\",\n    \"Network_Traffic\"",
+      "severity": "blocker",
+      "suggested_fix": "Declare the UC not CIM-mapped, or map only the audit lane (Network config and EgressIP mutations) to Change."
+    },
+    {
+      "confidence": 0.9,
+      "dimension": "specificity",
+      "explanation": "The reference titled 'OpenShift 4.5 full stack automated operations and the OVN-Kubernetes networking model' links only to the Red Hat blog index, so it cites nothing. It also describes a 4.5-era architecture.",
+      "field": "references",
+      "quote": "\"url\": \"https://www.redhat.com/en/blog/\"",
+      "severity": "major",
+      "suggested_fix": "Replace it with the Red Hat blog 'How the new OVN Kubernetes architecture helps with scaling OpenShift' or the OCP OVN-Kubernetes architecture documentation."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "clarity",
+      "explanation": "This is a bare list of names that mixes sourcetypes with an index (ocp_metrics). It does not say which index each feed lands in or what object each one represents.",
+      "field": "dataSources",
+      "quote": "ocp_clusteroperator, ocp_network_config, ocp_ovnkube, ocp_egressip, ocp_egressfirewall, ocp_adminnetworkpolicy, ocp_audit, ocp_events, k8s_events, ocp_network_diagnostics, prometheus:metrics, ocp_metrics",
+      "severity": "minor",
+      "suggested_fix": "Write it as sentences such as 'index=ocp_metrics sourcetype=ocp_clusteroperator (oc get clusteroperator network snapshots); index=ocp_events sourcetype=k8s_events (kubelet sandbox and network events); ...'."
+    },
+    {
+      "confidence": 0.75,
+      "dimension": "correctness",
+      "explanation": "OpenShift SDN was removed in OCP 4.17, so the SDN migration and HostSubnet guidance (Cases 9 and 12) only applies to 4.16 and earlier, which the text does not say.",
+      "field": "detailedImplementation",
+      "quote": "migration state between OpenShiftSDN and OVNKubernetes plugins",
+      "severity": "minor",
+      "suggested_fix": "Mark the SDN migration and HostSubnet lanes as applying only to OCP 4.16 and earlier."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The UC is marked verified, but the SPL cannot run and the component and API-group facts are outdated or wrong.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Set status to draft or community until an SME validates it on a 4.14+ cluster."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/search/spl-search-reference/10.0/search-commands/multisearch",
+      "field": "spl",
+      "issue": "multisearch accepts only purely streaming subsearches, but every subsearch here ends in stats, and the first also uses sort and streamstats. Splunk rejects the search.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The netcheck lane counts every ocp_events row whose involvedObject is a network-check-source or network-check-target pod, including normal Scheduled, Pulled and Started events. Healthy clusters therefore reach diag_fail_hint>=3 and warn. Restrict the lane to failure reasons or a failure field.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "ovn_restart_sum sums cumulative restartCount over every snapshot in 6 hours, so it grows with poll frequency. ovn_mstat_spike adds all ovn_controller, ovsdb and network_check sample values together and takes a square root. Neither is a meaningful rate, so the 48-restart and 500 thresholds are arbitrary.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "Metric prefix ^ovnkube_master_ no longer matches anything on 4.14+, where the series are ovnkube_controller_* and ovnkube_clustermanager_*. The streamstats window=6 and the eventstats 'fleet' counts run BY cluster after a one-row-per-cluster stats, so they never see more than one row.",
+      "severity": "major"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "The root datasets are All_Application_State and All_Traffic, so nodename=Application_State/Network_Traffic and Application_State.state/Network_Traffic.action return nothing. Application_State is deprecated and has no state or info fields.",
+      "severity": "blocker"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0076-UC-3.3.12",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 4,
+    "overclaiming": 2,
+    "specificity": 3
+  },
+  "summary": "The UC scopes OpenShift east-west networking well, but it describes the pre-4.14 centralized OVN-Kubernetes architecture, puts ClusterOperator and AdminNetworkPolicy in the wrong API groups, and relies on several unverified event reasons. The SPL cannot run inside multisearch, and the CIM mapping uses a deprecated model and Network_Traffic for operator-condition telemetry.",
+  "tier": "deep",
+  "uc_id": "UC-3.3.12",
+  "verdict": "incorrect"
+}

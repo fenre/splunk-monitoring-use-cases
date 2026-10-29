@@ -1,0 +1,152 @@
+{
+  "confidence": 0.85,
+  "content_sha256": "670d9dbc8e4c1f64c581a1fa29681882de9d4bc9531f59b142862ea0e65e55f6",
+  "file": "content/cat-03-containers-orchestration/UC-3.2.35.json",
+  "findings": [
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/node-metrics.md",
+      "explanation": "Since kube-state-metrics v2, kube_node_labels carries only the labels allow-listed via --metric-labels-allowlist (none by default). On a default install there is no label_topology_kubernetes_io_zone, so every node becomes 'unlabeled-zone', zone_distinct is 1, and every prod workload with 3+ observed pods scores as single-zone critical.",
+      "field": "detailedImplementation",
+      "quote": "kube_node_labels exposes per-node label gauges you can rex into zone and region columns",
+      "severity": "blocker",
+      "suggested_fix": "Add the required flag, for example --metric-labels-allowlist=nodes=[topology.kubernetes.io/zone,topology.kubernetes.io/region], to Step 1 and Step 2. Make the SPL treat 'unlabeled-zone' as a telemetry gap, not as single-zone risk."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The SPL's row set comes only from Pending kube_pod_status_phase samples and FailedScheduling events. kube_pod_info is left-joined onto those pods, so Running replicas never enter the zone histogram. Pending pods have no node and land in 'unscheduled-no-node'. The running-skew and ScheduleAnyway claims in description, detailedImplementation (Steps 1, 4 and 5 Case 6) and grandmaExplanation cannot be met.",
+      "field": "cross_field",
+      "quote": "Synthetic running skew: park six Running replicas across two zones unevenly using nodeSelector or known node placement, confirm skew_gap rises",
+      "severity": "major",
+      "suggested_fix": "Either rebuild the base set from kube_pod_info for Running pods grouped by owner workload and zone, or remove the running-skew, ScheduleAnyway-imbalance and single-zone claims and the Step 4 running-skew test."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "correctness",
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "explanation": "Application_State has been deprecated since CIM 4.12.0, and neither model describes scheduler placement or topology. The detection uses raw kube-state-metrics and kube:events. Performance contributes only an unrelated fleet memory average.",
+      "field": "cimModels",
+      "quote": "\"cimModels\": [\n    \"Application_State\",\n    \"Performance\"",
+      "severity": "blocker",
+      "suggested_fix": "Drop both models, or keep Performance only with a real per-node join. Describe the SPL as raw metrics plus events."
+    },
+    {
+      "confidence": 0.95,
+      "dimension": "correctness",
+      "explanation": "Microsoft 365 has nothing to do with Kubernetes pod placement. The tag misroutes this UC in the equipment picker.",
+      "field": "equipment",
+      "quote": "\"equipment\": [\n    \"kubernetes\",\n    \"m365\",",
+      "severity": "major",
+      "suggested_fix": "Remove m365."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "consistency",
+      "explanation": "The detection does not run on the Performance datamodel, and the listed conditions are intermediate guards, not the alert logic. The real outputs (failure_class, topology_risk_score >= 50, Pending soak >= 8 min) are never described.",
+      "field": "description",
+      "quote": "using datamodel `Performance`, grouped by `cluster`, `namespace`, `pod`, `_time`. Outputs `pend`, `fs_ts`, `pending_soak_min` each `1m`; alert when `mv` > 0, `pend` > 0, `skew_gap` >= 3, or `zone_distinct` <= 2.",
+      "severity": "major",
+      "suggested_fix": "Describe it as Pending-pod soak plus FailedScheduling message classification (topology spread, anti-affinity, selector, taint, resources), scored by topology_risk_score and tiered by namespace criticality."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "These are generic template entries. Real causes are left out: transient FailedScheduling during autoscaler scale-out (resolved within minutes), rolling updates with maxSurge briefly breaking spread, single-zone dev or sandbox clusters by design, and DaemonSet or StatefulSet pods with intentional zone pinning.",
+      "field": "knownFalsePositives",
+      "quote": "3. **Synthetic probe on `cluster`, `namespace`, `pod`, `_time`** — Health checks in `k8s_metrics` populate the same fields the SPL groups on.",
+      "severity": "major",
+      "suggested_fix": "List those scenarios, each with its recognising signal (TriggeredScaleUp events, rollout in progress, workload_tier=sandbox, owner kind)."
+    },
+    {
+      "confidence": 0.85,
+      "dimension": "specificity",
+      "explanation": "Step 1 is padded with ten 'depth notes' and eleven '... alignment' paragraphs (FinOps, Security, Training, Documentation). Steps 1 and 5 also end with closing checklists and a 'closing narrative' about the document itself. topology.kubernetes.io/rack is not a well-known Kubernetes label. Together these bury the actionable steps.",
+      "field": "detailedImplementation",
+      "quote": "Platform scheduling depth note C: label selectors that reference custom failure-domain keys such as topology.kubernetes.io/rack require parallel rex arms",
+      "severity": "major",
+      "suggested_fix": "Cut the depth notes, alignment paragraphs, checklists and closing narrative. Keep the prerequisites, the KSM allowlist requirement, the collector configuration, validation and the 12 cases."
+    },
+    {
+      "confidence": 0.6,
+      "dimension": "correctness",
+      "evidence_ref": "docs/guides/kubernetes.md",
+      "explanation": "No such add-on appears in data/splunkbase-catalog.json, and the grounding guide names only the splunk-otel-collector chart.",
+      "field": "app",
+      "quote": "[Splunk Add-on for Kubernetes documentation](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/About)",
+      "severity": "needs_verification",
+      "suggested_fix": "Confirm that the page exists. If it does not, link the splunk-otel-collector-chart repository instead."
+    },
+    {
+      "confidence": 0.7,
+      "dimension": "correctness",
+      "explanation": "The node metrics page is under docs/metrics/cluster/, not workload/.",
+      "field": "references",
+      "quote": "\"title\": \"kube-state-metrics — Node metrics\",\n      \"url\": \"https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/workload/\"",
+      "severity": "minor",
+      "suggested_fix": "Use https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/cluster/node-metrics.md."
+    },
+    {
+      "confidence": 0.8,
+      "dimension": "overclaiming",
+      "explanation": "The SPL cannot parse (multisearch with stats), and its running-skew path cannot work as designed, so it cannot have been validated.",
+      "field": "status",
+      "quote": "\"status\": \"verified\"",
+      "severity": "major",
+      "suggested_fix": "Downgrade status until the SPL has been fixed and the Step 4 tests pass."
+    }
+  ],
+  "firewalled_field_flags": [
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/search-commands/multisearch",
+      "field": "spl",
+      "issue": "Both multisearch subsearches contain stats, sort and streamstats, which are non-streaming, so the search fails to parse. Use union or append instead.",
+      "severity": "blocker"
+    },
+    {
+      "field": "spl",
+      "issue": "The base row set is only Pending pods and FailedScheduling events, and kube_pod_info is left-joined onto them. Running replicas are never counted, and Pending pods have no node, so zone_pop, skew_gap and zone_distinct describe unscheduled pods ('unscheduled-no-node') rather than failure-domain distribution. schedule_anyway_skew and single_zone_ha_risk therefore cannot reflect real placement.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The FailedScheduling filter includes '0/\\d+ nodes are available', 'insufficient cpu', 'insufficient memory' and 'taint', and the final where keeps any row with len(fs_message)>50. Almost every FailedScheduling event passes, so the alert duplicates the generic Pending coverage of UC-3.2.2 instead of focusing on topology.",
+      "severity": "major"
+    },
+    {
+      "field": "spl",
+      "issue": "The workload regex strips only hex suffixes ([a-f0-9]{8,10}). ReplicaSet pod-template-hash values use a wider alphanumeric alphabet (for example 7c4d9f5b8b, or 5d8bq7xk9z), so most Deployments are not grouped into one workload.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/data-management/common-information-model/8.6/data-models/performance",
+      "field": "spl",
+      "issue": "The appendcols tstats uses nodename=Performance.Memory and Performance.mem_used_percent, but the root dataset is All_Performance, so the field should be All_Performance.Memory.mem_used_percent. appendcols also attaches the value to the first result row only, making cim_mem_fleet_avg meaningless per row.",
+      "severity": "minor"
+    },
+    {
+      "evidence_url": "https://help.splunk.com/en/splunk-cloud-platform/common-information-model/6.0/data-models/application-state-deprecated",
+      "field": "cimSpl",
+      "issue": "cimSpl queries the deprecated Application_State model and Performance.CPU under the wrong root name (All_Performance). It has no relationship to pod topology or scheduling.",
+      "severity": "major"
+    }
+  ],
+  "model": "claude-opus-5-5@reasoning=high",
+  "reviewed_at": "2026-10-29T12:13:08Z",
+  "rubric_version": "1.0",
+  "run_id": "file:deep-0056-UC-3.2.35",
+  "schema_version": "1.0",
+  "scores": {
+    "clarity": 3,
+    "consistency": 2,
+    "correctness": 2,
+    "grandma_fidelity": 3,
+    "overclaiming": 2,
+    "specificity": 2
+  },
+  "summary": "The scheduling concepts and the Step 5 cases are accurate. The detection cannot deliver its headline claim, though: the SPL starts only from Pending or FailedScheduling pods, so running-replica zone skew is never measured. Zone labels need a kube-state-metrics allowlist the text never mentions, multisearch with stats will not parse, and the CIM, equipment and long filler sections are wrong or templated.",
+  "tier": "deep",
+  "uc_id": "UC-3.2.35",
+  "verdict": "incorrect"
+}
