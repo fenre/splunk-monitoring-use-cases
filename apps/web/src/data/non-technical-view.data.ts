@@ -664,6 +664,11 @@ export const NON_TECHNICAL: NonTechnicalCatalog = {
         { id: "13.4.2", why: "See how many tokens each application uses and what it costs — AI spending can spike fast." },
         { id: "13.4.9", why: "Detect prompt injection attempts — attackers try to trick AI into doing harmful things." }
       ]},
+      { name: "Splunk Agent Observability", description: "We record what each AI agent did, grade its answers, and can stop a risky step before it runs.", ucs: [
+        { id: "13.8.1", why: "Write down every step an AI agent takes, so you can see what it did and what it cost." },
+        { id: "13.8.13", why: "Check whether the agent picked the right tool for each request." },
+        { id: "13.8.26", why: "Block a dangerous action, such as deleting data, before the agent carries it out." }
+      ]},
       { name: "ML-powered platform intelligence", description: "We use machine learning to predict problems before they happen — license overages, queue bottlenecks, and service slowdowns that basic alerts miss.", ucs: [
         { id: "13.1.46", why: "We watch every data source for sudden silence — if a source stops sending data, we catch it within minutes instead of hours." },
         { id: "13.1.47", why: "We forecast your Splunk license usage 30 days ahead, so you know before you hit your limit." },

@@ -1,0 +1,56 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.5",
+  "title": "Agent Stream Name Drift (Mistyped Stream Opens an Empty Stream)",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Configuration",
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "`SPLUNK_AO_AGENT_STREAM` in each deployment's environment and the stream read-back from `AgentStream.get(name=..., project_name=...)`",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Detects agents logging to the wrong Agent Stream. Stream names are case-sensitive and logging to a name that does not exist creates it, so one typo sends traces to a new, empty stream with no evaluators or alerts.",
+  "value": "Keeps traces in the stream where evaluators, alerts and controls are configured. A mistyped stream looks healthy from the agent side while the real stream goes quiet and every quality check on it stops.",
+  "implementation": "Set `SPLUNK_AO_AGENT_STREAM` from deployment configuration, never from code. After each deploy, read the expected stream back with `AgentStream.get` and confirm recent traces arrived. Replace any use of the deprecated `SPLUNK_AO_LOG_STREAM` alias.",
+  "visualization": "Project stream list in the console; deploy check result per environment.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability documentation",
+      "url": "https://agent-observability-docs.splunk.com/"
+    },
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "A brand-new environment's stream is empty until its first request. Run the read-back after the first smoke-test request, and allow 30 to 60 seconds of indexing lag.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe console says Agent Stream; the SDK and REST API still say log stream (`log_stream_id`). They are the same object. The SDK reads `SPLUNK_AO_AGENT_STREAM`; `SPLUNK_AO_LOG_STREAM` is a deprecated alias.\n\nStep 2 — Configure in Splunk Agent Observability\n\nIn the project, list the Agent Streams and look for near-duplicate names (case or spelling variants). Evaluators, alerts and sampling are set per stream, so a variant stream has none of them.\n\nStep 3 — Validate\n\nRun the post-deploy check after a smoke-test request. To check from code instead of the console, read the stream back with `AgentStream.get(name=stream_name, project_name=project_name)` and call `get_traces(limit=5)` or `get_spans(limit=20)`. Indexing lag is 30 to 60 seconds, so an empty result right after a run is not proof of failure. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nAdd the check to the deployment pipeline for every environment. Keep stream names in one configuration file per environment.\n\nStep 5 — Troubleshooting\n\nTraces in a stream nobody configured: compare the exact, case-sensitive value of `SPLUNK_AO_AGENT_STREAM` in that deployment with the stream that has the evaluators. Move the agent back by fixing the variable; the stray stream keeps its traces.",
+  "grandmaExplanation": "We make sure the assistant files its notes in the right drawer, because a misspelled drawer name quietly creates a new, empty drawer.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Post-deploy check that traces reach the expected stream",
+      "body": "import os\nfrom splunk_ao import AgentStream\n\nstream_name = os.environ[\"SPLUNK_AO_AGENT_STREAM\"]\nproject_name = os.environ[\"SPLUNK_AO_PROJECT\"]\n\ns = AgentStream.get(name=stream_name, project_name=project_name)\nrecent = s.get_traces(limit=5)\nassert len(recent) > 0, f\"no traces in {project_name}/{stream_name}; check the stream name\"",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

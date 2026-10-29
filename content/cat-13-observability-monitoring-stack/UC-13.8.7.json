@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.7",
+  "title": "LangChain and LangGraph Trace Tree Completeness",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality",
+    "Operations"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Spans produced by the Splunk callback from `splunk-ao[langchain]`, passed in `config={\"callbacks\": [cb]}` on the graph invoke",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Makes sure LangChain and LangGraph agents send the whole span tree to Splunk Agent Observability, not just isolated LLM calls, by passing the Splunk callback on the graph invoke rather than only on the chat model.",
+  "value": "With the callback only on the model, the stream shows LLM spans with no agent or tool structure and no place for request metadata, so traces cannot be filtered by consumer or explained step by step.",
+  "implementation": "Install `splunk-ao[langchain]`. Pass the Splunk callback in `config={\"callbacks\": [cb]}` on every graph or chain invoke. Each invoke starts its own session unless you pass a logger and keep the session yourself.",
+  "visualization": "Trace view showing the agent, LLM and tool spans nested under one trace.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability documentation",
+      "url": "https://agent-observability-docs.splunk.com/"
+    }
+  ],
+  "knownFalsePositives": "Separate sessions per invoke are the default, not an error. Multi-turn conversations need an explicit session (UC-13.8.8).",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nOn the model you get LLM spans. On the invoke you get the tree and a place for metadata. Pass the callback in `config={\"callbacks\": [cb]}` on the graph invoke.\n\nStep 2 — Configure in Splunk Agent Observability\n\nOpen a trace from the stream and check that the agent, LLM and tool spans nest under one trace.\n\nStep 3 — Validate\n\nRun one request through the graph against a test stream. To check from code instead of the console, read the stream back with `AgentStream.get(name=stream_name, project_name=project_name)` and call `get_traces(limit=5)` or `get_spans(limit=20)`. Indexing lag is 30 to 60 seconds, so an empty result right after a run is not proof of failure. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nAdd a code review rule: every invoke of a production graph passes the callback config.\n\nStep 5 — Troubleshooting\n\nOnly LLM spans, no tree: the callback is on the model only. One session per turn: the invoke starts its own session; pass a logger and keep the session.",
+  "grandmaExplanation": "We make sure the record shows the assistant's whole chain of steps, not just the moments it talked to the language model.",
+  "prerequisiteUseCases": [],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "text",
+      "title": "Attach the Splunk callback to the graph invoke",
+      "body": "1. pip install \"splunk-ao[langchain]\"\n2. Create the Splunk Agent Observability callback handler once per process.\n3. Pass it on the invoke: graph.invoke(inputs, config={\"callbacks\": [cb]})\n4. Keep it on the chat model too if you want LLM spans from calls made outside the graph.\n5. For multi-turn conversations, pass a logger and keep the session yourself; otherwise each invoke starts its own session.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

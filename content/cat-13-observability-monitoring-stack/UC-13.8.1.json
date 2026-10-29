@@ -1,0 +1,54 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.1",
+  "title": "Agent Request Tracing with SplunkAOLogger",
+  "criticality": "high",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Operations",
+    "Performance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Traces and spans sent by the `splunk-ao` Python SDK (`SplunkAOLogger`) to the project and Agent Stream named in `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM`",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Records every agent request in Splunk Agent Observability as a trace with one span per agent step, LLM call and tool call, so the evaluators, alerts and controls in this subcategory have data to read.",
+  "value": "Gives the team a per-request record of what the agent did, which model it called, how many tokens it used and which tools ran. Every other use case in Splunk Agent Observability depends on these traces existing.",
+  "implementation": "Install `splunk-ao`, create one `SplunkAOLogger` per process, and wrap each request in `start_trace` and `conclude`. Add an agent span at the call site, an LLM span per model call (with `model`, token counts and `tools`), and a tool span per tool call. Call `conclude()` once per open span and once more for the trace.",
+  "visualization": "Agent Stream trace table in the Splunk Agent Observability console, with the span tree per trace.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability documentation",
+      "url": "https://agent-observability-docs.splunk.com/"
+    },
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Traces appear 30 to 60 seconds after the request, so a missing trace right after a test run is usually indexing lag. A trace takes the name of its first agent span (`invoke_agent <name>`), not the `name` passed to `start_trace`; that is expected.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nCreate one `SplunkAOLogger()` per process. Do not pass the project or stream unless you must override the environment. For each request call `start_trace(input, name, tags, metadata)`, then open an agent span at the call site in the request handler (the handler has the user id for metadata). Log one LLM span per model call through a single helper so the single-call wrapper and every turn of the tool loop record the same fields. Log tool spans at the tool loop's call site, where `call.id` is available for `tool_call_id`. Metadata keys and values are flat strings up to 256 characters; tags are strings of about 50 characters. Never put secrets or raw PII in either.\n\nStep 2 — Configure in Splunk Agent Observability\n\nOpen the project in the console and select the Agent Stream. Each request shows as one trace. The console prefixes `invoke_agent`, `execute_tool` and `chat <model>` are the OpenTelemetry GenAI operation names.\n\nStep 3 — Validate\n\nSend one request and confirm the trace has an agent span, an LLM span with token counts and a tool span. To check from code instead of the console, read the stream back with `AgentStream.get(name=stream_name, project_name=project_name)` and call `get_traces(limit=5)` or `get_spans(limit=20)`. Indexing lag is 30 to 60 seconds, so an empty result right after a run is not proof of failure. Query results flatten field names: tokens are `metrics_num_input_tokens`, `metrics_num_output_tokens` and `metrics_num_total_tokens`, and duration is `metrics_duration_ns`. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nPut the same metadata keys (for example `consumer`) on `start_trace` and on the agent spans. Trace-level metadata did not appear on the trace record in field testing; span metadata did. Call `flush()` at the end of batch jobs and short-lived processes; normal request paths can rely on `conclude()`.\n\nStep 5 — Troubleshooting\n\nNo trace for a request: a trace with no child spans is never exported and nothing reports it (see UC-13.8.2). Spans left open are not exported either, so check that every agent or workflow span has a matching `conclude()`, or use `conclude(conclude_all=True)`. Traces in an unexpected stream: the stream name is case-sensitive and a new name is created on first log (see UC-13.8.5).",
+  "grandmaExplanation": "Every time someone asks the assistant a question, we write down each step it took, which tools it used and how long each step lasted, so we can look back later.",
+  "prerequisiteUseCases": [],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Manual SplunkAOLogger instrumentation for one request",
+      "body": "from splunk_ao import SplunkAOLogger\n\nlogger = SplunkAOLogger()  # reads SPLUNK_AO_PROJECT and SPLUNK_AO_AGENT_STREAM\n\nlogger.start_trace(\n    input=user_text,\n    name=\"request\",\n    metadata={\"consumer\": user_id, \"request_kind\": \"question\"},\n)\nlogger.add_agent_span(input=user_text, name=\"answer\", agent_type=\"react\",\n                      metadata={\"consumer\": user_id})\nlogger.add_llm_span(\n    input=messages,\n    output=text,\n    model=model_name,\n    tools=tool_schemas,  # the OpenAI function schemas offered, not the call the model made\n    num_input_tokens=usage.prompt_tokens,\n    num_output_tokens=usage.completion_tokens,\n    total_tokens=usage.total_tokens,\n)\nlogger.add_tool_span(\n    input=args_json,\n    output=result_json,\n    name=tool_name,\n    tool_call_id=call_id,\n    duration_ns=duration_ns,\n)\nlogger.conclude(output=final_text)  # closes the agent span\nlogger.conclude(output=final_text)  # closes the trace and queues export",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

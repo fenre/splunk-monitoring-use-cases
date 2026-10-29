@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.19",
+  "title": "Personal Data in Agent Traces with the Luna PII Evaluator",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Quality",
+    "Compliance"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Luna PII scores written by Splunk Agent Observability on sampled traces in the Agent Stream",
+  "app": "Splunk Agent Observability",
+  "description": "Scores agent traces for personal data with the Splunk-hosted Luna PII evaluator, so the team sees where personal data enters prompts, tool results or replies.",
+  "value": "Personal data in agent traffic raises privacy duties for every system that stores it. Finding it shows which inputs or tools need masking.",
+  "implementation": "Turn on the Luna PII evaluator for the Agent Stream (Configure Evaluators), set an explicit sample rate, and review flagged traces in the stream. An evaluator scores traces that are already stored and never blocks the reply. To stop or redirect a step inline, use Agent Control (UC-13.8.26).",
+  "visualization": "PII score column in the Agent Stream trace table, with the flagged traces listed.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Evaluators overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "knownFalsePositives": "Agents built to handle customer records will contain PII by design. Use the score to confirm masking where it is required, not to flag the whole stream.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_agent_control",
+    "splunk_ao_luna"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`. Do not put secrets or raw PII in tags or metadata.\n\nStep 2 — Configure in Splunk Agent Observability\n\nEvaluators are defined for the organization and turned on per Agent Stream, in the console (Configure Evaluators) or with `enable_evaluators`. That SDK call replaces the stream's set: anything left out is turned off. Evaluators run after the trace is stored, on a sample. A 10% rate stores every trace and scores one in ten, and a sampled trace is scored by every enabled evaluator. There is no documented default sample rate, so set it explicitly. Luna evaluators are Splunk-hosted small models and need no customer model key. On SaaS, Luna is limited to Prompt Injection, Toxicity, Sexism, PII and Context Adherence.\n\nStep 3 — Validate\n\nSend a test request that should be flagged and one that should not, to a test stream at a 100% sample rate, and confirm the scores. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nAdd an alert on the score from the stream's Alerts tab if the team needs to be notified (see UC-13.8.25 for the pattern). An alert on an evaluator only sees sampled traces.\n\nStep 5 — Troubleshooting\n\nFlags in tool outputs: mask the data in the tool before it reaches the model.",
+  "grandmaExplanation": "A reviewer checks the assistant's conversations for personal details like names or card numbers that should not be there.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "evaluator",
+      "language": "text",
+      "title": "Luna PII evaluator",
+      "body": "Where: Agent Stream > Configure Evaluators (or enable_evaluators in the SDK)\nEvaluator: PII\nJudge: Luna (Splunk-hosted small model; no customer model key)\nScores: each sampled trace\nSample rate: set explicitly for the stream; there is no documented default\nNotes: Luna evaluators are Splunk-hosted small models and need no customer model key. On SaaS, Luna is limited to Prompt Injection, Toxicity, Sexism, PII and Context Adherence.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

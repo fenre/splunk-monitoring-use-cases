@@ -1,0 +1,49 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.23",
+  "title": "Offline Agent Experiments in CI",
+  "criticality": "medium",
+  "difficulty": "advanced",
+  "monitoringType": [
+    "Quality",
+    "DevSecOps"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Experiment traces and evaluator scores, one trace per dataset row, with optional ground truth",
+  "app": "Splunk Agent Observability",
+  "description": "Runs the agent over a fixed dataset as a Splunk Agent Observability Experiment, one trace per row with optional ground truth, so prompt and model changes are scored before release.",
+  "value": "Production evaluators find problems after users hit them. Experiments in CI catch regressions from a prompt or model change before deploy.",
+  "implementation": "Build a dataset of representative requests with expected outcomes, run it as an Experiment from CI on each change, and compare scores with the last release. Local code evaluators can run here; they are for experiments only.",
+  "visualization": "Experiment comparison between the candidate and the current release.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Evaluators overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "knownFalsePositives": "Model output varies between runs. Compare score distributions, not single rows.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`.\n\nStep 2 — Configure in Splunk Agent Observability\n\nExperiments run one trace per dataset row, with optional ground truth, and can run in CI. Local code evaluators (Python on your machine) work in experiments only.\n\nStep 3 — Validate\n\nRun the experiment twice on the current release to see normal run-to-run variation before setting the gate. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nGate releases on the experiment and add a dataset row for every production failure the team fixes.\n\nStep 5 — Troubleshooting\n\nScores swing between identical runs: widen the dataset or compare averages.",
+  "grandmaExplanation": "Before we change the assistant, we give it the same practice test as last time and compare the marks.",
+  "prerequisiteUseCases": [
+    "UC-13.8.13"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "experiment",
+      "language": "text",
+      "title": "Release-gate experiment",
+      "body": "Dataset: representative requests with optional ground truth, versioned with the agent code\nRun: one trace per dataset row, from CI on each change to prompts, tools or model\nEvaluators: the same ones enabled on the production stream, plus local code evaluators if needed\nGate: fail the change when scores drop against the current release\nNotes: Experiments are the offline loop. They do not replace evaluators on the production stream.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "run"
+}

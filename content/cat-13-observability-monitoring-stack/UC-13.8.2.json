@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.2",
+  "title": "Empty Trace Export Check (Traces Without Spans Are Dropped)",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Data Quality",
+    "Reliability"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Captured trace objects from `SplunkAOLogger(ingestion_hook=captured.append)` in the agent's unit tests; no tenant or project is needed",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Catches code paths that start a trace but never add a span. Splunk Agent Observability exports spans only, so a trace with no spans is silently dropped and the request disappears from the stream.",
+  "value": "Prevents silent gaps in the agent record. Without this test, an error path or an early return can drop whole requests while `export_health` still reports healthy, and nobody notices until an incident review finds no trace.",
+  "implementation": "In the agent's test suite, build the logger with `ingestion_hook=captured.append`, run each request path (including error paths), and assert that `captured[0].traces[0]` has at least one span. Fail the build when a path produces a trace with no spans.",
+  "visualization": "Unit test results in the CI pipeline for each request path.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "A request path that intentionally does no agent work (for example a health probe) has no spans by design. Exclude it from the test rather than adding an empty span.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nExport is OpenTelemetry and carries spans only; the trace is their container. A trace with no child spans is never exported, there is no error, and `export_health` stays healthy. Pass `ingestion_hook=captured.append` to `SplunkAOLogger` in tests so nothing is uploaded and no project is needed.\n\nStep 2 — Configure in Splunk Agent Observability\n\nNothing to configure in the console. The check runs in the agent's own test suite, before the code reaches the Agent Stream.\n\nStep 3 — Validate\n\nRun the test against the normal path and against each error path. `captured[0].traces[0]` holds the trace with `status_code`, `output` and `spans`. Using the hook for error paths also keeps junk traces out of the real stream. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nRun the test in CI on every change to the request handler, and add a case for each new route or tool loop.\n\nStep 5 — Troubleshooting\n\nTest passes but traces are still missing in the console: check that spans are concluded (open spans are not exported) and allow 30 to 60 seconds of indexing lag. Empty spans list: add an agent span at the call site before any early return.",
+  "grandmaExplanation": "We test that every question the assistant answers leaves a written record behind, because a record with no steps in it gets thrown away without warning.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "Offline test: every request path exports at least one span",
+      "body": "from splunk_ao import SplunkAOLogger\n\ndef test_request_path_exports_spans():\n    captured = []\n    logger = SplunkAOLogger(ingestion_hook=captured.append)  # nothing is uploaded\n    handle_request(logger, \"What is the status of order 42?\")\n    trace = captured[0].traces[0]\n    assert trace.spans, \"trace has no spans and would never be exported\"",
+      "docsUrl": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "crawl"
+}

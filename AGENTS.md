@@ -7,9 +7,11 @@
 
 A curated, machine-readable, versioned catalog of **16,600+ IT infrastructure
 monitoring use cases** for Splunk, organized across 25 technology domains.
-Each use case carries a ready-to-run SPL query, CIM data model mappings,
-criticality/difficulty ratings, implementation guidance, and plain-language
-explanations.
+Use cases implemented on the Splunk platform carry a ready-to-run SPL query
+and CIM data model mappings; use cases implemented in another Splunk product
+(for example Splunk Agent Observability) carry that product's configuration as
+`productArtifacts` instead. Every use case has criticality/difficulty ratings,
+implementation guidance, and a plain-language explanation.
 
 The catalog is **content-only** — it does not execute or schedule searches
 against a live Splunk instance.

@@ -103,7 +103,9 @@ node with a stable numeric ID that appears in its URL, its markdown
 heading, and its JSON representation. Every use case carries:
 
 - **Criticality / difficulty** — ⚪ quick glance before you commit
-- **Ready-to-run SPL** — copy-paste into Splunk, it runs
+- **Ready-to-run SPL** — copy-paste into Splunk, it runs (use cases
+  implemented in another Splunk product, such as Splunk Agent Observability,
+  carry that product's configuration instead)
 - **CIM / Data Model mapping** — `tstats`-accelerated variant included
 - **MITRE ATT&CK** — technique IDs for every security detection
 - **App/TA requirement** — exactly which Splunkbase add-on you need

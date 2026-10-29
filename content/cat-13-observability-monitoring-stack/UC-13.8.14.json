@@ -1,0 +1,55 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.14",
+  "title": "Tool Selection Quality Not-Applicable Audit (Missing Tool Schemas)",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Data Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Span read-back from `AgentStream.get(...).get_spans(...)`: the evaluator status field `metrics_<uuid>_status` and `output_tool_calls`",
+  "app": "Splunk Agent Observability (splunk-ao Python SDK)",
+  "description": "Finds LLM spans that Tool Selection Quality cannot score because the agent did not log the available tools, so gaps in coverage are visible instead of hiding as not-applicable results.",
+  "value": "A stream can look fully scored while most tool-choosing turns are skipped. Listing the not-applicable spans tells the team which code path forgot `tools=`.",
+  "implementation": "Read recent spans back, find the Tool Selection Quality UUID through `metric_info_<uuid>_metric_key_alias`, and list spans whose status is not applicable while their output still contains tool calls. Fix the LLM span helper for those paths.",
+  "visualization": "Read-back script output: count of not-applicable spans that made tool calls, per span name.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Evaluators overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    },
+    {
+      "title": "Splunk Agent Observability SDK: SplunkAOLogger",
+      "url": "https://agent-observability-docs.splunk.com/sdk-api/logging/splunk-ao-logger"
+    }
+  ],
+  "knownFalsePositives": "Spans that offer no tools (classifiers, writers) are not applicable by design. Only spans whose output contains tool calls point to a logging gap.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_sdk"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`.\n\nStep 2 — Configure in Splunk Agent Observability\n\nAn LLM span without `tools` gets status `not_applicable` (code 2009, \"requires the available tools to be logged on the LLM span\"). The console shows it as not applicable, not as an error.\n\nStep 3 — Validate\n\nRun the script against the stream. The field names (`metrics_<uuid>_status`, `metric_info_<uuid>_metric_key_alias`) come from field testing on `splunk-ao` 0.6.1; recheck them on newer SDK versions. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nRun the script after each release and treat a non-zero count of tool-calling, not-applicable spans as a bug in the LLM span helper.\n\nStep 5 — Troubleshooting\n\nEvery span not applicable: the shared LLM span helper drops `tools`. No UUID found: Tool Selection Quality is not enabled on this stream (check `get_metrics()`).",
+  "grandmaExplanation": "We look for the times the reviewer could not grade the assistant's tool choice because we forgot to tell it which tools were on the shelf.",
+  "prerequisiteUseCases": [
+    "UC-13.8.13"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "instrumentation",
+      "language": "python",
+      "title": "List tool-calling LLM spans that were not scored",
+      "body": "from splunk_ao import AgentStream\n\ns = AgentStream.get(name=stream_name, project_name=project_name)\nspans = s.get_spans(limit=500)\n\ndef tsq_uuid(span):\n    for key, val in span.items():\n        if key.startswith(\"metric_info_\") and key.endswith(\"_metric_key_alias\") \\\n                and val == \"tool_selection_quality\":\n            return key[len(\"metric_info_\"):-len(\"_metric_key_alias\")]\n    return None\n\ngaps = []\nfor sp in spans:\n    uid = tsq_uuid(sp)\n    if uid and sp.get(f\"metrics_{uid}_status\") == \"not_applicable\" and sp.get(\"output_tool_calls\"):\n        gaps.append(sp.get(\"name\"))\nprint(f\"{len(gaps)} tool-calling LLM spans not scored (no tools= logged)\")",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}

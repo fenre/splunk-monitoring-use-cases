@@ -1,0 +1,52 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "13.8.20",
+  "title": "Grounded Answers Check with the Luna Context Adherence Evaluator",
+  "criticality": "high",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Quality"
+  ],
+  "splunkPillar": "Observability",
+  "dataSources": "Luna Context Adherence scores written by Splunk Agent Observability on sampled traces in the Agent Stream",
+  "app": "Splunk Agent Observability",
+  "description": "Scores whether the agent's answer sticks to the retrieved context, using the Splunk-hosted Luna Context Adherence evaluator, so answers that go beyond the retrieved documents are found.",
+  "value": "Retrieval agents are trusted because they answer from company documents. Answers that drift from the retrieved text are the ones most likely to be wrong.",
+  "implementation": "Turn on the Luna Context Adherence evaluator for the Agent Stream (Configure Evaluators), set an explicit sample rate, and review flagged traces in the stream. An evaluator scores traces that are already stored and never blocks the reply. To stop or redirect a step inline, use Agent Control (UC-13.8.26).",
+  "visualization": "Context Adherence score column in the Agent Stream trace table, with the flagged traces listed.",
+  "references": [
+    {
+      "title": "Splunk Agent Observability: Evaluators overview",
+      "url": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "knownFalsePositives": "Small talk and clarifying questions have no retrieved context. Expect low or not-applicable scores on those turns.",
+  "equipment": [
+    "splunk_ao"
+  ],
+  "equipmentModels": [
+    "splunk_ao_agent_control",
+    "splunk_ao_luna"
+  ],
+  "status": "draft",
+  "detailedImplementation": "Prerequisites\n\nA Splunk Agent Observability project for the application and one Agent Stream per environment or agent inside it. Do not create a second project for the same application: a second project splits the traces. The agent reads `SPLUNK_AO_PROJECT` and `SPLUNK_AO_AGENT_STREAM` from the environment. SaaS tenants authenticate with `SPLUNK_AO_REALM` and `SPLUNK_AO_O11Y_TOKEN`; on-prem tenants with `SPLUNK_AO_API_KEY` plus `SPLUNK_AO_CONSOLE_URL`. Install the SDK with `pip install splunk-ao` (`pip install \"splunk-ao[langchain]\"` for the LangChain callback).\n\nStep 1 — Instrument the agent\n\nThe agent is already instrumented as described in UC-13.8.1: every request is a trace with at least one agent span, LLM spans carry `model`, token counts and the `tools` schemas, and tool spans carry `name`, `duration_ns` and `tool_call_id`. Log the retrieved chunks with `add_retriever_span`; context-adherence style checks need it.\n\nStep 2 — Configure in Splunk Agent Observability\n\nEvaluators are defined for the organization and turned on per Agent Stream, in the console (Configure Evaluators) or with `enable_evaluators`. That SDK call replaces the stream's set: anything left out is turned off. Evaluators run after the trace is stored, on a sample. A 10% rate stores every trace and scores one in ten, and a sampled trace is scored by every enabled evaluator. There is no documented default sample rate, so set it explicitly. Luna evaluators are Splunk-hosted small models and need no customer model key. On SaaS, Luna is limited to Prompt Injection, Toxicity, Sexism, PII and Context Adherence.\n\nStep 3 — Validate\n\nSend a test request that should be flagged and one that should not, to a test stream at a 100% sample rate, and confirm the scores. This use case was written from the Splunk Agent Observability documentation without access to a tenant, so it ships as a draft. Confirm each step in the Splunk Agent Observability console before promoting it.\n\nStep 4 — Operationalize\n\nAdd an alert on the score from the stream's Alerts tab if the team needs to be notified (see UC-13.8.25 for the pattern). An alert on an evaluator only sees sampled traces.\n\nStep 5 — Troubleshooting\n\nNo scores: the trace has no retriever span, so there is no context to compare against.",
+  "grandmaExplanation": "We check that the assistant's answer actually comes from the documents it looked up, and not from its imagination.",
+  "prerequisiteUseCases": [
+    "UC-13.8.1"
+  ],
+  "productArtifacts": [
+    {
+      "product": "splunk-agent-observability",
+      "type": "evaluator",
+      "language": "text",
+      "title": "Luna Context Adherence evaluator",
+      "body": "Where: Agent Stream > Configure Evaluators (or enable_evaluators in the SDK)\nEvaluator: Context Adherence\nJudge: Luna (Splunk-hosted small model; no customer model key)\nScores: sampled traces that contain a retriever span\nSample rate: set explicitly for the stream; there is no documented default\nNotes: Luna evaluators are Splunk-hosted small models and need no customer model key. On SaaS, Luna is limited to Prompt Injection, Toxicity, Sexism, PII and Context Adherence.",
+      "docsUrl": "https://agent-observability-docs.splunk.com/concepts/evaluators/overview"
+    }
+  ],
+  "products": [
+    "splunk-agent-observability"
+  ],
+  "subcategory": "13.8",
+  "wave": "walk"
+}
