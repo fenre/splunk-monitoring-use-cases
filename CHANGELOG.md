@@ -156,6 +156,10 @@ the release notes block in `index.html` by hand.
   `Get-DedupVolume`. `Get-StorageJob` has no `EtaSecondsRemaining`.
   UCS `assocState` does not include `establishing` or `pending-reboot`.
   Searches were left unchanged.
+- There is no Splunk Add-on for Kubernetes and no Splunk OpenShift
+  Monitoring Add-on. Outcold's Kubernetes app is Splunkbase 3743, Outcold's
+  OpenShift app is Splunkbase 3836, and the Splunk OpenTelemetry Collector
+  for Kubernetes is Splunkbase 6264. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
