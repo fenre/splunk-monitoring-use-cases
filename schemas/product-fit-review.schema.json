@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fenre.github.io/splunk-monitoring-use-cases/schemas/product-fit-review.schema.json",
+  "title": "Product-fit review",
+  "description": "Reviewed verdict for every candidate that audit-uc-product-fit reports: which Splunk product really implements the use case, whether its SPL is kept, and the evidence for that verdict. A verdict without evidence must be needs-sme-review, and such use cases are not migrated. See docs/adr/0017-splunk-product-per-use-case.md.",
+  "version": "1.0.0",
+  "x-stability": "preview",
+  "x-since": "v8.27",
+  "x-changelog": "/schemas/changelogs/product-fit-review.md",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "schemaVersion", "entries"],
+  "properties": {
+    "$schema": {"type": "string"},
+    "schemaVersion": {"const": "1.0.0"},
+    "entries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "verdict", "note"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+        "verdict": {
+          "enum": ["migrate", "keep", "needs-sme-review"],
+          "description": "migrate: the use case belongs on products. keep: the candidate is a false positive and the UC stays as it is. needs-sme-review: no skill or vendor document settles it."
+        },
+        "products": {
+          "type": "array",
+          "description": "Real products, primary first (ids from data/splunk-products.json). Required for migrate.",
+          "items": {"type": "string"},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "spl": {
+          "enum": ["keep", "remove"],
+          "description": "Keep the SPL only where a documented ingest path exists. Required for migrate."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title", "url"],
+            "properties": {
+              "title": {"type": "string", "minLength": 1},
+              "url": {"type": "string", "pattern": "^(https://|skill:[a-z0-9-]+(#[a-z0-9-]+)?$)"}
+            }
+          }
+        },
+        "note": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"verdict": {"const": "migrate"}}},
+          "then": {"required": ["products", "spl", "evidence"], "properties": {"evidence": {"minItems": 1}}}
+        },
+        {
+          "if": {"properties": {"verdict": {"const": "keep"}}},
+          "then": {"required": ["evidence"], "properties": {"evidence": {"minItems": 1}}}
+        }
+      ]
+    }
+  }
+}

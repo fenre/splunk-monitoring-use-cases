@@ -22,6 +22,12 @@ the release notes block in `index.html` by hand.
   `products` and `productArtifacts`; `catalog.json` carries `prd`, `prdn`, and
   `pra` only for non-default products. UCs without `products` are unchanged —
   the existing catalogue builds byte-identical.
+- **`audit-uc-product-fit` (warn-only).** Reports use cases whose SPL does not
+  implement them on the Splunk platform: makeresults-only checklists, SPL over
+  another product's sourcetypes or indexes that its documentation does not
+  list (`data/product-fit-rules.json`, each rule citing a skill or vendor
+  doc), and prose that configures another product while the SPL reads its
+  mirrored data. Reviewed verdicts go in `data/product-fit-review.json`.
 
 ## [8.26.0] - 2026-10-28
 

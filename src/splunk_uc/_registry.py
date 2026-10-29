@@ -234,6 +234,17 @@ register(
 )
 register(
     Verb(
+        name="audit-uc-product-fit",
+        module="audits.uc_product_fit",
+        help=(
+            "Report UCs whose SPL fakes another Splunk product (makeresults-only, "
+            "undocumented product ingest, prose configuring another product)."
+        ),
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-uc-id-migration-blast",
         module="audits.uc_id_migration_blast",
         help=(
