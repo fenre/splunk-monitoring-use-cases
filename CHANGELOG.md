@@ -50,8 +50,15 @@ the release notes block in `index.html` by hand.
   TA-nutanix-PC (8349), not 5076; Cisco ACI collection is Cisco DC Networking
   (7777), with TA_cisco-ACI (1897) deprecated, not Splunkbase 4022; NSX is
   the VMware NSX add-on (6805); Cisco ISE is Splunkbase 1915 and Cisco ASA is
-  Splunkbase 1620, not the Cisco network app 1352; ServiceNow is
+  Splunkbase 1620, not the Cisco network app 1352;   ServiceNow is
   `Splunk_TA_snow` (1928). Searches were left unchanged.
+- Corrected category 23 collector names the review showed were the wrong
+  Splunkbase entries: NGINX is 3258, Salesforce is 3549 (4146 is the Webtools
+  add-on), the REST poller is REST API Modular Input (1546), and the AWS
+  add-on is Splunk Add-on for Amazon Web Services (1876). ServiceNow inputs
+  are `snow://` stanzas. Also corrected the Sentry signature header, the
+  day-five cron, the Zendesk audits method, the Sparkplug B topic paths, and
+  the SAP `AFRU` quantity fields. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
