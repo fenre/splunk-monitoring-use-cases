@@ -113,6 +113,17 @@ the release notes block in `index.html` by hand.
   Authentication; CoPP counters have no CIM model. RFC 8584 is designated
   forwarder election, and VXLAN is RFC 7348. Splunkbase 3743 is Outcold's
   Monitoring Kubernetes app. Searches were left unchanged.
+- Corrected APIC, UCS, dHCI, and vSAN facts the review still found in the
+  prose. APIC-M3/L3/M4/L4 are physical appliances. The UCS add-on (2731,
+  `Splunk_TA_cisco-ucs`) uses Managers, Templates, and Inputs and writes
+  `sourcetype=cisco:ucs` with `source=cisco:ucs:<classId>`. dHCI arrays are
+  Nimble, Alletra 5000, and Alletra 6000. A shared vSAN witness arrived in
+  vSAN 7.0 U1 for two-node clusters. vCenter events are `vmware:events`.
+  Host performance is `vmware:perf:cpu` and `vmware:perf:mem`. Datastore
+  performance is `vmware:perf:datastore`. vRealize Operations Metrics is
+  Splunkbase 7102. HEC acknowledgement is `useACK`. HyperFlex last date of
+  support is 2029-02-28. Proxmox API tokens use `Authorization: PVEAPIToken=`.
+  Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
