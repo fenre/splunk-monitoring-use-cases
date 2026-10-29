@@ -160,6 +160,12 @@ the release notes block in `index.html` by hand.
   Monitoring Add-on. Outcold's Kubernetes app is Splunkbase 3743, Outcold's
   OpenShift app is Splunkbase 3836, and the Splunk OpenTelemetry Collector
   for Kubernetes is Splunkbase 6264. Searches were left unchanged.
+- Docker events come from `docker events`, not a modular input in Splunk
+  Connect for Docker (4496). There is no `Splunk_TA_docker`. cgroup v2
+  limits are a custom script, not Splunk_TA_nix. Trivy HEC posts need an
+  event wrapper or the raw endpoint. BuildKit cache hits come from
+  `--progress=rawjson`, not `buildkit:metadata`. Searches were left
+  unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
