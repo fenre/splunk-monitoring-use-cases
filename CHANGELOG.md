@@ -124,6 +124,20 @@ the release notes block in `index.html` by hand.
   Splunkbase 7102. HEC acknowledgement is `useACK`. HyperFlex last date of
   support is 2029-02-28. Proxmox API tokens use `Authorization: PVEAPIToken=`.
   Searches were left unchanged.
+- Corrected more reviewed category 19 sentences. UCS memory faults are
+  F0184 and F0185. UCSM syslog is under Admin > All > Faults, Events, and
+  Audit Log. Fabric failover is `vnicEther.switchId`. HA leadership is
+  `mgmtEntity`. DIMM ECC counters are `memoryErrorStats`. Chassis power
+  redundancy is `equipmentChassis.power`. The IOM link-down fault is F0276.
+  Cassandra forwarding is a degraded CVM. vSAN OSA RAID-5 is 3+1. There is
+  no Splunkbase HyperFlex add-on. Ceph pools are
+  `GET /api2/json/nodes/{node}/ceph/pool`. `pctIowait` comes from the `cpu`
+  sourcetype. vSAN disk inventory is the vSAN Management SOAP API. VxRail
+  cluster health is `GET /rest/vxm/v1/cluster` with HTTP Basic auth. Proxmox
+  replication status is `GET /nodes/{node}/replication`.
+  `Get-StorageReliabilityCounter` returns Wear and error counters.
+  `cisco:intersight:metrics` is a real sourcetype of Splunkbase 7828.
+  Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
