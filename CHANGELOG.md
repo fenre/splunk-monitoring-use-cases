@@ -36,6 +36,199 @@ the release notes block in `index.html` by hand.
 
 ### Changed
 
+- Corrected 585 use cases that already had a deep review. Removed the generated
+  "Variant N confirms…" and "Purpose-built for…" sentences, deleted cited
+  false statements (including Universal Forwarder cited as Splunkbase 617),
+  dropped CIM models and equipment tags the review showed were wrong, and
+  moved 334 `status: verified` claims to `draft` where the review found no
+  SME sign-off. Searches, `cimSpl`, compliance tags, and grandma explanations
+  were left unchanged.
+- Rewrote the blocker sentences that were still present when the review's
+  replacement was a factual statement: VMware collection is Splunkbase 3215
+  (`Splunk_TA_vmware`), not 3684 or 1810; the Cisco UCS add-on folder is
+  `Splunk_TA_cisco-ucs` (Splunkbase 2731); Nutanix is TA-nutanix (3103) and
+  TA-nutanix-PC (8349), not 5076; Cisco ACI collection is Cisco DC Networking
+  (7777), with TA_cisco-ACI (1897) deprecated, not Splunkbase 4022; NSX is
+  the VMware NSX add-on (6805); Cisco ISE is Splunkbase 1915 and Cisco ASA is
+  Splunkbase 1620, not the Cisco network app 1352;   ServiceNow is
+  `Splunk_TA_snow` (1928). Searches were left unchanged.
+- Corrected category 23 collector names the review showed were the wrong
+  Splunkbase entries: NGINX is 3258, Salesforce is 3549 (4146 is the Webtools
+  add-on), the REST poller is REST API Modular Input (1546), and the AWS
+  add-on is Splunk Add-on for Amazon Web Services (1876). ServiceNow inputs
+  are `snow://` stanzas. Also corrected the Sentry signature header, the
+  day-five cron, the Zendesk audits method, the Sparkplug B topic paths, and
+  the SAP `AFRU` quantity fields. Searches were left unchanged.
+- Corrected the remaining category 23 blocker sentences: pretrained
+  `access_combined` needs no Apache add-on; App Store Connect JWTs use
+  `aud=appstoreconnect-v1`; Marketo activities are GET with a paging token;
+  Salesforce quotas are `ForecastingQuota` and the add-on writes `sfdc:`
+  sourcetypes; Stripe subscriptions have no `updated` field; forwarder
+  traffic is port 9997 and HEC is 8088; `outputcsv` does not write an index;
+  DB Connect uses `interval` and cannot be both `batch` and rising;
+  `SEDCMD` cannot mint a hash (use `INGEST_EVAL`); SQL Server is Splunkbase
+  2648, not 2926; Splunkbase has no ADP add-on; Dashboard Studio has no
+  `splunk.funnel`; SES review and pause thresholds differ; SAP `S2` cancels
+  a credit memo; Shopify returns are GraphQL-only; `append` truncates on
+  `maxtime`; the SEC climate rule is stayed; WattTime tokens last about
+  thirty minutes. Searches were left unchanged.
+- Corrected Splunkbase citations that were still wrong in reviewed use cases.
+  Universal Forwarder is not Splunkbase 617. Cisco ACI collection is Cisco
+  DC Networking (7777); TA_cisco-ACI (1897) is deprecated. NSX is the VMware
+  NSX add-on (6805, `TA-nsx`). VMware is Splunkbase 3215. Nutanix is
+  TA-nutanix (3103) or TA-nutanix-PC (8349). REST API Modular Input is 1546.
+  Kubernetes collection cited as Splunkbase 5167 is the Splunk OpenTelemetry
+  Collector for Kubernetes (6264). VMware ESXi logs are Splunkbase 5603.
+  The UCS add-on folder is `Splunk_TA_cisco-ucs`. Searches were left unchanged.
+- Corrected category 15 facts the review still found in the prose: the
+  saved-search capability is `schedule_search`; syslog listeners are `tcp`
+  or `udp` (not `splunktcp`); index access for viewers is
+  `srchIndexesAllowed`; app install uses `admin` or `sc_admin`; APC runtime
+  is TimeTicks; outlet current is `rPDU2OutletMeteredStatusCurrent`; InRow
+  temperatures are the PowerNet-MIB `airIRRCUnitStatus*TempUS` objects;
+  Meraki is Splunkbase 5580. Searches were left unchanged.
+- Corrected the remaining category 15 blocker sentences. Splunk Connect for
+  SNMP (6266) is a container that sends to HEC (`sc4snmp:metric`,
+  `sc4snmp:event`, `sc4snmp:traps`); only SNMP Modular Input (1537) uses
+  heavy-forwarder `inputs.conf` stanzas. `upsCommStatus` is the NMC-to-UPS
+  link. Outlet load is tenths of an amp. There is no `coolingUnitState` or
+  AirIR-MIB. Meraki webhook logs are delivery metadata; MV Sense people
+  counts are MQTT or camera analytics REST; uplink loss does not cover
+  cameras. ASHRAE's recommended humidity band is dew point, not 40–60% RH.
+  `_time` is epoch. Index access is `srchIndexesAllowed`. Searches were
+  left unchanged.
+- Corrected reviewed blocker sentences outside the fully reviewed categories.
+  Trusted Advisor is not a Splunk_TA_aws input. GCP audit sourcetypes follow
+  the Pub/Sub add-on. Cisco IOS syslog is the Catalyst add-on (7538), not
+  Splunkbase 2812. Google Cloud Platform is 3088, Office 365 is 4055, Teams
+  call records are 4994, and Zoom webhooks are Splunk Connect for Zoom (4961).
+  TrueNAS 25.04 uses `pool.query`. License volume is `license_usage.log`.
+  `crcSalt` is not an integrity check. A 24-hour window cannot see a 60-day
+  idle account. Searches were left unchanged.
+- Corrected VMware add-on citations that still used Splunkbase 5380. The
+  add-on is Splunk Add-on for VMware (3215, `Splunk_TA_vmware`). Dropped CIM
+  models the review showed do not fit: PVC and DaemonSet gauges are not
+  Performance, Inventory, or Application_State; certificate expiry is
+  Certificates; NSX policy edits are Change; Cilium labels are not
+  Authentication; CoPP counters have no CIM model. RFC 8584 is designated
+  forwarder election, and VXLAN is RFC 7348. Splunkbase 3743 is Outcold's
+  Monitoring Kubernetes app. Searches were left unchanged.
+- Corrected APIC, UCS, dHCI, and vSAN facts the review still found in the
+  prose. APIC-M3/L3/M4/L4 are physical appliances. The UCS add-on (2731,
+  `Splunk_TA_cisco-ucs`) uses Managers, Templates, and Inputs and writes
+  `sourcetype=cisco:ucs` with `source=cisco:ucs:<classId>`. dHCI arrays are
+  Nimble, Alletra 5000, and Alletra 6000. A shared vSAN witness arrived in
+  vSAN 7.0 U1 for two-node clusters. vCenter events are `vmware:events`.
+  Host performance is `vmware:perf:cpu` and `vmware:perf:mem`. Datastore
+  performance is `vmware:perf:datastore`. vRealize Operations Metrics is
+  Splunkbase 7102. HEC acknowledgement is `useACK`. HyperFlex last date of
+  support is 2029-02-28. Proxmox API tokens use `Authorization: PVEAPIToken=`.
+  Searches were left unchanged.
+- Corrected more reviewed category 19 sentences. UCS memory faults are
+  F0184 and F0185. UCSM syslog is under Admin > All > Faults, Events, and
+  Audit Log. Fabric failover is `vnicEther.switchId`. HA leadership is
+  `mgmtEntity`. DIMM ECC counters are `memoryErrorStats`. Chassis power
+  redundancy is `equipmentChassis.power`. The IOM link-down fault is F0276.
+  Cassandra forwarding is a degraded CVM. vSAN OSA RAID-5 is 3+1. There is
+  no Splunkbase HyperFlex add-on. Ceph pools are
+  `GET /api2/json/nodes/{node}/ceph/pool`. `pctIowait` comes from the `cpu`
+  sourcetype. vSAN disk inventory is the vSAN Management SOAP API. VxRail
+  cluster health is `GET /rest/vxm/v1/cluster` with HTTP Basic auth. Proxmox
+  replication status is `GET /nodes/{node}/replication`.
+  `Get-StorageReliabilityCounter` returns Wear and error counters.
+  `cisco:intersight:metrics` is a real sourcetype of Splunkbase 7828.
+  Searches were left unchanged.
+- Corrected Splunkbase product names the category 18 review still had
+  wrong. Splunkbase 2846 is Fortinet FortiGate, not Cisco IOS or NX-OS.
+  Splunkbase 1917 is not in the catalogue, and there is no
+  `Splunk_TA_cisco-nexus`. Splunkbase 2847 is not in the catalogue.
+  Splunkbase 1918 is Arista Networks Telemetry For Splunk. Splunkbase 1897
+  is the deprecated Cisco ACI add-on; current ACI collection is Cisco DC
+  Networking (7777). Splunk Connect for Syslog is Splunkbase 4740.
+  Splunkbase 1546 is REST API Modular Input. Searches were left unchanged.
+- Corrected more category 19 object and API names. Intersight sourcetypes
+  are a fixed list on Splunkbase 7828, not one name per managed object.
+  Chassis inlet temperature is on the fan or IOM stats, not
+  `equipmentChassisStats`. LVM thin pools are `lv_attr` type `t`. A
+  two-hour search cannot estimate a 24-hour fill time. oVirt low-space
+  events are 26, 201, and 1403. VxRail disks are `GET /rest/vxm/v1/disks`.
+  Azure Local registration is `Get-AzureStackHCI`. Dedup savings come from
+  `Get-DedupVolume`. `Get-StorageJob` has no `EtaSecondsRemaining`.
+  UCS `assocState` does not include `establishing` or `pending-reboot`.
+  Searches were left unchanged.
+- There is no Splunk Add-on for Kubernetes and no Splunk OpenShift
+  Monitoring Add-on. Outcold's Kubernetes app is Splunkbase 3743, Outcold's
+  OpenShift app is Splunkbase 3836, and the Splunk OpenTelemetry Collector
+  for Kubernetes is Splunkbase 6264. Searches were left unchanged.
+- Docker events come from `docker events`, not a modular input in Splunk
+  Connect for Docker (4496). There is no `Splunk_TA_docker`. cgroup v2
+  limits are a custom script, not Splunk_TA_nix. Trivy HEC posts need an
+  event wrapper or the raw endpoint. BuildKit cache hits come from
+  `--progress=rawjson`, not `buildkit:metadata`. Searches were left
+  unchanged.
+- Corrected reviewed collector and API sentences outside category 3 and
+  the category 18 product-name pass. Windows channel events use
+  sourcetype `WinEventLog` or `XmlWinEventLog` with the channel in
+  `source`. Citrix VDA inventory is `xendesktop:7:machine` and
+  `xendesktop:7:InstalledSoftware`. uberAgent crashes are
+  `uberAgent:Application:Errors`. Artifact Registry audit methods are
+  `CreateRepository` and `DeleteRepository`. GCP audit failures are
+  `protoPayload.status.code`. RA Guard syslog is a one-line
+  `%SISF-4-PAK_DROP` with `P=NDP::RA`. NX-OS unnumbered IPv6 uses
+  `ipv6 address use-link-local-only`. NIOS login failures are
+  `LOGIN_DENIED`. ServiceNow changes are `snow:change_request`.
+  UCS environmental thresholds use the high-side columns for thermals
+  and watts. Scheduled UCS backups are `mgmtBackupPolicy` and
+  `mgmtCfgExportPolicy`. Intersight contracts are
+  `asset.DeviceContractInformation` on sourcetype
+  `cisco:intersight:contracts` (Splunkbase 7828). Prism v3 alerts sit
+  under `status.resources`. SimpliVity backups page with `offset` and
+  authenticate with HTTP Basic client `simplivity`. Azure Local load
+  balancing is `AutoBalancerMode`. Hyper-V live migration events are on
+  the VMMS Admin channel. Searches were left unchanged.
+- Category 18 product names that were still wrong: Splunkbase 1917 and
+  2847 are not in the catalogue, and there is no `Splunk_TA_cisco-nexus`
+  or `Splunk_TA_junos`. 1918 is Arista Networks Telemetry For Splunk.
+  1897 is the deprecated ACI add-on. Cisco openVuln calls for
+  registrations after March 2023 use `apix.cisco.com`. The EoX Support
+  API is `apix.cisco.com/supporttools/eox/rest/5/`. Cisco DC Networking
+  (7777) indexes Nexus Dashboard advisories as `cisco:dc:nd:advisories`.
+  `Splunk_TA_nix` does not emit `linux:journald`. Nexus 9000 CoPP
+  profiles are strict, moderate, lenient, and dense. Searches were left
+  unchanged.
+- Category 18 API and fault sentences: APIC health uses an Lp-norm, not
+  90/60/30 weights. Fault objects are `faultInst`. `rsp-subtree` is
+  `no`, `children`, or `full`. The APIC Python SDK is the `acicobra`
+  wheel from the APIC, not `pip install cobra`. Fault lifecycle states
+  include `retaining`. F0952 is a missing VRF relation. F1394 is a
+  fabric port down. F0467 is an EPG deployment failure. NSX DFW allows
+  are `PASS`. The Edge load balancer is NGINX. NAT rules are under
+  `/nat/{nat-id}/nat-rules`. NSX Intelligence is `/napp/api/v1/intelligence/`.
+  There is no `vmware:vmware:vsphere:vcenter` sourcetype. Hubble verdicts
+  use `FORWARDED`, not `ALLOWED`. NDO APIs are under `/mso/api/v1/`.
+  Searches were left unchanged.
+- Category 3 collector sentences that still named the wrong add-on.
+  Splunk Connect for Docker (4496) forwards container stdout and stderr
+  to HEC. It has no modular input for `docker events` or `docker stats`.
+  There is no `Splunk_TA_docker` and no `Splunk_TA_falco` in the
+  Splunkbase catalogue. Falco JSON is Falcosidekick HEC. Splunk_TA_nix
+  (833) emits `df`, `cpu`, `ps`, and `linux_secure`. It does not emit
+  `linux:df`, `linux:cgroup`, `audit:json`, or eBPF sourcetypes, and it
+  has no journald input. Journald is the platform `[journald://]` input.
+  auditd is `linux_audit`. Searches were left unchanged.
+- Corrected the remaining reviewed category 3 blocker sentences.
+  Docker events are `type=container` (`exec_create`, `exec_start`,
+  `exec_die`), not `type=exec`. `docker stats` has no log-line rate and
+  prints NetIO and BlockIO as strings. cgroup v2 reports `throttled_usec`,
+  and an unlimited `memory.max` is the string `max`. kube-state-metrics
+  names are `kube_rolebinding`, `kube_clusterrolebinding`,
+  `kube_endpoint_address`, `kube_cronjob_info`,
+  `kube_horizontalpodautoscaler_status_target_metric`, and
+  `kube_pod_status_qos_class`. CronJob misses are `MissSchedule`.
+  OpenShift audit is an APIServer profile, not an `audit.k8s.io` Policy.
+  Harbor webhooks post to HEC `/services/collector/raw`. Istio merged
+  metrics are port 15020. Cilium has no Hubble receiver in the Splunk
+  OpenTelemetry Collector. Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`

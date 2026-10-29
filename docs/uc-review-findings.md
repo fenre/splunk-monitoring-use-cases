@@ -11,31 +11,31 @@ Roll-up of the UC text-quality review ledger under `reports/uc-review/`. Grading
 
 | Category | UCs | Triage | Deep | Adjudication | Stale |
 |---|---|---|---|---|---|
-| cat-01-server-compute | 281 | 0 | 5 | 0 | 0 |
-| cat-02-virtualization | 224 | 0 | 7 | 0 | 0 |
-| cat-03-containers-orchestration | 129 | 0 | 129 | 0 | 0 |
+| cat-01-server-compute | 281 | 0 | 5 | 0 | 1 |
+| cat-02-virtualization | 224 | 0 | 7 | 0 | 7 |
+| cat-03-containers-orchestration | 129 | 0 | 129 | 0 | 129 |
 | cat-04-cloud-infrastructure | 1235 | 0 | 8 | 0 | 0 |
-| cat-05-network-infrastructure | 720 | 0 | 13 | 0 | 0 |
-| cat-06-storage-backup | 152 | 0 | 5 | 0 | 0 |
-| cat-07-database-data-platforms | 187 | 0 | 5 | 0 | 0 |
-| cat-08-application-infrastructure | 241 | 0 | 8 | 0 | 0 |
-| cat-09-identity-access-management | 116 | 0 | 3 | 0 | 0 |
-| cat-10-security-infrastructure | 2455 | 0 | 6 | 0 | 0 |
-| cat-11-email-collaboration | 135 | 0 | 6 | 0 | 0 |
-| cat-12-devops-ci-cd | 126 | 0 | 4 | 0 | 0 |
-| cat-13-observability-monitoring-stack | 184 | 0 | 6 | 0 | 0 |
-| cat-14-iot-operational-technology-ot | 249 | 0 | 6 | 0 | 0 |
-| cat-15-data-center-physical-infrastructure | 117 | 117 | 117 | 0 | 0 |
-| cat-16-service-management-itsm | 102 | 0 | 6 | 0 | 0 |
-| cat-17-network-security-zero-trust | 208 | 0 | 4 | 0 | 0 |
-| cat-18-data-center-fabric-sdn | 76 | 0 | 76 | 0 | 0 |
-| cat-19-compute-infrastructure-hci-converged | 93 | 0 | 93 | 0 | 0 |
-| cat-20-cost-capacity-management | 77 | 0 | 6 | 0 | 0 |
-| cat-21-industry-verticals | 860 | 0 | 5 | 0 | 0 |
-| cat-22-regulatory-compliance | 1683 | 0 | 9 | 6 | 0 |
-| cat-23-business-analytics | 63 | 0 | 63 | 0 | 0 |
-| cat-24-business-intelligence-analytics-platforms | 508 | 0 | 5 | 0 | 0 |
-| cat-25-personal-hobbyist-monitoring | 6431 | 0 | 5 | 0 | 0 |
+| cat-05-network-infrastructure | 720 | 0 | 13 | 0 | 13 |
+| cat-06-storage-backup | 152 | 0 | 5 | 0 | 5 |
+| cat-07-database-data-platforms | 187 | 0 | 5 | 0 | 5 |
+| cat-08-application-infrastructure | 241 | 0 | 8 | 0 | 8 |
+| cat-09-identity-access-management | 116 | 0 | 3 | 0 | 3 |
+| cat-10-security-infrastructure | 2455 | 0 | 6 | 0 | 6 |
+| cat-11-email-collaboration | 135 | 0 | 6 | 0 | 6 |
+| cat-12-devops-ci-cd | 126 | 0 | 4 | 0 | 4 |
+| cat-13-observability-monitoring-stack | 184 | 0 | 6 | 0 | 6 |
+| cat-14-iot-operational-technology-ot | 249 | 0 | 6 | 0 | 6 |
+| cat-15-data-center-physical-infrastructure | 117 | 117 | 117 | 0 | 117 |
+| cat-16-service-management-itsm | 102 | 0 | 6 | 0 | 6 |
+| cat-17-network-security-zero-trust | 208 | 0 | 4 | 0 | 4 |
+| cat-18-data-center-fabric-sdn | 76 | 0 | 76 | 0 | 76 |
+| cat-19-compute-infrastructure-hci-converged | 93 | 0 | 93 | 0 | 93 |
+| cat-20-cost-capacity-management | 77 | 0 | 6 | 0 | 6 |
+| cat-21-industry-verticals | 860 | 0 | 5 | 0 | 2 |
+| cat-22-regulatory-compliance | 1683 | 0 | 9 | 6 | 9 |
+| cat-23-business-analytics | 63 | 0 | 63 | 0 | 63 |
+| cat-24-business-intelligence-analytics-platforms | 508 | 0 | 5 | 0 | 5 |
+| cat-25-personal-hobbyist-monitoring | 6431 | 0 | 5 | 0 | 5 |
 
 ## Verdicts by tier
 
