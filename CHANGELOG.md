@@ -43,6 +43,15 @@ the release notes block in `index.html` by hand.
   moved 334 `status: verified` claims to `draft` where the review found no
   SME sign-off. Searches, `cimSpl`, compliance tags, and grandma explanations
   were left unchanged.
+- Rewrote the blocker sentences that were still present when the review's
+  replacement was a factual statement: VMware collection is Splunkbase 3215
+  (`Splunk_TA_vmware`), not 3684 or 1810; the Cisco UCS add-on folder is
+  `Splunk_TA_cisco-ucs` (Splunkbase 2731); Nutanix is TA-nutanix (3103) and
+  TA-nutanix-PC (8349), not 5076; Cisco ACI collection is Cisco DC Networking
+  (7777), with TA_cisco-ACI (1897) deprecated, not Splunkbase 4022; NSX is
+  the VMware NSX add-on (6805); Cisco ISE is Splunkbase 1915 and Cisco ASA is
+  Splunkbase 1620, not the Cisco network app 1352; ServiceNow is
+  `Splunk_TA_snow` (1928). Searches were left unchanged.
 - The UC text-quality full run defers cat-25 Personal & Hobbyist Monitoring
   (the fun category, 6,431 use cases). Unscoped `uc_review_runner.py`
   triage, deep and `plan` skip it; `--category cat-25` or `--include-fun`
