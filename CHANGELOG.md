@@ -83,6 +83,14 @@ the release notes block in `index.html` by hand.
   Endpoint tamper detections (10.3.411–10.3.413, 10.6.78) are lifted to gold.
 - Cisco equipment models and collision-safe patterns were added to the equipment
   registry, and equipment tags were regenerated.
+- **Cisco equipment tags now follow the search.** A use case keeps a Cisco tag
+  only when its SPL is not exclusively another vendor's sourcetype, and the
+  bare pattern `ACI` no longer matches inside the word "capacity". This
+  removes tags that handed a Cisco customer an empty search, including
+  UC-5.2.3 and UC-10.1.1 (Palo Alto `pan:threat` tagged as Secure Firewall),
+  UC-14.9.1 and UC-14.9.11 (Nozomi tagged as Cyber Vision), and UC-1.1.86
+  (Linux process data tagged as ACI). Searches over SNMP, NetFlow, or a
+  `cisco:` sourcetype keep their tags.
 
 ## [8.25.0] - 2026-07-24
 

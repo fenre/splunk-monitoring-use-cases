@@ -583,7 +583,6 @@ EQUIPMENT = [
                 "tas": [
                     "cisco:aci",
                     "Cisco ACI",
-                    "ACI",
                     "APIC",
                     "TA_cisco-ACI"
                 ]
