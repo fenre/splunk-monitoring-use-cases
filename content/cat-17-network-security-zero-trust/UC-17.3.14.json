@@ -2,54 +2,59 @@
   "$schema": "../../schemas/uc.schema.json",
   "id": "17.3.14",
   "title": "Cisco Umbrella DNS Block Analysis",
-  "criticality": "high",
+  "criticality": "medium",
   "difficulty": "beginner",
   "monitoringType": [
-    "Security"
+    "Security",
+    "Analytics"
   ],
   "splunkPillar": "Security",
-  "exclusions": "Covers the detection logic documented for 'Cisco Umbrella DNS Block Analysis' only. Does not replace full NAC policy design or firewall rule authoring or regulatory attestation. Entities listed in `network_exception_register.csv` during approved tests are excluded.",
-  "evidence": "Saved search `network_cisco_umbrella_dns_block_analysis` (UC-17.3.14), SOC dashboard panel \"Network — Cisco Umbrella DNS Block Analysis\", and weekly export to `index=audit_evidence` sourcetype=csv:network_controls.",
+  "exclusions": "Covers DNS queries that go through Umbrella or Secure Access. Devices using another resolver, or DNS over HTTPS to a third party, are not seen.",
+  "evidence": "Weekly report export of the top blocked domains with categories and identity counts, plus review notes for security-category entries.",
   "controlTest": {
-    "positiveScenario": "UC-17.3.14 positive (Cisco, Umbrella, DNS, Block, Analysis): ingest synthetic events into `index=dns` sourcetype='umbrella:dns' where `count` grouped by `domain`, `identity`, `categories` satisfies -7d for 'Cisco Umbrella DNS Block Analysis'.  Run the saved search and confirm at least one alertable row.",
-    "negativeScenario": "UC-17.3.14 negative (Block Analysis): ingest benign `dns` / `umbrella:dns` events where `domain`, `identity`, `categories` stays below -7d, or exclude the test entity via `network_exception_register.csv`. Variant 8 confirms zero alert rows for 'Cisco Umbrella DNS Block Analysis'."
+    "positiveScenario": "From a test client protected by Umbrella or Secure Access, resolve Cisco's documented test domain `examplemalwaredomain.com`. The query is blocked, the event reaches `index=sse` after the next S3 sync, and the domain appears in the results with a security `block_reason`.",
+    "negativeScenario": "From the same client resolve `www.cisco.com`. The query is logged as Allowed and the domain does not appear in the results."
   },
-  "dataSources": "`sourcetype=umbrella:dns` Collected via Universal Forwarder (Splunkbase 617) modular input or scripted poll into the index named in the SPL.",
-  "app": "Cisco Umbrella TA — Universal Forwarder (Splunkbase 617)",
-  "spl": "index=dns sourcetype=\"umbrella:dns\" earliest=-7d\n| where action=\"blocked\"\n| stats count by domain, identity, categories\n| sort 50 -count",
-  "description": "Monitors UC-17.3.14 — Cisco, Umbrella, DNS, Block, Analysis — using `index=dns` sourcetype `umbrella:dns`, grouped by `domain`, `identity`, `categories`. Outputs `count` each `the scheduled window`; alert when -7d. Primary focus: Block Analysis. Purpose-built for 'Cisco Umbrella DNS Block Analysis' in Network workflows.",
-  "value": "UC-17.3.14 accelerates insight into Block Analysis ('Cisco Umbrella DNS Block Analysis') by tracking `activity` on `umbrella:dns` feeds, reducing unauthorized access, segmentation drift, and NAC policy failures before spreadsheet checks hide regressions.",
-  "implementation": "Enrich with ASN or threat feed for rare domains. Alert on spike in blocks from single identity (possible compromise).",
-  "visualization": "Bar chart (top domains), Table (identity × domain), Pie chart (categories).",
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:dns` (or `cisco:umbrella:dns` on older Umbrella exports) from the Secure Access or Umbrella S3 log bucket, read by the Cisco Secure Access Add-on (7569). One event per DNS query with `action` (Allowed or Blocked), `domain`, `category`, `blocked_category`, `identities`, `src_ip`, and `reply_code`.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which collects both Cisco Secure Access and Cisco Umbrella DNS logs from the S3 log bucket.",
+  "spl": "index=sse sourcetype IN (\"cisco:cloud_security:dns\", \"cisco:umbrella:dns\") earliest=-7d\n| eval action=lower(action)\n| where action=\"blocked\"\n| eval block_reason=coalesce(nullif(blocked_category, \"\"), category)\n| stats count as blocks dc(identities) as identity_count values(identities) as identities values(src_ip) as src_ip latest(_time) as last_seen by domain block_reason\n| convert ctime(last_seen)\n| sort 50 - blocks",
+  "description": "Ranks the 50 domains Cisco Umbrella or Secure Access blocked most often in the last 7 days, with the category that caused the block, how many identities queried them, and which source IPs they came from.",
+  "value": "DNS blocks are the cheapest early signal of malware, phishing, and policy violations, but the raw volume is too high to read. Ranking by domain and identity count separates one infected laptop calling a command-and-control domain from a policy that blocks a site half the company needs.",
+  "implementation": "Configure the Secure Access or Umbrella S3 log export and the Cisco Secure Access Add-on (7569) input into `index=sse`. Run weekly as a report; add an alert for blocks in security categories (malware, command and control, phishing) separately.",
+  "visualization": "Table: domain, block_reason, blocks, identity_count, identities, src_ip, last_seen. Supporting panels: blocks per day by category (stacked column), top identities by security-category blocks (bar chart).",
   "cimModels": [],
-  "cimSpl": "| tstats `summariesonly` count\n  from datamodel=Network_Traffic.All_Traffic\n  by All_Traffic.user, All_Traffic.action, All_Traffic.src, All_Traffic.dest span=1h\n| sort - count",
-  "dataModelAcceleration": "Enable for Network_Traffic (All_Traffic).",
+  "schema": "OCSF: dns_activity",
   "references": [
     {
-      "title": "CIM: Network_Resolution",
-      "url": "https://docs.splunk.com/Documentation/CIM/latest/User/Network_Resolution",
-      "retrieved": "2026-04-25"
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Cisco Security documentation",
-      "url": "https://www.cisco.com/c/en/us/support/security/index.html",
-      "retrieved": "2026-04-25"
+      "title": "Cisco Umbrella: Log Management and Amazon S3 log export",
+      "url": "https://docs.umbrella.com/deployment-umbrella/docs/log-management",
+      "retrieved": "2026-11-02"
     },
     {
-      "title": "Splunk HTTP Event Collector",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Data/UsetheHTTPEventCollector",
-      "retrieved": "2026-04-25"
-    },
-    {
-      "title": "Splunk inputs.conf reference",
-      "url": "https://docs.splunk.com/Documentation/Splunk/latest/Admin/Inputsconf",
-      "retrieved": "2026-04-25"
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
     }
   ],
-  "knownFalsePositives": "1. **Maintenance window on `dns` (UC-17.3.14)** — Planned work for 'Cisco Umbrella DNS Block Analysis' shifts `count` over `span=1h` while `domain`, `identity`, `categories` remains in-scope.  Cross-check CMDB CHG.\n\n2. **Batch `count` on `umbrella:dns`** — Scheduled automation elevates `identity` without crossing configured threshold for UC-17.3.14. Compare `_time` minute against the job schedule.\n\n3. **Synthetic probe on `domain`, `identity`, `categories`** — Health checks in `dns` populate the same fields the SPL groups on. Exclude monitoring-tagged assets before paging.\n\n4. **Onboarding burst for `umbrella:dns`** — First 48h baseline for UC-17.3.14 on `domain` is unstable; window via `network_exception_register.csv`.\n\n**Suppression mechanism:** `network_exception_register.csv` keyed on `domain`, `exception_reason`, `valid_until`.",
+  "knownFalsePositives": "1. **Policy blocks on business sites** — content-category blocks (social media, streaming) on domains a team needs show a high `identity_count` and a non-security `block_reason`. Review them with the policy owner rather than the SOC.\n\n2. **Background telemetry** — operating systems and browsers retry blocked telemetry and ad domains constantly, which pushes them to the top by count. Sort by `identity_count` or filter out ad categories.\n\n**Suppression:** a lookup of reviewed domain and category pairs with an owner and review date.",
   "mitreAttack": [
     "T1071.004",
     "T1568"
+  ],
+  "detectionType": "Hunting",
+  "securityDomain": "network",
+  "requiredFields": [
+    "action",
+    "domain",
+    "category",
+    "blocked_category",
+    "identities",
+    "src_ip"
   ],
   "equipment": [
     "cisco"
@@ -61,8 +66,8 @@
     "9.2+",
     "Cloud"
   ],
-  "detailedImplementation": "Prerequisites\n• Cisco Umbrella DNS logs in `index=umbrella` with `sourcetype=cisco:umbrella:dns`. Splunk Add-on for Cisco Umbrella. Key fields: `identities` (user/device), `action` (Allowed/Blocked), `categories` (URL category), `domain`, `queryType`, `internalIp`, `externalIp`, `responseCode`.\n• Umbrella is a cloud DNS security service. It blocks DNS resolution for malicious, phishing, and policy-violating domains. A block at the DNS layer prevents the connection before any data is exchanged — the earliest possible interception point.\n• Create an `umbrella_category_severity.csv` lookup: `category,severity,response_action` mapping Umbrella categories to severity levels.\n\nStep 1 — Configure data collection\nConfigure Umbrella log export: Umbrella Dashboard > Admin > Log Management > enable S3 log export. Then use the Splunk Add-on to ingest from S3.\n\nVerify:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" earliest=-1h\n| stats count by action\n```\n\nStep 2 — Create the search and alert\n\nPrimary search — DNS block analysis:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" action=Blocked earliest=-7d\n| stats count dc(identities) as affected_users dc(domain) as unique_domains by categories\n| lookup umbrella_category_severity.csv category as categories OUTPUT severity\n| sort severity, - count\n```\n\nUnderstanding this SPL: Groups DNS blocks by Umbrella category and enriches with severity. 'Malware' and 'Command and Control' blocks are the most critical — they indicate endpoints actively trying to reach known-bad infrastructure (potentially already compromised). 'Phishing' blocks indicate users clicking malicious links. 'Adult' or 'Gambling' are policy enforcement. The 'affected_users' count per category shows the scope of a campaign.\n\nCommand-and-Control beacon detection:\n```spl\nindex=umbrella sourcetype=\"cisco:umbrella:dns\" action=Blocked earliest=-24h\n| where match(categories, \"(?i)command.and.control|malware|botnet\")\n| stats count earliest(_time) as first_seen latest(_time) as last_seen by identities, domain, internalIp\n| where count > 5\n| sort - count\n```\n\nStep 3 — Validate\n(a) In Umbrella: Reports > Activity Search > Blocked. Compare with Splunk.\n(b) Attempt to resolve a known test-block domain.\n\nStep 4 — Operationalize\nDashboard: Row 1 — Block category distribution. Row 2 — C2 beacon candidates. Row 3 — Top blocked domains.\nAlert: Immediate on any C2/Malware/Botnet blocks from internal IPs.\n\nRunbook:\n1. **C2 block** — Internal host may be compromised. Isolate and investigate.\n2. **Phishing spike** — Active campaign. Send user awareness notification.\n3. **Single domain, many users** — Widespread phishing email. Check email gateway for the source.\n\nStep 5 — Troubleshooting\n• **No Umbrella data** — S3 log export may not be enabled. Check Umbrella Admin > Log Management.\n• **`identities` empty** — Umbrella Roaming Client or Virtual Appliance may not be identifying users. Check Umbrella agent deployment.",
-  "grandmaExplanation": "Before your computer even connects to a dangerous website, our DNS security service can block the address reference list. We analyze which dangerous addresses are being blocked, and when a device keeps trying to reach known attacker addresses, we investigate because it may already be infected.",
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the add-on create an S3 modular input for the DNS log path with the bucket name, region, access key, and secret, and set the index to `sse`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the query. `action` is logged as Allowed or Blocked; the search lowercases it.\n• Check the fields this search needs: run `index=sse sourcetype=\"cisco:cloud_security:dns\" | stats count by action` over 1 day and confirm both values appear.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype IN (\"cisco:cloud_security:dns\", \"cisco:umbrella:dns\") earliest=-7d\n| eval action=lower(action)\n| where action=\"blocked\"\n| eval block_reason=coalesce(nullif(blocked_category, \"\"), category)\n| stats count as blocks dc(identities) as identity_count values(identities) as identities values(src_ip) as src_ip latest(_time) as last_seen by domain block_reason\n| convert ctime(last_seen)\n| sort 50 - blocks\n```\n\nUnderstanding this SPL\n• The first line reads 7 days of DNS logs from both the current Secure Access source type and the older Umbrella one.\n• `lower(action)` makes the comparison work whichever case the export uses.\n• `block_reason` prefers `blocked_category`, the category that triggered the block, and falls back to the full `category` list.\n• `stats` by domain and reason counts blocks and distinct identities, so widely blocked policy sites and single-host malware lookups are easy to tell apart.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard (or the Umbrella dashboard) under Reporting > Activity Search, filtered to Blocked and the same 7 days: the top domains there should match the top rows here.\n• Spot-check one row: search the domain in Activity Search and confirm the identity and category match.\n• Run `index=sse sourcetype=\"cisco:cloud_security:dns\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule weekly and email to the network security team; send security-category rows to the SOC as a ticket.\n• Use the top-identities panel to find hosts with repeated security blocks and open an endpoint investigation for each.\n• Review non-security blocks with the policy owner monthly.\n\nStep 5 — Troubleshooting\n• No DNS events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• `identities` is empty: the export is from a network-only deployment without roaming clients or AD integration, so only `src_ip` identifies the client.\n",
+  "grandmaExplanation": "We list the websites our internet filter blocked most this week and who tried to reach them, so we can spot infected computers and rules that block too much.",
   "prerequisiteUseCases": [],
   "wave": "crawl"
 }
