@@ -676,3 +676,53 @@ def test_sidecar_field_order_matches_schema_anchors() -> None:
     eq_idx = et._SIDECAR_FIELD_ORDER.index("equipment")
     eqm_idx = et._SIDECAR_FIELD_ORDER.index("equipmentModels")
     assert eq_idx < eqm_idx
+
+
+class TestCiscoPortfolioModels:
+    """Real-registry checks for the Cisco portfolio models."""
+
+    @staticmethod
+    def _models(**fields: str) -> list[str]:
+        sidecar = {"app": "", "spl": "", "dataSources": "", "implementation": "", "description": ""}
+        sidecar.update(fields)
+        return et._compute_tags(sidecar, _compile_patterns())[1]
+
+    @pytest.mark.parametrize(
+        ("text", "model"),
+        [
+            ("index=duo sourcetype=cisco:duo:authentication", "cisco_duo"),
+            ("Cisco Secure Access Add-on for Splunk", "cisco_secure_access"),
+            ("sourcetype=cisco:umbrella:dns", "cisco_secure_access"),
+            ("Cisco Secure Endpoint events", "cisco_secure_endpoint"),
+            ("sourcetype=cisco:xdr:incidents", "cisco_xdr"),
+            ("sourcetype=cisco:sna alarms", "cisco_secure_network_analytics"),
+            ("sourcetype=cisco:ai:defense", "cisco_ai_defense"),
+            ("sourcetype=cisco:secure:workload", "cisco_secure_workload"),
+            ("sourcetype=cisco:multicloud:defense:waf", "cisco_multicloud_defense"),
+            ("sourcetype=cisco:etd", "cisco_email_threat_defense"),
+            ("sourcetype=cisco:sma:submissions", "cisco_secure_malware_analytics"),
+            ("sourcetype=cisco:isovalent:processexec", "cisco_isovalent"),
+            ("Cisco Hypershield enforcement syslog", "cisco_hypershield"),
+            ("Cisco Nexus Hyperfabric assertions", "cisco_hyperfabric"),
+            ("%HSR_ALARM-2-HSR_RINGFAULT on an IE3400", "cisco_industrial_ethernet"),
+            ("sourcetype=cisco:cvi", "cisco_vulnerability_intelligence"),
+            ("sourcetype=cisco:nvm:flowdata:v2", "cisco_secure_client_nvm"),
+            ("sourcetype=cisco:evm:process_activity", "cisco_endpoint_visibility_module"),
+        ],
+    )
+    def test_product_patterns_tag_their_model(self, text: str, model: str) -> None:
+        assert model in self._models(dataSources=text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Duolingo streak notifications",
+            "Dual-homed uplink via duo-port bonding",
+            "VPN secure access for contractors through Palo Alto GlobalProtect",
+            "An umbrella policy for every business unit",
+            "Third-party vulnerability intelligence feed",
+        ],
+    )
+    def test_generic_phrases_do_not_tag_cisco_products(self, text: str) -> None:
+        models = self._models(dataSources=text, description=text)
+        assert not [m for m in models if m.startswith("cisco_")]
