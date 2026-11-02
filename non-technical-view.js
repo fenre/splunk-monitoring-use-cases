@@ -402,7 +402,8 @@ window.NON_TECHNICAL = {
       { name: "Okta & Duo", description: "Cloud identity providers. We track authentication failures, MFA bypass attempts, and suspicious activity.", ucs: [
         { id: "9.5.1", why: "Track Okta authentication failures — rising rates may indicate a credential attack." },
         { id: "9.5.2", why: "Detect MFA bypass attempts — attackers try to work around your second factor." },
-        { id: "9.5.14", why: "Catch Duo push fraud — attackers bombard users with MFA prompts hoping they accept." }
+        { id: "9.5.14", why: "Catch Duo push fraud — attackers bombard users with MFA prompts hoping they accept." },
+        { id: "9.5.19", why: "Find Duo users whose second factor is switched off or never set up — those accounts open with just a password." }
       ]},
       { name: "Endpoint & mobile devices", description: "Phones, tablets, and laptops enrolled in mobile device management. We check they follow your security policies.", ucs: [
         { id: "9.6.1", why: "See which devices comply with your security policies — and which don't." },
@@ -813,7 +814,8 @@ window.NON_TECHNICAL = {
       { name: "Zero Trust & SASE", description: "Conditional access, device trust, and micro-segmentation — including Zscaler, Palo Alto Prisma, and Cato Networks. We help you verify every connection.", ucs: [
         { id: "17.3.1", why: "Track conditional access enforcement — are the right policies being applied?" },
         { id: "17.3.25", why: "Monitor Cato Networks cloud security events — IPS, anti-malware, and firewall all in one." },
-        { id: "17.3.29", why: "Track Cato SD-WAN tunnel health — when a tunnel drops, the entire site loses connectivity." }
+        { id: "17.3.29", why: "Track Cato SD-WAN tunnel health — when a tunnel drops, the entire site loses connectivity." },
+        { id: "17.3.73", why: "See who sent sensitive files out through Cisco Secure Access, and whether they were stopped." }
       ]}
     ]
   },
