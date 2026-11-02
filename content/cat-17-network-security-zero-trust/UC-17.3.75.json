@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.75",
+  "title": "Cisco Secure Access Remote Access VPN Connection Failures and New Countries",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers the Secure Access cloud VPN only. Head-end VPNs on Secure Firewall ASA or FTD log separately through syslog.",
+  "evidence": "Saved alert results per user, plus the identity team's confirmation or the password reset record.",
+  "controlTest": {
+    "positiveScenario": "As a test user, attempt to connect to the Secure Access VPN with a wrong password six times within an hour. Within the S3 delay the FAILED events are indexed, and the search returns a row for the test user with `failures` of at least 5.",
+    "negativeScenario": "Connect once with the correct password. A CONNECTED event is indexed and the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:ravpn` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One CSV line per VPN session event, documented by Cisco in this order: timestamp, hostname, aws region, event type (CONNECTED, DISCONNECTED, FAILED, UNKNOWN), origin ids, origin type, user id, organization id, retention days, storage location, msp organization id, session id, session type, vpn profile, public ip, assigned ip, connected at, disconnection reason, os version, anyconnect version, and later columns including failed reasons.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:ravpn\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<vpn_hostname>[^\\\"]*)\\\",\\\"(?<aws_region>[^\\\"]*)\\\",\\\"(?<vpn_event>[^\\\"]*)\\\",\\\"(?<origin_ids>[^\\\"]*)\\\",\\\"(?<origin_type>[^\\\"]*)\\\",\\\"(?<user_id>[^\\\"]*)\\\",\\\"(?<org_id>[^\\\"]*)\\\",\\\"(?<retention_days>[^\\\"]*)\\\",\\\"(?<storage_location>[^\\\"]*)\\\",\\\"(?<msp_org_id>[^\\\"]*)\\\",\\\"(?<session_id>[^\\\"]*)\\\",\\\"(?<session_type>[^\\\"]*)\\\",\\\"(?<vpn_profile>[^\\\"]*)\\\",\\\"(?<public_ip>[^\\\"]*)\\\",\\\"(?<assigned_ip>[^\\\"]*)\\\",\\\"(?<connected_at>[^\\\"]*)\\\",\\\"(?<disconnection_reason>[^\\\"]*)\\\",\\\"(?<os_version>[^\\\"]*)\\\",\\\"(?<anyconnect_version>[^\\\"]*)\\\"\"\n| where vpn_event IN (\"CONNECTED\", \"FAILED\")\n| iplocation public_ip\n| bin _time span=1h\n| stats count(eval(vpn_event=\"FAILED\")) as failures count(eval(vpn_event=\"CONNECTED\")) as connects values(Country) as countries values(public_ip) as public_ips values(vpn_profile) as profiles values(os_version) as os_versions by _time user_id\n| where failures >= 5 OR mvcount(countries) >= 2\n| sort - failures",
+  "description": "Counts Secure Access remote access VPN failures and connections per user per hour, and flags users with five or more failed connections, or connections from two or more countries in the same hour based on the public IP. Each row shows the public addresses, VPN profiles, and client OS versions.",
+  "value": "Repeated VPN failures for one user are password guessing or a user locked out; connections from two countries in an hour mean a shared or stolen credential. Both are common first steps into the network, and the VPN is where they show up first.",
+  "implementation": "Collect the Secure Access Remote Access VPN log with the 7569 add-on into `index=sse`. Schedule hourly and alert on matching users.",
+  "visualization": "Alert table: _time, user_id, failures, connects, countries, public_ips, profiles, os_versions. Supporting panels: VPN failures per hour over 7 days (line chart), connections by country (choropleth map).",
+  "cimModels": [],
+  "schema": "OCSF: authentication",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Mobile and travel** — users switching between home broadband and a mobile network can appear in two countries when the carrier exits abroad.\n\n2. **Expired passwords and certificates** — a user whose password or certificate expired fails every retry until fixed.\n\n3. **IP geolocation errors** — `iplocation` uses a bundled database that can place cloud or carrier addresses in the wrong country.\n\n**Suppression:** throttle per user for 4 hours, and a lookup of known travel.",
+  "mitreAttack": [
+    "T1133",
+    "T1110"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "vpn_event",
+    "user_id",
+    "session_id",
+    "vpn_profile",
+    "public_ip",
+    "assigned_ip",
+    "disconnection_reason",
+    "os_version"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_access"
+  ],
+  "capabilities": [
+    "secure_access.remote_access_vpn"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **Remote Access VPN** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:ravpn`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Secure Access writes this log as CSV with every value in double quotes, in a fixed column order that Cisco documents per log version. The search reads the columns it needs from `_raw` with `rex` in that documented order, so it works whether or not the add-on's own field names match. New columns are only added at the end in later versions, so the leading columns stay in place.\n• Check the column order on one event: run `index=sse sourcetype=\"cisco:cloud_security:ravpn\" | head 1 | table _raw` and confirm the fourth quoted value is CONNECTED, DISCONNECTED, or FAILED.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:ravpn\"\n| rex field=_raw \"^\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<vpn_hostname>[^\\\"]*)\\\",\\\"(?<aws_region>[^\\\"]*)\\\",\\\"(?<vpn_event>[^\\\"]*)\\\",\\\"(?<origin_ids>[^\\\"]*)\\\",\\\"(?<origin_type>[^\\\"]*)\\\",\\\"(?<user_id>[^\\\"]*)\\\",\\\"(?<org_id>[^\\\"]*)\\\",\\\"(?<retention_days>[^\\\"]*)\\\",\\\"(?<storage_location>[^\\\"]*)\\\",\\\"(?<msp_org_id>[^\\\"]*)\\\",\\\"(?<session_id>[^\\\"]*)\\\",\\\"(?<session_type>[^\\\"]*)\\\",\\\"(?<vpn_profile>[^\\\"]*)\\\",\\\"(?<public_ip>[^\\\"]*)\\\",\\\"(?<assigned_ip>[^\\\"]*)\\\",\\\"(?<connected_at>[^\\\"]*)\\\",\\\"(?<disconnection_reason>[^\\\"]*)\\\",\\\"(?<os_version>[^\\\"]*)\\\",\\\"(?<anyconnect_version>[^\\\"]*)\\\"\"\n| where vpn_event IN (\"CONNECTED\", \"FAILED\")\n| iplocation public_ip\n| bin _time span=1h\n| stats count(eval(vpn_event=\"FAILED\")) as failures count(eval(vpn_event=\"CONNECTED\")) as connects values(Country) as countries values(public_ip) as public_ips values(vpn_profile) as profiles values(os_version) as os_versions by _time user_id\n| where failures >= 5 OR mvcount(countries) >= 2\n| sort - failures\n```\n\nUnderstanding this SPL\n• `rex` reads the first 20 documented columns; `vpn_event` is the event type and `public_ip` the address the client connected from.\n• `iplocation` adds `Country` from the public IP using Splunk's bundled geolocation database.\n• `mvcount(countries) >= 2` within one hour flags connections from two countries.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Remote Access Log for the same user and time range: connections and failures should match within the S3 delay.\n• Pick three events in Splunk and compare each extracted field with the same row in the CSV file in the S3 bucket.\n• Run `index=sse sourcetype=\"cisco:cloud_security:ravpn\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule hourly over the last 70 minutes and throttle on `user_id` for 4 hours.\n• Route failure bursts to the identity team and two-country rows to the SOC; for two-country rows, end the user's sessions and reset the password if the user cannot explain them.\n• Review VPN client versions in `os_versions` monthly for unsupported releases.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• Empty fields after `rex`: the log export is set to an older log version with a different column order, or the line has a header row. Check the version in Admin > Log Management and compare one `_raw` line with Cisco's column list.\n• No Remote Access VPN events at all: the log type is not enabled in Admin > Log Management, or the S3 input path does not include its folder.\n",
+  "grandmaExplanation": "We watch for someone failing to log in to the company's remote network many times, or logging in from two countries within an hour, because that often means someone else has their password.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}

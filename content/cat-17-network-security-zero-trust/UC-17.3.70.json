@@ -1,0 +1,73 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.70",
+  "title": "Cisco Secure Access Automated Web Reconnaissance via HTTP Errors",
+  "criticality": "medium",
+  "difficulty": "intermediate",
+  "monitoringType": [
+    "Security"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Only sees web traffic that goes through the Secure Access web gateway. Scans that use HTTPS without decryption still show the status code only if decryption is on for that destination.",
+  "evidence": "Saved alert results with source, target domain, and counts, plus the confirmation that the source was an approved scanner or the incident record if not.",
+  "controlTest": {
+    "positiveScenario": "From a test device behind the Secure Access web gateway, run an authorised directory-enumeration tool against a test web server you own for one minute, requesting at least 120 non-existent paths. The next run returns a row for the device and the test domain with `errors` above 100 and `unique_urls` above 50.",
+    "negativeScenario": "Browse the same test site normally from the same device. A few 404s are logged, but the counts stay far below the thresholds and the search returns no row."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:proxy` from the Secure Access or Umbrella S3 log bucket, read by the Cisco Secure Access Add-on (7569). One event per web request through the secure web gateway with `src_ip`, `url`, `status`, `http_user_agent`, `user`, and `identities`, tagged for the CIM Web data model.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:proxy\"\n| eval src_ip=coalesce(src_ip, src), user=coalesce(user, identities), status=tonumber(status)\n| eval domain=replace(url, \"^https?://([^/]+).*$\", \"\\1\"), user_agent=coalesce(http_user_agent, user_agent)\n| where status IN (400, 401, 403, 404, 405, 407, 414, 429, 431)\n| bin _time span=10m\n| stats count as errors dc(url) as unique_urls values(status) as statuses values(user_agent) as user_agent values(user) as user by src_ip domain _time\n| where errors > 100 AND unique_urls > 50",
+  "description": "Finds a source device that, in ten minutes, got more than 100 HTTP client errors (400, 401, 403, 404, 405, 407, 414, 429, 431) from one site across more than 50 different URLs. That pattern is what directory brute-forcing and vulnerability scanners produce. Adapted from the Splunk Security Content detection for Cisco Secure Access.",
+  "value": "Users do not hit 50 broken URLs on one site in ten minutes; tools do. When the source is inside your network, it is either an approved scanner or a compromised device probing a target, and both need to be known.",
+  "implementation": "Collect the Secure Access proxy log with the 7569 add-on into `index=sse`. Schedule every 10 minutes over the last 20 minutes and alert on every row not in the approved-scanner lookup.",
+  "visualization": "Alert table: _time, src_ip, domain, errors, unique_urls, statuses, user_agent, user. Supporting panel: error-burst rows per day over 30 days (column chart).",
+  "cimModels": [
+    "Web"
+  ],
+  "cimSpl": "| tstats summariesonly=true count as errors dc(Web.url) as unique_urls values(Web.status) as statuses values(Web.http_user_agent) as user_agent values(Web.user) as user from datamodel=Web.Web where index=sse (Web.status=400 OR Web.status=401 OR Web.status=403 OR Web.status=404 OR Web.status=405 OR Web.status=407 OR Web.status=414 OR Web.status=429 OR Web.status=431) by Web.src Web.dest _time span=10m\n| rename Web.* as *\n| where errors > 100 AND unique_urls > 50",
+  "schema": "OCSF: http_activity",
+  "dataModelAcceleration": "Web (accelerated over index=sse)",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk Security Content detection: Cisco SA - Automated Web Reconnaissance via HTTP Access Errors",
+      "url": "https://github.com/splunk/security_content/blob/develop/detections/web/cisco_sa___automated_web_reconnaissance_via_http_access_errors.yml",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Approved scanners** — vulnerability scanners and penetration tests produce exactly this pattern. Keep their source addresses and test windows in a lookup.\n\n2. **QA automation and uptime monitors** — test suites that check many URLs, including ones expected to fail.\n\n3. **Broken sites** — a site that moved its content can return 404 to a crawler or a link checker.\n\n**Suppression:** a lookup of scanner hosts, user agents, and test domains, applied before alerting.",
+  "mitreAttack": [
+    "T1595.003"
+  ],
+  "detectionType": "Anomaly",
+  "securityDomain": "network",
+  "requiredFields": [
+    "src_ip",
+    "url",
+    "status",
+    "http_user_agent",
+    "user",
+    "identities"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_access"
+  ],
+  "capabilities": [
+    "secure_access.secure_web_gateway"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n• For the tstats variant: Splunk Common Information Model (Splunkbase 1621) with the Web data model accelerated and `sse` in the `cim_Web_indexes` macro.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **Web proxy** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:proxy`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Check the fields this search needs: run `index=sse sourcetype=\"cisco:cloud_security:proxy\" | stats count by status` over 1 day and confirm 4xx values appear.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:proxy\"\n| eval src_ip=coalesce(src_ip, src), user=coalesce(user, identities), status=tonumber(status)\n| eval domain=replace(url, \"^https?://([^/]+).*$\", \"\\1\"), user_agent=coalesce(http_user_agent, user_agent)\n| where status IN (400, 401, 403, 404, 405, 407, 414, 429, 431)\n| bin _time span=10m\n| stats count as errors dc(url) as unique_urls values(status) as statuses values(user_agent) as user_agent values(user) as user by src_ip domain _time\n| where errors > 100 AND unique_urls > 50\n```\n\nUnderstanding this SPL\n• `coalesce` covers events where the add-on used `src` or `identities` instead of `src_ip` or `user`.\n• `replace` pulls the host name out of the URL, so requests are grouped per target site.\n• The status list is the client-error codes a scanner hits: missing (404), forbidden (403), auth (401, 407), method (405), and rate limiting (429).\n• `errors > 100 AND unique_urls > 50` per 10 minutes needs both volume and breadth, so one broken page refreshed many times does not alert.\n\nAccelerated variant over the CIM data model:\n```spl\n| tstats summariesonly=true count as errors dc(Web.url) as unique_urls values(Web.status) as statuses values(Web.http_user_agent) as user_agent values(Web.user) as user from datamodel=Web.Web where index=sse (Web.status=400 OR Web.status=401 OR Web.status=403 OR Web.status=404 OR Web.status=405 OR Web.status=407 OR Web.status=414 OR Web.status=429 OR Web.status=431) by Web.src Web.dest _time span=10m\n| rename Web.* as *\n| where errors > 100 AND unique_urls > 50\n```\n• The tstats variant groups by `Web.src` and `Web.dest` from the Web data model instead of parsing the URL.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Reporting > Activity Search, filtered to Web, the source identity, and the time window: the request count should match within the S3 delay.\n• Run the raw and tstats variants over the same hour after acceleration has caught up; the rows should match.\n• Run `index=sse sourcetype=\"cisco:cloud_security:proxy\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Schedule every 10 minutes over the last 20 minutes and throttle on `src_ip` plus `domain` for 1 hour.\n• Route to the SOC. If the source is not an approved scanner, check the device with endpoint tools and look for other scanning in firewall logs.\n• Keep the approved-scanner lookup current with the vulnerability management team.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• No proxy events with 4xx status: HTTPS decryption is off, so the gateway does not see the response code for most sites.\n• The tstats variant returns nothing while the raw search works: the Web data model is not accelerated over `index=sse`.\n",
+  "grandmaExplanation": "When one computer asks a website for dozens of pages that do not exist in a few minutes, it is a program poking around for weak spots, not a person. We flag that.",
+  "prerequisiteUseCases": [],
+  "wave": "walk"
+}
