@@ -772,6 +772,14 @@ register(
 )
 register(
     Verb(
+        name="generate-cisco-coverage",
+        module="generators.cisco_coverage",
+        help="Write reports/cisco-coverage/ (capability matrix + gap list) from data/cisco-portfolio.json.",
+        category="generators",
+    )
+)
+register(
+    Verb(
         name="generate-evidence-signatures",
         module="generators.sign_evidence",
         help="Generate dist/evidence manifests and optional GPG signatures (Phase C-2).",

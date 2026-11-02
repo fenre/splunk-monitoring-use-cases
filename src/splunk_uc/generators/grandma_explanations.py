@@ -113,6 +113,7 @@ _SIDECAR_FIELD_ORDER: tuple[str, ...] = (
     "requiredFields",
     "equipment",
     "equipmentModels",
+    "capabilities",
     "hardware",
     "telcoUseCase",
     "status",
