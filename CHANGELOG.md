@@ -33,11 +33,56 @@ the release notes block in `index.html` by hand.
     far; most are `incorrect`, with evidence-backed blockers such as the
     "Universal Forwarder (Splunkbase 617)" collector line, which points at a
     non-existent app.
+- **Cisco portfolio coverage map.** [`data/cisco-portfolio.json`](data/cisco-portfolio.json)
+  lists 36 Cisco products with their Splunkbase collectors, sourcetypes, and
+  vendor-documented capabilities. A new optional UC field, `capabilities[]`,
+  tags the capabilities a search watches.
+  - `python -m splunk_uc generate-cisco-coverage` writes
+    [`reports/cisco-coverage/matrix.md`](reports/cisco-coverage/matrix.md):
+    covered, uncovered, and CIM-gap status per capability, plus the ordered
+    authoring queue.
+  - `python -m splunk_uc audit-cisco-coverage --check` is a CI ratchet over the
+    matrix with waivers and a shrinking backlog in
+    `data/cisco-coverage-baseline.json`.
+  - `api/v1/equipment/cisco.json` carries `capabilityCoverage` on each Cisco model.
+  - Coverage now stands at 22 of 54 observable capabilities, and 2 of 3 where a
+    CIM model applies. Secure Access App Discovery is waived because Cisco
+    publishes no field list for it.
+
+### New Use Cases
+
+- **Cisco tier 1 products: +19 use cases (16,652 → 16,671).** Every new use
+  case is gold depth (95), cites vendor documentation, and is tagged with
+  `capabilities[]`.
+  - Duo: Trust Monitor priority events (UC-9.5.16, API end of support 31
+    January 2027), telephony credit spikes (UC-9.5.17), out-of-date and
+    end-of-life endpoints (UC-9.5.18), and users in bypass or not enrolled
+    (UC-9.5.19).
+  - Secure Endpoint (`cisco:se`): threat detections (UC-10.3.682), quarantine
+    failures (UC-10.3.683), retrospective detections (UC-10.3.684), and
+    exploit prevention (UC-10.3.685).
+  - Secure Access: rare DNS domains over CIM Network_Resolution (UC-17.3.68),
+    the ESCU anonymizer and web-reconnaissance detections (UC-17.3.69,
+    UC-17.3.70), cloud firewall (UC-17.3.71), IPS (UC-17.3.72), DLP
+    (UC-17.3.73), ZTNA (UC-17.3.74), RAVPN (UC-17.3.75), and admin audit
+    (UC-17.3.76). Searches over log types without published add-on field names
+    read Cisco's documented CSV column order with `rex`.
+  - XDR: open incidents by severity and age (UC-10.7.720), and Enterprise
+    Security promotion health (UC-10.7.721).
 
 ### Changed
 
 - CI caps v2 template families and text-quality major findings at the
   2026-10-26 baseline, and schema-validates the review ledger.
+- **Cisco Duo use cases now point at Cisco Security Cloud (Splunkbase 7404).**
+  The Duo Splunk Connector (3504) reaches end of life on 31 May 2026. The
+  ESCU-derived Duo detections and the 9.5.x authentication use cases are
+  lifted to the v2 authentication log, with real detection SPL and gold depth.
+- **Umbrella / Secure Access web and DNS use cases (10.5.x, 17.3.14)** now use
+  the Cisco Secure Access Add-on (7569). AI Defense (10.3.9) and the Secure
+  Endpoint tamper detections (10.3.411–10.3.413, 10.6.78) are lifted to gold.
+- Cisco equipment models and collision-safe patterns were added to the equipment
+  registry, and equipment tags were regenerated.
 
 ## [8.25.0] - 2026-07-24
 
