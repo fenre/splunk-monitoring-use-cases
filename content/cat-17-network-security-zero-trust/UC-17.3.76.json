@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schemas/uc.schema.json",
+  "id": "17.3.76",
+  "title": "Cisco Secure Access Policy and Settings Changes by Administrator",
+  "criticality": "medium",
+  "difficulty": "beginner",
+  "monitoringType": [
+    "Security",
+    "Change"
+  ],
+  "splunkPillar": "Security",
+  "exclusions": "Covers changes made in the Secure Access dashboard and API. Changes to identity providers or to devices that send traffic to Secure Access are logged in those systems.",
+  "evidence": "Daily report export, plus the change ticket for each change type outside a change window.",
+  "controlTest": {
+    "positiveScenario": "As a test administrator, add a test domain to a destination list in the Secure Access dashboard. Within the S3 delay an audit event is indexed with your email and an update action, and the daily report lists your email with that change type.",
+    "negativeScenario": "Log in to the dashboard and view reports without changing anything. No audit event is created and your email does not appear for that window."
+  },
+  "dataSources": "`index=sse sourcetype=cisco:cloud_security:audit` from the Secure Access S3 log bucket, read by the Cisco Secure Access Add-on (7569). One CSV line per administrative change, documented by Cisco in this order: id, timestamp, email, user, type, action, logged in from, before, after. The before and after values may span several lines.",
+  "app": "Cisco Secure Access Add-on for Splunk ([Splunkbase 7569](https://splunkbase.splunk.com/app/7569)), which reads Cisco Secure Access and Cisco Umbrella logs from the S3 log bucket and maps the web proxy log to the CIM Web data model. The companion Cisco Secure Access App (Splunkbase 5558) adds dashboards.",
+  "spl": "index=sse sourcetype=\"cisco:cloud_security:audit\"\n| rex field=_raw \"^\\\"(?<audit_id>[^\\\"]*)\\\",\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<admin_email>[^\\\"]*)\\\",\\\"(?<admin_user>[^\\\"]*)\\\",\\\"(?<change_type>[^\\\"]*)\\\",\\\"(?<change_action>[^\\\"]*)\\\",\\\"(?<logged_in_from>[^\\\"]*)\\\"\"\n| eval change_action=lower(change_action)\n| iplocation logged_in_from\n| stats count values(change_type) as change_types values(change_action) as actions values(logged_in_from) as source_ips values(Country) as countries min(_time) as firstTime max(_time) as lastTime by admin_email\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count",
+  "description": "Summarises Secure Access administrative changes per administrator: what kinds of objects they changed (policies, destination lists, log export, and so on), the actions (create, update, delete), the source IPs and countries they logged in from, and the time span.",
+  "value": "Who changed security policy and when is the first question in every incident and every audit. This view answers it per administrator, and makes an unexpected change, such as a destination list edited from an unfamiliar country or a log export setting changed, stand out.",
+  "implementation": "Collect the Secure Access Admin Audit log with the 7569 add-on into `index=sse`. Run daily as a report, and alert on any change to log export settings or from a country not in the administrator lookup.",
+  "visualization": "Table: admin_email, count, change_types, actions, source_ips, countries, firstTime, lastTime. Supporting panel: changes per day by type over 90 days (stacked column).",
+  "cimModels": [],
+  "schema": "OCSF: api_activity",
+  "references": [
+    {
+      "title": "Cisco Secure Access Add-on for Splunk (Splunkbase 7569)",
+      "url": "https://splunkbase.splunk.com/app/7569",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Cisco Secure Access: Log Formats and Versioning",
+      "url": "https://www.cisco.com/c/en/us/td/docs/security/secure-access/secure-access-help/CiscoSecureAccessHelp/logging-intro/log_formats_and_versioning.html",
+      "retrieved": "2026-11-02"
+    },
+    {
+      "title": "Splunk: Integrated Enterprise Value for Cisco data (supported source types)",
+      "url": "https://help.splunk.com/en/splunk-cloud-platform/get-started/get-data-in/10.5.2605/cisco-source-type-benefit/integrated-enterprise-value-for-cisco-data",
+      "retrieved": "2026-11-02"
+    }
+  ],
+  "knownFalsePositives": "1. **Change windows** — planned policy work produces many changes from one administrator in a short time.\n\n2. **API and automation** — changes made through the Secure Access API by an integration show the API key owner as the administrator.\n\n**Suppression:** a change-window lookup; no suppression for log export changes.",
+  "mitreAttack": [
+    "T1562.008"
+  ],
+  "detectionType": "Hunting",
+  "securityDomain": "network",
+  "requiredFields": [
+    "audit_id",
+    "admin_email",
+    "admin_user",
+    "change_type",
+    "change_action",
+    "logged_in_from"
+  ],
+  "equipment": [
+    "cisco"
+  ],
+  "equipmentModels": [
+    "cisco_secure_access"
+  ],
+  "capabilities": [
+    "secure_access.admin_audit"
+  ],
+  "splunkVersions": [
+    "9.2+",
+    "Cloud"
+  ],
+  "detailedImplementation": "Prerequisites\n• Cisco Secure Access Add-on for Splunk (Splunkbase 7569) on the search heads and on the heavy forwarder or Inputs Data Manager that reads the S3 bucket.\n• Log export to Amazon S3 enabled in the Secure Access or Umbrella dashboard (Admin > Log Management), either a Cisco-managed bucket or your own, with the access key and secret for Splunk.\n• An index for Secure Access and Umbrella data (this page uses `index=sse`) and a role with `srchIndexesAllowed` on it for the network security team.\n\nStep 1 — Configure data collection\n• In the Cisco Secure Access Add-on (Splunkbase 7569) create an S3 modular input for the **Admin Audit** log folder with the bucket name, region, access key, and secret, and set the index to `sse`. The add-on writes `sourcetype=cisco:cloud_security:audit`.\n• Logs reach S3 in batches, so events usually arrive in Splunk 10 to 15 minutes after the activity.\n• Secure Access writes this log as CSV with every value in double quotes, in a fixed column order that Cisco documents per log version. The search reads the columns it needs from `_raw` with `rex` in that documented order, so it works whether or not the add-on's own field names match. New columns are only added at the end in later versions, so the leading columns stay in place.\n• Check the column order on one event: run `index=sse sourcetype=\"cisco:cloud_security:audit\" | head 1 | table _raw` and confirm the third quoted value is an email address.\n\nStep 2 — Create the search and alert\n```spl\nindex=sse sourcetype=\"cisco:cloud_security:audit\"\n| rex field=_raw \"^\\\"(?<audit_id>[^\\\"]*)\\\",\\\"(?<ts>[^\\\"]*)\\\",\\\"(?<admin_email>[^\\\"]*)\\\",\\\"(?<admin_user>[^\\\"]*)\\\",\\\"(?<change_type>[^\\\"]*)\\\",\\\"(?<change_action>[^\\\"]*)\\\",\\\"(?<logged_in_from>[^\\\"]*)\\\"\"\n| eval change_action=lower(change_action)\n| iplocation logged_in_from\n| stats count values(change_type) as change_types values(change_action) as actions values(logged_in_from) as source_ips values(Country) as countries min(_time) as firstTime max(_time) as lastTime by admin_email\n| convert ctime(firstTime) ctime(lastTime)\n| sort - count\n```\n\nUnderstanding this SPL\n• `rex` reads the first seven documented columns only, because the before and after values can contain line breaks and quotes.\n• `iplocation` adds `Country` for the address the administrator logged in from.\n• `stats` by administrator gives one row per person for the review.\n\nStep 3 — Validate\n• Compare with the Secure Access dashboard under Admin > Admin Audit Log for the same time range: every change there should appear here within the S3 delay.\n• Pick three events in Splunk and compare each extracted field with the same row in the CSV file in the S3 bucket.\n• Run `index=sse sourcetype=\"cisco:cloud_security:audit\" | timechart span=1h count` over 7 days; gaps longer than an hour point to S3 input failures.\n\nStep 4 — Operationalize\n• Run daily over the previous day and send to the security platform owner.\n• Alert immediately on `change_types` containing log export settings, because turning off log export blinds this whole pipeline.\n• Keep a lookup of administrators and their expected countries, and alert on logins from others.\n\nStep 5 — Troubleshooting\n• No proxy events and S3 access errors (403 AccessDenied) in the add-on log: the access key cannot read the bucket or the region is wrong.\n• Events arrive hours late: the input polling interval is long, or the bucket path prefix is wrong and the input scans the whole bucket.\n• Empty fields after `rex`: the log export is set to an older log version with a different column order, or the line has a header row. Check the version in Admin > Log Management and compare one `_raw` line with Cisco's column list.\n• No Admin Audit events at all: the log type is not enabled in Admin > Log Management, or the S3 input path does not include its folder.\n",
+  "grandmaExplanation": "We keep a list of who changed the company's internet security rules, what they changed, and where they logged in from, so every change can be explained.",
+  "prerequisiteUseCases": [],
+  "wave": "crawl"
+}
