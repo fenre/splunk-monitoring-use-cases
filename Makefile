@@ -1,4 +1,4 @@
-.PHONY: build serve clean clean-tree audit audit-full audit-ntv audit-all audit-structure \
+.PHONY: build serve clean clean-tree audit audit-full audit-cisco-coverage audit-ntv audit-all audit-structure \
        audit-cim audit-links audit-consistency audit-perf audit-placeholders \
        audit-mitre audit-gold audit-spl-duplicates audit-spl-grammar audit-ids \
        audit-spl-hallucinations audit-spl-references audit-spl-references-build \
@@ -116,7 +116,7 @@ audit: audit-structure audit-cim audit-consistency ## Run core audit checks
 
 # --- Audits (comprehensive) ---
 
-audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence ## Run ALL audit checks
+audit-full: audit audit-placeholders audit-mitre audit-spl-duplicates audit-spl-grammar audit-spl-anti-patterns-check audit-ids audit-monitoring-type audit-codeowners-coverage audit-exclusions-coverage audit-dashboards audit-sarif audit-observability-drift audit-cost-coverage audit-vendor-changelog audit-cisco-tag-evidence audit-cisco-coverage ## Run ALL audit checks
 
 audit-structure: ## Audit UC JSON structure (content/cat-*/UC-*.json)
 	$(SPLUNK_UC) audit-uc-structure --full
@@ -159,6 +159,9 @@ audit-spl-hallucinations: ## Detect SPL hallucinations (unknown commands, bad CI
 
 audit-spl-references: ## Validate SPL identifiers against curated vocabulary (HIGH gate)
 	$(SPLUNK_UC) audit-spl-references --check
+
+audit-cisco-coverage: ## Ratchet gate: Cisco portfolio capability coverage (data/cisco-coverage-baseline.json)
+	$(SPLUNK_UC) audit-cisco-coverage --check
 
 audit-spl-anti-patterns: ## Report SPL style/risk anti-patterns (writes dist/audits/)
 	$(SPLUNK_UC) audit-spl-anti-patterns

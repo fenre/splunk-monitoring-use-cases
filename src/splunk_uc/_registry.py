@@ -183,6 +183,14 @@ register(
 )
 register(
     Verb(
+        name="audit-cisco-coverage",
+        module="audits.cisco_coverage",
+        help="Ratchet gate: Cisco portfolio capabilities covered by UCs (waivers + shrinking backlog).",
+        category="audits",
+    )
+)
+register(
+    Verb(
         name="audit-legal-review-signoffs",
         module="audits.legal_review_signoffs",
         help="Validate data/provenance/legal-review-signoffs.json schema + cross-references.",
